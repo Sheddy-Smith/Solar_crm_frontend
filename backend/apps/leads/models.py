@@ -3,7 +3,7 @@ import uuid
 from decimal import Decimal, InvalidOperation
 from django.core.files.base import ContentFile
 from django.db import models, transaction, IntegrityError
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from django.utils.text import slugify
 from apps.accounts.models import User
@@ -589,6 +589,16 @@ class LeadSurveyPhoto(models.Model):
         ordering = ['-uploaded_at']
 
 
+@receiver(pre_save, sender=Lead)
+def remember_previous_follow_up_date(sender, instance, **kwargs):
+    if not instance.pk:
+        instance._previous_next_follow_up = None
+        return
+    instance._previous_next_follow_up = (
+        sender.objects.filter(pk=instance.pk).values_list('next_follow_up', flat=True).first()
+    )
+
+
 @receiver(post_save, sender=Lead)
 def close_follow_ups_when_lead_closed(sender, instance, **kwargs):
     """Won/Lost → close Scheduled follow-ups so Extra High / High Alert clear."""
@@ -596,6 +606,15 @@ def close_follow_ups_when_lead_closed(sender, instance, **kwargs):
         return
     from apps.leads.followup_sync import close_scheduled_follow_ups_for_closed_lead
     close_scheduled_follow_ups_for_closed_lead(instance)
+
+
+@receiver(post_save, sender=Lead)
+def move_alerts_when_follow_up_date_changes(sender, instance, created, **kwargs):
+    """A new follow-up date replaces the old High / Extra High row."""
+    if created or instance.status in ('Won', 'Lost'):
+        return
+    from apps.leads.followup_sync import align_alerts_to_lead_follow_up_date
+    align_alerts_to_lead_follow_up_date(instance, getattr(instance, '_previous_next_follow_up', None))
 
 
 @receiver(post_save, sender=Lead)

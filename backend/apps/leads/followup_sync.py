@@ -89,6 +89,90 @@ def close_superseded_scheduled_follow_ups(lead):
     return closed
 
 
+def _local_date(value):
+    if value is None:
+        return None
+    if timezone.is_aware(value):
+        value = timezone.localtime(value)
+    return value.date()
+
+
+def _follow_up_moment(value):
+    """Keep a date-only form value on that calendar day at 10:00 local."""
+    if value is None:
+        return None
+    local = timezone.localtime(value) if timezone.is_aware(value) else timezone.make_aware(value)
+    if local.hour == 0 and local.minute == 0 and local.second == 0:
+        local = local.replace(hour=10, minute=0, second=0, microsecond=0)
+    return local
+
+
+def reschedule_open_follow_ups(lead, new_when):
+    """Move the open plan when the lead follow-up date itself is edited.
+
+    High Alert / Extra High Alert read the Scheduled row, not only
+    `lead.next_follow_up`. A date change on the lead form has to move that
+    row, otherwise the old day stays on the alert.
+    """
+    if not lead:
+        return 0
+    rows = list(
+        lead.follow_ups.filter(status='Scheduled', is_deleted=False).order_by('scheduled_at', 'id')
+    )
+    now = timezone.now()
+    if new_when is None:
+        closed = 0
+        for fu in rows:
+            fu.status = 'Completed'
+            fu.completed_at = now
+            if not (fu.outcome or '').strip():
+                fu.outcome = 'Follow-up date cleared'
+            fu.save(update_fields=['status', 'completed_at', 'outcome'])
+            closed += 1
+        return closed
+
+    moment = _follow_up_moment(new_when)
+    if not rows:
+        lead.follow_ups.create(
+            follow_up_type='Call',
+            scheduled_at=moment,
+            status='Scheduled',
+            notes='Follow-up date updated.',
+        )
+        return 1
+
+    primary = rows[-1]
+    primary.scheduled_at = moment
+    primary.save(update_fields=['scheduled_at'])
+    closed = 0
+    for fu in rows[:-1]:
+        if fu.scheduled_at and fu.scheduled_at < now:
+            fu.status = 'Missed'
+            fu.save(update_fields=['status'])
+        else:
+            fu.status = 'Completed'
+            fu.completed_at = now
+            if not (fu.outcome or '').strip():
+                fu.outcome = SUPERSEDED_NOTE
+            fu.save(update_fields=['status', 'completed_at', 'outcome'])
+        closed += 1
+    return closed + 1
+
+
+def align_alerts_to_lead_follow_up_date(lead, previous_next):
+    """Drop or move alerts when the lead follow-up date changes."""
+    if not lead or getattr(lead, '_aligning_follow_up', False):
+        return
+    if _local_date(previous_next) == _local_date(lead.next_follow_up):
+        return
+    lead._aligning_follow_up = True
+    try:
+        reschedule_open_follow_ups(lead, lead.next_follow_up)
+        sync_lead_next_follow_up(lead)
+    finally:
+        lead._aligning_follow_up = False
+
+
 def sync_lead_next_follow_up(lead):
     """Point `lead.next_follow_up` at the earliest remaining Scheduled row."""
     if lead and lead.status in CLOSED_LEAD_STATUSES:

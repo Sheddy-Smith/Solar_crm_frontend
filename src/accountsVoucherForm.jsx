@@ -51,9 +51,9 @@ export function PaymentVoucherFormModal({
     let cancelled = false;
     setLoadingOptions(true);
     Promise.all([
-      accountsModuleApi.parties.list({ account_type: 'Vendor', page_size: 200 }),
-      accountsModuleApi.parties.list({ account_type: 'Supplier', page_size: 200 }),
-      workforceApi.listEmployees({ page_size: 200 }),
+      accountsModuleApi.parties.list({ account_type: 'Vendor', page_size: 25 }),
+      accountsModuleApi.parties.list({ account_type: 'Supplier', page_size: 25 }),
+      workforceApi.listEmployees({ page_size: 25 }),
     ])
       .then(([vendorRes, supplierRes, employeeRes]) => {
         if (cancelled) return;

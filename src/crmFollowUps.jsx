@@ -10,24 +10,22 @@ import {
   Zap,
 } from 'lucide-react';
 import { followUpApi } from './api.js';
+import { fetchEveryPage, mergeFollowUpRows, rowsOf } from './lib/listQuery.js';
 import { hasModuleAccess } from './settingsHubPages.jsx';
 import {
   followUpAgeLabel,
   formatDateTime,
   splitFollowUpAlerts,
   activeScheduledFollowUps,
+  followUpOwnershipLabel,
 } from './telePortal.jsx';
 
 function cx(...classes) {
   return classes.filter(Boolean).join(' ');
 }
 
-function normalizeRows(data) {
-  return Array.isArray(data) ? data : (data?.results ?? []);
-}
-
 function missedByLabel(item) {
-  return item.lead_assigned_to_name || item.created_by_name || 'Unassigned';
+  return followUpOwnershipLabel(item, { extra: true });
 }
 
 export function CrmFollowUpsPage({
@@ -48,8 +46,20 @@ export function CrmFollowUpsPage({
   }, [initialTab]);
 
   const load = () => {
-    followUpApi.listAll({ page_size: 200, ordering: '-scheduled_at' })
-      .then((data) => setRows(normalizeRows(data)))
+    // Same source as Dashboard / Tele: walk every Scheduled page so Extra High
+    // is not truncated by the default page_size=25 newest-first slice.
+    Promise.all([
+      fetchEveryPage((page, pageSize) => followUpApi.listAll({
+        page,
+        page_size: pageSize,
+        status: 'Scheduled',
+        ordering: 'scheduled_at',
+      })),
+      followUpApi.listAll({ page_size: 100, ordering: '-created_at' }),
+    ])
+      .then(([scheduled, recent]) => {
+        setRows(mergeFollowUpRows(scheduled, rowsOf(recent)));
+      })
       .catch(() => {
         setRows([]);
         onNotify?.('Follow-ups could not be loaded.', 'error');
@@ -277,8 +287,7 @@ export function CrmFollowUpsPage({
                       {followUpAgeLabel(item.scheduled_at)}
                     </p>
                     <p className="mt-1 text-[12px] font-extrabold text-[#1e3261]">
-                      {isExtraAlert ? 'Missed by: ' : 'Scheduled / logged by: '}
-                      {missedByLabel(item)}
+                      {isExtraAlert ? missedByLabel(item) : `Scheduled / logged by: ${item.created_by_name || item.lead_assigned_to_name || 'Unassigned'}`}
                     </p>
                     {item.lead_assigned_to_name && item.created_by_name && item.lead_assigned_to_name !== item.created_by_name ? (
                       <p className="text-[11px] font-semibold text-[#53647f]">Logged by: {item.created_by_name}</p>

@@ -178,7 +178,7 @@ function VendorDetailsTab({ caps, onNotify, addRequested = false, onAddRequestCo
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await accountsModuleApi.parties.list({ account_type: 'Vendor', page_size: 200 });
+      const data = await accountsModuleApi.parties.list({ account_type: 'Vendor', page_size: 25 });
       setRows(normalizeApiRows(data));
     } catch (e) {
       onNotify(e.message || 'Failed to load vendors', 'error');
@@ -369,7 +369,7 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
   const [detail, setDetail] = useState(null);
 
   useEffect(() => {
-    accountsModuleApi.parties.list({ account_type: 'Vendor', page_size: 200 })
+    accountsModuleApi.parties.list({ account_type: 'Vendor', page_size: 25 })
       .then((data) => setVendors(normalizeApiRows(data)))
       .catch((e) => onNotify(e.message || 'Failed to load vendors', 'error'));
   }, [onNotify]);

@@ -1,6 +1,8 @@
 AddType application/vnd.android.package-archive .apk
 AddType application/json .json
 AddType application/manifest+json .webmanifest
+AddType application/javascript .js
+AddType text/javascript .js
 
 <IfModule mod_headers.c>
   <FilesMatch "\.apk$">
@@ -14,6 +16,7 @@ AddType application/manifest+json .webmanifest
   <FilesMatch "^(sw\.js|sw-.*\.js|recover\.html)$">
     Header set Cache-Control "no-cache, no-store, must-revalidate"
     Header set Pragma "no-cache"
+    Header set Content-Type "application/javascript; charset=UTF-8"
   </FilesMatch>
   <FilesMatch "assetlinks\.json$">
     Header set Cache-Control "no-cache, no-store, must-revalidate"
@@ -28,6 +31,12 @@ AddType application/manifest+json .webmanifest
   # Never rewrite Digital Asset Links — TWA needs a clean JSON 200 (no URL bar).
   RewriteRule ^\.well-known/assetlinks\.json$ - [L]
   RewriteRule ^index\.html$ - [L]
+  # Stale hashed SW URLs (old deploys) must NOT fall through to index.html
+  # (that returns text/html and breaks ServiceWorker updates with MIME errors).
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteRule ^sw-[A-Za-z0-9._-]+\.js$ sw.js [L]
+  # Never SPA-fallback any service worker script.
+  RewriteRule ^sw(-[A-Za-z0-9._-]+)?\.js$ - [L]
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule . index.html [L]

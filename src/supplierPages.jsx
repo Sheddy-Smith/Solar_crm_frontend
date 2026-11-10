@@ -149,7 +149,7 @@ function SupplierDetailsTab({ caps, onNotify, addRequested = false, onAddRequest
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await accountsModuleApi.parties.list({ account_type: 'Supplier', page_size: 200 });
+      const data = await accountsModuleApi.parties.list({ account_type: 'Supplier', page_size: 25 });
       setRows(normalizeApiRows(data));
     } catch (e) {
       onNotify(e.message || 'Failed to load suppliers', 'error');
@@ -332,7 +332,7 @@ function SupplierLedgerTab({ onNotify, onOpenSection }) {
   const [detail, setDetail] = useState(null);
 
   useEffect(() => {
-    accountsModuleApi.parties.list({ account_type: 'Supplier', page_size: 200 })
+    accountsModuleApi.parties.list({ account_type: 'Supplier', page_size: 25 })
       .then((data) => setSuppliers(normalizeApiRows(data)))
       .catch((e) => onNotify(e.message || 'Failed to load suppliers', 'error'));
   }, [onNotify]);

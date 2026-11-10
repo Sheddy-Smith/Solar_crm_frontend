@@ -336,10 +336,10 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
 
   useEffect(() => {
     Promise.all([
-      projectApi.list({ page_size: 200 }),
-      leadApi.list({ page_size: 200 }),
-      inventoryApi.warehouses.list({ page_size: 200 }),
-      workforceApi.listEmployees({ page_size: 200 }),
+      projectApi.list({ page_size: 25 }),
+      leadApi.list({ page_size: 25 }),
+      inventoryApi.warehouses.list({ page_size: 25 }),
+      workforceApi.listEmployees({ page_size: 25 }),
     ])
       .then(([projRes, leadRes, whRes, empRes]) => {
         setProjects(normalizeRows(projRes));
@@ -359,7 +359,7 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
 
   const load = useCallback(() => {
     setLoading(true);
-    const params = { date_from: dateFrom, date_to: dateTo, page_size: 200 };
+    const params = { date_from: dateFrom, date_to: dateTo, page_size: 25 };
     if (categoryFilter !== 'All Categories') params.category = categoryFilter;
     if (deferredSearch.trim()) params.search = deferredSearch.trim();
     Promise.all([dailyTasksApi.list(params), dailyTasksApi.summary()])

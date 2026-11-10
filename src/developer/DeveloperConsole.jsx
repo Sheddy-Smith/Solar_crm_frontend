@@ -1,25 +1,29 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity,
-  ArrowLeft,
   Bug,
+  Code2,
   Database,
   Download,
   FlaskConical,
+  Fingerprint,
   Gauge,
   HardDrive,
   Info,
+  LayoutDashboard,
   LayoutGrid,
+  MemoryStick,
+  MessageSquare,
   RefreshCw,
+  ScrollText,
   Search,
   Settings2,
   ShieldAlert,
-  Sparkles,
   Wifi,
   Zap,
   X,
 } from 'lucide-react';
-import { DEVELOPER_CATEGORIES } from './categories.js';
+import { DEVELOPER_CATEGORIES, DEVELOPER_NAV_GROUPS, findDeveloperNavItem } from './categories.js';
 import {
   clearApiInspector,
   getApiInspectorSnapshot,
@@ -66,17 +70,42 @@ import { API_BASE_PUBLIC } from './services/appMeta.js';
 
 const CARD = 'rounded-[14px] border border-[#e6edf6] bg-white shadow-[0_10px_28px_rgba(24,48,87,0.06)]';
 
-const CATEGORY_META = {
-  performance: { icon: Gauge, tone: 'from-[#dbeafe] to-[#eff6ff]', iconColor: 'text-[#2563eb]', blurb: 'CPU, RAM, FPS, API & DB metrics' },
-  debugging: { icon: Bug, tone: 'from-[#fee2e2] to-[#fff1f2]', iconColor: 'text-[#dc2626]', blurb: 'Logs, API Inspector, errors' },
-  diagnostics: { icon: Wifi, tone: 'from-[#dcfce7] to-[#f0fdf4]', iconColor: 'text-[#16a34a]', blurb: 'Network, database, sync health' },
-  ui: { icon: LayoutGrid, tone: 'from-[#ede9fe] to-[#f5f3ff]', iconColor: 'text-[#7c3aed]', blurb: 'Animation, layout, RTL & display' },
-  testing: { icon: FlaskConical, tone: 'from-[#ffedd5] to-[#fff7ed]', iconColor: 'text-[#ea580c]', blurb: 'Mock API, network & error simulation' },
-  advanced: { icon: Settings2, tone: 'from-[#e0f2fe] to-[#f0f9ff]', iconColor: 'text-[#0284c7]', blurb: 'Force refresh, cache, config, tasks' },
-  data: { icon: Download, tone: 'from-[#fce7f3] to-[#fdf2f8]', iconColor: 'text-[#db2777]', blurb: 'Logs export, reports, storage' },
-  system: { icon: Info, tone: 'from-[#f1f5f9] to-[#f8fafc]', iconColor: 'text-[#475569]', blurb: 'App, browser, device & environment' },
-  legacy: { icon: Sparkles, tone: 'from-[#fef3c7] to-[#fffbeb]', iconColor: 'text-[#d97706]', blurb: 'Memory, WA, attendance, audit' },
+const NAV_ICONS = {
+  home: LayoutDashboard,
+  memory: MemoryStick,
+  'whatsapp-extension': MessageSquare,
+  'attendance-machine': Fingerprint,
+  'audit-logs': ScrollText,
+  'bug-reports': Bug,
+  performance: Gauge,
+  system: Info,
+  debugging: Bug,
+  diagnostics: Wifi,
+  ui: LayoutGrid,
+  advanced: Settings2,
+  testing: FlaskConical,
+  data: Download,
 };
+
+const CATEGORY_STORAGE_KEY = 'malwa-solar-crm:developer-category';
+
+function readStoredCategory() {
+  try {
+    const id = sessionStorage.getItem(CATEGORY_STORAGE_KEY);
+    if (id && findDeveloperNavItem(id)) return id;
+  } catch {
+    /* ignore */
+  }
+  return 'home';
+}
+
+function writeStoredCategory(id) {
+  try {
+    sessionStorage.setItem(CATEGORY_STORAGE_KEY, id);
+  } catch {
+    /* ignore */
+  }
+}
 
 function ToggleRow({ title, description, checked, onChange, disabled }) {
   return (
@@ -184,47 +213,37 @@ function HomeDashboard({ onOpenCategory, apiSnap, onNotify, onExit }) {
             Android-style tools for Super Admin — real browser/TWA metrics, API inspection, UI controls and safe test simulations.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onExit}
-          className="inline-flex h-10 items-center gap-2 rounded-full border border-[#fed7aa] bg-[#fff7ed] px-4 text-[12px] font-extrabold text-[#9a3412]"
-        >
+        <div className="inline-flex h-10 items-center gap-2 rounded-full border border-[#fed7aa] bg-[#fff7ed] px-4 text-[12px] font-extrabold text-[#9a3412]">
           <span className="relative inline-flex h-[22px] w-10 items-center rounded-full bg-[#f97316] p-0.5">
             <span className="ml-auto block size-[18px] rounded-full bg-white shadow" />
           </span>
-          Developer Mode On · Exit
-        </button>
+          Developer Mode On
+        </div>
       </div>
 
       <section>
-        <h3 className="mb-3 text-[13px] font-extrabold uppercase tracking-wide text-[#7a8fa6]">Categories</h3>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {DEVELOPER_CATEGORIES.filter((c) => c.id !== 'legacy').map((cat) => {
-            const meta = CATEGORY_META[cat.id] || CATEGORY_META.system;
-            const Icon = meta.icon;
+        <h3 className="mb-3 text-[13px] font-extrabold uppercase tracking-wide text-[#7a8fa6]">Quick open</h3>
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {DEVELOPER_CATEGORIES.filter((c) => c.id !== 'home').slice(0, 9).map((cat) => {
+            const Icon = NAV_ICONS[cat.id] || Code2;
             return (
               <button
                 key={cat.id}
                 type="button"
                 onClick={() => onOpenCategory(cat.id)}
-                className={`${CARD} group p-4 text-left transition hover:-translate-y-0.5 hover:shadow-[0_16px_32px_rgba(24,48,87,0.1)]`}
+                className={`${CARD} flex items-center gap-3 p-3 text-left transition hover:border-[#078c3e]/40 hover:shadow-[0_12px_24px_rgba(24,48,87,0.08)]`}
               >
-                <div className={`inline-flex size-11 items-center justify-center rounded-[12px] bg-gradient-to-br ${meta.tone}`}>
-                  <Icon className={`size-5 ${meta.iconColor}`} />
-                </div>
-                <p className="mt-3 text-[15px] font-extrabold text-[#1e3261] group-hover:text-[#078c3e]">{cat.label}</p>
-                <p className="mt-1 text-[12px] font-semibold leading-snug text-[#64748b]">{meta.blurb}</p>
+                <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-[#ecfdf3] text-[#078c3e]">
+                  <Icon className="size-4" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-[13px] font-extrabold text-[#1e3261]">{cat.label}</span>
+                  <span className="block truncate text-[11px] font-semibold text-[#64748b]">{cat.hint}</span>
+                </span>
               </button>
             );
           })}
         </div>
-        <button
-          type="button"
-          onClick={() => onOpenCategory('legacy')}
-          className="mt-3 text-[12px] font-extrabold text-[#078c3e] hover:underline"
-        >
-          Open CRM Developer Tools (Memory, WhatsApp, Attendance, Audit, Bugs) →
-        </button>
       </section>
 
       <section>
@@ -337,7 +356,7 @@ function PerformancePanel({ apiSnap }) {
                   <td className="px-2 py-2">{row.durationMs}</td>
                 </tr>
               ))}
-              {!apiSnap.slowest?.length ? <tr><td colSpan={4} className="px-2 py-6 text-center text-[#94a3b8]">Slowest APIs yahan dikhenge.</td></tr> : null}
+              {!apiSnap.slowest?.length ? <tr><td colSpan={4} className="px-2 py-6 text-center text-[#94a3b8]">Slowest APIs will appear here.</td></tr> : null}
             </tbody>
           </table>
         </div>
@@ -692,35 +711,120 @@ function SystemInfoPanel() {
   );
 }
 
-function LegacyToolsPanel({ onNotify }) {
-  const [tab, setTab] = useState('memory');
-  const tabs = [
-    ['memory', 'Memory'],
-    ['whatsapp-extension', 'WhatsApp'],
-    ['attendance-machine', 'Attendance'],
-    ['audit-logs', 'Audit'],
-    ['bug-reports', 'Bugs'],
-  ];
+function renderDeveloperBody(category, { apiSnap, onNotify, onExit, onOpenCategory }) {
+  switch (category) {
+    case 'home':
+      return (
+        <HomeDashboard
+          apiSnap={apiSnap}
+          onNotify={onNotify}
+          onExit={onExit}
+          onOpenCategory={onOpenCategory}
+        />
+      );
+    case 'memory':
+      return <DeveloperMemoryPage onNotify={onNotify} />;
+    case 'whatsapp-extension':
+      return <DeveloperWhatsAppExtensionPage onNotify={onNotify} />;
+    case 'attendance-machine':
+      return <DeveloperAttendanceMachinePage onNotify={onNotify} />;
+    case 'audit-logs':
+      return <DeveloperAuditLogsPage onNotify={onNotify} />;
+    case 'bug-reports':
+      return <DeveloperBugReportsPage onNotify={onNotify} />;
+    case 'performance':
+      return <PerformancePanel apiSnap={apiSnap} />;
+    case 'debugging':
+      return <DebuggingPanel apiSnap={apiSnap} onNotify={onNotify} />;
+    case 'diagnostics':
+      return <DiagnosticsPanel onNotify={onNotify} />;
+    case 'ui':
+      return <UiControlsPanel onNotify={onNotify} />;
+    case 'testing':
+      return <TestingLabPanel onNotify={onNotify} />;
+    case 'advanced':
+      return <AdvancedPanel onNotify={onNotify} />;
+    case 'data':
+      return <DataToolsPanel apiSnap={apiSnap} onNotify={onNotify} />;
+    case 'system':
+      return <SystemInfoPanel />;
+    default:
+      return null;
+  }
+}
+
+function DeveloperNavRail({ category, query, onQueryChange, onSelect, filteredIds }) {
+  const allow = filteredIds ? new Set(filteredIds) : null;
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
-        {tabs.map(([id, label]) => (
-          <button key={id} type="button" onClick={() => setTab(id)} className={`rounded-full px-3 py-1.5 text-[12px] font-extrabold ${tab === id ? 'bg-[#078c3e] text-white' : 'border border-[#d9e2ec] bg-white'}`}>{label}</button>
-        ))}
+    <aside className="flex h-full w-full flex-col border-r border-[#dbe5f2] bg-[#f7fafc]">
+      <div className="border-b border-[#e6edf6] px-3 py-3">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex size-8 items-center justify-center rounded-[8px] bg-[#078c3e] text-white">
+            <Code2 className="size-4" />
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-[13px] font-extrabold text-[#14325c]">Developer Mode</p>
+            <p className="truncate text-[10px] font-bold uppercase tracking-wide text-[#7a8fa6]">Console</p>
+          </div>
+        </div>
+        <div className="mt-3 flex items-center gap-2 rounded-[8px] border border-[#e6edf6] bg-white px-2.5">
+          <Search className="size-3.5 shrink-0 text-[#94a3b8]" />
+          <input
+            className="h-9 w-full bg-transparent text-[12px] font-semibold outline-none"
+            placeholder="Search…"
+            value={query}
+            onChange={(e) => onQueryChange(e.target.value)}
+          />
+        </div>
       </div>
-      {tab === 'memory' ? <DeveloperMemoryPage onNotify={onNotify} /> : null}
-      {tab === 'whatsapp-extension' ? <DeveloperWhatsAppExtensionPage onNotify={onNotify} /> : null}
-      {tab === 'attendance-machine' ? <DeveloperAttendanceMachinePage onNotify={onNotify} /> : null}
-      {tab === 'audit-logs' ? <DeveloperAuditLogsPage onNotify={onNotify} /> : null}
-      {tab === 'bug-reports' ? <DeveloperBugReportsPage onNotify={onNotify} /> : null}
-    </div>
+      <nav className="flex-1 overflow-y-auto px-2 py-2">
+        {DEVELOPER_NAV_GROUPS.map((group) => {
+          const items = group.items.filter((item) => !allow || allow.has(item.id));
+          if (!items.length) return null;
+          return (
+            <div key={group.id} className="mb-3">
+              <p className="px-2 pb-1 text-[10px] font-extrabold uppercase tracking-wide text-[#8aa0b8]">
+                {group.label}
+              </p>
+              <div className="space-y-0.5">
+                {items.map((item) => {
+                  const Icon = NAV_ICONS[item.id] || Code2;
+                  const active = category === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => onSelect(item.id)}
+                      className={`flex w-full items-center gap-2 rounded-[8px] px-2.5 py-2 text-left transition ${
+                        active
+                          ? 'bg-[#078c3e] text-white shadow-[0_6px_14px_rgba(7,140,62,0.28)]'
+                          : 'text-[#1e3261] hover:bg-white'
+                      }`}
+                    >
+                      <Icon className={`size-3.5 shrink-0 ${active ? 'text-white' : 'text-[#078c3e]'}`} />
+                      <span className="min-w-0 truncate text-[12px] font-bold leading-tight">{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </nav>
+    </aside>
   );
 }
 
-export default function DeveloperConsole({ onNotify, onExit }) {
-  const [category, setCategory] = useState('home');
+/**
+ * Unified Developer Console — secondary sidebar + content.
+ * layout="page" fills the CRM content area next to the main sidebar.
+ * layout="embedded" fits inside Settings Developer pillar.
+ */
+export default function DeveloperConsole({ onNotify, onExit, layout = 'page', initialCategory }) {
+  const [category, setCategory] = useState(() => initialCategory || readStoredCategory());
   const [query, setQuery] = useState('');
   const [apiSnap, setApiSnap] = useState(getApiInspectorSnapshot);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     installUiDebugControls();
@@ -728,72 +832,109 @@ export default function DeveloperConsole({ onNotify, onExit }) {
     return subscribeApiInspector(setApiSnap);
   }, []);
 
+  const selectCategory = useCallback((id) => {
+    setCategory(id);
+    writeStoredCategory(id);
+    setMobileNavOpen(false);
+  }, []);
+
   const filteredCats = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return DEVELOPER_CATEGORIES;
-    return DEVELOPER_CATEGORIES.filter((c) => `${c.label} ${c.hint}`.toLowerCase().includes(q));
+    return DEVELOPER_CATEGORIES.filter((c) => `${c.label} ${c.hint} ${c.groupLabel}`.toLowerCase().includes(q));
   }, [query]);
 
   useEffect(() => {
     if (!query.trim()) return;
-    if (filteredCats.length === 1) setCategory(filteredCats[0].id);
-  }, [query, filteredCats]);
+    if (filteredCats.length === 1) selectCategory(filteredCats[0].id);
+  }, [query, filteredCats, selectCategory]);
 
-  const title = category === 'home'
-    ? 'Overview'
-    : (DEVELOPER_CATEGORIES.find((c) => c.id === category)?.label || 'Developer');
+  const navItem = findDeveloperNavItem(category);
+  const title = navItem?.label || 'Developer';
+  const crumbGroup = navItem?.groupLabel || 'Overview';
+  const body = renderDeveloperBody(category, {
+    apiSnap,
+    onNotify,
+    onExit,
+    onOpenCategory: selectCategory,
+  });
 
-  const body = (() => {
-    if (category === 'home') {
-      return (
-        <HomeDashboard
-          apiSnap={apiSnap}
-          onNotify={onNotify}
-          onExit={onExit}
-          onOpenCategory={setCategory}
-        />
-      );
-    }
-    switch (category) {
-      case 'performance': return <PerformancePanel apiSnap={apiSnap} />;
-      case 'debugging': return <DebuggingPanel apiSnap={apiSnap} onNotify={onNotify} />;
-      case 'diagnostics': return <DiagnosticsPanel onNotify={onNotify} />;
-      case 'ui': return <UiControlsPanel onNotify={onNotify} />;
-      case 'testing': return <TestingLabPanel onNotify={onNotify} />;
-      case 'advanced': return <AdvancedPanel onNotify={onNotify} />;
-      case 'data': return <DataToolsPanel apiSnap={apiSnap} onNotify={onNotify} />;
-      case 'system': return <SystemInfoPanel />;
-      case 'legacy': return <LegacyToolsPanel onNotify={onNotify} />;
-      default: return null;
-    }
-  })();
+  const shellClass = layout === 'page'
+    ? 'flex min-h-0 flex-1 overflow-hidden rounded-[12px] border border-[#dbe5f2] bg-white shadow-[0_10px_24px_rgba(24,48,87,0.06)]'
+    : 'flex min-h-[70vh] overflow-hidden rounded-[12px] border border-[#dbe5f2] bg-white shadow-[0_10px_24px_rgba(24,48,87,0.06)]';
 
   return (
-    <div className="space-y-4">
-      <article className={`${CARD} overflow-hidden`}>
-        <div className="flex flex-wrap items-center gap-3 border-b border-[#eef2f7] px-4 py-3">
-          {category !== 'home' ? (
-            <button type="button" onClick={() => setCategory('home')} className="inline-flex h-9 items-center gap-1 rounded-[8px] border border-[#d9e2ec] px-3 text-[12px] font-extrabold text-[#1e3261]">
-              <ArrowLeft className="size-3.5" /> Home
-            </button>
-          ) : null}
-          <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-bold text-[#7a8fa6]">Developer Console{category !== 'home' ? ` · ${title}` : ''}</p>
-            {category !== 'home' ? <h2 className="truncate font-display text-[18px] font-extrabold text-[#1e3261]">{title}</h2> : null}
-          </div>
-          <div className="flex min-w-[200px] flex-1 items-center gap-2 rounded-[10px] border border-[#e6edf6] bg-[#f8fafc] px-3">
-            <Search className="size-4 text-[#94a3b8]" />
-            <input className="h-10 w-full bg-transparent text-[13px] font-semibold outline-none" placeholder="Search developer settings…" value={query} onChange={(e) => setQuery(e.target.value)} />
-          </div>
-          <button type="button" onClick={onExit} className="inline-flex h-9 items-center gap-1 rounded-full border border-[#fed7aa] bg-[#fff7ed] px-3 text-[12px] font-extrabold text-[#9a3412]">
-            <X className="size-3.5" /> Exit
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-0.5">
+        <div className="min-w-0">
+          <p className="truncate text-[11px] font-bold text-[#7a8fa6]">
+            Dashboard › Developer Mode › {crumbGroup} › {title}
+          </p>
+          <p className="mt-0.5 truncate text-[10px] font-semibold text-[#94a3b8]">
+            Auto-hide 10 min · Hide: Ctrl+Alt+Shift+O ×3 · Open: Ctrl+Alt+Shift+D ×3
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className="inline-flex h-9 items-center gap-1 rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[12px] font-extrabold text-[#1e3261] lg:hidden"
+            onClick={() => setMobileNavOpen((v) => !v)}
+          >
+            <Code2 className="size-3.5" />
+            Categories
+          </button>
+          <button
+            type="button"
+            onClick={onExit}
+            className="inline-flex h-9 items-center gap-2 rounded-full border border-[#fed7aa] bg-[#fff7ed] px-3 text-[12px] font-extrabold text-[#9a3412]"
+            title="Or press Ctrl+Alt+Shift+O three times"
+          >
+            <span className="relative inline-flex h-[18px] w-8 items-center rounded-full bg-[#f97316] p-0.5">
+              <span className="ml-auto block size-[14px] rounded-full bg-white shadow" />
+            </span>
+            Exit
+            <X className="size-3.5" />
           </button>
         </div>
-        <div className="p-3 md:p-5">{body}</div>
-      </article>
+      </div>
+
+      <div className={shellClass}>
+        <div className="hidden w-[232px] shrink-0 lg:block">
+          <DeveloperNavRail
+            category={category}
+            query={query}
+            onQueryChange={setQuery}
+            onSelect={selectCategory}
+            filteredIds={filteredCats.map((c) => c.id)}
+          />
+        </div>
+
+        {mobileNavOpen ? (
+          <div className="fixed inset-0 z-[80] lg:hidden">
+            <button type="button" className="absolute inset-0 bg-black/35" aria-label="Close categories" onClick={() => setMobileNavOpen(false)} />
+            <div className="absolute inset-y-0 left-0 w-[min(288px,88vw)] bg-white shadow-xl">
+              <DeveloperNavRail
+                category={category}
+                query={query}
+                onQueryChange={setQuery}
+                onSelect={selectCategory}
+                filteredIds={filteredCats.map((c) => c.id)}
+              />
+            </div>
+          </div>
+        ) : null}
+
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="flex items-center gap-2 border-b border-[#eef2f7] px-4 py-3">
+            <h2 className="min-w-0 flex-1 truncate font-display text-[18px] font-extrabold text-[#1e3261]">{title}</h2>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto p-3 md:p-5">{body}</div>
+        </div>
+      </div>
+
       <div className="flex items-start gap-2 rounded-[10px] border border-[#fde68a] bg-[#fffbeb] px-3 py-2 text-[12px] font-semibold text-[#92400e]">
         <ShieldAlert className="mt-0.5 size-4 shrink-0" />
-        Exact native CPU/total device RAM unavailable in web/TWA — shown as Unavailable. Fake values intentionally nahi dikhaye.
+        Exact native CPU/total device RAM unavailable in web/TWA — shown as Unavailable. Fake values are intentionally not shown.
       </div>
     </div>
   );

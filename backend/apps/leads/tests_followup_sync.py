@@ -78,6 +78,25 @@ class LatestFollowUpWinsTests(TestCase):
         self.lead.refresh_from_db()
         self.assertAlmostEqual(self.lead.next_follow_up.timestamp(), self.planned_at.timestamp(), delta=1)
 
+    def test_lead_follow_up_date_change_moves_alert_off_overdue(self):
+        past = self.now - timedelta(days=20)
+        FollowUp.objects.filter(pk=self.planned.pk).update(scheduled_at=past)
+        self.lead.next_follow_up = past
+        self.lead.save(update_fields=['next_follow_up'])
+
+        new_day = (timezone.localtime(self.now) + timedelta(days=4)).date().isoformat()
+        res = self.client.patch(
+            f'/api/v1/leads/{self.lead.id}/',
+            {'next_follow_up': new_day},
+            format='json',
+        )
+        self.assertEqual(res.status_code, 200, res.data)
+        self.planned.refresh_from_db()
+        self.assertEqual(self.planned.status, 'Scheduled')
+        self.assertGreater(self.planned.scheduled_at, self.now)
+        self.lead.refresh_from_db()
+        self.assertGreater(self.lead.next_follow_up, self.now)
+
     def test_past_due_plan_replaced_by_newer_update_is_missed(self):
         FollowUp.objects.filter(pk=self.planned.pk).update(scheduled_at=self.now - timedelta(days=5))
         self.log_call()

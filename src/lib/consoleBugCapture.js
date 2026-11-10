@@ -40,6 +40,10 @@ function shouldSkip(text) {
     || value.includes('script error')
     || value.includes('chrome-extension://')
     || value.includes('moz-extension://')
+    // Transient PWA update noise (stale hashed SW → SPA HTML MIME). Root-fixed in .htaccess.
+    || value.includes('failed to update a serviceworker')
+    || value.includes('unsupported mime type')
+    || (value.includes('serviceworker') && value.includes('invalid state'))
   );
 }
 

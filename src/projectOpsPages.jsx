@@ -143,7 +143,7 @@ function useWonProjectsHub(buildExtraMaps) {
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const projData = await projectApi.list({ page_size: 200 });
+      const projData = await projectApi.list({ page_size: 25 });
       const won = rowsOf(projData).filter((p) => p.lead_status === 'Won');
       setProjects(won);
       if (buildExtraMaps) {
@@ -227,7 +227,7 @@ function SummaryCard({ label, value, note, tone, icon: Icon }) {
 /* ───────────────── DISPATCH ───────────────── */
 
 function loadDispatchMaps() {
-  return materialPlanApi.list({ page_size: 200 }).then((data) => {
+  return materialPlanApi.list({ page_size: 25 }).then((data) => {
     const map = {};
     rowsOf(data).forEach((row) => {
       const key = projectMapKey(row.project);
@@ -389,8 +389,8 @@ function DispatchDetailModal({ project, onClose, onNotify, onOpenPlanning, inlin
     setLoading(true);
     try {
       const [plans, items] = await Promise.all([
-        materialPlanApi.list({ project: project.id, page_size: 200 }),
-        inventoryApi.items.list({ page_size: 200 }),
+        materialPlanApi.list({ project: project.id, page_size: 25 }),
+        inventoryApi.items.list({ page_size: 25 }),
       ]);
       setRows(rowsOf(plans));
       setInventoryItems(rowsOf(items));
@@ -418,7 +418,7 @@ function DispatchDetailModal({ project, onClose, onNotify, onOpenPlanning, inlin
       onNotify(n
         ? `${n} item${n === 1 ? '' : 's'} ${packed ? 'marked Packed' : 'moved back to Pending'}`
         : 'Nothing to update');
-      const plans = await materialPlanApi.list({ project: project.id, page_size: 200 });
+      const plans = await materialPlanApi.list({ project: project.id, page_size: 25 });
       setRows(rowsOf(plans));
     } catch (e) {
       onNotify(e.message || 'Update failed', 'error');

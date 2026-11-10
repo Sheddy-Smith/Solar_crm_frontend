@@ -45,6 +45,7 @@ import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
 import { cx } from './lib/utils.js';
 import { authApi, leadApi, followUpApi } from './api.js';
+import { fetchEveryPage, mergeFollowUpRows, rowsOf } from './lib/listQuery.js';
 import { PwaInstallBanner, PwaInstallIconButton } from './components/mobile/PwaInstallControls.jsx';
 import { ReportProblemButton } from './components/ReportProblemButton.jsx';
 import { hasModuleAccess } from './settingsHubPages.jsx';
@@ -88,6 +89,37 @@ export function isTelePortalManager(roleName) {
     n === 'team leader' ||
     n === 'team leaders'
   );
+}
+
+/** Match backend `is_own_lead` (assignee-primary) so assigned leads stay mine
+ *  even when the original creator account is Inactive. */
+export function isOwnedTeleLead(lead, userId, roleName = '') {
+  if (!lead || userId == null || userId === '') return false;
+  const uid = String(userId);
+  // Assigned executive always owns — creator active/inactive does not matter.
+  if (lead.assigned_to != null && lead.assigned_to !== '' && String(lead.assigned_to) === uid) {
+    return true;
+  }
+  if (String(lead.created_by) !== uid) return false;
+  // Creator owns only while unassigned (same rule for Tele + Sales Executive).
+  return lead.assigned_to == null || lead.assigned_to === '';
+}
+
+/** Extra High / High Alert ownership lines — do not blame assignee as "Missed by"
+ *  when another executive originally scheduled the follow-up. */
+export function followUpOwnershipLabel(item, { extra = false } = {}) {
+  const assigned = String(item?.lead_assigned_to_name || '').trim();
+  const scheduledBy = String(item?.created_by_name || '').trim();
+  const addedBy = String(item?.lead_created_by_name || '').trim();
+  if (extra) {
+    const bits = [];
+    if (assigned) bits.push(`Assigned to: ${assigned}`);
+    if (scheduledBy && scheduledBy !== assigned) bits.push(`Scheduled by: ${scheduledBy}`);
+    else if (!assigned && scheduledBy) bits.push(`Scheduled by: ${scheduledBy}`);
+    if (addedBy && addedBy !== assigned && addedBy !== scheduledBy) bits.push(`Added by: ${addedBy}`);
+    return bits.join(' · ') || 'Unassigned';
+  }
+  return assigned || addedBy || scheduledBy || 'Unassigned';
 }
 
 // ─── Shared bits ──────────────────────────────────────────────────────────────
@@ -383,6 +415,9 @@ function alertItemFromLead(lead, scheduled) {
       lead_project_name: scheduled.lead_project_name || lead.project_name,
       lead_status: lead.status || scheduled.lead_status,
       lead_assigned_to_name: scheduled.lead_assigned_to_name || lead.assigned_to_name || '',
+      lead_created_by_name: scheduled.lead_created_by_name || lead.created_by_name || '',
+      lead_assigned_to: scheduled.lead_assigned_to ?? lead.assigned_to ?? null,
+      lead_created_by: scheduled.lead_created_by ?? lead.created_by ?? null,
     };
   }
   return {
@@ -393,6 +428,9 @@ function alertItemFromLead(lead, scheduled) {
     lead_project_name: lead.project_name,
     lead_status: lead.status,
     lead_assigned_to_name: lead.assigned_to_name || '',
+    lead_created_by_name: lead.created_by_name || '',
+    lead_assigned_to: lead.assigned_to ?? null,
+    lead_created_by: lead.created_by ?? null,
     follow_up_type: 'Call',
     scheduled_at: whenRaw,
     notes: '',
@@ -454,19 +492,6 @@ export function pendingFollowUpsFromLeads(leads, scheduledRows) {
   return { today, overdue, upcoming };
 }
 
-async function fetchEveryPage(loadPage) {
-  const pageSize = 200;
-  const rows = [];
-  for (let page = 1; page <= 40; page += 1) {
-    const data = await loadPage(page, pageSize);
-    const batch = Array.isArray(data) ? data : (data?.results ?? []);
-    rows.push(...batch);
-    const hasNext = Boolean(data && !Array.isArray(data) && data.next);
-    if (!hasNext || batch.length === 0) break;
-  }
-  return rows;
-}
-
 /** Open-pipeline scheduled rows only (exclude Won/Lost leads). */
 export function activeScheduledFollowUps(rows) {
   return (rows || []).filter((item) => {
@@ -518,10 +543,9 @@ function TeleFollowUpAlertRow({ item, level, onCall, onLog, onView }) {
             {item.follow_up_type || 'Call'}
             {isExtra ? ` · Pending ${followUpAgeLabel(item.scheduled_at)}` : ''}
           </p>
-          {(item.lead_assigned_to_name || item.created_by_name) ? (
+          {(item.lead_assigned_to_name || item.created_by_name || item.lead_created_by_name) ? (
             <p className="mt-0.5 text-[11px] font-extrabold text-[#1e3261]">
-              {isExtra ? 'Missed by: ' : 'Owner: '}
-              {item.lead_assigned_to_name || item.created_by_name}
+              {isExtra ? followUpOwnershipLabel(item, { extra: true }) : `Owner: ${followUpOwnershipLabel(item)}`}
             </p>
           ) : null}
           {item.lead_mobile_number ? (
@@ -989,42 +1013,42 @@ export function PortalSelectPage({ onSelectCrm, onSelectTele }) {
     <AuthLandingShell>
       <div className="px-5 pt-6 sm:px-9 sm:pt-8">
         <AuthBrandHeader />
-      </div>
+        </div>
 
       <div className="flex flex-col items-center px-5 py-10 sm:px-10 sm:py-14">
         <h1 className="text-center font-display text-[28px] font-extrabold leading-tight text-[#102446] sm:text-[42px]">
           Welcome to <span className="text-[#0d9f4a]">Solar ERP</span>
-        </h1>
+          </h1>
         <p className="mt-3 text-center text-[15px] font-semibold text-[#5c6676] sm:text-[17px]">
-          Choose your portal to continue
-        </p>
+            Choose your portal to continue
+          </p>
 
-        <div className="mt-10 grid w-full max-w-[760px] gap-6 sm:mt-12 sm:grid-cols-2">
-          {portals.map((portal) => {
-            const Icon = portal.icon;
-            return (
-              <article
-                key={portal.key}
+          <div className="mt-10 grid w-full max-w-[760px] gap-6 sm:mt-12 sm:grid-cols-2">
+            {portals.map((portal) => {
+              const Icon = portal.icon;
+              return (
+                <article
+                  key={portal.key}
                 className="flex flex-col items-center rounded-[18px] border border-[#e8eef6] bg-white p-7 text-center shadow-[0_12px_30px_rgba(23,43,77,0.07)] transition hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(23,43,77,0.12)] sm:p-8"
-              >
+                >
                 <span className={cx('grid size-[88px] place-items-center rounded-full sm:size-24', portal.iconWrap)}>
                   <Icon className="size-10 sm:size-11" />
-                </span>
-                <h2 className="mt-6 font-display text-[20px] font-extrabold text-[#102446] sm:text-[22px]">{portal.title}</h2>
-                <p className="mt-3 text-[13px] font-semibold leading-6 text-[#5c6676] sm:text-[14px]">{portal.description}</p>
-                <button
-                  type="button"
-                  onClick={portal.onClick}
-                  className={cx('mt-6 inline-flex h-12 w-full items-center justify-center gap-2 rounded-[10px] text-[14px] font-extrabold text-white shadow-[0_12px_24px_rgba(23,43,77,0.16)] transition sm:text-[15px]', portal.button)}
-                >
-                  {portal.buttonLabel}
-                  <ArrowRight className="size-4" />
-                </button>
-              </article>
-            );
-          })}
+                  </span>
+                  <h2 className="mt-6 font-display text-[20px] font-extrabold text-[#102446] sm:text-[22px]">{portal.title}</h2>
+                  <p className="mt-3 text-[13px] font-semibold leading-6 text-[#5c6676] sm:text-[14px]">{portal.description}</p>
+                  <button
+                    type="button"
+                    onClick={portal.onClick}
+                    className={cx('mt-6 inline-flex h-12 w-full items-center justify-center gap-2 rounded-[10px] text-[14px] font-extrabold text-white shadow-[0_12px_24px_rgba(23,43,77,0.16)] transition sm:text-[15px]', portal.button)}
+                  >
+                    {portal.buttonLabel}
+                    <ArrowRight className="size-4" />
+                  </button>
+                </article>
+              );
+            })}
+          </div>
         </div>
-      </div>
 
       <AuthLandingFooter />
     </AuthLandingShell>
@@ -1283,12 +1307,9 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
       fetchEveryPage((page, pageSize) => followUpApi.listAll({
         page, page_size: pageSize, status: 'Scheduled', ordering: 'scheduled_at',
       })),
-      followUpApi.listAll({ page_size: 200, ordering: '-created_at' }),
+      followUpApi.listAll({ page_size: 100, ordering: '-created_at' }),
     ]).then(([scheduled, recent]) => {
-      const recentRows = Array.isArray(recent) ? recent : (recent?.results ?? []);
-      const byId = new Map();
-      for (const row of [...scheduled, ...recentRows]) byId.set(row.id, row);
-      setFollowUps([...byId.values()]);
+      setFollowUps(mergeFollowUpRows(scheduled, rowsOf(recent)));
     }).catch(() => { setFollowUps([]); onNotify('Follow-ups could not be loaded.', 'error'); });
   };
 
@@ -1349,7 +1370,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
     if (!me || hasModuleAccess(me, 'Daily Tasks', 'View')) return TELE_NAV_ITEMS;
     return TELE_NAV_ITEMS.filter((item) => item.label !== 'Daily Tasks');
   }, [me]);
-  const isOwnLeadRow = (lead) => sameId(lead?.created_by, me?.id);
+  const isOwnLeadRow = (lead) => isOwnedTeleLead(lead, me?.id, me?.role_name);
   const ownLeadRows = leadRows.filter(isOwnLeadRow);
   const teamLeadRows = canViewTeamTele ? leadRows : ownLeadRows;
   const ownLeadIds = useMemo(
@@ -1359,8 +1380,12 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
   const scopedFollowUps = useMemo(() => {
     const rows = followUps ?? [];
     if (canViewTeamTele) return rows;
+    // Assignee-primary: lead_assigned_to wins even if follow-up was scheduled
+    // by an inactive creator (item.created_by ≠ me).
     return rows.filter((item) => (
-      ownLeadIds.has(String(item.lead)) || sameId(item.created_by, me?.id)
+      sameId(item.lead_assigned_to, me?.id)
+      || ownLeadIds.has(String(item.lead))
+      || sameId(item.created_by, me?.id)
     ));
   }, [followUps, ownLeadIds, canViewTeamTele, me?.id]);
   const reportLeadRows = teamLeadRows;
@@ -1368,9 +1393,10 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
   const wonCount = teamLeadRows.filter((lead) => lead.status === 'Won' || teleDisplayStatus(lead) === 'Won').length;
   const lostCount = teamLeadRows.filter((lead) => lead.status === 'Lost' || teleDisplayStatus(lead) === 'Lost').length;
 
+  // Alerts must use the same ownership scope as the rest of the portal.
   const { today: todayFollowUps, overdue: overdueFollowUps, upcoming: upcomingFollowUps } = useMemo(
-    () => pendingFollowUpsFromLeads(leadRows, followUps ?? []),
-    [leadRows, followUps],
+    () => pendingFollowUpsFromLeads(teamLeadRows, canViewTeamTele ? (followUps ?? []) : scopedFollowUps),
+    [teamLeadRows, followUps, scopedFollowUps, canViewTeamTele],
   );
 
   const scheduledFollowUps = useMemo(
@@ -1433,6 +1459,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
             wonCount={wonCount}
             lostCount={lostCount}
             currentUserId={me?.id}
+            roleName={me?.role_name}
             isSuperAdmin={canViewTeamTele}
             onView={setHistoryLead}
             onEdit={setEditLead}
@@ -1453,6 +1480,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
             leads={leadRows}
             leadsLoaded={leads !== null}
             currentUserId={me?.id}
+            roleName={me?.role_name}
             isSuperAdmin={canViewTeamTele}
             onView={setHistoryLead}
             onEdit={setEditLead}
@@ -1590,12 +1618,12 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
                 aria-expanded={profileMenuOpen}
               >
                 <span className="grid size-10 place-items-center rounded-full border border-[#d4af37]/55 bg-[#123c8f] text-[13px] font-extrabold text-white">
-                  {(me?.initials || me?.name?.slice(0, 2) || 'TE').toUpperCase()}
-                </span>
-                <div className="hidden sm:block">
-                  <p className="text-[13px] font-extrabold leading-tight text-[#1e3261]">{me?.name || 'Tele Executive'}</p>
-                  <p className="text-[11px] font-semibold text-[#7585a2]">{me?.role_name || TELE_ROLE_NAME}</p>
-                </div>
+                {(me?.initials || me?.name?.slice(0, 2) || 'TE').toUpperCase()}
+              </span>
+              <div className="hidden sm:block">
+                <p className="text-[13px] font-extrabold leading-tight text-[#1e3261]">{me?.name || 'Tele Executive'}</p>
+                <p className="text-[11px] font-semibold text-[#7585a2]">{me?.role_name || TELE_ROLE_NAME}</p>
+              </div>
                 <ChevronDown
                   className={cx(
                     'hidden size-4 text-[#7a8aa4] transition sm:block',
@@ -1607,9 +1635,9 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
               {profileMenuOpen ? (
                 <div className="absolute right-0 top-[calc(100%+10px)] z-70 w-[176px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)]">
                   {['Profile Details', 'Logout'].map((item) => (
-                    <button
+              <button
                       key={item}
-                      type="button"
+                type="button"
                       onClick={() => handleProfileAction(item)}
                       className={cx(
                         'block w-full px-4 py-3 text-left text-[13px] font-extrabold transition hover:bg-[#f5f9ff]',
@@ -1617,7 +1645,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
                       )}
                     >
                       {item}
-                    </button>
+              </button>
                   ))}
                 </div>
               ) : null}
@@ -1643,11 +1671,11 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
               const Icon = item.icon;
               const active = activeNav === item.label;
               return (
-                <button
-                  key={item.label}
-                  type="button"
+            <button
+              key={item.label}
+              type="button"
                   onClick={() => navigateTele(item.label)}
-                  className={cx(
+              className={cx(
                     'flex min-h-[54px] flex-col items-center justify-center gap-0.5 rounded-xl py-1.5 pb-[max(10px,env(safe-area-inset-bottom))] transition active:scale-95',
                     active ? 'text-[#1d4ed8]' : 'text-[#7b88a2]',
                   )}
@@ -1662,7 +1690,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
                   <span className="max-w-full truncate px-0.5 text-[10px] font-extrabold leading-none">
                     {item.label === 'My Leads' ? 'Leads' : item.label}
                   </span>
-                </button>
+            </button>
               );
             })}
             <button
@@ -1833,7 +1861,7 @@ function TeleStatCards({ cards }) {
 
 // ─── Leads table (shared: Dashboard + My Leads) ───────────────────────────────
 
-function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onView, onEdit, onDelete, onAddFollowUp, onAddLead, title = 'My Leads' }) {
+function TeleLeadsTable({ leads, leadsLoaded, currentUserId, roleName = '', isSuperAdmin, onView, onEdit, onDelete, onAddFollowUp, onAddLead, title = 'My Leads' }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   // Default: logged-in tele executive's own added leads ("Add By" = me).
@@ -1924,15 +1952,15 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
             />
           </label>
           <div className="grid grid-cols-2 gap-2 sm:contents">
-            <select
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+          <select
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
               className="h-11 w-full rounded-[11px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold text-[#1f2d44] outline-none sm:h-9 sm:w-[140px] sm:shrink-0 sm:rounded-[9px]"
-            >
-              {['All', ...TELE_LEAD_STATUSES].map((option) => (
-                <option key={option} value={option}>{option === 'All' ? 'All Status' : option}</option>
-              ))}
-            </select>
+          >
+            {['All', ...TELE_LEAD_STATUSES].map((option) => (
+              <option key={option} value={option}>{option === 'All' ? 'All Status' : option}</option>
+            ))}
+          </select>
             <select
               value={addByFilter}
               onChange={(e) => { setAddByFilter(e.target.value); setPage(1); }}
@@ -1959,9 +1987,7 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
           <p className="rounded-[12px] bg-[#f8fbff] px-3 py-8 text-center text-[13px] font-bold text-[#7585a2]">No leads found.</p>
         ) : null}
         {pageLeads.map((lead) => {
-          const isOwnLead = isSuperAdmin || (
-            currentUserId != null && String(lead.created_by) === String(currentUserId)
-          );
+          const isOwnLead = isSuperAdmin || isOwnedTeleLead(lead, currentUserId, roleName);
           const dialOk = Boolean(String(lead.mobile_number || '').replace(/\D/g, ''));
           return (
             <article key={lead.id} className="overflow-hidden rounded-[14px] border border-[#e7eef7] bg-white shadow-[0_8px_18px_rgba(17,39,84,0.05)]">
@@ -1976,30 +2002,33 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
                     <StatusPill value={teleDisplayStatus(lead)} />
                     <span className="text-[11px] font-semibold text-[#8895ab]">Next · {formatDateTime(lead.next_follow_up)}</span>
                   </span>
+                  {lead.assigned_to_name ? (
+                    <span className="mt-1 block text-[11px] font-semibold text-[#a5b1c7]">Assigned to {lead.assigned_to_name}</span>
+                  ) : null}
                   {lead.created_by_name ? (
-                    <span className="mt-1 block text-[11px] font-semibold text-[#a5b1c7]">Added by {lead.created_by_name}</span>
+                    <span className="mt-0.5 block text-[11px] font-semibold text-[#a5b1c7]">Added by {lead.created_by_name}</span>
                   ) : null}
                 </span>
                 <ChevronRight className="mt-1 size-5 shrink-0 text-[#b0bdd4]" />
               </button>
               <div className="grid grid-cols-4 gap-1 border-t border-[#eef2f8] bg-[#fbfcfe] p-1.5">
-                <button
-                  type="button"
+          <button
+            type="button"
                   disabled={!dialOk}
                   onClick={() => { if (!dialTeleMobile(lead.mobile_number)) { /* no-op */ } }}
                   className="inline-flex h-10 flex-col items-center justify-center gap-0.5 rounded-[10px] text-[10px] font-extrabold text-[#0d9f4a] transition active:bg-[#e8f8eb] disabled:opacity-40"
-                >
+          >
                   <Phone className="size-3.5" />
                   Call
-                </button>
-                <button
-                  type="button"
+          </button>
+          <button
+            type="button"
                   onClick={() => onAddFollowUp(lead)}
                   className="inline-flex h-10 flex-col items-center justify-center gap-0.5 rounded-[10px] text-[10px] font-extrabold text-[#1d4ed8] transition active:bg-[#e7efff]"
-                >
+          >
                   <StickyNote className="size-3.5" />
                   Log
-                </button>
+          </button>
                 <button
                   type="button"
                   onClick={() => onView(lead)}
@@ -2023,7 +2052,7 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
                     —
                   </span>
                 )}
-              </div>
+        </div>
               {isOwnLead ? (
                 <div className="flex gap-1.5 border-t border-[#eef2f8] px-2 pb-2 pt-1.5">
                   <button
@@ -2081,9 +2110,7 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
               <tr><td colSpan={9} className="px-2.5 py-6 text-center text-[13px] font-bold text-[#7585a2]">No leads found.</td></tr>
             )}
             {pageLeads.map((lead, index) => {
-              const isOwnLead = isSuperAdmin || (
-                currentUserId != null && String(lead.created_by) === String(currentUserId)
-              );
+              const isOwnLead = isSuperAdmin || isOwnedTeleLead(lead, currentUserId, roleName);
               return (
               <tr
                 key={lead.id}
@@ -2135,7 +2162,7 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, isSuperAdmin, onVie
 
       <div className="mt-2.5 flex flex-col items-center justify-between gap-2 sm:flex-row">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="text-[12px] font-bold text-[#7585a2]">
+        <p className="text-[12px] font-bold text-[#7585a2]">
             Showing {filteredLeads.length === 0 ? 0 : (safePage - 1) * pageSize + 1} to {Math.min(safePage * pageSize, filteredLeads.length)} of {filteredLeads.length} entries
           </p>
           <label className="inline-flex items-center gap-1.5 text-[12px] font-extrabold text-[#284276]">
@@ -2220,6 +2247,7 @@ function TeleDashboard({
   wonCount,
   lostCount,
   currentUserId,
+  roleName,
   isSuperAdmin,
   onView,
   onEdit,
@@ -2266,6 +2294,7 @@ function TeleDashboard({
           leads={allLeads}
           leadsLoaded={leadsLoaded}
           currentUserId={currentUserId}
+          roleName={roleName}
           isSuperAdmin={isSuperAdmin}
           onView={onView}
           onEdit={onEdit}
@@ -2273,36 +2302,37 @@ function TeleDashboard({
           onAddFollowUp={onAddFollowUp}
           onAddLead={onAddLead}
         />
-        <section className="rounded-[16px] border border-[#e2e9f3] bg-white p-4 shadow-[0_10px_26px_rgba(23,43,77,0.06)]">
-          <h2 className="font-display text-[15px] font-extrabold text-[#102446]">Reminders</h2>
-          <div className="mt-3 space-y-2.5">
-            {upcomingReminders.length === 0 && (
-              <p className="rounded-[10px] bg-[#f8fbff] px-3 py-4 text-center text-[12px] font-bold text-[#7585a2]">No reminders set.</p>
-            )}
-            {upcomingReminders.map((item) => (
-              <div key={item.id} className="flex items-start gap-3 rounded-[10px] border border-[#eef2f8] px-3 py-2.5">
-                <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-[#fff4e0] text-[#c07a06]">
-                  <Bell className="size-4" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-extrabold text-[#1e3261]">{item.lead_customer_name}</p>
-                  <p className="text-[11px] font-semibold text-[#7585a2]">{formatDateTime(item.scheduled_at)} · {item.reminder}</p>
+          <section className="rounded-[16px] border border-[#e2e9f3] bg-white p-4 shadow-[0_10px_26px_rgba(23,43,77,0.06)]">
+            <h2 className="font-display text-[15px] font-extrabold text-[#102446]">Reminders</h2>
+            <div className="mt-3 space-y-2.5">
+              {upcomingReminders.length === 0 && (
+                <p className="rounded-[10px] bg-[#f8fbff] px-3 py-4 text-center text-[12px] font-bold text-[#7585a2]">No reminders set.</p>
+              )}
+              {upcomingReminders.map((item) => (
+                <div key={item.id} className="flex items-start gap-3 rounded-[10px] border border-[#eef2f8] px-3 py-2.5">
+                  <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-[#fff4e0] text-[#c07a06]">
+                    <Bell className="size-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-extrabold text-[#1e3261]">{item.lead_customer_name}</p>
+                    <p className="text-[11px] font-semibold text-[#7585a2]">{formatDateTime(item.scheduled_at)} · {item.reminder}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </section>
+              ))}
+            </div>
+          </section>
       </div>
     </>
   );
 }
 
-function TeleLeadsPage({ leads, leadsLoaded, currentUserId, isSuperAdmin, onView, onEdit, onDelete, onAddFollowUp, onAddLead }) {
+function TeleLeadsPage({ leads, leadsLoaded, currentUserId, roleName = '', isSuperAdmin, onView, onEdit, onDelete, onAddFollowUp, onAddLead }) {
   return (
     <TeleLeadsTable
       leads={leads}
       leadsLoaded={leadsLoaded}
       currentUserId={currentUserId}
+      roleName={roleName}
       isSuperAdmin={isSuperAdmin}
       onView={onView}
       onEdit={onEdit}
@@ -2567,20 +2597,20 @@ function TeleFollowUpsPage({
                   </option>
                 ))}
               </select>
-              <button
-                type="button"
-                onClick={() => onAddFollowUp(null)}
+          <button
+            type="button"
+            onClick={() => onAddFollowUp(null)}
                 className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[11px] bg-[#1d4ed8] px-4 text-[14px] font-extrabold text-white transition active:bg-[#1a3fb0] sm:h-10 sm:w-auto sm:rounded-[9px] sm:text-[13px]"
-              >
-                <Plus className="size-4" />
+          >
+            <Plus className="size-4" />
                 Log Follow-up
-              </button>
+          </button>
             </div>
           </div>
         </div>
 
         <div className="mt-4 space-y-3">
-          {!loaded && (
+              {!loaded && (
             <p className="rounded-[12px] bg-[#f8fbff] px-3 py-8 text-center text-[13px] font-bold text-[#7585a2]">Loading follow-ups...</p>
           )}
           {loaded && filtered.length === 0 && (
@@ -2589,14 +2619,14 @@ function TeleFollowUpsPage({
             </p>
           )}
           {filtered.map((item) => {
-            const Icon = FOLLOW_UP_TYPE_ICONS[item.follow_up_type] || PhoneCall;
+                const Icon = FOLLOW_UP_TYPE_ICONS[item.follow_up_type] || PhoneCall;
             const isTodayAlert = tab === 'today';
             const isExtraAlert = tab === 'overdue';
             const isUpcoming = tab === 'upcoming';
             const canOperate = canOperateFollowUp(item);
-            return (
+                return (
               <article
-                key={item.id}
+                    key={item.id}
                 className={cx(
                   'rounded-[14px] border p-4 transition',
                   isExtraAlert
@@ -2610,7 +2640,7 @@ function TeleFollowUpsPage({
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex min-w-0 gap-3">
-                    <span className={cx(
+                      <span className={cx(
                       'mt-0.5 grid size-11 shrink-0 place-items-center rounded-full',
                       item.status === 'Completed'
                         ? 'bg-[#e8f8eb] text-[#0d9f4a]'
@@ -2623,7 +2653,7 @@ function TeleFollowUpsPage({
                               : 'bg-[#e7efff] text-[#1d4ed8]',
                     )}>
                       <Icon className="size-5" />
-                    </span>
+                      </span>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-display text-[15px] font-extrabold text-[#102446]">{item.lead_customer_name || 'Lead'}</p>
@@ -2707,8 +2737,8 @@ function TeleFollowUpsPage({
                   </div>
                 </div>
               </article>
-            );
-          })}
+                );
+              })}
         </div>
       </section>
     </>
@@ -2730,7 +2760,7 @@ function TeleRemindersPage({
   const [search, setSearch] = useState('');
 
   const { today, overdue, upcoming, withReminder } = useMemo(() => {
-    const now = new Date();
+  const now = new Date();
     const todayStart = startOfLocalDay(now);
     const tomorrow = new Date(todayStart);
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -2878,7 +2908,7 @@ function TeleRemindersPage({
         </div>
 
         <div className="mt-4 space-y-2.5">
-          {!loaded && (
+              {!loaded && (
             <p className="rounded-[12px] bg-[#f8fbff] px-3 py-8 text-center text-[13px] font-bold text-[#7585a2]">Loading reminders...</p>
           )}
           {loaded && filtered.length === 0 && (
@@ -2889,9 +2919,9 @@ function TeleRemindersPage({
             </div>
           )}
           {filtered.map((item) => {
-            const Icon = FOLLOW_UP_TYPE_ICONS[item.follow_up_type] || PhoneCall;
+                const Icon = FOLLOW_UP_TYPE_ICONS[item.follow_up_type] || PhoneCall;
             const state = dueState(item);
-            return (
+                return (
               <article
                 key={item.id}
                 className={cx(
@@ -2909,7 +2939,7 @@ function TeleRemindersPage({
                     state === 'Overdue' ? 'bg-[#fee2e2] text-[#dc2626]' : state === 'Due Today' ? 'bg-[#fef3c7] text-[#d97706]' : 'bg-[#e7efff] text-[#1d4ed8]',
                   )}>
                     <Icon className="size-5" />
-                  </span>
+                      </span>
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="truncate font-display text-[15px] font-extrabold text-[#102446]">{item.lead_customer_name || 'Customer'}</p>
@@ -2971,8 +3001,8 @@ function TeleRemindersPage({
                   </button>
                 </div>
               </article>
-            );
-          })}
+                );
+              })}
         </div>
       </section>
     </>
@@ -2991,7 +3021,7 @@ function TeleReportsPage({ leads, followUps, loaded = true }) {
   ];
   const [period, setPeriod] = useState('month');
   const [customFrom, setCustomFrom] = useState(() => {
-    const now = new Date();
+  const now = new Date();
     return toLocalIsoDate(new Date(now.getFullYear(), now.getMonth(), 1));
   });
   const [customTo, setCustomTo] = useState(() => toLocalIsoDate(new Date()));
@@ -3310,16 +3340,16 @@ function TeleReportsPage({ leads, followUps, loaded = true }) {
             <div className="mt-5 border-t border-[#edf2f8] pt-4">
               <p className="text-[12px] font-extrabold uppercase tracking-wide text-[#7585a2]">By Channel</p>
               <div className="mt-2.5 flex flex-wrap gap-2">
-                {typeCounts.map((row) => {
-                  const Icon = FOLLOW_UP_TYPE_ICONS[row.name] || PhoneCall;
-                  return (
+            {typeCounts.map((row) => {
+              const Icon = FOLLOW_UP_TYPE_ICONS[row.name] || PhoneCall;
+              return (
                     <span key={row.name} className="inline-flex items-center gap-1.5 rounded-full border border-[#dbe4f0] bg-[#f8fbff] px-3 py-1.5 text-[12px] font-extrabold text-[#1e3261]">
                       <Icon className="size-3.5 text-[#1d4ed8]" />
                       {row.name}: {row.count}
-                    </span>
-                  );
-                })}
-              </div>
+                  </span>
+              );
+            })}
+          </div>
             </div>
           ) : null}
         </section>
@@ -3403,8 +3433,8 @@ function TeleProfileDetailsPage({ me }) {
           <div className="flex items-center gap-4">
             <span className="grid size-16 place-items-center rounded-full border border-[#d4af37]/55 bg-[#123c8f] text-[18px] font-extrabold text-white shadow-[0_10px_22px_rgba(18,60,143,0.28)]">
               {initials}
-            </span>
-            <div>
+          </span>
+          <div>
               <p className="text-[12px] font-extrabold uppercase tracking-wide text-[#7585a2]">Profile Details</p>
               <h2 className="font-display text-[22px] font-extrabold leading-tight text-[#102446]">{displayName}</h2>
               <p className="mt-0.5 text-[13px] font-semibold text-[#53647f]">
@@ -3412,7 +3442,7 @@ function TeleProfileDetailsPage({ me }) {
                 {me?.branch_name ? ` · ${me.branch_name}` : ''}
               </p>
             </div>
-          </div>
+        </div>
           <p className="inline-flex items-center gap-2 rounded-full bg-[#eff6ff] px-3.5 py-2 text-[12px] font-extrabold text-[#1d4ed8]">
             <ShieldCheck className="size-4" />
             View only
@@ -3426,7 +3456,7 @@ function TeleProfileDetailsPage({ me }) {
           <p className="mt-1 text-[12px] font-semibold text-[#7585a2]">
             These details are linked to your Tele Executive account.
           </p>
-        </div>
+          </div>
         <div className="grid gap-3 sm:grid-cols-2">
           {profileFields.map((field) => {
             const Icon = field.icon;
@@ -3539,40 +3569,40 @@ function TeleFollowUpCreateModal({ leads, initialLead, onClose, onSaved, onNotif
 
         <section className="space-y-3">
           <p className="text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#7585a2]">1. Who did you contact?</p>
-          <TeleField label="Lead / Customer">
-            <select value={form.leadId} onChange={(e) => handleLeadChange(e.target.value)} className={teleInputClass}>
-              <option value="">Select lead...</option>
-              {leads.map((lead) => (
-                <option key={lead.id} value={lead.id}>{lead.customer_name} — {lead.mobile_number}</option>
-              ))}
+        <TeleField label="Lead / Customer">
+          <select value={form.leadId} onChange={(e) => handleLeadChange(e.target.value)} className={teleInputClass}>
+            <option value="">Select lead...</option>
+            {leads.map((lead) => (
+              <option key={lead.id} value={lead.id}>{lead.customer_name} — {lead.mobile_number}</option>
+            ))}
+          </select>
+        </TeleField>
+        <div className="grid gap-4 sm:grid-cols-3">
+            <TeleField label="Contact Type">
+            <select value={form.type} onChange={(e) => updateField('type', e.target.value)} className={teleInputClass}>
+              {FOLLOW_UP_TYPES.map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
           </TeleField>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <TeleField label="Contact Type">
-              <select value={form.type} onChange={(e) => updateField('type', e.target.value)} className={teleInputClass}>
-                {FOLLOW_UP_TYPES.map((option) => <option key={option} value={option}>{option}</option>)}
-              </select>
-            </TeleField>
-            <TeleField label="Date">
-              <input type="date" value={form.date} onChange={(e) => updateField('date', e.target.value)} className={teleInputClass} />
-            </TeleField>
-            <TeleField label="Time">
-              <input type="time" value={form.time} onChange={(e) => updateField('time', e.target.value)} className={teleInputClass} />
-            </TeleField>
-          </div>
+          <TeleField label="Date">
+            <input type="date" value={form.date} onChange={(e) => updateField('date', e.target.value)} className={teleInputClass} />
+          </TeleField>
+          <TeleField label="Time">
+            <input type="time" value={form.time} onChange={(e) => updateField('time', e.target.value)} className={teleInputClass} />
+          </TeleField>
+        </div>
         </section>
 
         <section className="space-y-3">
           <p className="text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#7585a2]">2. What happened?</p>
           <TeleField label="Conversation Summary *">
-            <textarea
-              value={form.summary}
-              onChange={(e) => updateField('summary', e.target.value)}
+          <textarea
+            value={form.summary}
+            onChange={(e) => updateField('summary', e.target.value)}
               placeholder="Example: Customer asked about 5kW price and subsidy. Will decide after salary."
               rows={4}
-              className="w-full rounded-[9px] border border-[#dbe4f0] bg-white px-3 py-2.5 text-[14px] font-semibold text-[#1f2d44] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-            />
-          </TeleField>
+            className="w-full rounded-[9px] border border-[#dbe4f0] bg-white px-3 py-2.5 text-[14px] font-semibold text-[#1f2d44] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+          />
+        </TeleField>
           <TeleField label="Outcome">
             <div className="flex flex-wrap gap-2">
               {FOLLOW_UP_OUTCOMES.map((option) => (
@@ -3590,27 +3620,27 @@ function TeleFollowUpCreateModal({ leads, initialLead, onClose, onSaved, onNotif
                   {option}
                 </button>
               ))}
-            </div>
+        </div>
           </TeleField>
           <TeleField label="Lead Status After This Call">
-            <div className="flex flex-wrap gap-2">
-              {TELE_LEAD_STATUSES.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => updateField('leadStatus', option)}
-                  className={cx(
-                    'rounded-full border px-4 py-2 text-[12px] font-extrabold transition',
-                    form.leadStatus === option
-                      ? 'border-[#1d4ed8] bg-[#1d4ed8] text-white'
-                      : 'border-[#dbe4f0] bg-white text-[#53647f] hover:bg-[#f8fbff]',
-                  )}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
-          </TeleField>
+          <div className="flex flex-wrap gap-2">
+            {TELE_LEAD_STATUSES.map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => updateField('leadStatus', option)}
+                className={cx(
+                  'rounded-full border px-4 py-2 text-[12px] font-extrabold transition',
+                  form.leadStatus === option
+                    ? 'border-[#1d4ed8] bg-[#1d4ed8] text-white'
+                    : 'border-[#dbe4f0] bg-white text-[#53647f] hover:bg-[#f8fbff]',
+                )}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        </TeleField>
         </section>
 
         <section className="space-y-3">
@@ -3735,10 +3765,10 @@ function TeleFollowUpHistoryModal({ lead, onClose, onNotify, onAddFollowUp }) {
               Log Follow-up
             </button>
           ) : null}
-        </div>
+      </div>
 
         <div className="relative mt-5 space-y-0 pl-2">
-          {history === null && (
+        {history === null && (
             <p className="rounded-[10px] bg-[#f8fbff] px-3 py-6 text-center text-[12px] font-bold text-[#7585a2]">Loading timeline...</p>
           )}
           {history !== null && visible.length === 0 && (
@@ -3747,25 +3777,25 @@ function TeleFollowUpHistoryModal({ lead, onClose, onNotify, onAddFollowUp }) {
             </p>
           )}
           {visible.map((item, index) => {
-            const Icon = FOLLOW_UP_TYPE_ICONS[item.follow_up_type] || PhoneCall;
-            return (
+          const Icon = FOLLOW_UP_TYPE_ICONS[item.follow_up_type] || PhoneCall;
+          return (
               <article key={item.id} className="relative flex gap-4 pb-5">
                 {index < visible.length - 1 ? (
                   <span className="absolute left-[19px] top-11 bottom-0 w-px bg-[#dbe4f0]" aria-hidden="true" />
                 ) : null}
-                <span className={cx(
+              <span className={cx(
                   'relative z-10 mt-0.5 grid size-10 shrink-0 place-items-center rounded-full border-2 border-white shadow-sm',
-                  item.status === 'Completed' ? 'bg-[#e8f8eb] text-[#0d9f4a]' : item.status === 'Missed' ? 'bg-[#feecec] text-[#dc2626]' : 'bg-[#e7efff] text-[#1d4ed8]',
-                )}>
-                  <Icon className="size-4" />
-                </span>
+                item.status === 'Completed' ? 'bg-[#e8f8eb] text-[#0d9f4a]' : item.status === 'Missed' ? 'bg-[#feecec] text-[#dc2626]' : 'bg-[#e7efff] text-[#1d4ed8]',
+              )}>
+                <Icon className="size-4" />
+              </span>
                 <div className="min-w-0 flex-1 rounded-[12px] border border-[#e8eef6] bg-white p-3.5">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
-                      <p className="text-[13px] font-extrabold text-[#1e3261]">
-                        {formatDateTime(item.scheduled_at)}
-                        <span className="ml-2 font-bold text-[#7585a2]">· {item.follow_up_type}</span>
-                      </p>
+                  <p className="text-[13px] font-extrabold text-[#1e3261]">
+                    {formatDateTime(item.scheduled_at)}
+                    <span className="ml-2 font-bold text-[#7585a2]">· {item.follow_up_type}</span>
+                  </p>
                       <p className="mt-0.5 text-[11px] font-bold text-[#8a98af]">{followUpAgeLabel(item.scheduled_at)}</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -3775,12 +3805,12 @@ function TeleFollowUpHistoryModal({ lead, onClose, onNotify, onAddFollowUp }) {
                         </span>
                       ) : null}
                       {item.status_after ? <StatusPill value={item.status_after} /> : null}
-                      <span className={cx(
-                        'inline-flex rounded-full px-2.5 py-1 text-[10px] font-extrabold',
-                        item.status === 'Completed' ? 'bg-[#e8f8eb] text-[#0d9f4a]' : item.status === 'Missed' ? 'bg-[#feecec] text-[#dc2626]' : 'bg-[#e7efff] text-[#1d4ed8]',
-                      )}>
-                        {item.status}
-                      </span>
+                    <span className={cx(
+                      'inline-flex rounded-full px-2.5 py-1 text-[10px] font-extrabold',
+                      item.status === 'Completed' ? 'bg-[#e8f8eb] text-[#0d9f4a]' : item.status === 'Missed' ? 'bg-[#feecec] text-[#dc2626]' : 'bg-[#e7efff] text-[#1d4ed8]',
+                    )}>
+                      {item.status}
+                    </span>
                       <button
                         type="button"
                         onClick={() => setEditTarget(item)}
@@ -3799,29 +3829,29 @@ function TeleFollowUpHistoryModal({ lead, onClose, onNotify, onAddFollowUp }) {
                       >
                         <Trash2 className="size-3.5" />
                       </button>
-                    </div>
                   </div>
+                </div>
                   {item.notes ? (
                     <p className="mt-2 text-[13px] font-semibold leading-6 text-[#53647f]">
                       <span className="font-extrabold text-[#33456b]">What happened: </span>
-                      {item.notes}
-                    </p>
+                    {item.notes}
+                  </p>
                   ) : null}
                   <p className="mt-2 text-[11px] font-semibold text-[#8a98af]">
                     Logged by {item.created_by_name || '—'}
-                    {item.reminder ? ` · Reminder: ${item.reminder}` : ''}
-                  </p>
-                </div>
-              </article>
-            );
-          })}
-        </div>
+                  {item.reminder ? ` · Reminder: ${item.reminder}` : ''}
+                </p>
+              </div>
+            </article>
+          );
+        })}
+      </div>
 
         <div className="mt-2 flex justify-end border-t border-[#edf2f8] pt-4">
-          <button type="button" onClick={onClose} className="h-10 rounded-[9px] border border-[#dbe4f0] px-5 text-[13px] font-extrabold text-[#53647f] transition hover:bg-[#f8fbff]">
-            Close
-          </button>
-        </div>
+        <button type="button" onClick={onClose} className="h-10 rounded-[9px] border border-[#dbe4f0] px-5 text-[13px] font-extrabold text-[#53647f] transition hover:bg-[#f8fbff]">
+          Close
+        </button>
+      </div>
       </TeleModal>
 
       {editTarget ? (

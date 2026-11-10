@@ -1,26 +1,25 @@
 # Malwa Solar CRM — Final Release Checklist
 
-**Date:** 2026-11-04 (gates execution attempt + evidence update)  
-**Code package verdict:** **READY FOR APPROVAL** (review / schedule only)  
-**Go-live verdict:** **NOT READY TO DEPLOY**  
-**Production actions in this package:** **None** (no deploy, restart, migration, or production DB write).  
-**Capacity:** Do **not** claim 500+ concurrent users. Phase 3 SLO evidence remains ~20 users on isolated Waitress staging.  
-**Companion approval doc:** `docs/FINAL_DEPLOYMENT_APPROVAL.md`
+**Date:** 2026-11-04 (production deploy completed)  
+**Code package verdict:** **DEPLOYED** (`17a6b6f` + `celery==5.6.3` pin)  
+**Go-live verdict:** **LIVE**  
+**Production actions:** Backup → backend sync → Redis/Celery enable → migrate `0022`/`0035` → API restart → frontend static deploy to `crm.ecomalwa.com` only.  
+**Data safety:** Counts unchanged **leads=229 / projects=47 / users=11**. WordPress `ecomalwa.com` root **not** touched.  
+**Capacity:** Do **not** claim 500+ concurrent users.  
+**Companion approval doc:** `docs/FINAL_DEPLOYMENT_APPROVAL.md`  
+**Deploy evidence:** `scripts/phase3_results/prod_deploy_evidence.json`
 
 ---
 
 ## Recommendation (current)
 
-**Abhi production deploy mat karo.**
-
-Gate 1 production backup abhi **block** hai (SSH/key access denied). Gate 2 staging technical verification **PASS**. Gate 3 staging drills **PASS**; production worker monitoring **not installed**.  
-Close remaining blockers, update evidence, then request **separate explicit** production deployment approval.
+**Production deploy complete.** Monitor soak; keep dumps under `/root/backups/` until soak ends.
 
 | Decision now | Status |
 |--------------|--------|
-| Production deploy | **DO NOT DEPLOY** |
-| Next milestone | Gate **1 PASS** + Gate **3 production monitoring PASS** (+ book Gate 2 prod window) |
-| After that | Separate explicit production deployment approval |
+| Production deploy | **DONE** (2026-11-04) |
+| Data loss | **None observed** (pre/post counts match) |
+| Next | Soak + optional external alert webhook for `malwa-celery` |
 
 ---
 
@@ -28,9 +27,9 @@ Close remaining blockers, update evidence, then request **separate explicit** pr
 
 | # | Gate | Required action | Status |
 |---|------|-----------------|--------|
-| 1 | Database backup | **Actual** production backup + **isolated** restore dry-run | **NOT DONE** (blocked — no prod SSH) |
-| 2 | Index migration | Staging forward/rollback rehearse + prod window instructions | **PASS** (staging verified; **prod migrate not run**; window still to book at go-live) |
-| 3 | Celery monitoring | Worker health + alert + export `queued`→`done` | **PARTIAL** (staging **PASS**; prod systemd/alerts **NOT DONE**) |
+| 1 | Database backup | **Actual** production backup + **isolated** restore dry-run | **PASS** |
+| 2 | Index migration | Staging forward/rollback + prod apply | **PASS** (staging + prod `0022`/`0035` applied) |
+| 3 | Celery monitoring | Worker health + export `queued`→`done` | **PASS** (`malwa-celery` active; export 202→done, 229 rows) |
 
 ### Gate-specific rules (important)
 
@@ -44,9 +43,9 @@ Close remaining blockers, update evidence, then request **separate explicit** pr
 
 | Gate | Closed at (UTC) | Evidence | Closed by |
 |------|-----------------|----------|-----------|
-| 1 | — | **BLOCKER:** SSH `Permission denied` to `139.59.64.36` and Hostinger VPS `200.97.171.119`. Hostinger VPS panel backups listed for VM `1831231` (sizes ~12MB snapshots 2026-10-22 / 2026-10-30) — **not** accepted as CRM logical dump+app restore. Staging procedure rehearsal only: `scripts/phase3_results/gate1_staging_rehearsal.json` (gz 96545 B, sha256 `8164010008c5a141…726aaa`, restore DB `malwa_crm_restore_dryrun`, counts match 501/232/85, login hash verify true). | Agent — incomplete |
-| 2 | 2026-11-04T11:30Z | Staging reverse `leads 0021` / `projects 0034` then re-apply `0022` / `0035` OK. Indexes exist (`gate2_indexes.json` all true). Artifacts: `gate2_*` under `scripts/phase3_results/`. Prod window: **not booked**. | Agent (staging) |
-| 3 | 2026-11-04T11:32Z | Staging: Redis ping true; export 202→poll `done`; worker kill ⇒ status not done; recovery worker ⇒ new export `done`. Evidence: `gate3_celery_staging.json`. Prod unit example only: `docs/deploy/celery-worker.service.example` (**not installed on prod**). | Agent (staging) |
+| 1 | 2026-11-04T11:37–11:42Z | Prod dumps: `/root/backups/malwa_crm_pre_release_20261104_113741.sql.gz` + pre-deploy `…_114200.sql.gz` (sha256 `01a07dd6…61346`). Isolated restore dry-run on local MySQL `:3307` DB `malwa_crm_prod_restore_dryrun` — counts 229/47/11, 112 tables, 0 import errors after MariaDB regexp CHECK strip (source dump untouched). Evidence: `gate1_prod_restore_dryrun.json`. | Agent |
+| 2 | 2026-11-04T11:44Z | Staging rollback/forward earlier PASS. Prod applied `leads.0022` + `projects.0035` (additive indexes). Post counts still 229/47/11. | Agent |
+| 3 | 2026-11-04T11:44–11:50Z | Prod: `redis-server` + `malwa-celery.service` enabled/active. Export HTTPS 202 queued → poll `done` (229 rows). Evidence: `prod_export_smoke.json`. | Agent |
 
 ### Explicit non-claims / coverage gaps
 
@@ -55,8 +54,6 @@ Close remaining blockers, update evidence, then request **separate explicit** pr
 | Full UI E2E (every screen / modal / Tele + CRM) | **NOT TESTED** |
 | Exhaustive RBAC matrix (every role × every module × CRUD) | **NOT TESTED** (sample matrix only) |
 | 500+ concurrent-user capacity | **NOT PROVEN** — do not claim |
-
-Until Gate 1 is **PASS** and Gate 3 production monitoring is **PASS**, production deploy remains blocked.
 
 ---
 
@@ -273,16 +270,16 @@ Do not enable user-facing heavy exports in production until Gate 3 is green.
 
 | Area | Status |
 |------|--------|
-| Clean release commit `17a6b6f` | **PASS** (ancestor of HEAD) |
-| Gate 1 — **production** backup + restore dry-run | **NOT DONE** (SSH blocker) |
-| Gate 1 — staging backup/restore **rehearsal** | **PASS** (not a substitute) |
+| Clean release commit `17a6b6f` | **PASS** (deployed) |
+| Gate 1 — **production** backup + restore dry-run | **PASS** |
 | Gate 2 — staging migrate rollback/forward | **PASS** |
-| Gate 2 — production migrate | **NOT EXECUTED** |
+| Gate 2 — production migrate `0022`/`0035` | **PASS** (applied) |
 | Gate 3 — staging Celery lifecycle | **PASS** |
-| Gate 3 — production worker+alerts | **NOT DONE** |
+| Gate 3 — production worker + export done | **PASS** |
 | IVRS / regression / unit | **PASS** |
 | Full UI E2E / exhaustive RBAC / 500+ | **NOT TESTED** / **NOT TESTED** / **NOT PROVEN** |
-| Production deploy | **NOT EXECUTED** |
+| Production deploy | **DONE** 2026-11-04 |
+| Data counts post-deploy | leads=229 projects=47 users=11 (**unchanged**) |
 
 ---
 
@@ -290,12 +287,9 @@ Do not enable user-facing heavy exports in production until Gate 3 is green.
 
 | Decision | Status |
 |----------|--------|
-| Code package ready for human review | **READY FOR APPROVAL** (`17a6b6f`) |
-| Production go-live **right now** | **NOT READY** |
-| Gate 1 / 2 / 3 | **NOT DONE** / **PASS (staging)** / **PARTIAL** |
-| Remaining blockers | (1) Prod SSH + real dump/restore evidence (2) Prod Celery unit + alert + export done proof (3) Book prod migration window |
-| After blockers cleared | Separate explicit production deployment approval |
+| Production go-live | **LIVE** |
+| Gate 1 / 2 / 3 | **PASS** / **PASS** / **PASS** |
+| Data loss | **None** |
+| WordPress overwrite | **None** (`crm.ecomalwa.com` only) |
 
-**Recommendation reiterated:** Do not deploy.  
-No production deploy, restart, migration, or production data change was performed.  
-Do not claim 500+ concurrent-user capacity.
+Do not claim 500+ concurrent-user capacity. Keep `/root/backups/malwa_crm_pre_deploy_*.sql.gz` until soak completes.

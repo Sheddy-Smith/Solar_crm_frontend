@@ -97,7 +97,8 @@ import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/
 import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
 import { UnderlineTabs } from './components/UnderlineTabs.jsx';
 import { usePagedRows, usePageSize, TablePagination } from './components/TablePagination.jsx';
-import { LIST_PAGE_SIZE, LOOKUP_PAGE_SIZE, DASHBOARD_PAGE_SIZE, rowsOf, parseListPage, listParams } from './lib/listQuery.js';
+import { LIST_PAGE_SIZE, LOOKUP_PAGE_SIZE, rowsOf, parseListPage, listParams, fetchEveryPage } from './lib/listQuery.js';
+import { downloadSurveyPhoto, downloadSurveyPhotosPdf } from './lib/surveyPhotoExport.js';
 import { MobileDashboardPage, MobileBottomNav } from './mobileDashboard.jsx';
 import { SettingsRecycleBinPage } from './recycleBinPage.jsx';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -123,6 +124,7 @@ import {
   Cloud,
   ChevronLeft,
   ClipboardList,
+  Code2,
   CreditCard,
   Crosshair,
   Eye,
@@ -2062,6 +2064,7 @@ const dataPanelClass =
 const APP_PREFERENCES_KEY = 'malwa-solar-crm:ui-preferences';
 const availableSections = new Set([
   ...sidebarItems.map((item) => item.label),
+  'Developer Mode',
   'Quotation',
   ...leadRelatedPages,
   ...employeeRelatedPages,
@@ -2302,7 +2305,9 @@ function App() {
   const consumeAutoOpenQuotation = useCallback(() => setAutoOpenQuotation(false), []);
   // Quotation is a Project Management pipeline step for PM users; others keep the standalone page.
   const quotationInProjectHub = activeSidebarItem === 'Quotation' && hasAnyModuleAccess(loggedInUser, 'Project Management');
-  const fixedHeightPage = activeSidebarItem === 'Lead List' || (activeSidebarItem === 'Quotation' && !quotationInProjectHub);
+  const fixedHeightPage = activeSidebarItem === 'Lead List'
+    || (activeSidebarItem === 'Quotation' && !quotationInProjectHub)
+    || activeSidebarItem === 'Developer Mode';
   const [followUpPopupLead, setFollowUpPopupLead] = useState(null);
   const [followUpsPageTab, setFollowUpsPageTab] = useState('today');
   const [dashboardPeriod, setDashboardPeriod] = useState('Month');
@@ -2344,6 +2349,27 @@ function App() {
     }
     setToast({ id: Date.now(), message: msg, type });
   }, []);
+
+  // Global Developer Mode: Ctrl+Alt+Shift+D ×3 anywhere in CRM (Super Admin only).
+  const isSuperAdminUser = Boolean(loggedInUser?.is_super_admin);
+  const { active: developerModeActive, setDeveloperMode } = useDeveloperMode({
+    onNotify: notify,
+    enabled: currentPage === 'dashboard' && Boolean(loggedInUser),
+    listen: true,
+    canActivate: isSuperAdminUser,
+    onActivated: () => {
+      setActiveSidebarItem('Developer Mode');
+      setExpandedSection(null);
+      setMobileSidebarOpen(false);
+    },
+  });
+
+  useEffect(() => {
+    if (developerModeActive) return;
+    if (activeSidebarItem === 'Developer Mode') {
+      setActiveSidebarItem('Settings');
+    }
+  }, [developerModeActive, activeSidebarItem]);
 
   const pwaInstallAction = usePwaInstallAction(notify);
 
@@ -2406,7 +2432,7 @@ function App() {
   // Sidebar: show category only if role has at least one permission on that module.
   const visibleSidebarItems = useMemo(() => {
     if (!loggedInUser) return sidebarItems;
-    return sidebarItems.filter((item) => {
+    const filtered = sidebarItems.filter((item) => {
       if (item.label === 'Project Management') {
         return hasAnyModuleAccess(loggedInUser, 'Project Management') || hasAnyModuleAccess(loggedInUser, 'Quotation');
       }
@@ -2417,7 +2443,11 @@ function App() {
       if (!mod) return true;
       return hasAnyModuleAccess(loggedInUser, mod);
     });
-  }, [loggedInUser]);
+    if (developerModeActive && loggedInUser.is_super_admin) {
+      return [...filtered, { label: 'Developer Mode', icon: Code2, showChevron: false }];
+    }
+    return filtered;
+  }, [loggedInUser, developerModeActive]);
 
   const visibleProjectSidebarSubItems = useMemo(() => {
     if (!loggedInUser) return projectSidebarSubItems;
@@ -2513,7 +2543,10 @@ function App() {
       customer: item.lead_customer_name || 'Customer',
       project: item.lead_project_name || item.follow_up_type || 'Follow-up',
       delay: followUpAgeLabel(item.scheduled_at),
-      missedBy: item.lead_assigned_to_name || item.created_by_name || 'Unassigned',
+      missedBy: [
+        item.lead_assigned_to_name ? `Assigned to ${item.lead_assigned_to_name}` : '',
+        item.created_by_name ? `Scheduled by ${item.created_by_name}` : '',
+      ].filter(Boolean).join(' · ') || 'Unassigned',
       detail: item.notes || '',
       when: item.scheduled_at,
     }));
@@ -2541,10 +2574,17 @@ function App() {
       setDashWidgetError('followUps', '');
       return Promise.resolve();
     }
-    return followUpApi.listAll({ page_size: DASHBOARD_PAGE_SIZE, status: 'Scheduled', ordering: 'scheduled_at' }).then((data) => {
+    // Paginate through every Scheduled row — a single page_size=40 slice made
+    // Extra High look capped while Follow-ups (page_size=25 newest) showed fewer.
+    return fetchEveryPage((page, pageSize) => followUpApi.listAll({
+      page,
+      page_size: pageSize,
+      status: 'Scheduled',
+      ordering: 'scheduled_at',
+    })).then((rows) => {
       if (signal?.aborted) return;
       setDashWidgetError('followUps', '');
-      setDashboardScheduledFollowUps(Array.isArray(data) ? data : (data?.results ?? []));
+      setDashboardScheduledFollowUps(rows);
     }).catch((err) => {
       if (signal?.aborted || err?.name === 'AbortError') return;
       setDashboardScheduledFollowUps((prev) => prev ?? []);
@@ -3138,6 +3178,7 @@ function App() {
                   const isInsightsSection = item.label === 'Insights';
                   const isDailyTasksSection = item.label === 'Daily Tasks';
                   const isSettingsSection = item.label === 'Settings';
+                  const isDeveloperSection = item.label === 'Developer Mode';
                   const isLeadHighlighted = isLeadSection && (activeSidebarItem === 'Lead' || leadRelatedPages.includes(activeSidebarItem));
                   const isCustomerHighlighted = isCustomerSection && (activeSidebarItem === 'Customer' || customerRelatedPages.includes(activeSidebarItem));
                   const isVendorHighlighted = isVendorSection && (activeSidebarItem === 'Vendors' || vendorRelatedPages.includes(activeSidebarItem));
@@ -3166,7 +3207,8 @@ function App() {
                   const isAmcOpen = isAmcSection && expandedSection === 'AMC & Warranty';
                   const isSettingsActive = isSettingsSection && settingsRelatedPages.includes(activeSidebarItem);
                   const isSettingsOpen = isSettingsSection && expandedSection === 'Settings';
-                  const isActive = item.label === activeSidebarItem || isLeadHighlighted || isCustomerHighlighted || isVendorHighlighted || isSupplierHighlighted || isProjectHighlighted || isEmployeeHighlighted || isAccountsHighlighted || isInventoryHighlighted || isLiaisonHighlighted || isOmHighlighted || isOmPendingHighlighted || isAmcHighlighted || isInsightsHighlighted || isDailyTasksHighlighted || isSettingsActive;
+                  const isDeveloperActive = isDeveloperSection && activeSidebarItem === 'Developer Mode';
+                  const isActive = item.label === activeSidebarItem || isLeadHighlighted || isCustomerHighlighted || isVendorHighlighted || isSupplierHighlighted || isProjectHighlighted || isEmployeeHighlighted || isAccountsHighlighted || isInventoryHighlighted || isLiaisonHighlighted || isOmHighlighted || isOmPendingHighlighted || isAmcHighlighted || isInsightsHighlighted || isDailyTasksHighlighted || isSettingsActive || isDeveloperActive;
 
                   return (
                     <div key={item.label}>
@@ -3184,6 +3226,13 @@ function App() {
                             setExpandedSection(null);
                             setActiveSidebarItem('Settings');
                             notify('Settings opened');
+                            setMobileSidebarOpen(false);
+                            return;
+                          }
+                          if (isDeveloperSection) {
+                            setExpandedSection(null);
+                            setActiveSidebarItem('Developer Mode');
+                            notify('Developer Mode opened');
                             setMobileSidebarOpen(false);
                             return;
                           }
@@ -3777,7 +3826,18 @@ function App() {
               <PwaInstallBanner notify={notify} />
             </div>
 
-            {activeSidebarItem === 'Settings Users' ? (
+            {activeSidebarItem === 'Developer Mode' && developerModeActive && isSuperAdminUser ? (
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <DeveloperConsole
+                  layout="page"
+                  onNotify={notify}
+                  onExit={() => {
+                    setDeveloperMode(false);
+                    setActiveSidebarItem('Settings');
+                  }}
+                />
+              </div>
+            ) : activeSidebarItem === 'Settings Users' ? (
               <AdminReauthGate onNotify={notify}>
                 <SettingsUsersPage activeSection="Settings Users" loggedInUser={loggedInUser} onOpenSection={(section) => { setActiveSidebarItem(section); notify(`${section} opened`); }} onNotify={notify} />
               </AdminReauthGate>
@@ -6114,14 +6174,12 @@ function PaymentModeListPage({ onOpenSection, onNotify }) {
 }
 
 function SettingsMasterPage({ activeSection, onOpenSection, onNotify, loggedInUser }) {
-  // Shortcut lives here so Ctrl+Alt+Shift+D ×3 works on any Settings screen.
+  // Global shortcut is owned by App — Settings only mirrors state for the Developer pillar.
   const isSuperAdmin = Boolean(loggedInUser?.is_super_admin);
   useDeveloperMode({
     onNotify,
+    listen: false,
     canActivate: isSuperAdmin,
-    onActivated: () => {
-      onOpenSection('Settings');
-    },
   });
 
   if (activeSection === 'Payment Settings') {
@@ -6657,18 +6715,18 @@ function SettingsSetupPage({ onOpenSection, onNotify, loggedInUser }) {
       setDeveloperMode(false);
       return;
     }
-    setActivePillarId('developer');
     try {
       sessionStorage.removeItem('malwa-solar-crm:developer-mode-focus');
     } catch {
       /* ignore */
     }
-  }, [isSuperAdmin, onNotify, setDeveloperMode]);
+    // Unified console lives as a main sidebar section with its own secondary nav.
+    onOpenSection('Developer Mode');
+  }, [isSuperAdmin, onNotify, onOpenSection, setDeveloperMode]);
 
-  // 3rd Ctrl+Alt+Shift+D from master page opens Developer tabs here.
+  // Shortcut / activation from App opens the unified Developer Mode workspace.
   useEffect(() => subscribeDeveloperModeOpen(openDeveloperSurface), [openDeveloperSurface]);
 
-  // If shortcut fired while this page was remounting, land on Developer tabs.
   useEffect(() => {
     try {
       if (sessionStorage.getItem('malwa-solar-crm:developer-mode-focus') === '1') {
@@ -6705,6 +6763,10 @@ function SettingsSetupPage({ onOpenSection, onNotify, loggedInUser }) {
         setActivePillarId('organization');
         return;
       }
+      if (!developerMode) {
+        setDeveloperMode(true);
+      }
+      onOpenSection('Developer Mode');
       return;
     }
     if (pillarId === 'advanced') {
@@ -17153,7 +17215,7 @@ function SurveyCheckbox({ label, checked, onChange }) {
   );
 }
 
-function SurveyPhotoSlot({ label, required = false, photo, uploading, onUpload, onDelete, onView, readOnly = false }) {
+function SurveyPhotoSlot({ label, required = false, photo, uploading, onUpload, onDelete, onView, onDownload, readOnly = false }) {
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
 
@@ -17170,13 +17232,26 @@ function SurveyPhotoSlot({ label, required = false, photo, uploading, onUpload, 
         {photo ? (
           <>
             <img src={getMediaUrl(photo.image)} alt={label} loading="lazy" decoding="async" className="h-full w-full object-cover" />
-            <button
-              type="button"
-              onClick={onView}
-              className="absolute right-1.5 top-1.5 inline-flex h-7 items-center gap-1 rounded-[6px] bg-black/70 px-2 text-[10px] font-extrabold text-white"
-            >
-              <Eye className="size-3" /> View
-            </button>
+            <div className="absolute right-1.5 top-1.5 flex max-w-[calc(100%-0.75rem)] flex-wrap justify-end gap-1">
+              <button
+                type="button"
+                onClick={onView}
+                className="inline-flex h-7 items-center gap-1 rounded-[6px] bg-black/70 px-2 text-[10px] font-extrabold text-white"
+              >
+                <Eye className="size-3" /> View
+              </button>
+              {onDownload ? (
+                <button
+                  type="button"
+                  onClick={onDownload}
+                  className="inline-flex h-7 items-center gap-1 rounded-[6px] bg-[#0d9f4a]/95 px-2 text-[10px] font-extrabold text-white"
+                  title="Download original image"
+                >
+                  <Download className="size-3" />
+                  <span className="hidden min-[380px]:inline">Download</span>
+                </button>
+              ) : null}
+            </div>
           </>
         ) : (
           <div className="flex h-full items-center justify-center text-[#c3ccdb]">
@@ -17333,7 +17408,7 @@ function SurveyDocSlot({ label, doc, uploading, onUpload, onDelete, onView, read
   );
 }
 
-function SurveyMultiPhotoGroup({ title, slots, visibleCount, onAdd, getPhoto, uploadingSlot, onUpload, onDelete, onView, readOnly = false }) {
+function SurveyMultiPhotoGroup({ title, slots, visibleCount, onAdd, getPhoto, uploadingSlot, onUpload, onDelete, onView, onDownload, readOnly = false }) {
   const shownSlots = slots.slice(0, visibleCount);
   const canAddMore = !readOnly && visibleCount < slots.length;
 
@@ -17360,6 +17435,10 @@ function SurveyMultiPhotoGroup({ title, slots, visibleCount, onAdd, getPhoto, up
                 const photo = getPhoto(slot);
                 if (photo) onView?.(photo, `${title} ${index + 1}`);
               }}
+              onDownload={onDownload ? () => {
+                const photo = getPhoto(slot);
+                if (photo) onDownload(photo, `${title} ${index + 1}`);
+              } : undefined}
             />
           </div>
         ))}
@@ -17396,6 +17475,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify, readOnly = false, fo
   const [additionalDocuments, setAdditionalDocuments] = useState([]);
   const [fieldErrors, setFieldErrors] = useState({});
   const [completionAlert, setCompletionAlert] = useState('');
+  const [pdfExporting, setPdfExporting] = useState(false);
   const dirtyRef = useRef(false);
   const skipDirtyRef = useRef(true);
   const formScrollRef = useRef(null);
@@ -17842,6 +17922,40 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify, readOnly = false, fo
     setMediaPreview({ title, src: getMediaUrl(photo.image), kind: 'image' });
   };
 
+  const handlePhotoDownload = async (photo, title) => {
+    if (!photo?.image) return;
+    try {
+      await downloadSurveyPhoto(photo, title || photo.slot || 'Site-Survey-Photo');
+      onNotify?.('Photo downloaded', 'success');
+    } catch (err) {
+      onNotify?.(err?.message || 'Photo download failed', 'error');
+    }
+  };
+
+  const handleDownloadAllPhotosPdf = async () => {
+    const photos = Array.isArray(survey?.photos) ? survey.photos : [];
+    if (!photos.some((p) => p?.image)) {
+      onNotify?.('No uploaded photos in this Site Survey', 'error');
+      return;
+    }
+    setPdfExporting(true);
+    try {
+      const preferredSlots = SURVEY_ROOF_PHOTO_SLOTS.map((item) => item.slot);
+      const result = await downloadSurveyPhotosPdf({
+        photos,
+        preferredSlots,
+        projectName: survey?.project_name || form.project_name || '',
+        customerName: survey?.customer_name || form.customer_name || '',
+        surveyId: survey?.survey_id || survey?.id || projectId || '',
+      });
+      onNotify?.(`Downloaded ${result.count} photos as PDF`, 'success');
+    } catch (err) {
+      onNotify?.(err?.message || 'PDF download failed', 'error');
+    } finally {
+      setPdfExporting(false);
+    }
+  };
+
   const openDocPreview = (doc, title) => {
     if (!doc?.file) return;
     const src = getMediaUrl(doc.file);
@@ -18078,6 +18192,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify, readOnly = false, fo
                   onUpload={(file) => handlePhotoUpload(slot, file)}
                   onDelete={() => handlePhotoDelete(getPhoto(slot).id)}
                   onView={() => openPhotoPreview(getPhoto(slot), slot)}
+                  onDownload={() => handlePhotoDownload(getPhoto(slot), slot)}
                 />
               ))}
             </div>
@@ -18092,6 +18207,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify, readOnly = false, fo
               onUpload={handlePhotoUpload}
               onDelete={handlePhotoDelete}
               onView={openPhotoPreview}
+              onDownload={handlePhotoDownload}
               readOnly={readOnly}
             />
             <SurveyMultiPhotoGroup
@@ -18104,8 +18220,25 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify, readOnly = false, fo
               onUpload={handlePhotoUpload}
               onDelete={handlePhotoDelete}
               onView={openPhotoPreview}
+              onDownload={handlePhotoDownload}
               readOnly={readOnly}
             />
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-[11px] font-bold text-[#8a98af]">
+                {(survey?.photos ?? []).filter((p) => p?.image).length
+                  ? `${(survey?.photos ?? []).filter((p) => p?.image).length} uploaded photo(s) in this Site Survey`
+                  : 'Upload photos to enable PDF download'}
+              </p>
+              <button
+                type="button"
+                onClick={handleDownloadAllPhotosPdf}
+                disabled={pdfExporting || !(survey?.photos ?? []).some((p) => p?.image)}
+                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-[8px] border border-[#0d9f4a] bg-[#f3fbf6] px-4 text-[12px] font-extrabold text-[#0d9f4a] transition hover:bg-[#e8f8eb] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+              >
+                <Download className="size-3.5" />
+                {pdfExporting ? 'Preparing PDF…' : 'Download All Images (PDF)'}
+              </button>
+            </div>
             {!readOnly && !survey?.id ? <p className="mt-2 text-[11px] font-bold text-[#8a98af]">Save the survey once (Save Draft below) to enable photo uploads.</p> : null}
           </SurveySection>
 
@@ -18144,6 +18277,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify, readOnly = false, fo
                   onUpload={(file) => handlePhotoUpload(SURVEY_PANEL_PHOTO_SLOT, file)}
                   onDelete={() => handlePhotoDelete(getPhoto(SURVEY_PANEL_PHOTO_SLOT).id)}
                   onView={() => openPhotoPreview(getPhoto(SURVEY_PANEL_PHOTO_SLOT), 'Panel Placement Photo')}
+                  onDownload={() => handlePhotoDownload(getPhoto(SURVEY_PANEL_PHOTO_SLOT), 'Panel Placement Photo')}
                 />
               </div>
             </div>
@@ -18197,6 +18331,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify, readOnly = false, fo
                   onUpload={(file) => handlePhotoUpload(SURVEY_INVERTER_PHOTO_SLOT, file)}
                   onDelete={() => handlePhotoDelete(getPhoto(SURVEY_INVERTER_PHOTO_SLOT).id)}
                   onView={() => openPhotoPreview(getPhoto(SURVEY_INVERTER_PHOTO_SLOT), 'Inverter Location Photo')}
+                  onDownload={() => handlePhotoDownload(getPhoto(SURVEY_INVERTER_PHOTO_SLOT), 'Inverter Location Photo')}
                 />
               </div>
             </div>
@@ -18236,6 +18371,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify, readOnly = false, fo
                   onUpload={(file) => handlePhotoUpload(SURVEY_METER_PHOTO_SLOT, file)}
                   onDelete={() => handlePhotoDelete(getPhoto(SURVEY_METER_PHOTO_SLOT).id)}
                   onView={() => openPhotoPreview(getPhoto(SURVEY_METER_PHOTO_SLOT), 'Meter Photo')}
+                  onDownload={() => handlePhotoDownload(getPhoto(SURVEY_METER_PHOTO_SLOT), 'Meter Photo')}
                 />
               </div>
             </div>

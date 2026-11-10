@@ -256,6 +256,42 @@ function appBasePath() {
   return /^\/crm(\/|$)/i.test(path) ? '/crm/' : '/';
 }
 
+async function unregisterStaleServiceWorkers(buildId) {
+  const regs = await navigator.serviceWorker.getRegistrations();
+  await Promise.all(
+    regs.map((reg) => {
+      const script = reg.active?.scriptURL || reg.waiting?.scriptURL || reg.installing?.scriptURL || '';
+      const isCurrentHashed = script.includes(`/sw-${buildId}.js`);
+      const isStableSw = /\/sw\.js(?:\?|$)/.test(script);
+      // Keep only the current hashed worker; drop legacy /sw.js and other hashes.
+      if (isCurrentHashed) return null;
+      if (isStableSw || script.includes('/sw-') || !script) return reg.unregister();
+      return null;
+    }),
+  );
+}
+
+async function registerWithFallback(base, buildId) {
+  const hashedUrl = `${base}sw-${encodeURIComponent(buildId)}.js`;
+  const stableUrl = `${base}sw.js`;
+  try {
+    return await navigator.serviceWorker.register(hashedUrl, { scope: base });
+  } catch (err) {
+    const msg = String(err?.message || err || '');
+    // Old hashed SW often 404→index.html (text/html MIME). Recover via stable sw.js.
+    if (/mime|invalid state|security|failed to update|failed to register/i.test(msg)) {
+      try {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((reg) => reg.unregister()));
+      } catch {
+        /* ignore */
+      }
+      return navigator.serviceWorker.register(stableUrl, { scope: base });
+    }
+    throw err;
+  }
+}
+
 /** @returns {Promise<ServiceWorkerRegistration|null>} */
 export function registerServiceWorker() {
   if (swRegistrationStarted) return swRegistrationPromise || Promise.resolve(null);
@@ -266,34 +302,21 @@ export function registerServiceWorker() {
   }
 
   swRegistrationPromise = new Promise((resolve) => {
-    const start = () => {
+    const start = async () => {
       const base = appBasePath();
       const buildId = import.meta.env.VITE_BUILD_ID || 'dev';
-      const swUrl = `${base}sw-${encodeURIComponent(buildId)}.js`;
-      navigator.serviceWorker
-        .getRegistrations()
-        .then((regs) =>
-          Promise.all(
-            regs.map((reg) => {
-              const script = reg.active?.scriptURL || reg.waiting?.scriptURL || reg.installing?.scriptURL || '';
-              if (script.includes('/sw.js') || (script.includes('/sw-') && !script.includes(`/sw-${buildId}.js`))) {
-                return reg.unregister();
-              }
-              return null;
-            }),
-          ),
-        )
-        .catch(() => {})
-        .then(() => navigator.serviceWorker.register(swUrl, { scope: base }))
-        .then((reg) => {
-          try {
-            reg.update();
-          } catch {
-            /* ignore */
-          }
-          resolve(reg);
-        })
-        .catch(() => resolve(null));
+      try {
+        await unregisterStaleServiceWorkers(buildId);
+        const reg = await registerWithFallback(base, buildId);
+        try {
+          reg.update();
+        } catch {
+          /* ignore */
+        }
+        resolve(reg);
+      } catch {
+        resolve(null);
+      }
     };
     if (document.readyState === 'complete') start();
     else window.addEventListener('load', start, { once: true });

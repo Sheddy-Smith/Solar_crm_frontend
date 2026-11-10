@@ -16,7 +16,8 @@ class HealthReadyTests(SimpleTestCase):
 
     def test_pagination_max_is_bounded(self):
         from malwa_solar.pagination import DefaultPagination
-        self.assertLessEqual(DefaultPagination.max_page_size, 200)
+        self.assertEqual(DefaultPagination.page_size, 25)
+        self.assertLessEqual(DefaultPagination.max_page_size, 100)
 
     def test_gunicorn_defaults_are_conservative(self):
         import importlib.util

@@ -488,7 +488,7 @@ export function DeveloperAuditLogsPage({ onNotify }) {
               {loading ? (
                 <tr><td colSpan={7} className="px-3 py-8 text-center text-[#7a8fa6]">Loading…</td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={7} className="px-3 py-8 text-center text-[#7a8fa6]">Koi audit log nahi mila.</td></tr>
+                <tr><td colSpan={7} className="px-3 py-8 text-center text-[#7a8fa6]">No audit logs found.</td></tr>
               ) : rows.map((row) => (
                 <tr key={row.id} className="border-t border-[#eef2f7]">
                   <td className="px-3 py-3 whitespace-nowrap font-semibold text-[#30466d]">{row.created_at ? new Date(row.created_at).toLocaleString('en-IN') : '—'}</td>
@@ -607,7 +607,7 @@ export function DeveloperBugReportsPage({ onNotify }) {
       ) : rows.length === 0 ? (
         <article className={`${CARD} flex min-h-[240px] flex-col items-center justify-center p-8 text-center`}>
           <Bug className="size-12 text-[#e2e8f0]" />
-          <p className="mt-3 text-[14px] font-extrabold text-[#53647f]">Is filter me koi bug report nahi hai.</p>
+          <p className="mt-3 text-[14px] font-extrabold text-[#53647f]">No bug reports in this filter.</p>
         </article>
       ) : (
         <article className={`${CARD} divide-y divide-[#eef2f7]`}>
@@ -687,14 +687,14 @@ export function DeveloperBugReportsPage({ onNotify }) {
 
 function InstallMalwaWaSmartModal({ onClose }) {
   const steps = [
-    { title: 'Download', icon: Download, body: 'Extension ki .zip download karke unzip karein.' },
+    { title: 'Download', icon: Download, body: 'Download the extension .zip and unzip it.' },
     { title: 'Developer mode', icon: ToggleRight, body: 'chrome://extensions → Developer mode ON.' },
     {
       title: 'Load unpacked',
       icon: FolderOpen,
       body: (
         <>
-          Unzip karke <span className="font-extrabold text-[#1e3261]">malwa-wa-smart</span> folder Load unpacked se select karein.
+          After unzipping, select the <span className="font-extrabold text-[#1e3261]">malwa-wa-smart</span> folder with Load unpacked.
         </>
       ),
     },
@@ -703,7 +703,7 @@ function InstallMalwaWaSmartModal({ onClose }) {
       icon: Link2,
       body: (
         <>
-          <span className="font-extrabold text-[#1e3261]">Connect Extension</span> se code lekar extension Settings me paste karein.
+          Copy the code from <span className="font-extrabold text-[#1e3261]">Connect Extension</span> and paste it in the extension Settings.
         </>
       ),
     },
@@ -719,9 +719,9 @@ function InstallMalwaWaSmartModal({ onClose }) {
         <div className="mt-4 flex gap-3 rounded-[10px] border border-[#fecaca] bg-[#fef2f2] px-3.5 py-3">
           <ShieldAlert className="mt-0.5 size-5 shrink-0 text-[#dc2626]" />
           <p className="text-[13px] font-semibold leading-relaxed text-[#7f1d1d]">
-            Pehle purani <span className="font-extrabold text-[#b91c1c]">Malwa Smart Lead Capture</span> hatao:{' '}
-            <span className="font-bold">chrome://extensions</span> → Remove. Phir ye naya{' '}
-            <span className="font-extrabold text-[#b91c1c]">Malwa WA Smart v2</span> load karo.
+            First remove the old <span className="font-extrabold text-[#b91c1c]">Malwa Smart Lead Capture</span>:{' '}
+            <span className="font-bold">chrome://extensions</span> → Remove. Then load the new{' '}
+            <span className="font-extrabold text-[#b91c1c]">Malwa WA Smart v2</span>.
           </p>
         </div>
         <ol className="mt-5 space-y-4">
@@ -870,7 +870,7 @@ export function DeveloperWhatsAppExtensionPage({ onNotify }) {
               {loading ? (
                 <tr><td colSpan={9} className="px-3 py-8 text-center text-[#7a8fa6]">Loading…</td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={9} className="px-3 py-8 text-center text-[#7a8fa6]">Abhi koi WhatsApp message nahi hai. Extension connect karke messages yahan aayenge.</td></tr>
+                <tr><td colSpan={9} className="px-3 py-8 text-center text-[#7a8fa6]">No WhatsApp messages yet. Connect the extension to see messages here.</td></tr>
               ) : rows.map((row, idx) => (
                 <tr key={row.id} className="border-t border-[#eef2f7]">
                   <td className="px-3 py-3 font-bold text-[#7a8fa6]">{idx + 1}</td>

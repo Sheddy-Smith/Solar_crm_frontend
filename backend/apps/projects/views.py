@@ -57,11 +57,26 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 'milestones__children__owner',
             )
         else:
-            qs = base
+            # List serializer stage_progress reads material_plans + checklist_items —
+            # prefetch once to avoid N+1 on every Project List row.
+            qs = base.prefetch_related('material_plans', 'checklist_items')
         # Sales / Tele Sales Executives see only projects born from their own leads
         filt = lead_owner_filter(self.request.user, prefix='lead__')
         if filt:
             qs = qs.filter(**filt)
+        # Page-scoped filters (avoid fetching every project then filtering in the browser).
+        params = self.request.query_params
+        won_only = str(params.get('won_only') or '').lower() in ('1', 'true', 'yes')
+        lead_status = (params.get('lead_status') or '').strip()
+        if won_only:
+            qs = qs.filter(lead__status='Won')
+        elif lead_status:
+            qs = qs.filter(lead__status=lead_status)
+        pm_stage = (params.get('pm_stage') or params.get('stage') or '').strip()
+        if pm_stage:
+            qs = qs.annotate(
+                _pm_stage=Coalesce('pm_stage_tracker__stage', Value(PM_STAGES[0])),
+            ).filter(_pm_stage=pm_stage)
         return qs
 
     def get_serializer_class(self):
@@ -716,6 +731,21 @@ class PmPipelineViewSet(viewsets.ReadOnlyModelViewSet):
         if stage:
             qs = qs.filter(pm_stage=stage)
         return qs
+
+    @action(detail=False, methods=['get'])
+    def summary(self, request):
+        """Lightweight stage counts for pipeline chips — no full project rows."""
+        qs = (
+            Project.objects.filter(lead__status='Won', lead__is_deleted=False, is_deleted=False)
+            .annotate(pm_stage=Coalesce('pm_stage_tracker__stage', Value(PM_STAGES[0])))
+        )
+        filt = lead_owner_filter(request.user, prefix='lead__')
+        if filt:
+            qs = qs.filter(**filt)
+        rows = qs.values('pm_stage').annotate(count=Count('id'))
+        stages = {row['pm_stage'] or PM_STAGES[0]: row['count'] for row in rows}
+        total = sum(stages.values())
+        return Response({'total': total, 'stages': stages})
 
     def _respond(self, project_pk):
         return Response(self.get_serializer(self.get_queryset().get(pk=project_pk)).data)

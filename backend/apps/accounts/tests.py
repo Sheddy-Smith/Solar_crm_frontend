@@ -58,9 +58,9 @@ class PermissionRegressionTests(TestCase):
         for i in range(120):
             Lead.objects.create(customer_name=f'Cust {i}', mobile_number=f'9{i:09d}', created_by=user)
         self.client.force_authenticate(user)
-        res = self.client.get('/api/v1/leads/?page_size=200')
+        res = self.client.get('/api/v1/leads/?page_size=100')
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(len(res.data['results']), 120)
+        self.assertEqual(len(res.data['results']), 100)
 
     def test_dashboard_lead_stats_total_is_not_zeroed_by_month_filter(self):
         # Hero "Total Leads" must count the live pipeline. Month/year only

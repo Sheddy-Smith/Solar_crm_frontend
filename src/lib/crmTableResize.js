@@ -242,13 +242,16 @@ function applyWidths(table, widths) {
   ensureScrollParent(table);
 }
 
-function restoreTable(table) {
+function restoreTable(table, { refreshStickyOnly = false } = {}) {
   if (!isDataTable(table) || resizing) return;
   table.classList.add('crm-col-resize-enabled');
   ensureScrollParent(table);
+  // Already sized — only refresh sticky Action markers when new rows appear.
+  if (table.classList.contains(TABLE_READY)) {
+    if (refreshStickyOnly) markStickyAction(table);
+    return;
+  }
   markStickyAction(table);
-  // Already initialized for this DOM node — don't clobber live widths.
-  if (table.classList.contains(TABLE_READY)) return;
   const cells = headerCells(table);
   const saved = readSavedWidths(table);
   if (saved && saved.length === cells.length) {
@@ -262,6 +265,13 @@ function restoreTable(table) {
 function prepareAll(root = document) {
   if (resizing) return;
   root.querySelectorAll?.('table').forEach((table) => restoreTable(table));
+}
+
+function collectTablesFromNode(node, out) {
+  if (!node || node.nodeType !== 1) return out;
+  if (node.tagName === 'TABLE') out.add(node);
+  node.querySelectorAll?.('table').forEach((table) => out.add(table));
+  return out;
 }
 
 function hitResizeEdge(th, clientX) {
@@ -375,10 +385,31 @@ export function enableCrmTableColumnResize() {
 
   const root = document.getElementById('root') || document.body;
   let timer = 0;
-  const observer = new MutationObserver(() => {
+  let pendingTables = new Set();
+
+  // Only touch tables that actually changed. Scanning every table on every React
+  // commit (toasts, badges, survey modal, images) was freezing the UI over time.
+  const observer = new MutationObserver((records) => {
     if (resizing) return;
+    for (const record of records) {
+      if (record.type !== 'childList') continue;
+      for (const node of record.addedNodes) collectTablesFromNode(node, pendingTables);
+      const host = record.target;
+      if (host && host.nodeType === 1) {
+        const table = host.tagName === 'TABLE' ? host : host.closest?.('table');
+        if (table) pendingTables.add(table);
+      }
+    }
+    if (!pendingTables.size) return;
     window.clearTimeout(timer);
-    timer = window.setTimeout(() => prepareAll(root), 80);
+    timer = window.setTimeout(() => {
+      const batch = pendingTables;
+      pendingTables = new Set();
+      batch.forEach((table) => {
+        if (!table.isConnected) return;
+        restoreTable(table, { refreshStickyOnly: table.classList.contains(TABLE_READY) });
+      });
+    }, 160);
   });
   observer.observe(root, { childList: true, subtree: true });
 }

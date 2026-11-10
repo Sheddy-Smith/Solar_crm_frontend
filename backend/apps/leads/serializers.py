@@ -57,7 +57,10 @@ class FollowUpSerializer(serializers.ModelSerializer):
     lead_mobile_number = serializers.CharField(source='lead.mobile_number', read_only=True)
     lead_project_name = serializers.CharField(source='lead.project_name', read_only=True)
     lead_status = serializers.CharField(source='lead.status', read_only=True)
+    lead_assigned_to = serializers.IntegerField(source='lead.assigned_to_id', read_only=True, allow_null=True)
+    lead_created_by = serializers.IntegerField(source='lead.created_by_id', read_only=True, allow_null=True)
     lead_assigned_to_name = serializers.SerializerMethodField()
+    lead_created_by_name = serializers.SerializerMethodField()
 
     class Meta:
         model = FollowUp
@@ -65,7 +68,7 @@ class FollowUpSerializer(serializers.ModelSerializer):
             'id', 'lead', 'follow_up_type', 'scheduled_at', 'completed_at', 'status', 'notes',
             'reminder', 'status_after', 'outcome', 'created_by', 'created_by_name', 'created_at',
             'lead_customer_name', 'lead_mobile_number', 'lead_project_name', 'lead_status',
-            'lead_assigned_to_name',
+            'lead_assigned_to', 'lead_created_by', 'lead_assigned_to_name', 'lead_created_by_name',
         ]
         read_only_fields = ['created_by', 'created_at']
 
@@ -75,6 +78,10 @@ class FollowUpSerializer(serializers.ModelSerializer):
     def get_lead_assigned_to_name(self, obj):
         assigned = getattr(obj.lead, 'assigned_to', None) if obj.lead else None
         return _user_name(assigned) if assigned else ''
+
+    def get_lead_created_by_name(self, obj):
+        creator = getattr(obj.lead, 'created_by', None) if obj.lead else None
+        return _user_name(creator) if creator else ''
 
 
 class AdminApprovalSerializer(serializers.ModelSerializer):

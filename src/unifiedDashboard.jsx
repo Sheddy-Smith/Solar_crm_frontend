@@ -482,7 +482,7 @@ export function UnifiedDashboardPage({
   }, [activeTab]);  
 
   useEffect(() => {
-    userApi.list({ page_size: 200 })
+    userApi.list({ page_size: 25 })
       .then((d) => setAssigneeOptions(['All', ...new Set(normalizeUsers(d).map((u) => u.name).filter(Boolean))]))
       .catch(() => {});
   }, []);

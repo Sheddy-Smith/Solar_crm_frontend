@@ -15,13 +15,13 @@ def is_lead_scoped(user):
 def lead_owner_filter(user, prefix=''):
     """Queryset filter kwargs scoping to this user's own leads, keyed by role.
 
-    Prefer `lead_owner_q()` when both created-by and assigned-to must match
-    (OR). This helper remains for simple single-field scopes. Returns None if
-    the user isn't lead-scoped (i.e. they see everything)."""
+    Prefer `lead_owner_q()` for assignee-primary ownership (created only while
+    unassigned). This helper remains for simple single-field scopes. Returns
+    None if the user isn't lead-scoped (i.e. they see everything)."""
     role = getattr(getattr(user, 'role', None), 'name', '')
     if role == 'Sales Executive':
-        # Sales Executive uses OR (created | assigned) — callers should use
-        # lead_owner_q(); keep assigned_to here as a conservative fallback.
+        # Assignee-primary: projects/billing use assigned_to. Full created|unassigned
+        # OR is in lead_owner_q() for leads / follow-ups.
         return {f'{prefix}assigned_to': user}
     if role == 'Tele Sales Executive':
         return {f'{prefix}created_by': user}
@@ -29,39 +29,39 @@ def lead_owner_filter(user, prefix=''):
 
 
 def lead_owner_q(user, prefix=''):
-    """Q() scoping lead-scoped roles to leads they created or are assigned.
+    """Q() scoping lead-scoped roles with assignee-primary ownership.
+
+    Pending follow-ups / leads belong to `assigned_to` when set. The creator
+    only keeps ownership while the lead is still unassigned. Creator
+    `is_active` must never gate assignee visibility — an inactive tele/sales
+    creator must not hide Scheduled rows from the assigned executive.
 
     `prefix` is prepended to field names (e.g. 'lead__' for FollowUp). Returns
     None when the user is not lead-scoped."""
     from django.db.models import Q
 
     role = getattr(getattr(user, 'role', None), 'name', '')
+    if role not in LEAD_SCOPED_ROLES:
+        return None
     created = f'{prefix}created_by'
     assigned = f'{prefix}assigned_to'
-    if role == 'Sales Executive':
-        return Q(**{created: user}) | Q(**{assigned: user})
-    if role == 'Tele Sales Executive':
-        # Unassigned leads they created, or leads explicitly assigned to them.
-        return Q(**{created: user, f'{prefix}assigned_to__isnull': True}) | Q(**{assigned: user})
-    return None
+    # Unassigned leads I created, OR leads explicitly assigned to me.
+    return Q(**{created: user, f'{prefix}assigned_to__isnull': True}) | Q(**{assigned: user})
 
 
 def is_own_lead(user, lead):
-    """True if `lead` belongs to this (Tele) Sales Executive per their role's
-    ownership field. For object-level guards (e.g. attaching a follow-up or
+    """True if `lead` belongs to this (Tele) Sales Executive per assignee-primary
+    ownership. For object-level guards (e.g. attaching a follow-up or
     quotation to a lead) where lead_owner_filter's queryset kwargs don't
     directly apply. Non-scoped roles always own everything."""
     role = getattr(getattr(user, 'role', None), 'name', '')
-    if role == 'Sales Executive':
-        return lead.assigned_to_id == user.id or lead.created_by_id == user.id
-    if role == 'Tele Sales Executive':
-        # Unassigned leads they created, or leads explicitly assigned to them.
-        # Once a manager assigns the lead to a field Sales Executive, tele
-        # no longer owns it for edit / follow-up.
-        if lead.assigned_to_id == user.id:
-            return True
-        return lead.created_by_id == user.id and lead.assigned_to_id is None
-    return True
+    if role not in LEAD_SCOPED_ROLES:
+        return True
+    # Assigned executive always owns — even when the original creator is inactive.
+    if lead.assigned_to_id == user.id:
+        return True
+    # Creator keeps ownership only while the lead is still unassigned.
+    return lead.created_by_id == user.id and lead.assigned_to_id is None
 
 
 def is_super_admin(user):
