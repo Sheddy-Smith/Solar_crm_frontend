@@ -9,6 +9,7 @@ class DailyTask(models.Model):
         ('installation_progress', 'Installation Progress'),
         ('material_dispatch', 'Material Dispatch'),
         ('stock_check', 'Stock Check'),
+        ('commissioning', 'Commissioning Task'),
     ]
     STATUS_CHOICES = [
         ('Pending', 'Pending'),

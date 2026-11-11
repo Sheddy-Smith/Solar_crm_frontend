@@ -53,11 +53,12 @@ def lead_survey_photo_upload_path(instance, filename):
 class Lead(models.Model):
     STATUS_CHOICES = [
         ('New', 'New'),
-        ('Follow-up', 'Follow-up'),
         ('Quotation', 'Quotation'),
         ('Won', 'Won'),
         ('Lost', 'Lost'),
     ]
+    # Open pipeline (not closed Won/Lost). Used by overdue / today alerts.
+    OPEN_STATUSES = ('New', 'Quotation')
     CATEGORY_CHOICES = [
         ('Hot', 'Hot'),
         ('Warm', 'Warm'),
@@ -86,6 +87,8 @@ class Lead(models.Model):
     project_name = models.CharField(max_length=200, blank=True)
     project_type = models.CharField(max_length=20, choices=PROJECT_TYPE_CHOICES, blank=True)
     estimated_capacity = models.CharField(max_length=50, blank=True)
+    # Optional contract / deal value — feeds Project.total_value + Won Client Ledger Project Cost KPI.
+    project_cost = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
     requirement_details = models.TextField(blank=True)
     address = models.TextField(blank=True)
     city = models.CharField(max_length=100, blank=True)
@@ -117,16 +120,19 @@ class Lead(models.Model):
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # Bumped only on successful Save/Update (not open / cancel) — Lead List "recently worked" sort.
+    last_activity_at = models.DateTimeField(null=True, blank=True, db_index=True)
 
     def __str__(self):
         return f'{self.customer_name} — {self.ivrs_number}'
 
     class Meta:
-        ordering = ['-created_at']
+        ordering = ['-last_activity_at', '-created_at']
         indexes = [
             models.Index(fields=['is_deleted', 'status', '-created_at'], name='lead_del_status_created_idx'),
             models.Index(fields=['is_deleted', 'assigned_to', '-created_at'], name='lead_del_assignee_created_idx'),
             models.Index(fields=['is_deleted', 'next_follow_up'], name='lead_del_next_followup_idx'),
+            models.Index(fields=['is_deleted', '-last_activity_at', '-created_at'], name='lead_del_last_activity_idx'),
         ]
 
 
@@ -625,9 +631,55 @@ def create_project_for_won_lead(sender, instance, **kwargs):
     from apps.projects.models import Project, SiteSurvey, ProjectDocument
     from apps.liaisoning.models import LiaisonProjectStage
 
+    def _lead_project_cost(lead):
+        cost = Decimal('0')
+        try:
+            latest_quote = (
+                Quotation.objects.filter(lead=lead)
+                .exclude(status='Cancelled')
+                .order_by('-updated_at', '-id')
+                .first()
+            )
+            if latest_quote and latest_quote.grand_total:
+                cost = Decimal(str(latest_quote.grand_total))
+        except Exception:
+            cost = Decimal('0')
+        if cost <= 0 and lead.project_cost:
+            try:
+                cost = Decimal(str(lead.project_cost))
+            except (InvalidOperation, ValueError, TypeError):
+                cost = Decimal('0')
+        return cost
+
     existing = Project.objects.filter(lead=instance).first()
     if existing:
         LiaisonProjectStage.objects.get_or_create(project=existing)
+        # Keep Project Cost in sync when lead cost is set and project value is still empty
+        # (or only mirrors the previous lead cost).
+        resolved = _lead_project_cost(instance)
+        if resolved > 0 and (not existing.total_value or existing.total_value == 0):
+            existing.total_value = resolved
+            existing.save(update_fields=['total_value', 'updated_at'])
+        elif resolved > 0 and instance.project_cost and Decimal(str(instance.project_cost or 0)) > 0:
+            # Prefer explicit lead.project_cost when user updates it on an existing Won lead.
+            lead_cost = Decimal(str(instance.project_cost))
+            if existing.total_value != lead_cost:
+                # Don't overwrite a higher quotation-backed total with a lower manual lead cost.
+                quote_total = Decimal('0')
+                try:
+                    latest_quote = (
+                        Quotation.objects.filter(lead=instance)
+                        .exclude(status='Cancelled')
+                        .order_by('-updated_at', '-id')
+                        .first()
+                    )
+                    if latest_quote and latest_quote.grand_total:
+                        quote_total = Decimal(str(latest_quote.grand_total))
+                except Exception:
+                    quote_total = Decimal('0')
+                if quote_total <= 0:
+                    existing.total_value = lead_cost
+                    existing.save(update_fields=['total_value', 'updated_at'])
         return
 
     try:
@@ -635,18 +687,7 @@ def create_project_for_won_lead(sender, instance, **kwargs):
     except (InvalidOperation, ValueError):
         capacity_kwp = Decimal('0')
 
-    total_value = Decimal('0')
-    try:
-        latest_quote = (
-            Quotation.objects.filter(lead=instance)
-            .exclude(status='Cancelled')
-            .order_by('-updated_at', '-id')
-            .first()
-        )
-        if latest_quote and latest_quote.grand_total:
-            total_value = Decimal(str(latest_quote.grand_total))
-    except Exception:
-        total_value = Decimal('0')
+    total_value = _lead_project_cost(instance)
 
     lead_survey = getattr(instance, 'site_survey', None)
 

@@ -540,7 +540,7 @@ function InvoicesTable({ rows, startIndex = 0, caps, onOpenProject }) {
               </td>
               <td><Pill tone={needsChallan ? 'amber' : 'blue'}>{row.pending_document}</Pill></td>
               <td className="crm-col-sticky-right">
-                <button type="button" disabled={!caps.project} onClick={() => onOpenProject(row, needsChallan ? 'Project Sales Challan' : 'Project Invoice')} className={BTN_PRIMARY}>
+                <button type="button" disabled={!caps.project} onClick={() => onOpenProject(row, needsChallan ? 'Sell Challan' : 'Sell Invoice')} className={BTN_PRIMARY}>
                   <Receipt className="size-3.5" />
                   {needsChallan ? 'Create Sales Challan' : 'Create Invoice'}
                 </button>
@@ -802,7 +802,7 @@ function TrackerMobileCards({ section, rows, caps, busyKey, delayDays, onPack, o
                 icon: Receipt,
                 tone: 'blue',
                 disabled: !caps.project,
-                onClick: () => onOpenProject(row, needsChallan ? 'Project Sales Challan' : 'Project Invoice'),
+                onClick: () => onOpenProject(row, needsChallan ? 'Sell Challan' : 'Sell Invoice'),
               },
             ]}
           />

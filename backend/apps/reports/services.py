@@ -22,7 +22,7 @@ def reports_dashboard(date_from=None, date_to=None):
         total=Count('id'),
         new=Count('id', filter=Q(status='New')),
         won=Count('id', filter=Q(status='Won')),
-        follow_up=Count('id', filter=Q(status='Follow-up')),
+        follow_up=Count('id', filter=Q(status='Quotation')),
         quotation=Count('id', filter=Q(status='Quotation')),
     )
     total_leads = lead_counts['total'] or 0

@@ -95,7 +95,7 @@ class _ProjectScopedMixin:
         )
         filt = lead_owner_filter(self.request.user, prefix='project__lead__')
         if filt:
-            qs = qs.filter(**filt)
+            qs = qs.filter(filt)
         params = self.request.query_params
         if params.get('project_code'):
             qs = qs.filter(project__project_id__icontains=params['project_code'].strip())
@@ -237,7 +237,7 @@ class ProjectSalesChallanViewSet(_ProjectScopedMixin, SellChallanViewSet):
         projects = Project.objects.filter(is_deleted=False)
         filt = lead_owner_filter(request.user, prefix='lead__')
         if filt:
-            projects = projects.filter(**filt)
+            projects = projects.filter(filt)
         project = get_object_or_404(projects, pk=request.query_params.get('project'))
         if not project.lead_id:
             return Response({'quotations': [], 'prefill': None})

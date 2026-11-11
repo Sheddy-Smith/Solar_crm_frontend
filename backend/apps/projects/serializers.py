@@ -548,15 +548,19 @@ class ProjectListSerializer(serializers.ModelSerializer):
             material_pct = 0
             dispatch_pct = 0
 
-        install_items = [c for c in obj.checklist_items.all() if (c.phase or '') == 'Installation']
-        if obj.installation_status == 'Done':
-            installation_pct = 100
-        elif install_items:
-            checked = sum(1 for c in install_items if c.is_checked)
-            installation_pct = int(round((checked / len(install_items)) * 100))
+        from .work_completion import INSTALLATION_TOTAL_WEIGHT, installation_weight_done, work_completion_percent
+
+        # Weighted Installation tasks (Structure/Electrical/Earthing/Panel/Inverter) → 0–100 of install share.
+        weight_done = installation_weight_done(obj, ensure=False)
+        if INSTALLATION_TOTAL_WEIGHT:
+            installation_pct = int(round((weight_done / INSTALLATION_TOTAL_WEIGHT) * 100))
         else:
-            # Fall back to overall project progress when no install checklist exists.
-            installation_pct = int(obj.progress_percent or 0)
+            installation_pct = 0
+        if installation_pct == 0 and not any(
+            (c.phase or '') == 'Installation' for c in obj.checklist_items.all()
+        ):
+            # Fall back when no weighted checklist exists yet.
+            installation_pct = 100 if obj.installation_status == 'Done' else int(obj.progress_percent or 0)
 
         overall = int(obj.progress_percent or 0)
         return {
@@ -565,6 +569,7 @@ class ProjectListSerializer(serializers.ModelSerializer):
             'dispatch': dispatch_pct,
             'installation': installation_pct,
             'overall': overall,
+            'work_completion': work_completion_percent(obj, ensure=False),
         }
 
 
@@ -691,6 +696,8 @@ class PmPipelineProjectSerializer(serializers.ModelSerializer):
 
     def get_stage_index(self, obj):
         stage = getattr(obj, 'pm_stage', PM_STAGES[0])
+        if stage == 'Quotation':
+            stage = 'Site Survey'
         return PM_STAGES.index(stage) if stage in PM_STAGES else len(PM_STAGES)
 
     def get_stage_history(self, obj):
@@ -719,8 +726,6 @@ class PmPipelineProjectSerializer(serializers.ModelSerializer):
             'Job Sheet': getattr(obj, 'job_sheet_state', None) or 'Not created',
             'Dispatch': f'{dispatched}/{materials} dispatched' if materials else 'No BOM yet',
             'Installation': obj.installation_status or 'Not Done',
-            'Sales Challan': n(getattr(obj, 'challans_count', 0), 'challan'),
-            'Invoice': n(getattr(obj, 'invoices_count', 0), 'invoice'),
         }
 
     class Meta:

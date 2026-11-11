@@ -13,7 +13,7 @@ import {
   installationMaterialApi, materialPlanApi, workforceApi, subsidyApi, projectApprovalApi,
   workOrderApi,
   lcApplicationApi, lcInspectionApi, lcCommissioningApi, lcDocumentApi,
-  lcAgreementApi, lcNetMeterApi, lcProjectApi, pmPipelineApi,
+  lcLoanProcessApi, lcInspectionPlacedApi, lcAgreementApi, lcNetMeterApi, lcProjectApi, pmPipelineApi,
   omAssetApi, omSparePartApi, omReportApi, omDocumentApi, notificationApi,
   inventoryApi, amcModuleApi, reportsApi, settingsApi, siteSurveyPhotoApi,   siteSurveyApi,
   getMediaUrl,
@@ -60,7 +60,7 @@ import {
   ProjectInstallationPanel,
 } from './projectOpsPages.jsx';
 import { ProjectJobSheetPage as OpsJobSheetPage } from './projectJobSheetPage.jsx';
-import { ProjectInvoicePage, ProjectSalesChallanPage } from './projectBillingPages.jsx';
+import { MaterialPlanningPoPage } from './materialPlanningPoPage.jsx';
 import { OmPendingFlowPage, OM_PENDING_SECTIONS, OM_PENDING_STEPS } from './omPendingPages.jsx';
 import { OmModulePage, OM_LEGACY_SECTIONS, OM_MODULE_SECTIONS, OM_SECTION_ROUTES } from './omPlantPages.jsx';
 import {
@@ -101,6 +101,11 @@ import { LIST_PAGE_SIZE, LOOKUP_PAGE_SIZE, rowsOf, parseListPage, listParams, fe
 import { downloadSurveyPhoto, downloadSurveyPhotosPdf } from './lib/surveyPhotoExport.js';
 import { MobileDashboardPage, MobileBottomNav } from './mobileDashboard.jsx';
 import { SettingsRecycleBinPage } from './recycleBinPage.jsx';
+import {
+  SyncShareBackupPage,
+  syncShareBackupRelatedPages,
+  syncShareBackupSubItems,
+} from './syncShareBackupPages.jsx';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
   ArrowRight,
@@ -176,6 +181,7 @@ import {
   Truck,
   TrendingUp,
   Trophy,
+  Undo2,
   Wallet,
   LogOut,
   SunMoon,
@@ -543,7 +549,7 @@ const BRAND_MARK_DARK_SRC = '/brand/malwa-logo-mark-dark.png';
 
 const sidebarItems = [
   { label: 'Dashboard', icon: Home, active: true },
-  { label: 'Lead', icon: Users },
+  { label: 'Lead', icon: Users, showChevron: true },
   { label: 'Customer', icon: UserRound, showChevron: true },
   { label: 'Vendors', icon: Briefcase, showChevron: true },
   { label: 'Project Management', icon: FolderKanban, showChevron: true },
@@ -556,10 +562,12 @@ const sidebarItems = [
   { label: 'Supplier', icon: Package, showChevron: true },
   { label: 'Insights', icon: LayoutDashboard },
   { label: 'Daily Tasks', icon: ClipboardList },
+  { label: 'Sync, Share & Backup', icon: RefreshCw, showChevron: true },
   { label: 'Settings', icon: Settings, showChevron: false },
 ];
 
-const leadRelatedPages = ['Lead List', 'Lead Details', 'Lead Edit', 'Follow-ups', 'Lead Follow-up Create', 'Lead Site Visit Schedule', 'Lead Note Create', 'Lead Status Update', 'Lead Assign', 'Admin Approval'];
+const leadSubItems = ['Lead List', 'Quotation'];
+const leadRelatedPages = ['Lead List', 'Lead Details', 'Lead Edit', 'Follow-ups', 'Lead Follow-up Create', 'Lead Site Visit Schedule', 'Lead Note Create', 'Lead Status Update', 'Lead Assign', 'Admin Approval', 'Quotation'];
 // Pages jinhe ek selected lead chahiye — refresh/restore pe selectedLead null hota hai, isliye inhe Lead List se replace karo
 const leadDetailPages = ['Lead Details', 'Lead Edit', 'Lead Follow-up Create', 'Lead Site Visit Schedule', 'Lead Note Create', 'Lead Status Update', 'Lead Assign'];
 const employeeSubItems = ['Employee Details', 'Employee Ledger'];
@@ -578,16 +586,10 @@ const projectSubItems = [
   'Project Job Sheet',
   'Project Dispatch',
   'Project Installation',
-  'Project Sales Challan',
-  'Project Invoice',
 ];
-// Quotation apna alag page render karta hai (Quotation module permission ke saath), isliye yeh
-// projectRelatedPages me nahi hai — sirf Project Management sidebar submenu me Site Survey ke baad dikhta hai.
-const projectSidebarSubItems = [
-  ...projectSubItems.slice(0, projectSubItems.indexOf('Project Site Survey') + 1),
-  'Quotation',
-  ...projectSubItems.slice(projectSubItems.indexOf('Project Site Survey') + 1),
-];
+// Quotation sidebar entry Lead ke neeche hai (alag Quotation module page).
+// Project Management accordion me Quotation nahi dikhta — PM pipeline stage alag rehta hai.
+const projectSidebarSubItems = [...projectSubItems];
 const projectActionPages = ['Project Create', 'Project Activity Create', 'Project Note Create', 'Project Team Add', 'Project Progress Update', 'Project Work Order Create', 'Project Document Upload', 'Project Document Preview', 'Project Folder Create', 'Project Approval Create', 'Project Approval Details', 'Project Custom Report Create', 'Project Report Details', 'Project Report Schedule'];
 // 'Subsidy', 'Project Documents', 'Project Approvals' ab Project Management ke sidebar submenu me nahi —
 // unke sidebar entries Liaisoning & Commissioning me move ho gaye (Subsidy seedha, Documents/Approvals
@@ -598,7 +600,7 @@ const projectActionPages = ['Project Create', 'Project Activity Create', 'Projec
 // projectExpandHighlightPages se explicitly bahar rakha gaya hai.
 const projectLegacyOnlyPages = ['Subsidy', 'Project Documents', 'Project Approvals'];
 const projectRelatedPages = ['Project Management', 'Project Overview', 'Project KPI Analytics', 'Project Reports', ...projectActionPages, ...projectSubItems, ...projectLegacyOnlyPages, 'Project Details', 'Project Timeline', 'Project Work Orders', 'Project Report View'];
-const projectExpandHighlightPages = [...projectRelatedPages.filter((p) => !projectLegacyOnlyPages.includes(p)), 'Quotation'];
+const projectExpandHighlightPages = projectRelatedPages.filter((p) => !projectLegacyOnlyPages.includes(p));
 const summarySubItems = [];
 const insightsRelatedPages = [
   'Insights',
@@ -635,27 +637,27 @@ const inventorySubItems = [...inventoryPrimarySubItems, ...inventoryOverflowSubI
 const inventoryRelatedPages = ['Inventory', ...inventorySubItems];
 // Order = pipeline order: "Next" opens the same project in the following step.
 // Stage names must match backend LIAISON_STAGES (apps/liaisoning/models.py).
+// Final 8 stages: Inspection after Commissioning (Inspection Placed removed).
 const LIAISON_STAGE_STEPS = [
   { key: 'Documents', stage: 'Documents' },
   { key: 'Application', stage: 'Application' },
+  { key: 'Loan Process', stage: 'Loan Process' },
   { key: 'Agreement', stage: 'Agreement' },
-  { key: 'Inspection', stage: 'Inspection' },
   { key: 'Net Meter', stage: 'Net Meter' },
   { key: 'Commissioning', stage: 'Commissioning' },
+  { key: 'Inspection', stage: 'Inspection' },
   { key: 'Liaison Subsidy', stage: 'Subsidy' },
 ];
 const LIAISON_STAGE_NAMES = LIAISON_STAGE_STEPS.map((s) => s.stage);
 const liaisonSubItems = ['Liaison Projects', ...LIAISON_STAGE_STEPS.map((s) => s.key)];
 // Stage names must match backend PM_STAGES (apps/projects/models.py).
+// Quotation is a Lead-module page — not a PM pipeline stage.
 const PM_STAGE_STEPS = [
   { key: 'Project Site Survey', stage: 'Site Survey' },
-  { key: 'Quotation', stage: 'Quotation' },
   { key: 'Project Material Planning', stage: 'Material Planning' },
   { key: 'Project Job Sheet', stage: 'Job Sheet' },
   { key: 'Project Dispatch', stage: 'Dispatch' },
   { key: 'Project Installation', stage: 'Installation' },
-  { key: 'Project Sales Challan', stage: 'Sales Challan' },
-  { key: 'Project Invoice', stage: 'Invoice' },
 ];
 const PM_STAGE_NAMES = PM_STAGE_STEPS.map((s) => s.stage);
 const PIPELINE_COMPLETED_STAGE = 'Completed';
@@ -884,11 +886,11 @@ const settingsRelatedPages = [
 function permissionModuleForSection(section) {
   if (!section) return null;
   if (section === 'Dashboard') return 'Dashboard';
+  if (section === 'Quotation') return 'Quotation';
   if (section === 'Lead' || leadRelatedPages.includes(section)) return 'Lead';
   if (section === 'Customer' || customerRelatedPages.includes(section)) return 'Customer';
   if (section === 'Vendors' || vendorRelatedPages.includes(section)) return 'Vendors';
   if (section === 'Supplier' || supplierRelatedPages.includes(section)) return 'Supplier';
-  if (section === 'Quotation') return 'Quotation';
   if (section === 'Project Management' || projectRelatedPages.includes(section)) return 'Project Management';
   if (section === 'Liaisoning & Commissioning' || liaisonRelatedPages.includes(section)) return 'Liaisoning & Commissioning';
   if (section === OM_FIELD_WORK_SECTION) return 'O&M Field Work';
@@ -899,6 +901,7 @@ function permissionModuleForSection(section) {
   if (section === 'Employee' || employeeRelatedPages.includes(section)) return 'Employee';
   if (section === 'Insights' || insightsRelatedPages.includes(section)) return 'Insights';
   if (dailyTasksRelatedPages.includes(section)) return 'Daily Tasks';
+  if (section === 'Sync, Share & Backup' || syncShareBackupRelatedPages.includes(section)) return 'Settings';
   if (section === 'Settings' || settingsRelatedPages.includes(section) || legacyEmployeeAdminPages.includes(section)) return 'Settings';
   return SIDEBAR_MODULE_BY_LABEL[section] || null;
 }
@@ -923,6 +926,7 @@ function resolveAccessibleLandingSection(user, visibleItems = []) {
     Insights: 'Insights',
     'Daily Tasks': 'Daily Tasks',
     'AMC & Warranty': 'AMC Overview',
+    'Sync, Share & Backup': 'Sync & Share',
     Settings: 'Settings',
   };
   for (const item of visibleItems) {
@@ -997,6 +1001,7 @@ const summarySubRoutes = {
 
 const leadSubRoutes = {
   'Lead List': '/lead/list',
+  Quotation: '/quotation',
   'Follow-ups': '/lead/follow-ups',
   'Lead Edit': '/lead/edit/:leadId',
   'Lead Follow-up Create': '/lead/follow-up/create/:leadId',
@@ -1045,8 +1050,6 @@ const projectSubRoutes = {
   'Project Dispatch': '/projects/dispatch',
   'Project Material Planning': '/projects/material-planning',
   'Project Job Sheet': '/projects/job-sheet',
-  'Project Sales Challan': '/projects/sales-challan',
-  'Project Invoice': '/projects/invoice',
   'Subsidy': '/projects/subsidy/:projectId',
   'Project Work Orders': '/projects/work-orders/:projectId',
   'Project Work Order Create': '/projects/work-orders/create/:projectId',
@@ -1113,9 +1116,11 @@ const REMOVED_INVENTORY_PATHS = ['/inventory/stock-movements', '/inventory/stock
 const liaisonSubRoutes = {
   'Liaison Projects': '/liaisoning/projects',
   Application: '/liaisoning/application',
+  'Loan Process': '/liaisoning/loan-process',
   Agreement: '/liaisoning/agreement',
   Inspection: '/liaisoning/inspection',
   'Net Meter': '/liaisoning/net-meter',
+  'Inspection Placed': '/liaisoning/inspection-placed',
   'Liaison Subsidy': '/liaisoning/subsidy',
   Applications: '/liaisoning/applications',
   'Liaison Application Create': '/liaisoning/applications/create',
@@ -1383,14 +1388,14 @@ const leadCategoryTabs = [
 
 // Har lead ko exactly EK category deta hai — overlap aur gap dono fix.
 // Count aur filter dono isi single source of truth ko use karte hain taaki kabhi mismatch na ho.
-// Precedence: Lost > Won(none) > High(Hot) > Low(Cool) > New(New) > Follow-up/Quotation(Warm).
+// Precedence: Lost > Won > Hot(priority/category) > Cool > Warm(Quotation/Warm) > New.
 function classifyLeadCategory(lead) {
   if (lead.status === 'Lost') return 'Lost leads';
   if (lead.status === 'Won') return 'Won leads';
-  if (lead.priority === 'High') return 'Hot leads';
-  if (lead.priority === 'Low') return 'Cool leads';
+  if (lead.priority === 'High' || lead.category === 'Hot') return 'Hot leads';
+  if (lead.priority === 'Low' || lead.category === 'Cool') return 'Cool leads';
+  if (lead.status === 'Quotation' || lead.category === 'Warm' || lead.status === 'Follow-up') return 'Warm leads';
   if (lead.status === 'New') return 'New leads';
-  if (lead.status === 'Follow-up' || lead.status === 'Quotation') return 'Warm leads';
   return 'New leads'; // fallback (rarely hits)
 }
 
@@ -2081,6 +2086,7 @@ const availableSections = new Set([
   ...amcRelatedPages,
   ...dailyTasksRelatedPages,
   ...insightsRelatedPages,
+  ...syncShareBackupRelatedPages,
   ...settingsRelatedPages,
   ...summaryRelatedPages,
 ]);
@@ -2169,7 +2175,8 @@ function App() {
   });
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(Boolean(initialPreferences.desktopSidebarCollapsed));
-  const [activeSidebarItem, setActiveSidebarItem] = useState(() => {
+  const navHistoryRef = useRef([]);
+  const [activeSidebarItem, setActiveSidebarItemState] = useState(() => {
     const routeSection = isKnownSection(initialRoute.section) ? initialRoute.section : null;
     const stored = isKnownSection(initialPreferences.activeSidebarItem)
       ? initialPreferences.activeSidebarItem
@@ -2180,8 +2187,26 @@ function App() {
     // Refresh pe selectedProject null hota hai, isliye project-specific page ki jagah Project List dikhao
     if (projectDetailPages.includes(preferred) && !initialRoute.params.projectId) return 'Project List';
     if (insightsRelatedPages.includes(preferred) && preferred !== 'Insights') return 'Insights';
+    // Legacy L&C stage removed from workflow.
+    if (preferred === 'Inspection Placed') return 'Inspection';
     return preferred;
   });
+  const setActiveSidebarItem = useCallback((next) => {
+    setActiveSidebarItemState((prev) => {
+      const resolved = typeof next === 'function' ? next(prev) : next;
+      const target = resolved === 'Inspection Placed' ? 'Inspection' : resolved;
+      if (prev && target && prev !== target) {
+        navHistoryRef.current = [...navHistoryRef.current.slice(-39), prev];
+      }
+      return target;
+    });
+  }, []);
+  const goBackInApp = useCallback(() => {
+    const stack = navHistoryRef.current;
+    const prev = stack.length ? stack[stack.length - 1] : null;
+    navHistoryRef.current = stack.slice(0, -1);
+    setActiveSidebarItemState(prev || 'Dashboard');
+  }, []);
   const [insightsTab, setInsightsTab] = useState(
     initialRoute.params?.tab || INSIGHTS_LEGACY_TAB_MAP[initialRoute.section] || 'overview',
   );
@@ -2189,8 +2214,8 @@ function App() {
     const item = isKnownSection(initialPreferences.activeSidebarItem)
       ? initialPreferences.activeSidebarItem
       : 'Dashboard';
-    if (item === 'Lead' || leadRelatedPages.includes(item)) return 'Lead';
-    if (item === 'Project Management' || item === 'Quotation' || projectRelatedPages.includes(item)) return 'Project Management';
+    if (item === 'Lead' || item === 'Quotation' || leadRelatedPages.includes(item)) return 'Lead';
+    if (item === 'Project Management' || projectRelatedPages.includes(item)) return 'Project Management';
     if (item === 'Employee' || employeeRelatedPages.includes(item)) return 'Employee';
     if (item === 'Customer' || customerRelatedPages.includes(item)) return 'Customer';
     if (item === 'Vendors' || vendorRelatedPages.includes(item)) return 'Vendors';
@@ -2303,10 +2328,10 @@ function App() {
   const [autoOpenQuotation, setAutoOpenQuotation] = useState(false);
   const clearSelectedProject = useCallback(() => setSelectedProject(null), []);
   const consumeAutoOpenQuotation = useCallback(() => setAutoOpenQuotation(false), []);
-  // Quotation is a Project Management pipeline step for PM users; others keep the standalone page.
-  const quotationInProjectHub = activeSidebarItem === 'Quotation' && hasAnyModuleAccess(loggedInUser, 'Project Management');
+  // Quotation lives under Lead sidebar — always the standalone Quotation page.
+  const quotationInProjectHub = false;
   const fixedHeightPage = activeSidebarItem === 'Lead List'
-    || (activeSidebarItem === 'Quotation' && !quotationInProjectHub)
+    || activeSidebarItem === 'Quotation'
     || activeSidebarItem === 'Developer Mode';
   const [followUpPopupLead, setFollowUpPopupLead] = useState(null);
   const [followUpsPageTab, setFollowUpsPageTab] = useState('today');
@@ -2433,8 +2458,11 @@ function App() {
   const visibleSidebarItems = useMemo(() => {
     if (!loggedInUser) return sidebarItems;
     const filtered = sidebarItems.filter((item) => {
+      if (item.label === 'Lead') {
+        return hasAnyModuleAccess(loggedInUser, 'Lead') || hasAnyModuleAccess(loggedInUser, 'Quotation');
+      }
       if (item.label === 'Project Management') {
-        return hasAnyModuleAccess(loggedInUser, 'Project Management') || hasAnyModuleAccess(loggedInUser, 'Quotation');
+        return hasAnyModuleAccess(loggedInUser, 'Project Management');
       }
       if (item.label === 'O&M') {
         return hasAnyModuleAccess(loggedInUser, 'O&M') || hasAnyModuleAccess(loggedInUser, 'O&M Field Work');
@@ -2449,11 +2477,21 @@ function App() {
     return filtered;
   }, [loggedInUser, developerModeActive]);
 
+  const visibleLeadSidebarSubItems = useMemo(() => {
+    if (!loggedInUser) return leadSubItems;
+    const canLead = hasAnyModuleAccess(loggedInUser, 'Lead');
+    const canQuotation = hasAnyModuleAccess(loggedInUser, 'Quotation');
+    // Quotation is nested under Lead — show when Lead OR Quotation module is allowed.
+    return leadSubItems.filter((subItem) => {
+      if (subItem === 'Quotation') return canLead || canQuotation;
+      return canLead;
+    });
+  }, [loggedInUser]);
+
   const visibleProjectSidebarSubItems = useMemo(() => {
     if (!loggedInUser) return projectSidebarSubItems;
-    const canProject = hasAnyModuleAccess(loggedInUser, 'Project Management');
-    const canQuotation = hasAnyModuleAccess(loggedInUser, 'Quotation');
-    return projectSidebarSubItems.filter((subItem) => (subItem === 'Quotation' ? canQuotation : canProject));
+    if (!hasAnyModuleAccess(loggedInUser, 'Project Management')) return [];
+    return projectSidebarSubItems;
   }, [loggedInUser]);
 
   const visibleOmSubItems = useMemo(
@@ -2799,7 +2837,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (activeSidebarItem === 'Lead' || leadRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Lead'); return; }
+    if (activeSidebarItem === 'Lead' || activeSidebarItem === 'Quotation' || leadRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Lead'); return; }
     if (activeSidebarItem === 'Project Management' || projectExpandHighlightPages.includes(activeSidebarItem)) { setExpandedSection('Project Management'); return; }
     if (activeSidebarItem === 'Employee' || employeeRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Employee'); return; }
     if (activeSidebarItem === 'Customer' || customerRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Customer'); return; }
@@ -2811,6 +2849,7 @@ function App() {
     if (omRelatedPages.includes(activeSidebarItem)) { setExpandedSection('O&M'); return; }
     if (omPendingRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Tracker'); return; }
     if (activeSidebarItem === 'AMC & Warranty' || amcRelatedPages.includes(activeSidebarItem)) { setExpandedSection('AMC & Warranty'); return; }
+    if (activeSidebarItem === 'Sync, Share & Backup' || syncShareBackupRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Sync, Share & Backup'); return; }
     if (insightsRelatedPages.includes(activeSidebarItem)) return;
   }, [activeSidebarItem]);
 
@@ -2999,6 +3038,14 @@ function App() {
         setNotificationMenuOpen(false);
         setMessageMenuOpen(false);
       }
+      // CRM internal back — Alt + ← (avoid fighting browser when typing in inputs).
+      if (event.altKey && (event.key === 'ArrowLeft' || event.code === 'ArrowLeft')) {
+        const tag = (event.target instanceof Element ? event.target.tagName : '') || '';
+        if (!['INPUT', 'TEXTAREA', 'SELECT'].includes(tag) && !(event.target instanceof Element && event.target.isContentEditable)) {
+          event.preventDefault();
+          goBackInApp();
+        }
+      }
     };
 
     document.addEventListener('mousedown', handlePointerDown);
@@ -3007,7 +3054,7 @@ function App() {
       document.removeEventListener('mousedown', handlePointerDown);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [messageMenuOpen, notificationMenuOpen, profileMenuOpen]);
+  }, [messageMenuOpen, notificationMenuOpen, profileMenuOpen, goBackInApp]);
 
   if (currentPage === 'portal') {
     return (
@@ -3179,7 +3226,7 @@ function App() {
                   const isDailyTasksSection = item.label === 'Daily Tasks';
                   const isSettingsSection = item.label === 'Settings';
                   const isDeveloperSection = item.label === 'Developer Mode';
-                  const isLeadHighlighted = isLeadSection && (activeSidebarItem === 'Lead' || leadRelatedPages.includes(activeSidebarItem));
+                  const isLeadHighlighted = isLeadSection && (activeSidebarItem === 'Lead' || activeSidebarItem === 'Quotation' || leadRelatedPages.includes(activeSidebarItem));
                   const isCustomerHighlighted = isCustomerSection && (activeSidebarItem === 'Customer' || customerRelatedPages.includes(activeSidebarItem));
                   const isVendorHighlighted = isVendorSection && (activeSidebarItem === 'Vendors' || vendorRelatedPages.includes(activeSidebarItem));
                   const isSupplierHighlighted = isSupplierSection && (activeSidebarItem === 'Supplier' || supplierRelatedPages.includes(activeSidebarItem));
@@ -3193,6 +3240,8 @@ function App() {
                   const isAmcHighlighted = isAmcSection && (activeSidebarItem === 'AMC & Warranty' || amcRelatedPages.includes(activeSidebarItem));
                   const isInsightsHighlighted = isInsightsSection && (activeSidebarItem === 'Insights' || insightsRelatedPages.includes(activeSidebarItem));
                   const isDailyTasksHighlighted = isDailyTasksSection && dailyTasksRelatedPages.includes(activeSidebarItem);
+                  const isSyncShareSection = item.label === 'Sync, Share & Backup';
+                  const isSyncShareHighlighted = isSyncShareSection && syncShareBackupRelatedPages.includes(activeSidebarItem);
                   const isLeadOpen = isLeadSection && expandedSection === 'Lead';
                   const isCustomerOpen = isCustomerSection && expandedSection === 'Customer';
                   const isVendorOpen = isVendorSection && expandedSection === 'Vendors';
@@ -3205,23 +3254,17 @@ function App() {
                   const isOmOpen = isOmSection && expandedSection === 'O&M';
                   const isOmPendingOpen = isOmPendingSection && expandedSection === 'Tracker';
                   const isAmcOpen = isAmcSection && expandedSection === 'AMC & Warranty';
+                  const isSyncShareOpen = isSyncShareSection && expandedSection === 'Sync, Share & Backup';
                   const isSettingsActive = isSettingsSection && settingsRelatedPages.includes(activeSidebarItem);
                   const isSettingsOpen = isSettingsSection && expandedSection === 'Settings';
                   const isDeveloperActive = isDeveloperSection && activeSidebarItem === 'Developer Mode';
-                  const isActive = item.label === activeSidebarItem || isLeadHighlighted || isCustomerHighlighted || isVendorHighlighted || isSupplierHighlighted || isProjectHighlighted || isEmployeeHighlighted || isAccountsHighlighted || isInventoryHighlighted || isLiaisonHighlighted || isOmHighlighted || isOmPendingHighlighted || isAmcHighlighted || isInsightsHighlighted || isDailyTasksHighlighted || isSettingsActive || isDeveloperActive;
+                  const isActive = item.label === activeSidebarItem || isLeadHighlighted || isCustomerHighlighted || isVendorHighlighted || isSupplierHighlighted || isProjectHighlighted || isEmployeeHighlighted || isAccountsHighlighted || isInventoryHighlighted || isLiaisonHighlighted || isOmHighlighted || isOmPendingHighlighted || isAmcHighlighted || isInsightsHighlighted || isDailyTasksHighlighted || isSyncShareHighlighted || isSettingsActive || isDeveloperActive;
 
                   return (
                     <div key={item.label}>
                       <button
                         type="button"
                         onClick={() => {
-                          if (isLeadSection) {
-                            setExpandedSection(null);
-                            setActiveSidebarItem('Lead List');
-                            notify('Lead List opened');
-                            setMobileSidebarOpen(false);
-                            return;
-                          }
                           if (isSettingsSection) {
                             setExpandedSection(null);
                             setActiveSidebarItem('Settings');
@@ -3261,7 +3304,7 @@ function App() {
                             setMobileSidebarOpen(false);
                             return;
                           }
-                          const sectionKey = isProjectSection ? 'Project Management' : isCustomerSection ? 'Customer' : isVendorSection ? 'Vendors' : isSupplierSection ? 'Supplier' : isEmployeeSection ? 'Employee' : isAccountsSection ? 'Accounts' : isInventorySection ? 'Inventory' : isLiaisonSection ? 'Liaisoning & Commissioning' : isOmSection ? 'O&M' : isOmPendingSection ? 'Tracker' : isAmcSection ? 'AMC & Warranty' : null;
+                          const sectionKey = isLeadSection ? 'Lead' : isProjectSection ? 'Project Management' : isCustomerSection ? 'Customer' : isVendorSection ? 'Vendors' : isSupplierSection ? 'Supplier' : isEmployeeSection ? 'Employee' : isAccountsSection ? 'Accounts' : isInventorySection ? 'Inventory' : isLiaisonSection ? 'Liaisoning & Commissioning' : isOmSection ? 'O&M' : isOmPendingSection ? 'Tracker' : isAmcSection ? 'AMC & Warranty' : isSyncShareSection ? 'Sync, Share & Backup' : null;
                           if (sectionKey) {
                             if (expandedSection === sectionKey) {
                               setExpandedSection(null);
@@ -3269,8 +3312,9 @@ function App() {
                               return;
                             }
                             setExpandedSection(sectionKey);
-                            const projectLanding = !loggedInUser || hasAnyModuleAccess(loggedInUser, 'Project Management') ? 'Project Overview' : 'Quotation';
-                            const nextItem = isProjectSection ? projectLanding : isCustomerSection ? 'Customer Details' : isVendorSection ? 'Vendor Details' : isSupplierSection ? 'Supplier Details' : isEmployeeSection ? 'Employee Details' : isAccountsSection ? 'Accounts Overview' : isInventorySection ? 'Inventory Overview' : isLiaisonSection ? 'Liaison Projects' : isOmSection ? visibleOmSubItems[0] : isOmPendingSection ? OM_PENDING_SECTIONS[0] : isAmcSection ? 'AMC Overview' : 'Project List';
+                            const leadLanding = visibleLeadSidebarSubItems[0] || 'Lead List';
+                            const projectLanding = 'Project Overview';
+                            const nextItem = isLeadSection ? leadLanding : isProjectSection ? projectLanding : isCustomerSection ? 'Customer Details' : isVendorSection ? 'Vendor Details' : isSupplierSection ? 'Supplier Details' : isEmployeeSection ? 'Employee Details' : isAccountsSection ? 'Accounts Overview' : isInventorySection ? 'Inventory Overview' : isLiaisonSection ? 'Liaison Projects' : isOmSection ? visibleOmSubItems[0] : isOmPendingSection ? OM_PENDING_SECTIONS[0] : isAmcSection ? 'AMC Overview' : isSyncShareSection ? 'Sync & Share' : 'Project List';
                             setActiveSidebarItem(nextItem);
                             notify(`${nextItem} section selected`);
                             // Mobile: leave drawer open so sub-items stay visible; sub-item click closes it.
@@ -3304,7 +3348,7 @@ function App() {
                           {item.label}
                         </span>
                         {item.showChevron && !desktopSidebarCollapsed ? (
-                          <ChevronRight className={cx('size-4 shrink-0 text-white/90 transition', (isLeadOpen || isCustomerOpen || isVendorOpen || isSupplierOpen || isProjectOpen || isEmployeeOpen || isAccountsOpen || isInventoryOpen || isLiaisonOpen || isOmOpen || isOmPendingOpen || isAmcOpen || isSettingsOpen) && '-rotate-90')} />
+                          <ChevronRight className={cx('size-4 shrink-0 text-white/90 transition', (isLeadOpen || isCustomerOpen || isVendorOpen || isSupplierOpen || isProjectOpen || isEmployeeOpen || isAccountsOpen || isInventoryOpen || isLiaisonOpen || isOmOpen || isOmPendingOpen || isAmcOpen || isSyncShareOpen || isSettingsOpen) && '-rotate-90')} />
                         ) : null}
                         {item.disabled && !desktopSidebarCollapsed ? (
                           <span className="rounded-[6px] bg-white/16 px-2 py-1 text-[9px] font-extrabold text-white/90">
@@ -3312,6 +3356,44 @@ function App() {
                           </span>
                         ) : null}
                       </button>
+                      <AnimatePresence>
+                      {isLeadOpen && !desktopSidebarCollapsed && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={navMotionTransition}
+                          className="my-2 overflow-hidden rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]"
+                        >
+                          <div className="space-y-1">
+                            {visibleLeadSidebarSubItems.map((subItem) => {
+                              const isSubActive = activeSidebarItem === subItem
+                                || (subItem === 'Lead List' && leadRelatedPages.includes(activeSidebarItem) && activeSidebarItem !== 'Quotation');
+
+                              return (
+                                <button
+                                  key={subItem}
+                                  type="button"
+                                  data-route={leadSubRoutes[subItem] || sectionRoutes[subItem]}
+                                  onClick={() => {
+                                    setActiveSidebarItem(subItem);
+                                    setMobileSidebarOpen(false);
+                                    notify(`${subItem} opened`);
+                                  }}
+                                  className={cx(
+                                    'flex w-full items-center gap-3 rounded-[7px] px-2 py-2 text-left text-[12px] font-bold transition',
+                                    isSubActive ? 'text-[#078c3e]' : 'text-[#53647f] hover:bg-[#f5f9ff] hover:text-[#234069]',
+                                  )}
+                                >
+                                  <span className={cx('size-1.5 rounded-full', isSubActive ? 'bg-[#14b84c]' : 'bg-[#b9c4d6]')} />
+                                  <span>{getModuleSubnavLabel(subItem)}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </motion.div>
+                      )}
+                      </AnimatePresence>
                       <AnimatePresence>
                       {isCustomerOpen && !desktopSidebarCollapsed && (
                         <motion.div
@@ -3735,6 +3817,44 @@ function App() {
                         </motion.div>
                       )}
                       </AnimatePresence>
+                      <AnimatePresence>
+                      {isSyncShareOpen && !desktopSidebarCollapsed && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={navMotionTransition}
+                          className="my-2 overflow-hidden rounded-[8px] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(8,65,119,0.16)]"
+                        >
+                          <div className="space-y-1">
+                            {syncShareBackupSubItems.map((subItem) => {
+                              const isSubActive = activeSidebarItem === subItem;
+                              return (
+                                <button
+                                  key={subItem}
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveSidebarItem(subItem);
+                                    setMobileSidebarOpen(false);
+                                    notify(`${subItem} opened`);
+                                  }}
+                                  className={cx(
+                                    'flex w-full items-center gap-3 rounded-[7px] px-2 py-2 text-left text-[12px] font-bold transition',
+                                    isSubActive ? 'text-[#078c3e]' : 'text-[#53647f] hover:bg-[#f5f9ff] hover:text-[#234069]',
+                                  )}
+                                >
+                                  <span className={cx('size-1.5 rounded-full', isSubActive ? 'bg-[#14b84c]' : 'bg-[#b9c4d6]')} />
+                                  <span>{subItem}</span>
+                                  {subItem === 'Sync & Share' ? (
+                                    <span className={cx('ml-auto size-2 rounded-full', isSubActive ? 'bg-[#0d9f4a]' : 'bg-[#86efac]')} />
+                                  ) : null}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </motion.div>
+                      )}
+                      </AnimatePresence>
                       {null /* Settings subcategories shown on page only */}
                     </div>
                   );
@@ -3821,6 +3941,7 @@ function App() {
               notificationUnread={notificationUnread}
               onNotificationsChanged={refreshNotificationCount}
               onOpenNotificationLink={openNotificationLink}
+              onAppBack={goBackInApp}
             />
             <div className="px-3 pt-2 md:hidden">
               <PwaInstallBanner notify={notify} />
@@ -3991,6 +4112,16 @@ function App() {
                 onConsumeAutoOpenQuotation={consumeAutoOpenQuotation}
                 onNotify={notify}
                 loggedInUser={loggedInUser}
+              />
+            ) : syncShareBackupRelatedPages.includes(activeSidebarItem) ? (
+              <SyncShareBackupPage
+                activeSection={activeSidebarItem}
+                loggedInUser={loggedInUser}
+                onOpenSection={(section) => {
+                  setActiveSidebarItem(section);
+                  notify(`${section} opened`);
+                }}
+                onNotify={notify}
               />
             ) : settingsRelatedPages.includes(activeSidebarItem) ? (
               <SettingsMasterPage
@@ -4585,6 +4716,7 @@ function AppHeader({
   globalSearch, setGlobalSearch, setGlobalSearchNonce, setActiveSidebarItem,
   theme, setTheme, loggedInUser, showInstallApp, onInstallApp,
   notificationUnread = 0, onNotificationsChanged, onOpenNotificationLink,
+  onAppBack = null,
 }) {
   const { motionDuration } = useAnimationScale();
   const microMotionTransition = useMemo(
@@ -4606,7 +4738,7 @@ function AppHeader({
     />
   );
   const renderSearch = (className, placeholder) => (
-    <label className={cx('search-input h-11 items-center rounded-[12px] border border-black/15 bg-[#fbfcff] px-3 shadow-[0_4px_12px_rgba(15,39,92,0.04)] transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 md:h-12 md:px-4 dark:border-slate-600 dark:bg-slate-800', className)}>
+    <label className={cx('search-input h-10 items-center rounded-[10px] border border-black/15 bg-[#fbfcff] px-3 shadow-[0_4px_12px_rgba(15,39,92,0.04)] transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 dark:border-slate-600 dark:bg-slate-800', className)}>
       <Search className="size-4 shrink-0 text-[#7486a3]" />
       <input
         type="search"
@@ -4620,7 +4752,7 @@ function AppHeader({
           }
         }}
         placeholder={placeholder}
-        className="h-full min-w-0 w-full bg-transparent px-2.5 text-[14px] font-semibold text-[#30466d] outline-none placeholder:font-medium placeholder:text-[#8ea0ba] md:px-3 dark:text-slate-200"
+        className="h-full min-w-0 w-full bg-transparent px-2.5 text-[13px] font-semibold text-[#30466d] outline-none placeholder:font-medium placeholder:text-[#8ea0ba] dark:text-slate-200"
       />
       {globalSearch && (
         <button type="button" onClick={() => setGlobalSearch('')} className="ml-1 text-[#8ea0ba] hover:text-[#e03434]">✕</button>
@@ -4629,8 +4761,9 @@ function AppHeader({
   );
 
   return (
-    <header className={`${panelClass} header-toolbar app-mobile-topbar relative z-50 -mx-2 overflow-visible rounded-none border-x-0 border-t-0 px-3 py-2.5 md:mx-0 md:rounded-[16px] md:border md:px-4 md:py-3`}>
-      <div className="grid gap-2.5 lg:grid-cols-[40px_minmax(0,1fr)] xl:grid-cols-[40px_minmax(280px,320px)_minmax(0,1fr)_auto] xl:items-center xl:gap-4">
+    <>
+    <header className={`${panelClass} header-toolbar app-mobile-topbar relative z-50 -mx-2 overflow-visible rounded-none border-x-0 border-t-0 px-3 py-1.5 md:mx-0 md:rounded-[14px] md:border md:px-3 md:py-1.5`}>
+      <div className="grid items-center gap-2 lg:grid-cols-[36px_minmax(0,1fr)] xl:grid-cols-[36px_minmax(240px,300px)_minmax(0,1fr)_auto] xl:gap-3">
         <div className="flex items-center justify-between gap-2 lg:contents">
           <button
             type="button"
@@ -4638,10 +4771,10 @@ function AppHeader({
               setMobileSidebarOpen(true);
               notify('Sidebar opened');
             }}
-            className="inline-flex size-11 shrink-0 items-center justify-center rounded-[12px] border border-[#dfe7f2] bg-white text-[#52637f] shadow-[0_4px_12px_rgba(15,39,92,0.06)] transition hover:border-[#cfdbee] hover:text-[#2158d6] xl:hidden dark:border-slate-600 dark:bg-slate-800"
+            className="inline-flex size-9 shrink-0 items-center justify-center rounded-[10px] border border-[#dfe7f2] bg-white text-[#52637f] shadow-[0_4px_12px_rgba(15,39,92,0.06)] transition hover:border-[#cfdbee] hover:text-[#2158d6] xl:hidden dark:border-slate-600 dark:bg-slate-800"
             aria-label="Open sidebar"
           >
-            <Menu className="size-5" />
+            <Menu className="size-4" />
           </button>
 
           <button
@@ -4653,10 +4786,10 @@ function AppHeader({
                 return next;
               });
             }}
-            className="hidden size-10 shrink-0 items-center justify-center rounded-[12px] bg-transparent text-[#52637f] transition hover:bg-[#f7faff] hover:text-[#244c7e] xl:inline-flex"
+            className="hidden size-9 shrink-0 items-center justify-center rounded-[10px] bg-transparent text-[#52637f] transition hover:bg-[#f7faff] hover:text-[#244c7e] xl:inline-flex"
             aria-label="Toggle sidebar menu"
           >
-            <Menu className="size-[21px]" />
+            <Menu className="size-5" />
           </button>
 
           {renderSearch('flex min-w-0 flex-1 lg:hidden', 'Search leads, customers...')}
@@ -4671,11 +4804,11 @@ function AppHeader({
               aria-label="Open profile menu"
               aria-expanded={profileMenuOpen}
             >
-              <AdminAvatar name={loggedInUser?.name} />
+              <AdminAvatar name={loggedInUser?.name} size={36} />
               {notificationUnread > 0 ? (
                 <span className="absolute -right-0.5 -top-0.5 size-3 rounded-full border-2 border-white bg-[#ff4b4f] dark:border-slate-900" aria-label={`${notificationUnread} unread notifications`} />
               ) : null}
-              <span className="absolute -bottom-0.5 -right-0.5 grid size-[18px] place-items-center rounded-full border-2 border-white bg-[#0b65e5] text-white dark:border-slate-900">
+              <span className="absolute -bottom-0.5 -right-0.5 grid size-[16px] place-items-center rounded-full border-2 border-white bg-[#0b65e5] text-white dark:border-slate-900">
                 <ChevronDown className={cx('size-2.5 transition', profileMenuOpen && 'rotate-180')} />
               </span>
             </button>
@@ -4690,7 +4823,7 @@ function AppHeader({
                 />
                 <div className="absolute right-0 top-[calc(100%+10px)] z-[70] w-[290px] max-w-[calc(100vw-24px)] overflow-hidden rounded-[16px] border border-[#dce7f5] bg-white shadow-[0_22px_44px_rgba(21,43,83,0.2)] dark:border-slate-600 dark:bg-slate-900">
                   <div className="flex items-center gap-3 border-b border-[#edf2f8] bg-[#fbfdff] px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
-                    <AdminAvatar name={loggedInUser?.name} />
+                    <AdminAvatar name={loggedInUser?.name} size={36} />
                     <div className="min-w-0">
                       <p data-no-translate className="truncate text-[14px] font-extrabold leading-tight text-[#263d72] dark:text-slate-100">{loggedInUser?.name || 'Admin'}</p>
                       <p className="mt-0.5 truncate text-[12px] font-semibold text-[#7585a2]">{loggedInUser?.role_name || 'Super Admin'}</p>
@@ -4755,16 +4888,16 @@ function AppHeader({
 
         {renderSearch('hidden lg:flex lg:col-span-1 xl:col-span-1', 'Search leads, customers, projects...')}
 
-        <div className="header-banner relative hidden min-w-0 w-full overflow-hidden rounded-[12px] border border-[#dce8f5] bg-[#eef8fb] shadow-[0_6px_16px_rgba(15,39,92,0.08)] lg:col-span-2 lg:block xl:col-span-1">
+        <div className="header-banner relative hidden min-w-0 w-full overflow-hidden rounded-[10px] border border-[#dce8f5] bg-[#eef8fb] shadow-[0_4px_12px_rgba(15,39,92,0.06)] lg:col-span-2 lg:block xl:col-span-1">
           <img
             src={navBarImage}
             alt="Solar header"
             decoding="async"
-            className="nav-banner-image h-[56px] w-full object-cover sm:h-[60px]"
+            className="nav-banner-image h-[40px] w-full object-cover sm:h-[44px]"
           />
         </div>
 
-        <div className="hidden flex-wrap items-center justify-end gap-2 lg:col-span-2 lg:flex xl:col-span-1 xl:gap-3">
+        <div className="hidden items-center justify-end gap-1.5 lg:col-span-2 lg:flex xl:col-span-1 xl:gap-2">
           {headerActions.map((action) => {
             const Icon = action.icon;
 
@@ -4776,11 +4909,11 @@ function AppHeader({
                   whileTap={{ scale: 0.92 }}
                   transition={microMotionTransition}
                   onClick={() => handleHeaderAction(action.label)}
-                  className="relative inline-flex size-10 items-center justify-center rounded-full bg-transparent text-[#5a6d88] transition-colors hover:text-[#2158d6]"
+                  className="relative inline-flex size-9 items-center justify-center rounded-full bg-transparent text-[#5a6d88] transition-colors hover:text-[#2158d6]"
                   aria-label={action.label}
                   aria-expanded={action.label === 'Notifications' ? notificationMenuOpen : action.label === 'Messages' ? messageMenuOpen : undefined}
                 >
-                <Icon className="size-[18px]" />
+                <Icon className="size-[17px]" />
                 {action.badge ? (
                   <span className="absolute right-0.5 top-0.5 inline-flex min-w-[17px] items-center justify-center rounded-full bg-[#ff4b4f] px-1 text-[10px] font-extrabold text-white">
                     {action.badge}
@@ -4810,18 +4943,18 @@ function AppHeader({
             }}
           />
 
-          <div className="relative ml-auto" data-profile-menu="true">
+          <div className="relative ml-1" data-profile-menu="true">
             <button
               type="button"
               onClick={() => setProfileMenuOpen((current) => !current)}
-              className="flex items-center gap-2.5 rounded-[12px] px-2 py-1.5 text-left transition hover:bg-[#f5f9ff] sm:gap-3"
+              className="flex items-center gap-2 rounded-[10px] px-1.5 py-1 text-left transition hover:bg-[#f5f9ff] sm:gap-2.5"
               aria-label="Open profile menu"
               aria-expanded={profileMenuOpen}
             >
-              <AdminAvatar name={loggedInUser?.name} />
+              <AdminAvatar name={loggedInUser?.name} size={36} />
               <div className="text-right">
-                <p data-no-translate className="text-[15px] font-extrabold leading-tight text-[#263d72]">{loggedInUser?.name || 'Admin'}</p>
-                <p className="mt-0.5 text-[12px] font-semibold text-[#7585a2]">{loggedInUser?.role_name || 'Super Admin'}</p>
+                <p data-no-translate className="text-[13px] font-extrabold leading-tight text-[#263d72]">{loggedInUser?.name || 'Admin'}</p>
+                <p className="mt-0.5 text-[11px] font-semibold leading-tight text-[#7585a2]">{loggedInUser?.role_name || 'Super Admin'}</p>
               </div>
               <ChevronRight
                 className={cx(
@@ -4832,7 +4965,7 @@ function AppHeader({
             </button>
 
             {profileMenuOpen ? (
-              <div className="absolute right-0 top-[calc(100%+10px)] z-70 w-[176px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)]">
+              <div className="absolute right-0 top-[calc(100%+8px)] z-70 w-[176px] overflow-hidden rounded-[12px] border border-[#dce7f5] bg-white shadow-[0_18px_34px_rgba(21,43,83,0.16)]">
                 {['My Profile', 'Logout'].map((item) => (
                   <button
                     key={item}
@@ -4849,6 +4982,20 @@ function AppHeader({
         </div>
       </div>
     </header>
+    {onAppBack ? (
+      <div className="px-1 pt-1 md:px-0">
+        <button
+          type="button"
+          onClick={() => { onAppBack(); notify('Previous page'); }}
+          title="Back (Alt + ←)"
+          aria-label="Go back"
+          className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce7f5] bg-white text-[#52637f] shadow-[0_2px_8px_rgba(15,39,92,0.05)] transition hover:border-[#cfdbee] hover:bg-[#f5f9ff] hover:text-[#2158d6]"
+        >
+          <ChevronLeft className="size-4" strokeWidth={2.5} />
+        </button>
+      </div>
+    ) : null}
+    </>
   );
 }
 
@@ -5124,14 +5271,26 @@ function SignInPage({ onLogin, onBack, onNotify }) {
 
       <div className="px-6 pb-2 pt-8 sm:px-10 sm:pt-10">
         {onBack ? (
-          <button
-            type="button"
-            onClick={onBack}
-            className="mb-5 inline-flex items-center gap-1.5 text-[13px] font-extrabold text-[#5c6676] transition hover:text-[#0d9f4a]"
-          >
-            <ChevronLeft className="size-4" />
-            Choose different portal
-          </button>
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={onBack}
+              className="inline-flex items-center gap-1.5 text-[13px] font-extrabold text-[#5c6676] transition hover:text-[#0d9f4a]"
+            >
+              <ChevronLeft className="size-4" />
+              Choose different portal
+            </button>
+            <button
+              type="button"
+              onClick={onBack}
+              title="Back"
+              aria-label="Back"
+              className="inline-flex h-9 shrink-0 items-center gap-1 rounded-[10px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-extrabold text-[#5c6676] shadow-[0_4px_10px_rgba(15,39,92,0.05)] transition hover:border-[#0d9f4a]/40 hover:text-[#0d9f4a]"
+            >
+              <ChevronLeft className="size-4" strokeWidth={2.5} />
+              Back
+            </button>
+          </div>
         ) : null}
 
         <h1 className="text-center font-display text-[28px] font-extrabold leading-tight text-[#102446] sm:text-[34px]">
@@ -5246,7 +5405,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
   const [followUpDate, setFollowUpDate] = useState('');
   const [activeLeadCategory, setActiveLeadCategory] = useState(null);
   const [activePage, setActivePage] = useState(1);
-  const LEAD_PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
+  const LEAD_PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50, 100];
   const [pageSize, setPageSize] = useState(() => {
     try {
       const saved = Number(window.localStorage.getItem('crm-lead-page-size'));
@@ -5258,6 +5417,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
   const [apiLeads, setApiLeads] = useState(null);
   const [leadsTotal, setLeadsTotal] = useState(0);
   const [leadsLoading, setLeadsLoading] = useState(false);
+  const [categoryLeadCount, setCategoryLeadCount] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editLeadId, setEditLeadId] = useState(null);
@@ -5333,6 +5493,20 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
     return () => window.clearTimeout(timer);
   }, [searchQuery]);
 
+  const categoryBucketParam = useMemo(() => {
+    const label = activeLeadCategory?.label;
+    if (!label) return undefined;
+    const map = {
+      'New leads': 'new',
+      'Hot leads': 'hot',
+      'Warm leads': 'warm',
+      'Cool leads': 'cool',
+      'Won leads': 'won',
+      'Lost leads': 'lost',
+    };
+    return map[label];
+  }, [activeLeadCategory]);
+
   useEffect(() => {
     setLeadsLoading(true);
     const params = listParams({
@@ -5340,6 +5514,8 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
       page_size: pageSize || LIST_PAGE_SIZE,
       search: debouncedSearch || undefined,
       status: statusFilter !== 'All' ? statusFilter : undefined,
+      category_bucket: categoryBucketParam,
+      ordering: '-last_activity_at,-created_at',
       assigned_to: (
         assignedToFilter !== 'All' && assignedToFilter !== '__unassigned__'
           ? assignedToFilter
@@ -5359,6 +5535,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         type: lead.project_type || 'On-Grid',
         status: lead.status,
         priority: lead.priority || '',
+        category: lead.category || '',
         source: lead.source || '',
         assignedTo: { id: lead.assigned_to || null, name: lead.assigned_to_name || 'Unassigned', initials: (lead.assigned_to_name || 'UN').slice(0, 2).toUpperCase(), tone: 'amber' },
         createdById: lead.created_by || null,
@@ -5370,12 +5547,29 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
     }).catch((err) => {
       onNotify?.((err && err.message) ? `Failed to load leads: ${err.message}` : 'Failed to load leads. Please try again.');
     }).finally(() => setLeadsLoading(false));
-  }, [debouncedSearch, refreshKey, activePage, pageSize, statusFilter, assignedToFilter]);
+  }, [debouncedSearch, refreshKey, activePage, pageSize, statusFilter, assignedToFilter, categoryBucketParam]);
+
+  useEffect(() => {
+    leadApi.stats().then((data) => {
+      if (data?.categories) {
+        setCategoryLeadCount(data.categories);
+        return;
+      }
+      setCategoryLeadCount({
+        'New leads': data?.new ?? 0,
+        'Hot leads': 0,
+        'Warm leads': data?.quotation ?? 0,
+        'Cool leads': 0,
+        'Won leads': data?.won ?? 0,
+        'Lost leads': data?.lost ?? 0,
+      });
+    }).catch(() => setCategoryLeadCount(null));
+  }, [refreshKey]);
 
   // Search / filter change → page 1. Assign/delete refresh keeps the current page.
   useEffect(() => {
     setActivePage(1);
-  }, [debouncedSearch, statusFilter, assignedToFilter, pageSize]);
+  }, [debouncedSearch, statusFilter, assignedToFilter, pageSize, categoryBucketParam]);
   const followUpDateInputRef = useRef(null);
   const leadTableSectionRef = useRef(null);
 
@@ -5398,16 +5592,6 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
     setActivePage(page);
     leadTableSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
-
-  const categoryLeadCount = useMemo(() => {
-    if (!apiLeads) return null;
-    const counts = { 'New leads': 0, 'Hot leads': 0, 'Warm leads': 0, 'Cool leads': 0, 'Lost leads': 0, 'Won leads': 0 };
-    for (const lead of apiLeads) {
-      const cat = classifyLeadCategory(lead);
-      if (cat && cat in counts) counts[cat] += 1;
-    }
-    return counts;
-  }, [apiLeads]);
 
   const assigneeOptions = useMemo(() => {
     const execs = [...executiveList]
@@ -5473,19 +5657,12 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
   const hasLeadFilters = activeFilterLabels.length > 0;
   const totalLeadCount = leadsTotal || apiLeads?.length || 0;
 
-  // Server already paginated by status/search/assigned_to. Extra client filters
-  // (category chips, project type, added-by, follow-up date) apply to this page.
+  // Server paginates by status/search/assigned_to/category_bucket.
+  // Extra client filters (project type, added-by, follow-up date) apply to this page.
   const visibleLeadRows = useMemo(() => {
     if (!apiLeads) return [];
 
-    let source = [...apiLeads];
-
-    if (activeLeadCategory) {
-      const cat = activeLeadCategory.label;
-      source = source.filter((lead) => classifyLeadCategory(lead) === cat);
-    }
-
-    return source.filter((lead) => {
+    return apiLeads.filter((lead) => {
       const projectTypeMatch = projectTypeFilter === 'All' || lead.type === projectTypeFilter;
       const assignedMatch =
         assignedToFilter === 'All'
@@ -5497,7 +5674,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
       const followUpMatch = !followUpDate || (lead.nextFollowUpRaw && lead.nextFollowUpRaw.slice(0, 10) === followUpDate);
       return projectTypeMatch && assignedMatch && addByMatch && followUpMatch;
     });
-  }, [apiLeads, activeLeadCategory, projectTypeFilter, assignedToFilter, addByFilter, followUpDate]);
+  }, [apiLeads, projectTypeFilter, assignedToFilter, addByFilter, followUpDate]);
 
   const LEAD_PAGE_SIZE = pageSize;
   const totalLeadPages = Math.max(1, Math.ceil((leadsTotal || visibleLeadRows.length) / LEAD_PAGE_SIZE));
@@ -5786,7 +5963,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                       label="Status"
                       value={statusFilter}
                       active={statusFilter !== 'All'}
-                      options={['All', 'New', 'Follow-up', 'Quotation', 'Won', 'Lost']}
+                      options={['All', 'New', 'Quotation', 'Won', 'Lost']}
                       onChange={(v) => { setStatusFilter(v); setActivePage(1); }}
                     />
                   </th>
@@ -10382,6 +10559,14 @@ function getModuleSubnavLabel(item) {
     return 'Site Survey';
   }
 
+  if (item === 'Customer Details') {
+    return 'All Client Detail';
+  }
+
+  if (item === 'Customer Ledger') {
+    return 'Won Client Ledger';
+  }
+
   if (item === 'Project Installation') {
     return 'Installation';
   }
@@ -10396,14 +10581,6 @@ function getModuleSubnavLabel(item) {
 
   if (item === 'Project Job Sheet') {
     return 'Job Sheet';
-  }
-
-  if (item === 'Project Sales Challan') {
-    return 'Sales Challan';
-  }
-
-  if (item === 'Project Invoice') {
-    return 'Invoice';
   }
 
   if (item === 'Subsidy' || item === 'Liaison Subsidy') {
@@ -10730,6 +10907,7 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
   const [rows, setRows] = useState([]);
   const [projects, setProjects] = useState([]);
   const [users, setUsers] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [lookupData, setLookupData] = useState({});
   const [loading, setLoading] = useState(true);
   const [viewItem, setViewItem] = useState(null);
@@ -10743,14 +10921,24 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
 
   const needsUsers = config.fields.some((f) => f.type === 'user');
   const needsProjects = config.fields.some((f) => f.type === 'project');
+  const needsEmployees = config.fields.some((f) => f.type === 'employee');
 
   useEffect(() => {
     if (needsProjects) projectApi.list({ page_size: 25 }).then((r) => setProjects(normalizeApiRows(r))).catch(() => {});
     if (needsUsers) userApi.list({ page_size: 25 }).then((r) => setUsers(normalizeApiRows(r))).catch(() => {});
+    if (needsEmployees) {
+      workforceApi.listEmployees({ page_size: 200 })
+        .then((r) => {
+          const activeStatuses = new Set(['Available', 'Assigned', 'In Progress']);
+          const rows = normalizeApiRows(r).filter((e) => activeStatuses.has(e.status || 'Available'));
+          setEmployees(rows);
+        })
+        .catch(() => setEmployees([]));
+    }
     Object.entries(config.lookups || {}).forEach(([key, lk]) => {
       lk.api.list({ page_size: 25 }).then((r) => setLookupData((prev) => ({ ...prev, [key]: normalizeApiRows(r) }))).catch(() => {});
     });
-  }, [needsUsers, needsProjects]);  
+  }, [needsUsers, needsProjects, needsEmployees]);  
 
   const serverFilterValues = extraFilters.filter((f) => !f.client).map((f) => extraFilterValues[f.key] || '').join('|');
 
@@ -10791,7 +10979,7 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
     const body = {};
     config.fields.forEach(({ name, type }) => {
       let v = f[name];
-      if (type === 'user' || type === 'lookup' || type === 'project') v = v || null;
+      if (type === 'user' || type === 'lookup' || type === 'project' || type === 'employee') v = v || null;
       if (type === 'number' && v === '') v = null;
       if (type === 'date' && v === '') v = null;
       if (type === 'activeFlag') v = v === 'Active';
@@ -10832,6 +11020,7 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
     const f = { id: item.id };
     config.fields.forEach(({ name, type }) => {
       if (type === 'activeFlag') f[name] = item.is_active === false ? 'Inactive' : 'Active';
+      else if (type === 'employee') f[name] = item.assigned_employee ?? item[name] ?? '';
       else f[name] = item[name] ?? '';
     });
     setForm(config.mapItemToForm ? config.mapItemToForm(item, f) : f);
@@ -10905,6 +11094,20 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
         <select className={lcInputCls} value={form[name] ?? ''} onChange={(e) => setForm((p) => ({ ...p, [name]: e.target.value }))}>
           <option value="">Select user...</option>
           {users.map((u) => <option key={u.id} value={u.id}>{u.name || u.username}</option>)}
+        </select>
+      ) : type === 'employee' ? (
+        <select
+          className={lcInputCls}
+          value={form[name] ?? ''}
+          required={required}
+          onChange={(e) => setForm((p) => ({ ...p, [name]: e.target.value }))}
+        >
+          <option value="">Select engineer...</option>
+          {employees.map((emp) => (
+            <option key={emp.id} value={emp.id}>
+              {emp.name}{emp.employee_id ? ` (${emp.employee_id})` : ''}{emp.department ? ` · ${emp.department}` : ''}
+            </option>
+          ))}
         </select>
       ) : type === 'lookup' ? (
         <select className={lcInputCls} value={form[name] ?? ''} onChange={(e) => setForm((p) => ({ ...p, [name]: e.target.value }))}>
@@ -11298,6 +11501,58 @@ function getLiaisonStepBaseConfig(stepKey, project) {
     };
   }
 
+  if (stepKey === 'Loan Process') {
+    const statuses = ['Draft', 'Applied', 'Under Review', 'Sanctioned', 'Disbursed', 'Rejected'];
+    return {
+      title: 'Loan Process',
+      recordLabel: 'Loan',
+      newLabel: 'New Loan Process',
+      api: lcLoanProcessApi,
+      docModule: 'Loan Process',
+      statuses,
+      searchKeys: ['financier_name', 'loan_account_number', 'loan_type'],
+      columns: [
+        { label: 'Loan No', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.record_no}</span> },
+        { label: 'Loan Type', render: (r) => r.loan_type },
+        { label: 'Financier / Bank', render: (r) => r.financier_name || '—' },
+        { label: 'Loan Amount', render: (r) => (r.loan_amount != null && r.loan_amount !== '' ? `₹${Number(r.loan_amount).toLocaleString('en-IN')}` : '—') },
+        statusCol,
+        { label: 'Applied Date', render: (r) => lcFormatDate(r.applied_date) },
+      ],
+      fields: [
+        { name: 'loan_type', label: 'Loan Type', type: 'select', options: ['Bank Loan', 'NBFC', 'Solar Finance', 'Subsidy-linked Loan', 'Other'] },
+        { name: 'financier_name', label: 'Financier / Bank', type: 'text' },
+        { name: 'loan_account_number', label: 'Loan Account / Reference No.', type: 'text' },
+        { name: 'loan_amount', label: 'Loan Amount (₹)', type: 'number' },
+        { name: 'applied_date', label: 'Applied Date', type: 'date' },
+        { name: 'sanctioned_date', label: 'Sanctioned Date', type: 'date' },
+        { name: 'status', label: 'Status', type: 'select', options: statuses },
+        { name: 'remarks', label: 'Remarks', type: 'textarea' },
+      ],
+      defaults: {
+        loan_type: 'Bank Loan',
+        financier_name: '',
+        loan_account_number: '',
+        loan_amount: '',
+        applied_date: '',
+        sanctioned_date: '',
+        status: 'Applied',
+        remarks: '',
+      },
+      detailRows: [
+        ['Loan No', (r) => r.record_no],
+        ['Loan Type', (r) => r.loan_type],
+        ['Financier / Bank', (r) => r.financier_name || '—'],
+        ['Loan Account / Reference No.', (r) => r.loan_account_number || '—'],
+        ['Loan Amount', (r) => (r.loan_amount != null && r.loan_amount !== '' ? `₹${Number(r.loan_amount).toLocaleString('en-IN')}` : '—')],
+        ['Applied Date', (r) => lcFormatDate(r.applied_date)],
+        ['Sanctioned Date', (r) => lcFormatDate(r.sanctioned_date)],
+        ['Remarks', (r) => r.remarks || '—'],
+      ],
+      docTitle: 'Loan Documents',
+    };
+  }
+
   if (stepKey === 'Agreement') {
     const statuses = ['Pending', 'Signed', 'Submitted', 'Approved', 'Rejected'];
     return {
@@ -11410,7 +11665,7 @@ function getLiaisonStepBaseConfig(stepKey, project) {
   }
 
   if (stepKey === 'Commissioning') {
-    const statuses = ['Scheduled', 'In Progress', 'Completed'];
+    const statuses = ['Scheduled', 'In Progress', 'Completed', 'Cancelled'];
     return {
       title: 'Commissioning',
       recordLabel: 'Commissioning',
@@ -11419,23 +11674,23 @@ function getLiaisonStepBaseConfig(stepKey, project) {
       docModule: 'Commissioning',
       canComplete: true,
       statuses,
-      searchKeys: ['engineer'],
+      searchKeys: ['engineer', 'assigned_employee_name'],
       checklistItems: ['Inverter installed & configured', 'Panels connected & tested', 'Earthing verified', 'Net meter synchronized', 'Generation test completed', 'Handover documentation done'],
       columns: [
         noCol('Commission No'),
-        { label: 'Engineer', render: (r) => r.engineer || '—' },
+        { label: 'Engineer', render: (r) => r.assigned_employee_name || r.engineer || '—' },
         { label: 'Date', render: (r) => lcFormatDate(r.date) },
         statusCol,
       ],
       fields: [
-        { name: 'engineer', label: 'Engineer', type: 'text' },
-        { name: 'date', label: 'Commissioning Date', type: 'date' },
+        { name: 'assigned_employee', label: 'Engineer', type: 'employee', required: true },
+        { name: 'date', label: 'Commissioning Date', type: 'date', required: true },
         { name: 'status', label: 'Status', type: 'select', options: statuses },
         { name: 'remarks', label: 'Remarks', type: 'textarea' },
       ],
-      defaults: { engineer: '', date: '', status: 'Scheduled', remarks: '' },
+      defaults: { assigned_employee: '', date: '', status: 'Scheduled', remarks: '' },
       detailRows: [
-        ['Engineer', (r) => r.engineer || '—'],
+        ['Engineer', (r) => r.assigned_employee_name || r.engineer || '—'],
         ['Commissioning Date', (r) => lcFormatDate(r.date)],
         ['Remarks', (r) => r.remarks || '—'],
       ],
@@ -11715,13 +11970,26 @@ function PipelineProjectTable({
   );
 }
 
-function PipelineProjectBar({ pipeline = LIAISON_PIPELINE, project, section, busy, onNext, onClose, onMarkDone, extraActions = null }) {
+function PipelineProjectBar({ pipeline = LIAISON_PIPELINE, project, section, busy, onNext, onClose, onMarkDone, onUnmarkDone, extraActions = null }) {
   const stage = project[pipeline.stageField];
   const idx = pipeline.subItems.indexOf(section);
   const nextKey = idx >= 0 ? pipeline.subItems[idx + 1] : null;
   const sectionStage = pipeline.steps.find((s) => s.key === section)?.stage;
   const isCompleted = stage === PIPELINE_COMPLETED_STAGE;
-  const canMarkDone = !isCompleted && (section === pipeline.listItem || sectionStage === stage);
+  const stageNames = pipeline.stageNames || [];
+  const normalizedStage = stage === 'Inspection Placed' ? 'Inspection' : stage === 'Quotation' ? 'Site Survey' : stage;
+  const sectionIdx = sectionStage ? stageNames.indexOf(sectionStage) : -1;
+  const currentIdx = normalizedStage === PIPELINE_COMPLETED_STAGE
+    ? stageNames.length
+    : stageNames.indexOf(normalizedStage);
+  const canMarkDone = !isCompleted && (section === pipeline.listItem || sectionStage === normalizedStage || sectionStage === stage);
+  const canUnmark = Boolean(
+    onUnmarkDone
+    && sectionStage
+    && section !== pipeline.listItem
+    && (isCompleted || (currentIdx >= 0 && sectionIdx >= 0 && currentIdx > sectionIdx)),
+  );
+  const markLabel = sectionStage || stage || 'Stage';
 
   return (
     <section className={cx(panelClass, 'flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:p-4')}>
@@ -11751,7 +12019,21 @@ function PipelineProjectBar({ pipeline = LIAISON_PIPELINE, project, section, bus
         <span className="sm:hidden"><PipelineStageBadge stage={stage} pipeline={pipeline} /></span>
         {canMarkDone && (
           <button type="button" disabled={busy} onClick={onMarkDone} className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-[10px] border border-[#bbf7d0] bg-[#f0fdf4] px-3 text-[12px] font-extrabold text-[#15803d] transition hover:bg-[#dcfce7] disabled:opacity-60 sm:flex-none">
-            <CheckCircle2 className="size-4" />{busy ? 'Saving...' : `Mark ${stage} Done`}
+            <CheckCircle2 className="size-4" />{busy ? 'Saving...' : `Mark ${markLabel} Done`}
+          </button>
+        )}
+        {canUnmark && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              if (window.confirm(`Unmark ${markLabel}? Status will return to Pending / ${markLabel}.`)) {
+                onUnmarkDone(sectionStage);
+              }
+            }}
+            className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-[10px] border border-[#fed7aa] bg-[#fff7ed] px-3 text-[12px] font-extrabold text-[#c2410c] transition hover:bg-[#ffedd5] disabled:opacity-60 sm:flex-none"
+          >
+            <Undo2 className="size-4" />{busy ? 'Saving...' : `Unmark ${markLabel}`}
           </button>
         )}
         {extraActions}
@@ -11865,7 +12147,6 @@ function PipelineProjectOverview({ pipeline = LIAISON_PIPELINE, project, busy, o
 }
 
 const LIAISON_DOC_TYPES = ['Aadhaar Card', 'PAN Card', 'Electricity Bill', 'Property Document', 'Bank Passbook', 'Site Photo', 'Application Form', 'Approval Letter', 'Agreement', 'Inspection Report', 'Net Meter Certificate', 'Commissioning Report', 'Compliance Certificate', 'WCR', 'Other'];
-const LIAISON_REQUIRED_DOCS = ['Aadhaar Card', 'PAN Card', 'Electricity Bill', 'Property Document', 'Bank Passbook', 'Site Photo'];
 
 function LiaisonProjectDocuments({ project, onNotify }) {
   const emptyForm = { doc_type: LIAISON_DOC_TYPES[0], name: '', file: null };
@@ -11885,8 +12166,6 @@ function LiaisonProjectDocuments({ project, onNotify }) {
   }, [project.id]);
 
   useEffect(() => { loadDocs(); }, [loadDocs]);
-
-  const presentTypes = new Set(docs.map((d) => d.doc_type));
 
   function handleUpload() {
     if (!form.file) return;
@@ -11920,20 +12199,6 @@ function LiaisonProjectDocuments({ project, onNotify }) {
         Documents
         <span className="ml-2 rounded-full bg-[#eef4ff] px-2 py-0.5 text-[11px] font-extrabold text-[#0b65e5]">{docs.length}</span>
       </h3>
-
-      <div>
-        <p className={lcLabelCls}>Document checklist</p>
-        <div className="flex flex-wrap gap-2">
-          {LIAISON_REQUIRED_DOCS.map((t) => {
-            const has = presentTypes.has(t);
-            return (
-              <span key={t} className={cx('inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-extrabold', has ? 'border-[#bbf7d0] bg-[#f0fdf4] text-[#15803d]' : 'border-[#e5eaf2] bg-white text-[#7a8fa6]')}>
-                {has ? <CheckCircle2 className="size-3.5" /> : <span className="size-1.5 rounded-full bg-current" />}{t}
-              </span>
-            );
-          })}
-        </div>
-      </div>
 
       <div className="grid gap-2 rounded-[12px] border border-dashed border-[#cfdcee] bg-[#f8fbff] p-3 sm:grid-cols-[180px_1fr_1fr_auto] sm:items-end">
         <label className="grid gap-1">
@@ -12182,6 +12447,11 @@ function usePipelineHub(pipeline, section, onNotify, { disableSelection = false 
       .finally(() => setBusy(false));
   }
 
+  function unmarkDone(targetStage) {
+    if (!selected || !targetStage) return;
+    setStage(targetStage);
+  }
+
   return {
     projects,
     loading,
@@ -12191,6 +12461,7 @@ function usePipelineHub(pipeline, section, onNotify, { disableSelection = false 
     openProject,
     closeProject,
     markDone,
+    unmarkDone,
     setStage,
     stageCounts,
     listTotal,
@@ -12204,7 +12475,7 @@ function usePipelineHub(pipeline, section, onNotify, { disableSelection = false 
 function LiaisonPipelineHub({ section, onOpenSection, onNotify }) {
   const pipeline = LIAISON_PIPELINE;
   const {
-    projects, loading, selected, busy, loadProjects, openProject, closeProject, markDone, setStage,
+    projects, loading, selected, busy, loadProjects, openProject, closeProject, markDone, unmarkDone, setStage,
     stageCounts, setServerSearch, serverScoped,
   } = usePipelineHub(pipeline, section, onNotify);
 
@@ -12266,6 +12537,7 @@ function LiaisonPipelineHub({ section, onOpenSection, onNotify }) {
           onNext={onOpenSection}
           onClose={closeProject}
           onMarkDone={markDone}
+          onUnmarkDone={unmarkDone}
         />
       )}
 
@@ -12297,7 +12569,7 @@ function PipelineViewToggle({ value, onChange, labels = ['At this stage', 'All r
   );
 }
 
-// Project Management pipeline: Won projects move Site Survey → … → Invoice.
+// Project Management pipeline: Won projects move Site Survey → … → Installation.
 // Selection lives in this hub (sessionStorage), not in the App's selectedProject.
 function ProjectPipelineHub({
   section,
@@ -12314,7 +12586,7 @@ function ProjectPipelineHub({
   const pipeline = PM_PIPELINE;
   const isSiteSurveySection = section === 'Project Site Survey';
   const {
-    projects, loading, selected, busy, loadProjects, openProject, closeProject, markDone, setStage,
+    projects, loading, selected, busy, loadProjects, openProject, closeProject, markDone, unmarkDone, setStage,
     stageCounts, setServerSearch, serverScoped,
   } = usePipelineHub(
     pipeline,
@@ -12332,11 +12604,8 @@ function ProjectPipelineHub({
   const [hubViewProjectRow, setHubViewProjectRow] = useState(null);
   const [hubEditProject, setHubEditProject] = useState(null);
   const projectCaps = moduleCaps(loggedInUser, 'Project Management');
-  const canQuotation = hasAnyModuleAccess(loggedInUser, 'Quotation');
-  const projectTabItems = projectSidebarSubItems.filter((item) => (item === 'Quotation' ? canQuotation : true));
-  const pipelineForBar = canQuotation
-    ? pipeline
-    : { ...pipeline, subItems: pipeline.subItems.filter((item) => item !== 'Quotation') };
+  const projectTabItems = projectSidebarSubItems;
+  const pipelineForBar = pipeline;
 
   const step = pipeline.steps.find((s) => s.key === section) || null;
   const sectionLabel = getModuleSubnavLabel(section);
@@ -12556,8 +12825,19 @@ function ProjectPipelineHub({
     } else if (section === 'Project Installation') {
       legacy = <OpsInstallationPage embedded activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
     } else {
-      const BillingPage = section === 'Project Invoice' ? ProjectInvoicePage : ProjectSalesChallanPage;
-      legacy = <BillingPage key={section} embedded activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
+      legacy = (
+        <PipelineProjectTable
+          pipeline={pipeline}
+          projects={projects}
+          loading={loading}
+          stepKey={step?.key || null}
+          onOpen={openFromRow}
+          onRefresh={loadProjects}
+          stageCounts={stageCounts}
+          serverScoped={serverScoped}
+          onServerSearch={setServerSearch}
+        />
+      );
     }
     content = (
       <>
@@ -12583,9 +12863,8 @@ function ProjectPipelineHub({
     content = <ProjectDispatchPanel key={selected.id} project={selected} onNotify={onNotify} onOpenPlanning={() => onOpenSection('Project Material Planning')} />;
   } else if (section === 'Project Installation') {
     content = <ProjectInstallationPanel key={selected.id} project={selected} onNotify={onNotify} onChanged={loadProjects} />;
-  } else {
-    // Site Survey selected workspace intentionally removed — never render a full page here.
-    if (section === 'Project Site Survey') {
+    } else {
+      // Site Survey selected workspace intentionally removed — never render a full page here.
       content = (
         <PipelineProjectTable
           pipeline={pipeline}
@@ -12601,11 +12880,7 @@ function ProjectPipelineHub({
           onServerSearch={setServerSearch}
         />
       );
-    } else {
-      const BillingPage = section === 'Project Invoice' ? ProjectInvoicePage : ProjectSalesChallanPage;
-      content = <BillingPage key={`${section}-${selected.id}`} embedded lockedProjectId={selected.id} activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
     }
-  }
 
   return (
     <div className="space-y-4">
@@ -12629,6 +12904,7 @@ function ProjectPipelineHub({
           onNext={navigatePipeline}
           onClose={closeProject}
           onMarkDone={markDone}
+          onUnmarkDone={unmarkDone}
           extraActions={(
             <>
               <button
@@ -19806,7 +20082,7 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
       Overview: 'Project Details',
       'Customer & Site Info': 'Project Site Survey',
       'System Details': 'Project Installation',
-      Financials: 'Project Invoice',
+      Financials: 'Project Details',
       Progress: 'Project Progress Update',
       Team: 'Project Team Add',
       Activities: 'Project Activity Create',
@@ -23752,6 +24028,7 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
               { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
               { label: 'Project Management', onClick: () => onOpenSection('Project List') },
               { label: 'Material Planning' },
+              ...(bomProject ? [{ label: bomProject.project_name || bomProject.project_id || 'BOM' }] : []),
             ]}
           />
 
@@ -23759,860 +24036,162 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
         </>
       )}
 
-      <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-        {[
-          { label: 'Won Projects', value: summary.total, note: 'Ready for BOM', tone: 'text-[#0b65e5]', icon: FolderKanban },
-          { label: 'Not Planned', value: summary.notPlanned, note: 'BOM pending', tone: 'text-[#7585a2]', icon: ClipboardList },
-          { label: 'Planning On', value: summary.inProgress, note: 'Panels / structure / cables', tone: 'text-[#f59e0b]', icon: Boxes },
-          { label: 'BOM Ready', value: summary.ready, note: 'Ready to dispatch', tone: 'text-[#078c3e]', icon: CheckCircle2 },
-          { label: 'Delayed', value: summary.delayed, note: 'Needs follow-up', tone: 'text-[#ea5a4c]', icon: AlertTriangle },
-        ].map((card) => {
-          const Icon = card.icon;
-          return (
-            <article key={card.label} className="rounded-[10px] border border-[#e7eef7] bg-white p-3">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-[12px] font-semibold text-[#53647f]">{card.label}</p>
-                <span className={cx('grid size-8 place-items-center rounded-full bg-[#f4f8ff]', card.tone)}><Icon className="size-4" /></span>
-              </div>
-              <p className={cx('mt-1 text-[22px] font-bold', card.tone)}>{card.value}</p>
-              <p className="text-[12px] font-medium text-[#8a98af]">{card.note}</p>
-            </article>
-          );
-        })}
-      </section>
-
-      <section className={`${panelClass} overflow-hidden p-2.5 sm:p-3`}>
-        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-          <label className="flex h-11 min-w-0 flex-1 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4">
-            <Search className="size-4 text-[#7e8fab]" />
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search project, customer, site, capacity..."
-              className="w-full bg-transparent text-[15px] font-medium text-[#1e3261] outline-none placeholder:text-[#8a98af]"
-            />
-          </label>
-        </div>
-
-        {loading ? (
-          <PageLoadingState message="Loading projects..." compact />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="crm-table crm-table--lead-dense w-full min-w-[920px]">
-              <thead>
-                <tr>
-                  <th className="crm-col-index" title="#"><span className="block truncate">#</span></th>
-                  <th title="Project"><span className="block truncate">Project</span></th>
-                  <th title="Customer / Site"><span className="block truncate">Customer / Site</span></th>
-                  <th title="Capacity"><span className="block truncate">Capacity</span></th>
-                  <th title="Project Status">
-                    <TableHeaderFilter
-                      label="Project Status"
-                      value={projectStatusFilter}
-                      active={projectStatusFilter !== 'All'}
-                      options={projectStatusOptions}
-                      onChange={setProjectStatusFilter}
-                    />
-                  </th>
-                  <th title="BOM Items"><span className="block truncate">BOM Items</span></th>
-                  <th title="Plan Status">
-                    <TableHeaderFilter
-                      label="Plan Status"
-                      value={planStatusFilter}
-                      active={planStatusFilter !== 'All'}
-                      options={planStatusOptions}
-                      onChange={setPlanStatusFilter}
-                    />
-                  </th>
-                  <th className="crm-col-sticky-right" title="Action"><span className="block truncate">Action</span></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="py-8 text-center text-[13px] font-semibold text-[#8a98af]">
-                      No won projects found for material planning.
-                    </td>
-                  </tr>
-                ) : pageRows.map((project, index) => {
-                  const stats = planByProject[project.id] || { total: 0 };
-                  const planStatus = planStatusFor(project.id);
-                  return (
-                    <tr key={project.id} {...rowDoubleOpenProps(() => openPlan(project), { title: 'Double-tap to open BOM' })}>
-                      <td className="crm-col-index">{startIndex + index + 1}</td>
-                      <td>
-                        <div className="font-semibold text-[#1e3261] leading-tight">{project.project_name || project.project_id}</div>
-                        <div className="text-[11px] font-medium text-[#8a98af] leading-tight">{project.project_id}</div>
-                      </td>
-                      <td>
-                        <div className="font-medium text-[#314a79] leading-tight">{project.customer_name || '—'}</div>
-                        <div className="text-[11px] font-medium text-[#8a98af] leading-tight">{project.site || '—'}</div>
-                      </td>
-                      <td className="font-semibold text-[#0b65e5]">
-                        {Number(project.capacity_kwp) > 0 ? `${project.capacity_kwp} kWp` : '—'}
-                      </td>
-                      <td>
-                        <span className={cx(
-                          'inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold',
-                          project.status === 'Active' ? 'bg-[#e8f8eb] text-[#0d9f4a]'
-                            : project.status === 'Completed' ? 'bg-[#e8f2ff] text-[#0b65e5]'
-                              : 'bg-[#eef2f7] text-[#7585a2]',
-                        )}
-                        >
-                          {project.status || '—'}
-                        </span>
-                      </td>
-                      <td className="font-semibold text-[#1e3261]">{stats.total}</td>
-                      <td>
-                        <ProjectInfoPill tone={statusTone(planStatus)}>{planStatus}</ProjectInfoPill>
-                      </td>
-                      <td className="crm-col-sticky-right" data-no-row-open onDoubleClick={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          onClick={() => openPlan(project)}
-                          className="inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#16a34a] px-2.5 text-[12px] font-semibold text-white"
-                        >
-                          <Boxes className="size-3.5" />
-                          {stats.total > 0 ? 'Open BOM' : 'Create BOM'}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            <TablePagination {...pagination} />
-          </div>
-        )}
-      </section>
-
       {bomProject ? (
         <MaterialPlanningBomModal
+          inline
+          showBack
           project={bomProject}
           onClose={closeBom}
           onNotify={onNotify}
           onPlansChanged={reloadPlans}
         />
-      ) : null}
+      ) : (
+        <>
+          <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+            {[
+              { label: 'Won Projects', value: summary.total, note: 'Ready for BOM', tone: 'text-[#0b65e5]', icon: FolderKanban },
+              { label: 'Not Planned', value: summary.notPlanned, note: 'BOM pending', tone: 'text-[#7585a2]', icon: ClipboardList },
+              { label: 'Planning On', value: summary.inProgress, note: 'Panels / structure / cables', tone: 'text-[#f59e0b]', icon: Boxes },
+              { label: 'BOM Ready', value: summary.ready, note: 'Ready to dispatch', tone: 'text-[#078c3e]', icon: CheckCircle2 },
+              { label: 'Delayed', value: summary.delayed, note: 'Needs follow-up', tone: 'text-[#ea5a4c]', icon: AlertTriangle },
+            ].map((card) => {
+              const Icon = card.icon;
+              return (
+                <article key={card.label} className="rounded-[10px] border border-[#e7eef7] bg-white p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[12px] font-semibold text-[#53647f]">{card.label}</p>
+                    <span className={cx('grid size-8 place-items-center rounded-full bg-[#f4f8ff]', card.tone)}><Icon className="size-4" /></span>
+                  </div>
+                  <p className={cx('mt-1 text-[22px] font-bold', card.tone)}>{card.value}</p>
+                  <p className="text-[12px] font-medium text-[#8a98af]">{card.note}</p>
+                </article>
+              );
+            })}
+          </section>
 
-      {embedded ? null : <DashboardFooter />}
-    </div>
-  );
-}
-
-function MaterialPlanningBomModal({ project: projectProp, onClose, onNotify, onPlansChanged, inline = false }) {
-  const MATERIAL_STATUS = ['Not Started', 'In Progress', 'Partially Completed', 'Completed', 'Delayed'];
-  const UOM_OPTIONS = ['Nos', 'Mtr', 'Set', 'Lot', 'Kg', 'Pair', 'Unit', 'Packet', 'Bundels', 'kW', 'pcs', 'Meter'];
-  const emptyForm = { category: '', items: '', uom: 'Nos', planned_qty: '', planned_value: '', planning_unit_price: '', status: 'Not Started', inventory_item: '' };
-
-  const categoryIcon = (cat) => {
-    const n = String(cat || '').toLowerCase();
-    if (n.includes('panel') || n.includes('solar')) return Sun;
-    if (n.includes('invert')) return Zap;
-    if (n.includes('structure') || n.includes('mount')) return Boxes;
-    if (n.includes('cable')) return Cable;
-    if (n.includes('battery')) return Package;
-    return Package;
-  };
-
-  const [project, setProject] = useState(projectProp);
-  const [projectSurvey, setProjectSurvey] = useState(null);
-  const [rows, setRows] = useState([]);
-  const [inventoryItems, setInventoryItems] = useState([]);
-  const [loadingRows, setLoadingRows] = useState(true);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [infoOpen, setInfoOpen] = useState(false);
-  const [editRow, setEditRow] = useState(null);
-  const [form, setForm] = useState(emptyForm);
-  const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [uomFilter, setUomFilter] = useState('All');
-  const [statusFilter, setStatusFilter] = useState('All');
-  const [itemPickerOpen, setItemPickerOpen] = useState(false);
-  const [itemSearch, setItemSearch] = useState('');
-  const itemPickerRef = useRef(null);
-
-  /** Inventory purchase/cost price — never overwritten by planning price. */
-  const inventoryUnitPrice = useCallback((item) => {
-    if (!item) return 0;
-    const cost = Number(item.rate);
-    if (Number.isFinite(cost) && cost > 0) return cost;
-    return 0;
-  }, []);
-
-  const calcPlannedValue = useCallback((qty, unitPrice) => {
-    const q = Number(String(qty ?? '').replace(/,/g, ''));
-    if (!Number.isFinite(q) || q <= 0 || !unitPrice) return '';
-    const total = Math.round(q * unitPrice * 100) / 100;
-    return String(total);
-  }, []);
-
-  const planningDiff = useCallback((invCost, planPrice) => {
-    const a = Number(invCost) || 0;
-    const b = Number(planPrice) || 0;
-    return Math.round((b - a) * 100) / 100;
-  }, []);
-
-  const selectedInventoryItem = useMemo(
-    () => inventoryItems.find((i) => String(i.id) === String(form.inventory_item)) || null,
-    [inventoryItems, form.inventory_item],
-  );
-
-  const filteredInventoryItems = useMemo(() => {
-    const q = itemSearch.trim().toLowerCase();
-    if (!q) return inventoryItems;
-    return inventoryItems.filter((item) => {
-      const hay = [item.name, item.item_code, item.category, item.product_type, item.warehouse_name]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
-      return hay.includes(q);
-    });
-  }, [inventoryItems, itemSearch]);
-
-  useEffect(() => {
-    if (!itemPickerOpen) return undefined;
-    const onPointerDown = (event) => {
-      if (itemPickerRef.current && !itemPickerRef.current.contains(event.target)) {
-        setItemPickerOpen(false);
-      }
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => document.removeEventListener('pointerdown', onPointerDown);
-  }, [itemPickerOpen]);
-
-  const applyInventoryItem = useCallback((item) => {
-    if (!item) {
-      setForm((p) => ({ ...p, inventory_item: '', category: '', planning_unit_price: '' }));
-      return;
-    }
-    const invCost = inventoryUnitPrice(item);
-    setForm((p) => {
-      const qty = p.planned_qty;
-      // Default planning price to inventory cost; user can raise it (e.g. 10k → 13k).
-      const planPrice = p.planning_unit_price !== '' && p.planning_unit_price != null
-        ? Number(p.planning_unit_price)
-        : invCost;
-      const nextValue = calcPlannedValue(qty, planPrice);
-      const mappedUom = item.unit && UOM_OPTIONS.includes(item.unit) ? item.unit : (item.unit || p.uom || 'Nos');
-      return {
-        ...p,
-        inventory_item: item.id,
-        items: item.name || p.items,
-        uom: mappedUom,
-        planning_unit_price: String(planPrice || ''),
-        planned_value: nextValue !== '' ? nextValue : p.planned_value,
-        category: item.category || 'Other',
-      };
-    });
-    setItemPickerOpen(false);
-    setItemSearch('');
-  }, [calcPlannedValue, inventoryUnitPrice]);
-
-  const onPlannedQtyChange = (value) => {
-    setForm((p) => {
-      const planPrice = Number(p.planning_unit_price);
-      const nextValue = Number.isFinite(planPrice) && planPrice > 0
-        ? calcPlannedValue(value, planPrice)
-        : p.planned_value;
-      return {
-        ...p,
-        planned_qty: value,
-        planned_value: nextValue !== '' ? nextValue : (p.planning_unit_price ? '' : p.planned_value),
-      };
-    });
-  };
-
-  const onPlanningPriceChange = (value) => {
-    setForm((p) => {
-      const planPrice = Number(value);
-      const nextValue = Number.isFinite(planPrice) && planPrice >= 0
-        ? calcPlannedValue(p.planned_qty, planPrice)
-        : '';
-      return {
-        ...p,
-        planning_unit_price: value,
-        planned_value: nextValue !== '' ? nextValue : p.planned_value,
-      };
-    });
-  };
-
-  const loadRows = useCallback(async (proj) => {
-    if (!proj?.id) return;
-    setLoadingRows(true);
-    try {
-      const [planData, itemsData] = await Promise.all([
-        materialPlanApi.list({ project: proj.id, page_size: 25 }),
-        inventoryApi.items.list({ page_size: 25 }),
-      ]);
-      setRows(normalizeApiRows(planData));
-      setInventoryItems(normalizeApiRows(itemsData));
-    } catch {
-      onNotify('Failed to load material plans');
-    } finally {
-      setLoadingRows(false);
-    }
-  }, [onNotify]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const full = await projectApi.get(projectProp.id);
-        if (cancelled) return;
-        setProject(full);
-        setProjectSurvey(full?.site_survey || null);
-        await loadRows(full);
-      } catch {
-        if (!cancelled) onNotify('Failed to load project');
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [projectProp?.id, loadRows, onNotify]);
-
-  const pendingCount = rows.filter((r) => r.status !== 'Completed').length;
-  const readyCount = rows.filter((r) => r.status === 'Completed').length;
-  const capacityLabel = (() => {
-    const cap = Number(project?.capacity_kwp);
-    if (cap > 0) return `${cap} kWp`;
-    const surveyCap = projectSurvey?.approx_plant_capacity;
-    if (surveyCap) return String(surveyCap);
-    return null;
-  })();
-
-  const displayStatus = (s) => {
-    if (s === 'Not Started') return 'Pending';
-    if (s === 'Completed') return 'Ready';
-    return s;
-  };
-
-  const statusTone = (s) => {
-    if (s === 'Completed') return 'green';
-    if (s === 'In Progress') return 'blue';
-    if (s === 'Partially Completed') return 'cyan';
-    if (s === 'Delayed') return 'red';
-    return 'amber';
-  };
-
-  const openAdd = () => {
-    const survey = projectSurvey;
-    const suggestedQty = survey?.structure_rows && survey?.structure_columns
-      ? String(Number(survey.structure_rows) * Number(survey.structure_columns))
-      : '';
-    setForm({ ...emptyForm, planned_qty: suggestedQty || '' });
-    setEditRow(null);
-    setItemSearch('');
-    setItemPickerOpen(false);
-    setModalOpen(true);
-  };
-
-  const openEditRow = (row) => {
-    const linked = inventoryItems.find((i) => String(i.id) === String(row.inventory_item));
-    const invCost = linked ? inventoryUnitPrice(linked) : Number(row.inventory_unit_cost) || 0;
-    const planPrice = row.planning_unit_price != null && row.planning_unit_price !== ''
-      ? String(row.planning_unit_price)
-      : (row.planning_unit_price_display != null ? String(row.planning_unit_price_display) : (invCost ? String(invCost) : ''));
-    setForm({
-      category: linked?.category || row.category || '',
-      items: row.items || linked?.name || '',
-      uom: row.uom || linked?.unit || 'Nos',
-      planned_qty: row.planned_qty ?? '',
-      planned_value: row.planned_value ?? '',
-      planning_unit_price: planPrice,
-      status: row.status || 'Not Started',
-      inventory_item: row.inventory_item || '',
-    });
-    setEditRow(row.id);
-    setItemSearch('');
-    setItemPickerOpen(false);
-    setModalOpen(true);
-  };
-
-  const handleDelete = (id) => {
-    setDeleteConfirm({
-      message: 'this material from BOM',
-      onConfirm: async () => {
-        try {
-          await materialPlanApi.delete(id);
-          setDeleteConfirm(null);
-          setRows((prev) => prev.filter((r) => r.id !== id));
-          onNotify('Material removed');
-          onPlansChanged?.();
-        } catch {
-          setDeleteConfirm(null);
-          onNotify('Delete failed');
-        }
-      },
-    });
-  };
-
-  const handleSave = async () => {
-    if (!form.inventory_item) { onNotify('Select an inventory product (Inventory → Products)', 'error'); return; }
-    if (!form.planned_qty) { onNotify('Planned Qty required', 'error'); return; }
-    const linked = inventoryItems.find((i) => String(i.id) === String(form.inventory_item));
-    const category = linked?.category || form.category || 'Other';
-    if (!category) { onNotify('Product category missing — set it in Inventory → Categories', 'error'); return; }
-    try {
-      const payload = {
-        category,
-        items: form.items || linked?.name || '',
-        uom: form.uom,
-        planned_qty: form.planned_qty,
-        planned_value: form.planned_value,
-        planning_unit_price: form.planning_unit_price !== '' ? Number(form.planning_unit_price) : null,
-        status: form.status,
-        project: project.id,
-      };
-      let saved;
-      try {
-        saved = editRow !== null
-          ? await materialPlanApi.update(editRow, { ...payload, inventory_item: form.inventory_item || null })
-          : await materialPlanApi.create({ ...payload, inventory_item: form.inventory_item || null });
-      } catch {
-        saved = editRow !== null
-          ? await materialPlanApi.update(editRow, payload)
-          : await materialPlanApi.create(payload);
-      }
-      if (editRow !== null) {
-        setRows((prev) => prev.map((r) => (r.id === editRow ? { ...saved, inventory_item: form.inventory_item || saved.inventory_item } : r)));
-        onNotify('Material updated');
-      } else {
-        setRows((prev) => [...prev, { ...saved, inventory_item: form.inventory_item || saved.inventory_item }]);
-        onNotify('Material added');
-      }
-      setModalOpen(false);
-      onPlansChanged?.();
-      loadRows(project);
-    } catch (e) { onNotify(e.message || 'Save failed'); }
-  };
-
-  const filteredRows = rows.filter((r) => {
-    if (uomFilter !== 'All' && (r.uom || '') !== uomFilter) return false;
-    if (statusFilter !== 'All' && (r.status || '') !== statusFilter) return false;
-    return true;
-  });
-
-  return (
-    <>
-      <div
-        className={inline ? 'w-full' : 'fixed inset-0 z-[90] flex items-end justify-center bg-[#0f172a]/55 p-0 sm:items-center sm:p-4'}
-        onMouseDown={inline ? undefined : (e) => { if (e.target === e.currentTarget) onClose(); }}
-      >
-        <div className={inline
-          ? `${panelClass} flex w-full flex-col overflow-hidden`
-          : 'flex max-h-[96vh] w-full max-w-[920px] flex-col overflow-hidden rounded-t-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)] sm:max-h-[90vh] sm:rounded-[16px]'}
-        >
-          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#edf2f8] px-4 py-3 sm:px-5">
-            <div className="min-w-0">
-              <h2 className="font-display text-[17px] font-extrabold text-[#111827]">Project BOM</h2>
-              <button type="button" onClick={() => setInfoOpen(true)} className="mt-0.5 truncate text-left text-[13px] font-semibold text-[#0b65e5] hover:underline">
-                {project?.project_name || project?.project_id || 'Project'}
-                {project?.project_id ? ` · ${project.project_id}` : ''}
-              </button>
+          <section className={`${panelClass} overflow-hidden p-2.5 sm:p-3`}>
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <label className="flex h-11 min-w-0 flex-1 items-center gap-3 rounded-[10px] border border-[#dce6f3] bg-white px-4">
+                <Search className="size-4 text-[#7e8fab]" />
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search project, customer, site, capacity..."
+                  className="w-full bg-transparent text-[15px] font-medium text-[#1e3261] outline-none placeholder:text-[#8a98af]"
+                />
+              </label>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <button
-                type="button"
-                onClick={openAdd}
-                className="inline-flex h-10 items-center gap-1.5 rounded-[8px] bg-[#16a34a] px-3 text-[13px] font-semibold text-white"
-              >
-                <Plus className="size-4" />
-                Add Material
-              </button>
-              {inline ? null : (
-                <button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-full text-[#7585a2] hover:bg-[#f4f7fb]" aria-label="Close">
-                  <X className="size-5" />
-                </button>
-              )}
-            </div>
-          </div>
 
-          <div className={cx('min-h-0 flex-1 px-4 py-4 sm:px-5', !inline && 'overflow-y-auto')}>
-            {!loadingRows && rows.length > 0 ? (
-              <p className="mb-3 text-[13px] font-semibold text-[#7386a3]">
-                {filteredRows.length === rows.length
-                  ? `${rows.length} item${rows.length === 1 ? '' : 's'}`
-                  : `${filteredRows.length} of ${rows.length} items`}
-                {' · '}
-                <span className="text-[#f59e0b]">{pendingCount} pending</span>
-                {' · '}
-                <span className="text-[#16a34a]">{readyCount} ready</span>
-              </p>
-            ) : null}
-
-            {loadingRows ? (
-              <PageLoadingState message="Loading BOM..." compact />
-            ) : rows.length === 0 ? (
-              <div className="flex flex-col items-center justify-center rounded-[12px] border border-dashed border-[#d5e0ef] bg-[#f8fbff] px-6 py-12 text-center">
-                <Package className="mb-3 size-10 text-[#94a3b8]" />
-                <p className="text-[15px] font-extrabold text-[#1e3261]">Add materials to build your BOM</p>
-                <p className="mt-1 max-w-md text-[13px] font-medium text-[#7386a3]">
-                  Select Inventory Products and enter qty — category and price come from inventory.
-                </p>
-                <button type="button" onClick={openAdd} className="mt-4 inline-flex h-10 items-center gap-1.5 rounded-[8px] bg-[#16a34a] px-4 text-[13px] font-semibold text-white">
-                  <Plus className="size-4" />
-                  Add Material
-                </button>
-              </div>
+            {loading ? (
+              <PageLoadingState message="Loading projects..." compact />
             ) : (
-              <div className="overflow-x-auto rounded-[12px] border border-[#e7eef7]">
-                <table className="crm-table crm-table--lead-dense crm-table-sticky-head w-full min-w-[980px]">
+              <div className="overflow-x-auto">
+                <table className="crm-table crm-table--lead-dense w-full min-w-[920px]">
                   <thead>
                     <tr>
                       <th className="crm-col-index" title="#"><span className="block truncate">#</span></th>
-                      <th title="Category"><span className="block truncate">Category</span></th>
-                      <th title="Specification"><span className="block truncate">Specification</span></th>
-                      <th title="Qty"><span className="block truncate">Qty</span></th>
-                      <th title="UOM">
+                      <th title="Project"><span className="block truncate">Project</span></th>
+                      <th title="Customer / Site"><span className="block truncate">Customer / Site</span></th>
+                      <th title="Capacity"><span className="block truncate">Capacity</span></th>
+                      <th title="Project Status">
                         <TableHeaderFilter
-                          label="UOM"
-                          value={uomFilter}
-                          active={uomFilter !== 'All'}
-                          options={['All', ...UOM_OPTIONS]}
-                          onChange={setUomFilter}
+                          label="Project Status"
+                          value={projectStatusFilter}
+                          active={projectStatusFilter !== 'All'}
+                          options={projectStatusOptions}
+                          onChange={setProjectStatusFilter}
                         />
                       </th>
-                      <th title="Inventory Cost"><span className="block truncate">Inv. Cost</span></th>
-                      <th title="Planning Price"><span className="block truncate">Plan Price</span></th>
-                      <th title="Planning Difference"><span className="block truncate">Diff</span></th>
-                      <th title="Planning Value"><span className="block truncate">Plan Value</span></th>
-                      <th title="Status">
+                      <th title="BOM Items"><span className="block truncate">BOM Items</span></th>
+                      <th title="Plan Status">
                         <TableHeaderFilter
-                          label="Status"
-                          value={statusFilter}
-                          active={statusFilter !== 'All'}
-                          options={[
-                            { value: 'All', label: 'All' },
-                            ...MATERIAL_STATUS.map((s) => ({ value: s, label: displayStatus(s) })),
-                          ]}
-                          onChange={setStatusFilter}
+                          label="Plan Status"
+                          value={planStatusFilter}
+                          active={planStatusFilter !== 'All'}
+                          options={planStatusOptions}
+                          onChange={setPlanStatusFilter}
                         />
                       </th>
                       <th className="crm-col-sticky-right" title="Action"><span className="block truncate">Action</span></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredRows.length === 0 ? (
+                    {filtered.length === 0 ? (
                       <tr>
-                        <td colSpan={11} className="py-8 text-center text-[13px] font-semibold text-[#8a98af]">
-                          No materials match these filters.
+                        <td colSpan={8} className="py-8 text-center text-[13px] font-semibold text-[#8a98af]">
+                          No won projects found for material planning.
                         </td>
                       </tr>
-                    ) : filteredRows.map((row, idx) => {
-                      const linked = inventoryItems.find((i) => String(i.id) === String(row.inventory_item));
-                      const categoryLabel = linked?.category || row.category || '—';
-                      const Icon = categoryIcon(categoryLabel);
-                      const invCost = Number(row.inventory_unit_cost ?? inventoryUnitPrice(linked)) || 0;
-                      const planPrice = Number(row.planning_unit_price_display ?? row.planning_unit_price) || 0;
-                      const unitDiff = Number(row.unit_difference ?? planningDiff(invCost, planPrice)) || 0;
-                      const totalDiff = Number(row.planning_difference_total) || (unitDiff * (Number(row.planned_qty) || 0));
+                    ) : pageRows.map((project, index) => {
+                      const stats = planByProject[project.id] || { total: 0 };
+                      const planStatus = planStatusFor(project.id);
                       return (
-                        <tr key={row.id}>
-                          <td className="crm-col-index">{idx + 1}</td>
+                        <tr key={project.id} {...rowDoubleOpenProps(() => openPlan(project), { title: 'Double-tap to open BOM' })}>
+                          <td className="crm-col-index">{startIndex + index + 1}</td>
                           <td>
-                            <div className="flex items-center gap-2 font-semibold text-[#1e3261]">
-                              <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#f0fdf4] text-[#16a34a]">
-                                <Icon className="size-3" />
-                              </span>
-                              {categoryLabel}
-                            </div>
+                            <div className="font-semibold text-[#1e3261] leading-tight">{project.project_name || project.project_id}</div>
+                            <div className="text-[11px] font-medium text-[#8a98af] leading-tight">{project.project_id}</div>
                           </td>
                           <td>
-                            {row.items ? (
-                              <span className="font-medium text-[#314a79]">{row.items}</span>
-                            ) : (
-                              <button type="button" onClick={() => openEditRow(row)} className="text-[12px] font-semibold text-[#0b65e5] hover:underline">
-                                Add spec
-                              </button>
+                            <div className="font-medium text-[#314a79] leading-tight">{project.customer_name || '—'}</div>
+                            <div className="text-[11px] font-medium text-[#8a98af] leading-tight">{project.site || '—'}</div>
+                          </td>
+                          <td className="font-semibold text-[#0b65e5]">
+                            {Number(project.capacity_kwp) > 0 ? `${project.capacity_kwp} kWp` : '—'}
+                          </td>
+                          <td>
+                            <span className={cx(
+                              'inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold',
+                              project.status === 'Active' ? 'bg-[#e8f8eb] text-[#0d9f4a]'
+                                : project.status === 'Completed' ? 'bg-[#e8f2ff] text-[#0b65e5]'
+                                  : 'bg-[#eef2f7] text-[#7585a2]',
                             )}
+                            >
+                              {project.status || '—'}
+                            </span>
                           </td>
-                          <td className="font-semibold text-[#1e3261]">{row.planned_qty ?? '—'}</td>
-                          <td className="font-medium text-[#314a79]">{row.uom || '—'}</td>
-                          <td className="font-medium text-[#314a79]">{invCost ? `₹${invCost.toLocaleString('en-IN')}` : '—'}</td>
-                          <td className="font-medium text-[#314a79]">{planPrice ? `₹${planPrice.toLocaleString('en-IN')}` : '—'}</td>
-                          <td className={`font-semibold ${unitDiff > 0 ? 'text-[#0d9f4a]' : unitDiff < 0 ? 'text-[#dc2626]' : 'text-[#314a79]'}`}>
-                            {planPrice || invCost ? `₹${unitDiff.toLocaleString('en-IN')}` : '—'}
-                            {totalDiff && Number(row.planned_qty) > 1 ? (
-                              <span className="mt-0.5 block text-[10px] font-medium text-[#8a98af]">Σ ₹{Number(totalDiff).toLocaleString('en-IN')}</span>
-                            ) : null}
+                          <td className="font-semibold text-[#1e3261]">{stats.total}</td>
+                          <td>
+                            <ProjectInfoPill tone={statusTone(planStatus)}>{planStatus}</ProjectInfoPill>
                           </td>
-                          <td className="font-medium text-[#314a79]">{row.planned_value ? `₹${row.planned_value}` : '—'}</td>
-                          <td><ProjectInfoPill tone={statusTone(row.status)}>{displayStatus(row.status)}</ProjectInfoPill></td>
-                          <td className="crm-col-sticky-right">
-                            <div className="flex items-center gap-1.5">
-                              <UserActionButton label="Edit" icon={Pencil} tone="green" onClick={() => openEditRow(row)} />
-                              <UserActionButton label="Delete" icon={Trash2} tone="red" onClick={() => handleDelete(row.id)} />
-                            </div>
+                          <td className="crm-col-sticky-right" data-no-row-open onDoubleClick={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => openPlan(project)}
+                              className="inline-flex h-8 items-center gap-1.5 rounded-[7px] bg-[#16a34a] px-2.5 text-[12px] font-semibold text-white"
+                            >
+                              <Boxes className="size-3.5" />
+                              {stats.total > 0 ? 'Open BOM' : 'Create BOM'}
+                            </button>
                           </td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
+                <TablePagination {...pagination} />
               </div>
             )}
-          </div>
+          </section>
+        </>
+      )}
 
-          {inline ? null : (
-            <div className="flex shrink-0 justify-end border-t border-[#edf2f8] px-4 py-3 sm:px-5">
-              <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d5e0ef] bg-white px-5 text-[13px] font-semibold text-[#314a79]">
-                Close
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {infoOpen ? (
-        <ProjectQuickInfoPopup
-          project={project}
-          survey={projectSurvey}
-          capacityLabel={capacityLabel}
-          onClose={() => setInfoOpen(false)}
-        />
-      ) : null}
-
-      {modalOpen ? (
-        <div className="fixed inset-0 z-[95] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setModalOpen(false); }}>
-          <div className="w-full max-w-[500px] rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
-            <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
-              <h2 className="font-display text-[18px] font-extrabold text-[#111827]">{editRow !== null ? 'Edit Material' : 'Add Material'}</h2>
-              <button type="button" onClick={() => setModalOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
-            </div>
-            <div className="grid gap-4 p-6 sm:grid-cols-2">
-              {projectSurvey ? (
-                <div className="rounded-[10px] border border-[#e7eef7] bg-[#f8fafc] p-3 text-[12px] font-bold text-[#4b5b78] sm:col-span-2">
-                  <p className="mb-1.5 text-[11px] font-extrabold uppercase text-[#7386a3]">From Site Survey</p>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 sm:grid-cols-4">
-                    <span>Roof Area: <b className="text-[#1e3261]">{projectSurvey.rooftop_area_sqft || '—'} sq.ft</b></span>
-                    <span>Structure: <b className="text-[#1e3261]">{projectSurvey.structure_rows || '—'}×{projectSurvey.structure_columns || '—'}</b></span>
-                    <span>Capacity: <b className="text-[#1e3261]">{projectSurvey.approx_plant_capacity || '—'}</b></span>
-                    <span>Orientation: <b className="text-[#1e3261]">{projectSurvey.module_orientation || '—'}</b></span>
-                  </div>
-                </div>
-              ) : null}
-              <div className="relative grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2" ref={itemPickerRef}>
-                <span>Add Item (Inventory Product) *</span>
-                <button
-                  type="button"
-                  onClick={() => setItemPickerOpen((open) => !open)}
-                  className="flex h-11 w-full items-center justify-between gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-left text-[13px] font-bold text-[#1e3261]"
-                >
-                  <span className={cx('min-w-0 truncate', selectedInventoryItem ? 'text-[#1e3261]' : 'text-[#8a98af]')}>
-                    {selectedInventoryItem
-                      ? `${selectedInventoryItem.name} · ₹${inventoryUnitPrice(selectedInventoryItem).toLocaleString('en-IN')}/${selectedInventoryItem.unit || 'unit'} · Stock ${selectedInventoryItem.current_stock ?? 0}`
-                      : 'Search inventory products...'}
-                  </span>
-                  <ChevronDown className={cx('size-4 shrink-0 text-[#8a98af] transition', itemPickerOpen && 'rotate-180')} />
-                </button>
-                {itemPickerOpen ? (
-                  <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 overflow-hidden rounded-[12px] border border-[#d9e4f2] bg-white shadow-[0_16px_40px_rgba(17,39,84,0.16)]">
-                    <div className="border-b border-[#edf2f8] p-2">
-                      <div className="relative">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#8a98af]" />
-                        <input
-                          autoFocus
-                          value={itemSearch}
-                          onChange={(e) => setItemSearch(e.target.value)}
-                          placeholder="Search name, code, category..."
-                          className="h-10 w-full rounded-[8px] border border-[#d9e4f2] bg-[#f8fbff] pl-9 pr-3 text-[13px] font-semibold text-[#1e3261] outline-none focus:border-[#0b65e5]"
-                        />
-                      </div>
-                    </div>
-                    <div className="max-h-56 overflow-y-auto py-1">
-                      {inventoryItems.length === 0 ? (
-                        <p className="px-3 py-4 text-center text-[12px] font-semibold text-[#8a98af]">No inventory products yet — add them in Inventory → Products</p>
-                      ) : filteredInventoryItems.length === 0 ? (
-                        <p className="px-3 py-4 text-center text-[12px] font-semibold text-[#8a98af]">No products match</p>
-                      ) : filteredInventoryItems.map((item) => {
-                        const price = inventoryUnitPrice(item);
-                        const active = String(form.inventory_item) === String(item.id);
-                        return (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => applyInventoryItem(item)}
-                            className={cx(
-                              'flex w-full flex-col gap-0.5 px-3 py-2.5 text-left transition hover:bg-[#f8fbff]',
-                              active && 'bg-[#eff6ff]',
-                            )}
-                          >
-                            <span className="text-[13px] font-extrabold text-[#1e3261]">{item.name}</span>
-                            <span className="text-[11px] font-semibold text-[#7386a3]">
-                              {item.item_code || item.record_no || '—'}
-                              {item.category ? ` · ${item.category}` : ''}
-                              {' · '}Stock {item.current_stock ?? 0} {item.unit || ''}
-                              {' · '}₹{price.toLocaleString('en-IN')}/{item.unit || 'unit'}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : null}
-                {selectedInventoryItem ? (
-                  <p className="text-[11px] font-semibold text-[#0d9f4a]">
-                    Inventory cost ₹{inventoryUnitPrice(selectedInventoryItem).toLocaleString('en-IN')} stays fixed.
-                    Set a separate planning price → Diff = Plan − Inv.
-                  </p>
-                ) : (
-                  <p className="text-[11px] font-semibold text-[#8a98af]">First add the item and price in Inventory → Categories + Products</p>
-                )}
-              </div>
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
-                Category
-                <input
-                  readOnly
-                  value={selectedInventoryItem?.category || form.category || ''}
-                  placeholder="Auto from inventory product"
-                  className="h-11 rounded-[8px] border border-[#d9e4f2] bg-[#f8fbff] px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]"
-                />
-                <span className="text-[11px] font-semibold text-[#8a98af]">Comes from Inventory → Categories (not editable here)</span>
-              </label>
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
-                Inventory Cost (Rs)
-                <input
-                  readOnly
-                  value={selectedInventoryItem ? String(inventoryUnitPrice(selectedInventoryItem)) : ''}
-                  placeholder="Warehouse purchase cost"
-                  className="h-11 rounded-[8px] border border-[#d9e4f2] bg-[#f8fbff] px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]"
-                />
-              </label>
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
-                Planning Price (Rs)
-                <input
-                  value={form.planning_unit_price}
-                  onChange={(e) => onPlanningPriceChange(e.target.value)}
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="e.g. 13000"
-                  className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100"
-                />
-              </label>
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
-                Diff / unit (Rs)
-                <input
-                  readOnly
-                  value={selectedInventoryItem || form.planning_unit_price
-                    ? String(planningDiff(inventoryUnitPrice(selectedInventoryItem), form.planning_unit_price))
-                    : ''}
-                  className="h-11 rounded-[8px] border border-[#d9e4f2] bg-[#f8fbff] px-3 text-[13px] font-bold text-[#1e3261] outline-none"
-                />
-              </label>
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f] sm:col-span-2">
-                Item / Specification
-                <input value={form.items} onChange={(e) => setForm((p) => ({ ...p, items: e.target.value }))} placeholder="Auto from inventory product" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
-              </label>
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
-                Planned Qty *
-                <input value={form.planned_qty} onChange={(e) => onPlannedQtyChange(e.target.value)} type="number" min="0" placeholder="e.g. 40" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af] focus:border-[#0b65e5] focus:ring-4 focus:ring-blue-100" />
-              </label>
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
-                UOM
-                <select value={form.uom} onChange={(e) => setForm((p) => ({ ...p, uom: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
-                  {UOM_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
-                  {form.uom && !UOM_OPTIONS.includes(form.uom) ? <option value={form.uom}>{form.uom}</option> : null}
-                </select>
-              </label>
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
-                Planning Value (Rs)
-                <input
-                  readOnly
-                  value={form.planned_value}
-                  placeholder="Auto = planning price × qty"
-                  className="h-11 rounded-[8px] border border-[#d9e4f2] bg-[#f8fbff] px-3 text-[13px] font-bold text-[#1e3261] outline-none placeholder:text-[#8a98af]"
-                />
-              </label>
-              <label className="grid gap-1.5 text-[13px] font-extrabold text-[#53647f]">
-                Status
-                <select value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
-                  {MATERIAL_STATUS.map((s) => <option key={s} value={s}>{s === 'Not Started' ? 'Pending' : s === 'Completed' ? 'Ready' : s}</option>)}
-                </select>
-              </label>
-            </div>
-            <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-6 py-4">
-              <button type="button" onClick={() => setModalOpen(false)} className="h-11 rounded-[8px] border border-black/20 bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Cancel</button>
-              <button type="button" onClick={handleSave} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white">
-                <Save className="size-4" />{editRow !== null ? 'Update' : 'Add'}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {deleteConfirm ? (
-        <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
-      ) : null}
-    </>
+      {embedded ? null : <DashboardFooter />}
+    </div>
   );
 }
 
-function ProjectQuickInfoPopup({ project, survey, capacityLabel, onClose }) {
-  const phone = project?.lead_mobile_number || project?.mobile_number || '';
-  const address = project?.site_address || project?.site || survey?.site_address || '';
-  const rows = [
-    { label: 'Project ID', value: project?.project_id },
-    { label: 'Customer', value: project?.customer_name },
-    { label: 'Phone', value: phone },
-    { label: 'Site / Address', value: address },
-    { label: 'Type', value: project?.project_type },
-    { label: 'Capacity', value: capacityLabel },
-    { label: 'Status', value: project?.status },
-    { label: 'Survey', value: project?.survey_status || survey?.status },
-    { label: 'Manager', value: project?.manager_name || project?.manager_detail?.name },
-  ].filter((r) => r.value && String(r.value).trim() && String(r.value) !== '0' && String(r.value) !== '0.00');
-
-  const surveyBits = [
-    survey?.rooftop_area_sqft ? `Roof ${survey.rooftop_area_sqft} sq.ft` : null,
-    survey?.structure_rows && survey?.structure_columns ? `Structure ${survey.structure_rows}×${survey.structure_columns}` : null,
-    survey?.module_orientation || null,
-    survey?.approx_plant_capacity ? `Survey cap ${survey.approx_plant_capacity}` : null,
-  ].filter(Boolean);
-
+function MaterialPlanningBomModal({ project, onClose, onNotify, onPlansChanged, inline = false, showBack = false }) {
   return (
-    <div
-      className="fixed inset-0 z-[96] flex items-center justify-center bg-[#0f172a]/50 p-4"
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div className="w-full max-w-[440px] overflow-hidden rounded-[16px] bg-white shadow-[0_24px_60px_rgba(15,23,42,0.28)]">
-        <div className="flex items-start justify-between gap-3 border-b border-[#edf2f8] px-5 py-4">
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-wide text-[#8a98af]">Project Info</p>
-            <h3 className="mt-0.5 truncate text-[16px] font-extrabold text-[#1e3261]">
-              {project?.project_name || project?.project_id || 'Project'}
-            </h3>
-          </div>
-          <button type="button" onClick={onClose} className="grid size-8 shrink-0 place-items-center rounded-full text-[#7585a2] hover:bg-[#f4f7fb]" aria-label="Close">
-            <X className="size-4" />
-          </button>
-        </div>
-
-        <div className="space-y-0 px-5 py-2">
-          {rows.length === 0 ? (
-            <p className="py-6 text-center text-[13px] font-semibold text-[#8a98af]">No project details available.</p>
-          ) : rows.map((row) => (
-            <div key={row.label} className="flex items-start justify-between gap-4 border-b border-[#f1f5f9] py-2.5 last:border-b-0">
-              <span className="shrink-0 text-[12px] font-semibold text-[#8a98af]">{row.label}</span>
-              <span className="text-right text-[13px] font-bold text-[#1e3261]">{row.value}</span>
-            </div>
-          ))}
-        </div>
-
-        {surveyBits.length > 0 ? (
-          <div className="mx-5 mb-4 rounded-[10px] border border-[#e7eef7] bg-[#f8fbff] px-3 py-2.5">
-            <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-[#8a98af]">Site Survey</p>
-            <p className="text-[13px] font-semibold text-[#314a79]">{surveyBits.join(' · ')}</p>
-          </div>
-        ) : null}
-
-        <div className="flex justify-end border-t border-[#edf2f8] px-5 py-3">
-          <button type="button" onClick={onClose} className="h-10 rounded-[8px] bg-[#16a34a] px-5 text-[13px] font-semibold text-white">
-            Done
-          </button>
-        </div>
-      </div>
-    </div>
+    <MaterialPlanningPoPage
+      project={project}
+      onClose={onClose}
+      onNotify={onNotify}
+      onPlansChanged={onPlansChanged}
+      showBack={showBack}
+      panelClass={panelClass}
+    />
   );
 }
 
@@ -33364,17 +32943,23 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
         return src || undefined;
       })(),
       estimated_capacity: fd.get('estimated_capacity') || undefined,
+      project_cost: (() => {
+        const raw = String(fd.get('project_cost') || '').trim();
+        if (!raw) return null;
+        const n = Number(raw);
+        return Number.isFinite(n) ? n : null;
+      })(),
       next_follow_up: fd.get('next_follow_up') || undefined,
       // assigned_to is applied via leadApi.assign (Lead → Assign), not PATCH —
       // Sales Manager often has Assign without full Lead Edit.
       ...(!projectMode && (() => {
         const bucketStatusMap = {
-          new: { status: 'New', priority: '' },
-          hot: { status: 'New', priority: 'High' },
-          warm: { status: 'Follow-up', priority: '' },
-          cool: { status: 'New', priority: 'Low' },
-          lost: { status: 'Lost', priority: '' },
-          won: { status: 'Won', priority: '' },
+          new: { status: 'New', priority: '', category: '' },
+          hot: { status: 'New', priority: 'High', category: 'Hot' },
+          warm: { status: 'New', priority: '', category: 'Warm' },
+          cool: { status: 'New', priority: 'Low', category: 'Cool' },
+          lost: { status: 'Lost', priority: '', category: '' },
+          won: { status: 'Won', priority: '', category: '' },
         };
         const bucket = fd.get('lead_bucket') || 'new';
         return bucketStatusMap[bucket] || { status: 'New', priority: '' };
@@ -33599,6 +33184,17 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
                 })()} />
                 <LeadInput label="Estimated Capacity (kW)" icon={Zap} type="number" placeholder="Enter capacity (e.g. 5, 10, 20)" name="estimated_capacity" defaultValue={d.estimated_capacity} />
               </div>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <LeadInput
+                  label="Project Cost (₹)"
+                  icon={IndianRupee}
+                  type="number"
+                  placeholder="Optional — e.g. 185000"
+                  name="project_cost"
+                  defaultValue={d.project_cost ?? ''}
+                  optional
+                />
+              </div>
               <LeadInput label="Reference Name" icon={UserRound} placeholder="If source is Reference, enter name" name="source_reference_name" defaultValue={d.source?.startsWith('Reference - ') ? d.source.replace('Reference - ', '') : ''} />
             </LeadFormSection>
 
@@ -33625,7 +33221,7 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
                       if (d.status === 'Won') return 'won';
                       if (d.priority === 'High') return 'hot';
                       if (d.priority === 'Low') return 'cool';
-                      if (d.status === 'Follow-up' || d.status === 'Quotation') return 'warm';
+                      if (d.status === 'Quotation' || d.category === 'Warm' || d.status === 'Follow-up') return 'warm';
                       return 'new';
                     })() : 'new'}
                   />
@@ -38172,7 +37768,7 @@ function LeadQuickActionModal({ type, lead, onClose, onSaved, onLeadUpdated, onN
     if (type === 'status') return (
       <>
         <ReadonlyField label="Current Status" value={lead?.status || '—'} />
-        <LeadSelect label="New Status" name="new_status" required icon={Clock3} placeholder="Select new status" options={['New', 'Follow-up', 'Quotation', 'Won', 'Lost']} />
+        <LeadSelect label="New Status" name="new_status" required icon={Clock3} placeholder="Select new status" options={['New', 'Quotation', 'Won', 'Lost']} />
         <div className="md:col-span-2">
           <LeadTextarea label="Status Note" name="notes" icon={FileText} placeholder="Reason for status change..." />
         </div>
@@ -38471,7 +38067,7 @@ function CrmFollowUpEditModal({ followUp, lead, onClose, onSaved, onNotify }) {
               <LeadDateInput label="Follow-up Date" name="date" required defaultValue={Number.isNaN(when.getTime()) ? '' : when.toISOString().slice(0, 10)} />
               <LeadInput label="Follow-up Time" name="time" icon={Clock3} type="time" defaultValue={Number.isNaN(when.getTime()) ? '10:00' : when.toTimeString().slice(0, 5)} />
               <LeadSelect label="Outcome" name="outcome" icon={Flag} placeholder="Select outcome" options={['Interested', 'Thinking', 'Busy', 'Not Reachable', 'Call Back Later', 'Site Visit Fixed', 'Not Interested', 'Wrong Number', 'Other']} defaultValue={followUp.outcome || ''} />
-              <LeadSelect label="Lead Status After" name="status_after" icon={Flag} placeholder="Optional" options={['New', 'Follow-up', 'Quotation', 'Won', 'Lost']} defaultValue={followUp.status_after || ''} />
+              <LeadSelect label="Lead Status After" name="status_after" icon={Flag} placeholder="Optional" options={['New', 'Quotation', 'Won', 'Lost']} defaultValue={followUp.status_after || ''} />
               <LeadSelect label="Reminder" name="reminder" icon={Bell} placeholder="Select reminder" options={['2 Hours Before', '1 Day Before', 'Same Day Morning', 'No Reminder']} defaultValue={followUp.reminder || 'No Reminder'} />
               <div className="md:col-span-2">
                 <LeadTextarea label="What Happened *" name="notes" icon={FileText} placeholder="Conversation details..." defaultValue={followUp.notes || ''} />
@@ -38931,13 +38527,21 @@ function MiniBrandMark({ compact = false, plain = false }) {
   );
 }
 
-function AdminAvatar({ name }) {
+function AdminAvatar({ name, size = 44 }) {
   const initials = name
     ? name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
     : '?';
+  const fontSize = size <= 36 ? 12 : 15;
+  const borderWidth = size <= 36 ? 2 : 3;
   return (
-    <div className="grid size-11 place-items-center overflow-hidden rounded-full border-[3px] border-[#f2d27a] bg-white shadow-[0_8px_18px_rgba(40,66,118,0.14)]">
-      <div className="flex size-full items-center justify-center bg-[#1f4e8c] text-[15px] font-extrabold text-white">
+    <div
+      className="grid place-items-center overflow-hidden rounded-full border-[#f2d27a] bg-white shadow-[0_6px_14px_rgba(40,66,118,0.12)]"
+      style={{ width: size, height: size, borderWidth }}
+    >
+      <div
+        className="flex size-full items-center justify-center bg-[#1f4e8c] font-extrabold text-white"
+        style={{ fontSize }}
+      >
         {initials}
       </div>
     </div>

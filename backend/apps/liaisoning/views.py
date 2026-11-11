@@ -10,13 +10,14 @@ from apps.projects.models import Project, SubsidyApplication
 from .models import (
     LiaisonApplication, LiaisonApproval, LiaisonInspection,
     LiaisonCommissioning, LiaisonCompliance, LiaisonDocument,
-    LiaisonAgreement, LiaisonNetMeter, LiaisonProjectStage,
-    LIAISON_STAGES, LIAISON_STAGE_COMPLETED,
+    LiaisonAgreement, LiaisonNetMeter, LiaisonLoanProcess, LiaisonInspectionPlaced,
+    LiaisonProjectStage, LIAISON_STAGES, LIAISON_STAGE_COMPLETED,
 )
 from .serializers import (
     LiaisonApplicationSerializer, LiaisonApprovalSerializer, LiaisonInspectionSerializer,
     LiaisonCommissioningSerializer, LiaisonComplianceSerializer, LiaisonDocumentSerializer,
-    LiaisonAgreementSerializer, LiaisonNetMeterSerializer, LiaisonProjectSerializer,
+    LiaisonAgreementSerializer, LiaisonNetMeterSerializer, LiaisonLoanProcessSerializer,
+    LiaisonInspectionPlacedSerializer, LiaisonProjectSerializer,
 )
 from apps.accounts.permissions import HasModulePermission, lead_owner_filter
 
@@ -34,7 +35,7 @@ class LiaisonBaseViewSet(viewsets.ModelViewSet):
         # Sales / Tele Sales Executives only see liaisoning records tied to
         # their own leads' projects.
         filt = lead_owner_filter(self.request.user, prefix=prefix)
-        return qs.filter(**filt) if filt else qs
+        return qs.filter(filt) if filt else qs
 
 
 class LiaisonApplicationViewSet(LiaisonBaseViewSet):
@@ -86,11 +87,20 @@ class LiaisonInspectionViewSet(LiaisonBaseViewSet):
 
 class LiaisonCommissioningViewSet(LiaisonBaseViewSet):
     serializer_class = LiaisonCommissioningSerializer
-    filterset_fields = ['project', 'status']
+    filterset_fields = ['project', 'status', 'assigned_employee']
     search_fields = ['engineer', 'project__project_name', 'project__customer_name']
 
     def get_queryset(self):
-        return self._scope(LiaisonCommissioning.objects.select_related('project', 'created_by').all())
+        return self._scope(
+            LiaisonCommissioning.objects.select_related(
+                'project', 'created_by', 'assigned_employee', 'assigned_employee__user',
+            ).all()
+        )
+
+    def perform_destroy(self, instance):
+        from .commissioning_tasks import delete_commissioning_tasks
+        delete_commissioning_tasks(instance)
+        instance.delete()
 
 
 class LiaisonComplianceViewSet(LiaisonBaseViewSet):
@@ -114,10 +124,28 @@ class LiaisonDocumentViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = LiaisonDocument.objects.select_related('project', 'uploaded_by').all()
         filt = lead_owner_filter(self.request.user, prefix='project__lead__')
-        return qs.filter(**filt) if filt else qs
+        return qs.filter(filt) if filt else qs
 
     def perform_create(self, serializer):
         serializer.save(uploaded_by=self.request.user)
+
+
+class LiaisonLoanProcessViewSet(LiaisonBaseViewSet):
+    serializer_class = LiaisonLoanProcessSerializer
+    filterset_fields = ['project', 'status', 'loan_type']
+    search_fields = ['financier_name', 'loan_account_number', 'project__project_name', 'project__customer_name']
+
+    def get_queryset(self):
+        return self._scope(LiaisonLoanProcess.objects.select_related('project', 'created_by').all())
+
+
+class LiaisonInspectionPlacedViewSet(LiaisonBaseViewSet):
+    serializer_class = LiaisonInspectionPlacedSerializer
+    filterset_fields = ['project', 'status', 'authority']
+    search_fields = ['reference_number', 'inspector_name', 'project__project_name', 'project__customer_name']
+
+    def get_queryset(self):
+        return self._scope(LiaisonInspectionPlaced.objects.select_related('project', 'created_by').all())
 
 
 class LiaisonAgreementViewSet(LiaisonBaseViewSet):
@@ -151,7 +179,7 @@ def _per_project_count(model):
 
 class LiaisonProjectViewSet(viewsets.ReadOnlyModelViewSet):
     """Won-lead projects moving through the Liaisoning pipeline
-    (Documents → Application → … → Subsidy → Completed)."""
+    (Documents → Application → Loan Process → … → Subsidy → Completed)."""
 
     serializer_class = LiaisonProjectSerializer
     permission_classes = [HasModulePermission]
@@ -169,16 +197,18 @@ class LiaisonProjectViewSet(viewsets.ReadOnlyModelViewSet):
                 lc_stage=Coalesce('liaison_stage__stage', Value(LIAISON_STAGES[0])),
                 documents_count=_per_project_count(LiaisonDocument),
                 applications_count=_per_project_count(LiaisonApplication),
+                loan_processes_count=_per_project_count(LiaisonLoanProcess),
                 agreements_count=_per_project_count(LiaisonAgreement),
                 inspections_count=_per_project_count(LiaisonInspection),
                 net_meters_count=_per_project_count(LiaisonNetMeter),
                 commissionings_count=_per_project_count(LiaisonCommissioning),
+                inspections_placed_count=_per_project_count(LiaisonInspectionPlaced),
                 subsidies_count=_per_project_count(SubsidyApplication),
             )
         )
         filt = lead_owner_filter(self.request.user, prefix='lead__')
         if filt:
-            qs = qs.filter(**filt)
+            qs = qs.filter(filt)
         stage = self.request.query_params.get('stage')
         if stage:
             qs = qs.filter(lc_stage=stage)
@@ -211,6 +241,8 @@ class LiaisonProjectViewSet(viewsets.ReadOnlyModelViewSet):
                 {'detail': f'Project is already at "{current}".', 'lc_stage': current},
                 status=status.HTTP_409_CONFLICT,
             )
+        if current == 'Inspection Placed':
+            current = 'Inspection'
         if current not in LIAISON_STAGES:
             return Response({'detail': 'Liaisoning is already completed for this project.'}, status=status.HTTP_400_BAD_REQUEST)
         idx = LIAISON_STAGES.index(current)
@@ -221,6 +253,8 @@ class LiaisonProjectViewSet(viewsets.ReadOnlyModelViewSet):
     def set_stage(self, request, pk=None):
         project = self.get_object()
         new_stage = request.data.get('stage')
+        if new_stage == 'Inspection Placed':
+            new_stage = 'Inspection'
         if new_stage not in [*LIAISON_STAGES, LIAISON_STAGE_COMPLETED]:
             return Response({'detail': 'Invalid stage.'}, status=status.HTTP_400_BAD_REQUEST)
         if new_stage == project.lc_stage:

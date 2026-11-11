@@ -63,7 +63,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         # Sales / Tele Sales Executives see only projects born from their own leads
         filt = lead_owner_filter(self.request.user, prefix='lead__')
         if filt:
-            qs = qs.filter(**filt)
+            qs = qs.filter(filt)
         # Page-scoped filters (avoid fetching every project then filtering in the browser).
         params = self.request.query_params
         won_only = str(params.get('won_only') or '').lower() in ('1', 'true', 'yes')
@@ -131,6 +131,31 @@ class ProjectViewSet(viewsets.ModelViewSet):
         project.save(update_fields=['progress_percent', 'updated_at'])
         return Response({'progress_percent': project.progress_percent})
 
+    @action(detail=True, methods=['post'], url_path='ensure-installation-tasks')
+    def ensure_installation_tasks(self, request, pk=None):
+        """Idempotently create the fixed 5 weighted Installation checklist tasks."""
+        from .work_completion import (
+            INSTALLATION_TASK_WEIGHTS,
+            ensure_installation_checklist,
+            work_completion_percent,
+        )
+        project = self.get_object()
+        ensure_installation_checklist(project, user=request.user)
+        items = {
+            (item.label or '').strip().lower(): item
+            for item in ProjectChecklistItem.objects.filter(project=project, phase='Installation')
+        }
+        ordered = []
+        for label, _weight in INSTALLATION_TASK_WEIGHTS:
+            item = items.get(label.lower())
+            if item:
+                ordered.append(item)
+        return Response({
+            'results': ProjectChecklistItemSerializer(ordered, many=True).data,
+            'work_completion_pct': work_completion_percent(project, ensure=False),
+            'weights': [{'label': label, 'weight': weight} for label, weight in INSTALLATION_TASK_WEIGHTS],
+        })
+
     @action(detail=False, methods=['get'])
     def summary(self, request):
         qs = self.get_queryset()
@@ -191,7 +216,7 @@ class ProjectActivityViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = ProjectActivity.objects.select_related('project', 'assigned_to', 'created_by').all()
         filt = lead_owner_filter(self.request.user, prefix='project__lead__')
-        return qs.filter(**filt) if filt else qs
+        return qs.filter(filt) if filt else qs
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
@@ -208,7 +233,7 @@ class ProjectNoteViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = ProjectNote.objects.select_related('project', 'created_by').all()
         filt = lead_owner_filter(self.request.user, prefix='project__lead__')
-        return qs.filter(**filt) if filt else qs
+        return qs.filter(filt) if filt else qs
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
@@ -224,7 +249,7 @@ class ProjectDocumentViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = ProjectDocument.objects.select_related('project', 'uploaded_by').all()
         filt = lead_owner_filter(self.request.user, prefix='project__lead__')
-        return qs.filter(**filt) if filt else qs
+        return qs.filter(filt) if filt else qs
 
     def perform_create(self, serializer):
         serializer.save(uploaded_by=self.request.user)
@@ -316,7 +341,7 @@ class ProjectPaymentViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = ProjectPayment.objects.select_related('project', 'created_by').all()
         filt = lead_owner_filter(self.request.user, prefix='project__lead__')
-        return qs.filter(**filt) if filt else qs
+        return qs.filter(filt) if filt else qs
 
     def perform_create(self, serializer):
         project_payment = serializer.save(created_by=self.request.user)
@@ -346,7 +371,7 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = WorkOrder.objects.select_related('project', 'assignee', 'created_by').all()
         filt = lead_owner_filter(self.request.user, prefix='project__lead__')
-        return qs.filter(**filt) if filt else qs
+        return qs.filter(filt) if filt else qs
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
@@ -366,7 +391,7 @@ class JobSheetViewSet(viewsets.ModelViewSet):
         qs = JobSheet.objects.select_related('project', 'project__manager', 'created_by').all()
         filt = lead_owner_filter(self.request.user, prefix='project__lead__')
         if filt:
-            qs = qs.filter(**filt)
+            qs = qs.filter(filt)
         params = self.request.query_params
         if params.get('project_code'):
             qs = qs.filter(project__project_id__icontains=params['project_code'].strip())
@@ -438,7 +463,7 @@ class ProjectTeamMemberViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = ProjectTeamMember.objects.select_related('project', 'user').all()
         filt = lead_owner_filter(self.request.user, prefix='project__lead__')
-        return qs.filter(**filt) if filt else qs
+        return qs.filter(filt) if filt else qs
 
     @action(detail=False, methods=['get'], url_path='stats')
     def stats(self, request):
@@ -466,7 +491,7 @@ class ProjectMilestoneViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = ProjectMilestone.objects.select_related('project', 'owner', 'parent').all()
         filt = lead_owner_filter(self.request.user, prefix='project__lead__')
-        return qs.filter(**filt) if filt else qs
+        return qs.filter(filt) if filt else qs
 
 
 class ProjectChecklistItemViewSet(viewsets.ModelViewSet):
@@ -479,7 +504,7 @@ class ProjectChecklistItemViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = ProjectChecklistItem.objects.select_related('project', 'checked_by').all()
         filt = lead_owner_filter(self.request.user, prefix='project__lead__')
-        return qs.filter(**filt) if filt else qs
+        return qs.filter(filt) if filt else qs
 
     def perform_update(self, serializer):
         if serializer.validated_data.get('is_checked'):
@@ -498,7 +523,7 @@ class InstallationMaterialViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = InstallationMaterial.objects.select_related('project', 'inventory_item').all()
         filt = lead_owner_filter(self.request.user, prefix='project__lead__')
-        return qs.filter(**filt) if filt else qs
+        return qs.filter(filt) if filt else qs
 
 
 class MaterialPlanViewSet(viewsets.ModelViewSet):
@@ -515,7 +540,7 @@ class MaterialPlanViewSet(viewsets.ModelViewSet):
         qs = MaterialPlan.objects.select_related('project', 'inventory_item').all()
         filt = lead_owner_filter(self.request.user, prefix='project__lead__')
         if filt:
-            qs = qs.filter(**filt)
+            qs = qs.filter(filt)
         project_id = self.request.query_params.get('project')
         if project_id:
             qs = qs.filter(project_id=project_id)
@@ -580,7 +605,7 @@ class MaterialPlanViewSet(viewsets.ModelViewSet):
         qs = MaterialPlan.objects.all()
         filt = lead_owner_filter(request.user, prefix='project__lead__')
         if filt:
-            qs = qs.filter(**filt)
+            qs = qs.filter(filt)
         project_id = request.query_params.get('project')
         if project_id:
             qs = qs.filter(project_id=project_id)
@@ -599,7 +624,7 @@ class SubsidyApplicationViewSet(viewsets.ModelViewSet):
         qs = SubsidyApplication.objects.select_related('project').prefetch_related('documents').all()
         filt = lead_owner_filter(self.request.user, prefix='project__lead__')
         if filt:
-            qs = qs.filter(**filt)
+            qs = qs.filter(filt)
         project_id = self.request.query_params.get('project')
         if project_id:
             qs = qs.filter(project_id=project_id)
@@ -632,7 +657,7 @@ class SubsidyDocumentViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = SubsidyDocument.objects.select_related('subsidy').all()
         filt = lead_owner_filter(self.request.user, prefix='subsidy__project__lead__')
-        return qs.filter(**filt) if filt else qs
+        return qs.filter(filt) if filt else qs
 
 
 class ProjectApprovalViewSet(viewsets.ModelViewSet):
@@ -649,7 +674,7 @@ class ProjectApprovalViewSet(viewsets.ModelViewSet):
             'project', 'created_by', 'assigned_to', 'approved_by'
         ).prefetch_related('documents').all()
         filt = lead_owner_filter(self.request.user, prefix='project__lead__')
-        return qs.filter(**filt) if filt else qs
+        return qs.filter(filt) if filt else qs
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
@@ -686,7 +711,7 @@ class ProjectApprovalDocumentViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = ProjectApprovalDocument.objects.select_related('approval').all()
         filt = lead_owner_filter(self.request.user, prefix='approval__project__lead__')
-        return qs.filter(**filt) if filt else qs
+        return qs.filter(filt) if filt else qs
 
 
 def _count_subquery(qs, field='project', outer='pk'):
@@ -696,7 +721,7 @@ def _count_subquery(qs, field='project', outer='pk'):
 
 class PmPipelineViewSet(viewsets.ReadOnlyModelViewSet):
     """Won-lead projects moving through the Project Management pipeline
-    (Site Survey -> Quotation -> ... -> Invoice -> Completed)."""
+    (Site Survey -> Quotation -> ... -> Installation -> Completed)."""
 
     serializer_class = PmPipelineProjectSerializer
     permission_classes = [HasModulePermission]
@@ -707,7 +732,6 @@ class PmPipelineViewSet(viewsets.ReadOnlyModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        from apps.accounts_module.models import SellChallan, SellInvoice
         from apps.leads.models import Quotation
 
         qs = (
@@ -720,13 +744,11 @@ class PmPipelineViewSet(viewsets.ReadOnlyModelViewSet):
                 quotations_count=_count_subquery(Quotation.objects.filter(is_deleted=False), field='lead', outer='lead'),
                 material_count=_count_subquery(MaterialPlan.objects.all()),
                 dispatched_count=_count_subquery(MaterialPlan.objects.filter(dispatch_status='Dispatched')),
-                challans_count=_count_subquery(SellChallan.objects.exclude(status='Cancelled')),
-                invoices_count=_count_subquery(SellInvoice.objects.exclude(status='Cancelled')),
             )
         )
         filt = lead_owner_filter(self.request.user, prefix='lead__')
         if filt:
-            qs = qs.filter(**filt)
+            qs = qs.filter(filt)
         stage = self.request.query_params.get('stage')
         if stage:
             qs = qs.filter(pm_stage=stage)
@@ -741,7 +763,7 @@ class PmPipelineViewSet(viewsets.ReadOnlyModelViewSet):
         )
         filt = lead_owner_filter(request.user, prefix='lead__')
         if filt:
-            qs = qs.filter(**filt)
+            qs = qs.filter(filt)
         rows = qs.values('pm_stage').annotate(count=Count('id'))
         stages = {row['pm_stage'] or PM_STAGES[0]: row['count'] for row in rows}
         total = sum(stages.values())
@@ -774,6 +796,9 @@ class PmPipelineViewSet(viewsets.ReadOnlyModelViewSet):
                 {'detail': f'Project is already at "{current}".', 'pm_stage': current},
                 status=status.HTTP_409_CONFLICT,
             )
+        # Legacy Quotation stage was removed from PM — treat as Site Survey for advance.
+        if current == 'Quotation':
+            current = 'Site Survey'
         if current not in PM_STAGES:
             return Response({'detail': 'All project stages are already completed.'}, status=status.HTTP_400_BAD_REQUEST)
         idx = PM_STAGES.index(current)
@@ -784,6 +809,8 @@ class PmPipelineViewSet(viewsets.ReadOnlyModelViewSet):
     def set_stage(self, request, pk=None):
         project = self.get_object()
         new_stage = request.data.get('stage')
+        if new_stage == 'Quotation':
+            new_stage = 'Material Planning'
         if new_stage not in [*PM_STAGES, PM_STAGE_COMPLETED]:
             return Response({'detail': 'Invalid stage.'}, status=status.HTTP_400_BAD_REQUEST)
         if new_stage == project.pm_stage:

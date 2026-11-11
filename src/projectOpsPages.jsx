@@ -839,12 +839,21 @@ export function ProjectInstallationPage({ activeSection, onOpenSection, onNotify
   );
 }
 
+const INSTALL_PROGRESS_WEIGHTS = [
+  { label: 'Structure', weight: 15 },
+  { label: 'Electrical', weight: 5 },
+  { label: 'Earthing', weight: 5 },
+  { label: 'Panel', weight: 50 },
+  { label: 'Inverter', weight: 15 },
+];
+
 function InstallationDetailModal({ project, onClose, onNotify, statusToggle, inline = false }) {
-  const TABS = ['Tasks', 'Materials', 'QA'];
-  const [tab, setTab] = useState('Tasks');
+  const TABS = ['Progress', 'Tasks', 'Materials'];
+  const [tab, setTab] = useState('Progress');
   const [tasks, setTasks] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [checklist, setChecklist] = useState([]);
+  const [progressPct, setProgressPct] = useState(0);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -855,20 +864,19 @@ function InstallationDetailModal({ project, onClose, onNotify, statusToggle, inl
   const [matOpen, setMatOpen] = useState(false);
   const [matEdit, setMatEdit] = useState(null);
   const [matForm, setMatForm] = useState({ item_name: '', category: '', unit: 'Nos', required_qty: '', issued_qty: '', consumed_qty: '', status: 'Pending' });
-  const [qaOpen, setQaOpen] = useState(false);
-  const [qaForm, setQaForm] = useState({ label: '', category: 'QA', is_checked: false, notes: '' });
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [mils, mats, chk] = await Promise.all([
+      const [mils, mats, ensured] = await Promise.all([
         projectMilestoneApi.list(project.id),
         installationMaterialApi.list(project.id),
-        projectChecklistApi.list(project.id, 'Installation'),
+        projectApi.ensureInstallationTasks(project.id),
       ]);
       setTasks(rowsOf(mils));
       setMaterials(rowsOf(mats));
-      setChecklist(rowsOf(chk));
+      setChecklist(Array.isArray(ensured?.results) ? ensured.results : rowsOf(ensured));
+      setProgressPct(Number(ensured?.work_completion_pct || 0));
     } catch {
       onNotify('Failed to load installation data');
     } finally {
@@ -882,7 +890,12 @@ function InstallationDetailModal({ project, onClose, onNotify, statusToggle, inl
   }, []);
 
   const doneTasks = tasks.filter((t) => t.status === 'Completed').length;
-  const checkedQa = checklist.filter((c) => c.is_checked).length;
+  const checkedProgress = checklist.filter((c) => c.is_checked).length;
+  const installWeightDone = checklist.reduce((sum, item) => {
+    if (!item.is_checked) return sum;
+    const hit = INSTALL_PROGRESS_WEIGHTS.find((w) => w.label.toLowerCase() === String(item.label || '').toLowerCase());
+    return sum + (hit?.weight || 0);
+  }, 0);
 
   const saveTask = async () => {
     if (!taskForm.title.trim()) { onNotify('Task name required'); return; }
@@ -914,20 +927,19 @@ function InstallationDetailModal({ project, onClose, onNotify, statusToggle, inl
     } catch (e) { onNotify(e.message || 'Save failed'); }
   };
 
-  const saveQa = async () => {
-    if (!qaForm.label.trim()) { onNotify('Label required'); return; }
+  const toggleProgress = async (item) => {
     try {
-      await projectChecklistApi.create({ ...qaForm, project: project.id, phase: 'Installation' });
-      setQaOpen(false);
-      onNotify('Checklist item added');
-      load();
-    } catch (e) { onNotify(e.message || 'Save failed'); }
-  };
-
-  const toggleQa = async (item) => {
-    try {
-      await projectChecklistApi.update(item.id, { is_checked: !item.is_checked });
-      setChecklist((prev) => prev.map((c) => (c.id === item.id ? { ...c, is_checked: !c.is_checked } : c)));
+      const next = !item.is_checked;
+      await projectChecklistApi.update(item.id, { is_checked: next });
+      const nextRows = checklist.map((c) => (c.id === item.id ? { ...c, is_checked: next } : c));
+      setChecklist(nextRows);
+      const nextInstall = nextRows.reduce((sum, row) => {
+        if (!row.is_checked) return sum;
+        const hit = INSTALL_PROGRESS_WEIGHTS.find((w) => w.label.toLowerCase() === String(row.label || '').toLowerCase());
+        return sum + (hit?.weight || 0);
+      }, 0);
+      const commissionBonus = Math.max(0, Math.min(10, Number(progressPct || 0) - installWeightDone));
+      setProgressPct(Math.min(100, nextInstall + commissionBonus));
     } catch {
       onNotify('Update failed');
     }
@@ -943,9 +955,11 @@ function InstallationDetailModal({ project, onClose, onNotify, statusToggle, inl
               <p className="truncate text-[13px] font-semibold text-[#7386a3]">
                 {project.project_name || project.project_id}
                 {' · '}
-                {doneTasks}/{tasks.length} tasks
+                Install {installWeightDone}% / 90%
                 {' · '}
-                {checkedQa}/{checklist.length} QA
+                Work {progressPct}%
+                {' · '}
+                {doneTasks}/{tasks.length} tasks
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -973,6 +987,36 @@ function InstallationDetailModal({ project, onClose, onNotify, statusToggle, inl
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
             {loading ? (
               <p className="py-10 text-center text-[13px] font-semibold text-[#8a98af]">Loading...</p>
+            ) : tab === 'Progress' ? (
+              <div>
+                <div className="mb-3 rounded-[10px] border border-[#dcfce7] bg-[#f0fdf4] px-3 py-2 text-[12px] font-semibold text-[#166534]">
+                  Installation weightage = 90% (Structure 15 · Electrical 5 · Earthing 5 · Panel 50 · Inverter 15). Commissioning +10% comes from Liaisoning &amp; Commissioning when status is Completed.
+                </div>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-[13px] font-extrabold text-[#1e3261]">Work Completion: {progressPct}%</p>
+                  <p className="text-[12px] font-semibold text-[#7386a3]">{checkedProgress}/5 complete · Install {installWeightDone}% / 90%</p>
+                </div>
+                {checklist.length === 0 ? (
+                  <p className="py-8 text-center text-[13px] font-semibold text-[#8a98af]">Preparing installation progress tasks...</p>
+                ) : (
+                  <div className="space-y-2">
+                    {INSTALL_PROGRESS_WEIGHTS.map((meta) => {
+                      const item = checklist.find((c) => String(c.label || '').toLowerCase() === meta.label.toLowerCase());
+                      if (!item) return null;
+                      return (
+                        <label key={item.id} className="flex cursor-pointer items-center gap-3 rounded-[10px] border border-[#e7eef7] bg-white px-3 py-2.5">
+                          <input type="checkbox" checked={!!item.is_checked} onChange={() => toggleProgress(item)} className="size-4" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-[13px] font-bold text-[#1e3261]">{meta.label}</span>
+                            <span className="text-[11px] font-semibold text-[#8a98af]">Weightage {meta.weight}%</span>
+                          </span>
+                          <Pill tone={item.is_checked ? 'green' : 'amber'}>{item.is_checked ? 'Done' : 'Pending'}</Pill>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             ) : tab === 'Tasks' ? (
               <div>
                 <div className="mb-3 flex justify-end">
@@ -1037,31 +1081,7 @@ function InstallationDetailModal({ project, onClose, onNotify, statusToggle, inl
                   </div>
                 )}
               </div>
-            ) : (
-              <div>
-                <div className="mb-3 flex justify-end">
-                  <button type="button" onClick={() => { setQaForm({ label: '', category: 'QA', is_checked: false, notes: '' }); setQaOpen(true); }} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-[#16a34a] px-3 text-[12px] font-semibold text-white">
-                    <Plus className="size-3.5" /> Add Check
-                  </button>
-                </div>
-                {checklist.length === 0 ? (
-                  <p className="py-8 text-center text-[13px] font-semibold text-[#8a98af]">No QA / safety checks yet.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {checklist.map((item) => (
-                      <label key={item.id} className="flex cursor-pointer items-start gap-3 rounded-[10px] border border-[#e7eef7] bg-white px-3 py-2.5">
-                        <input type="checkbox" checked={!!item.is_checked} onChange={() => toggleQa(item)} className="mt-1 size-4" />
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-[13px] font-bold text-[#1e3261]">{item.label}</span>
-                          <span className="text-[11px] font-semibold text-[#8a98af]">{item.category || 'QA'}</span>
-                        </span>
-                        <button type="button" onClick={() => setDeleteConfirm({ type: 'qa', id: item.id, message: `"${item.label}"` })} className="text-[#dc2626]"><Trash2 className="size-3.5" /></button>
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+            ) : null}
           </div>
 
           {inline ? null : (
@@ -1123,25 +1143,6 @@ function InstallationDetailModal({ project, onClose, onNotify, statusToggle, inl
             <div className="mt-4 flex justify-end gap-2">
               <button type="button" onClick={() => setMatOpen(false)} className="h-10 rounded-[8px] border px-4 text-[13px] font-semibold">Cancel</button>
               <button type="button" onClick={saveMat} className="h-10 rounded-[8px] bg-[#16a34a] px-4 text-[13px] font-semibold text-white">Save</button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {qaOpen ? (
-        <div className="fixed inset-0 z-[95] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setQaOpen(false); }}>
-          <div className="w-full max-w-[400px] rounded-[16px] bg-white p-5 shadow-2xl">
-            <h3 className="mb-3 text-[16px] font-extrabold">Add Check</h3>
-            <label className="grid gap-1 text-[12px] font-bold text-[#53647f]">Label *<input value={qaForm.label} onChange={(e) => setQaForm((p) => ({ ...p, label: e.target.value }))} className="h-10 rounded-[8px] border border-[#d9e4f2] px-3 text-[13px] font-semibold outline-none" /></label>
-            <label className="mt-3 grid gap-1 text-[12px] font-bold text-[#53647f]">Category
-              <select value={qaForm.category} onChange={(e) => setQaForm((p) => ({ ...p, category: e.target.value }))} className="h-10 rounded-[8px] border border-[#d9e4f2] px-3 text-[13px] font-semibold outline-none">
-                <option value="QA">QA</option>
-                <option value="Safety">Safety</option>
-              </select>
-            </label>
-            <div className="mt-4 flex justify-end gap-2">
-              <button type="button" onClick={() => setQaOpen(false)} className="h-10 rounded-[8px] border px-4 text-[13px] font-semibold">Cancel</button>
-              <button type="button" onClick={saveQa} className="h-10 rounded-[8px] bg-[#16a34a] px-4 text-[13px] font-semibold text-white">Add</button>
             </div>
           </div>
         </div>

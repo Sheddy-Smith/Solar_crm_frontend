@@ -91,18 +91,14 @@ export function isTelePortalManager(roleName) {
   );
 }
 
-/** Match backend `is_own_lead` (assignee-primary) so assigned leads stay mine
- *  even when the original creator account is Inactive. */
-export function isOwnedTeleLead(lead, userId, roleName = '') {
+/** Match Tele portal ownership: executives only see leads assigned to them.
+ *  (Unassigned / other telecallers' leads stay hidden until a manager assigns.)
+ *  Sales Executive in CRM Operations still uses broader created_by|assigned_to
+ *  rules on the backend — this helper is Tele portal UI only. */
+export function isOwnedTeleLead(lead, userId, _roleName = '') {
   if (!lead || userId == null || userId === '') return false;
   const uid = String(userId);
-  // Assigned executive always owns — creator active/inactive does not matter.
-  if (lead.assigned_to != null && lead.assigned_to !== '' && String(lead.assigned_to) === uid) {
-    return true;
-  }
-  if (String(lead.created_by) !== uid) return false;
-  // Creator owns only while unassigned (same rule for Tele + Sales Executive).
-  return lead.assigned_to == null || lead.assigned_to === '';
+  return lead.assigned_to != null && lead.assigned_to !== '' && String(lead.assigned_to) === uid;
 }
 
 /** Extra High / High Alert ownership lines — do not blame assignee as "Missed by"
@@ -181,9 +177,10 @@ function teleDisplayStatus(lead) {
 }
 
 function mapTeleStatusToApi(value) {
-  if (value === 'Hot') return { status: 'Follow-up', category: 'Hot' };
-  if (value === 'Cool') return { status: 'Follow-up', category: 'Cool' };
-  return { status: value, category: '' };
+  if (value === 'Hot') return { status: 'New', category: 'Hot', priority: 'High' };
+  if (value === 'Cool') return { status: 'New', category: 'Cool', priority: 'Low' };
+  if (value === 'New') return { status: 'New', category: '', priority: '' };
+  return { status: value, category: '', priority: '' };
 }
 
 const TELE_STATUS_TONES = {
@@ -534,7 +531,7 @@ function TeleFollowUpAlertRow({ item, level, onCall, onLog, onView }) {
                 isExtra ? 'bg-[#dc2626] text-white' : isUpcoming ? 'bg-[#1d4ed8] text-white' : 'bg-[#f59e0b] text-white',
               )}
             >
-              {isExtra ? 'Extra High' : isUpcoming ? 'Upcoming' : 'High Alert'}
+              {isExtra ? 'High Alert' : isUpcoming ? 'Upcoming' : 'Today Follow-up'}
             </span>
           </div>
           <p className="mt-0.5 text-[11px] font-semibold text-[#7585a2]">
@@ -612,14 +609,15 @@ export function TeleFollowUpAlertsPanel({
   const todayCount = todayFollowUps?.length || 0;
   const overdueCount = overdueFollowUps?.length || 0;
   const upcomingCount = upcomingFollowUps?.length || 0;
-  const todayPreview = (todayFollowUps || []).slice(0, compact ? 4 : 8);
-  const overduePreview = (overdueFollowUps || []).slice(0, compact ? 4 : 8);
-  const upcomingPreview = (upcomingFollowUps || []).slice(0, compact ? 4 : 8);
+  const previewLimit = 4;
+  const todayPreview = (todayFollowUps || []).slice(0, previewLimit);
+  const overduePreview = (overdueFollowUps || []).slice(0, previewLimit);
+  const upcomingPreview = (upcomingFollowUps || []).slice(0, previewLimit);
 
   return (
     <div className="grid gap-4">
     <div className={cx('grid gap-4', compact ? '' : 'xl:grid-cols-2')}>
-      {/* High Alert — today's follow-ups */}
+      {/* Today Follow-up */}
       <section
         className={cx(
           'overflow-hidden rounded-[16px] border-2 border-[#f59e0b]/55 bg-white shadow-[0_12px_28px_rgba(245,158,11,0.12)]',
@@ -636,7 +634,7 @@ export function TeleFollowUpAlertsPanel({
               <Zap className="size-5" />
             </span>
             <div className="min-w-0">
-              <p className="text-[14px] font-extrabold text-[#92400e]">High Alert · Today's Follow-ups</p>
+              <p className="text-[14px] font-extrabold text-[#92400e]">Today Follow-up</p>
               <p className="text-[11px] font-semibold text-[#b45309]">Follow-ups due today</p>
             </div>
           </button>
@@ -661,20 +659,20 @@ export function TeleFollowUpAlertsPanel({
               onView={onView}
             />
           ))}
-          {loaded && todayCount > 0 && onOpenToday ? (
+          {loaded && todayCount > previewLimit && onOpenToday ? (
             <button
               type="button"
               onClick={onOpenToday}
               className="flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-[#fde68a] bg-[#fffbeb] py-2.5 text-[12px] font-extrabold text-[#b45309] transition hover:bg-[#fef3c7]"
             >
-              View all {todayCount} follow-ups due today
+              View all {todayCount} today follow-ups
               <ArrowRight className="size-3.5" />
             </button>
           ) : null}
         </div>
       </section>
 
-      {/* Extra High Alert — overdue / missed schedule */}
+      {/* High Alert Follow-ups — overdue / missed schedule */}
       <section
         className={cx(
           'overflow-hidden rounded-[16px] border-2 border-[#ef4444]/50 bg-white shadow-[0_12px_28px_rgba(220,38,38,0.12)]',
@@ -691,7 +689,7 @@ export function TeleFollowUpAlertsPanel({
               <AlertTriangle className="size-5" />
             </span>
             <div className="min-w-0">
-              <p className="text-[14px] font-extrabold text-[#991b1b]">Extra High Alert · Pending</p>
+              <p className="text-[14px] font-extrabold text-[#991b1b]">High Alert Follow-ups</p>
               <p className="text-[11px] font-semibold text-[#b91c1c]">Missed earlier — still pending</p>
             </div>
           </button>
@@ -716,13 +714,13 @@ export function TeleFollowUpAlertsPanel({
               onView={onView}
             />
           ))}
-          {loaded && overdueCount > 0 && onOpenOverdue ? (
+          {loaded && overdueCount > previewLimit && onOpenOverdue ? (
             <button
               type="button"
               onClick={onOpenOverdue}
               className="flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-[#fecaca] bg-[#fef2f2] py-2.5 text-[12px] font-extrabold text-[#b91c1c] transition hover:bg-[#fee2e2]"
             >
-              View all {overdueCount} pending follow-ups
+              View all {overdueCount} high alert follow-ups
               <ArrowRight className="size-3.5" />
             </button>
           ) : null}
@@ -1134,14 +1132,26 @@ export function TeleSignInPage({ onLogin, onBack, onNotify }) {
 
         <section className="flex items-center justify-center px-5 py-9 sm:px-10 sm:py-12">
           <div className="w-full max-w-[460px]">
-            <button
-              type="button"
-              onClick={onBack}
-              className="inline-flex items-center gap-1.5 text-[13px] font-extrabold text-[#5c6676] transition hover:text-[#1d4ed8]"
-            >
-              <ChevronLeft className="size-4" />
-              Choose different portal
-            </button>
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={onBack}
+                className="inline-flex items-center gap-1.5 text-[13px] font-extrabold text-[#5c6676] transition hover:text-[#1d4ed8]"
+              >
+                <ChevronLeft className="size-4" />
+                Choose different portal
+              </button>
+              <button
+                type="button"
+                onClick={onBack}
+                title="Back"
+                aria-label="Back"
+                className="inline-flex h-9 shrink-0 items-center gap-1 rounded-[10px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-extrabold text-[#5c6676] shadow-[0_4px_10px_rgba(15,39,92,0.05)] transition hover:border-[#1d4ed8]/40 hover:text-[#1d4ed8]"
+              >
+                <ChevronLeft className="size-4" strokeWidth={2.5} />
+                Back
+              </button>
+            </div>
             <h2 className="mt-5 font-display text-[26px] font-extrabold text-[#102446] sm:text-[30px]">Login to your account</h2>
             <p className="mt-3 text-[14px] font-semibold text-[#5c6676] sm:text-[15px]">
               Enter your credentials to access Tele Executive Portal
@@ -1262,7 +1272,7 @@ function pathForTeleNav(label) {
   return TELE_NAV_ITEMS.find((item) => item.label === label)?.path || '/tele/dashboard';
 }
 
-const TELE_PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
+const TELE_PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50, 100];
 
 export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme }) {
   const [activeNav, setActiveNav] = useState(() => (
@@ -1297,7 +1307,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
   const [addLeadOpen, setAddLeadOpen] = useState(false);
 
   const loadLeads = () => {
-    fetchEveryPage((page, pageSize) => leadApi.list({ page, page_size: pageSize, ordering: '-created_at' }))
+    fetchEveryPage((page, pageSize) => leadApi.list({ page, page_size: pageSize, ordering: '-last_activity_at,-created_at' }))
       .then((rows) => setLeads(rows))
       .catch(() => { setLeads([]); onNotify('Leads could not be loaded.', 'error'); });
   };
@@ -1380,12 +1390,11 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
   const scopedFollowUps = useMemo(() => {
     const rows = followUps ?? [];
     if (canViewTeamTele) return rows;
-    // Assignee-primary: lead_assigned_to wins even if follow-up was scheduled
-    // by an inactive creator (item.created_by ≠ me).
+    // Assigned leads only — do not surface follow-ups just because this user
+    // scheduled them on someone else's / unassigned lead.
     return rows.filter((item) => (
       sameId(item.lead_assigned_to, me?.id)
       || ownLeadIds.has(String(item.lead))
-      || sameId(item.created_by, me?.id)
     ));
   }, [followUps, ownLeadIds, canViewTeamTele, me?.id]);
   const reportLeadRows = teamLeadRows;
@@ -1864,10 +1873,9 @@ function TeleStatCards({ cards }) {
 function TeleLeadsTable({ leads, leadsLoaded, currentUserId, roleName = '', isSuperAdmin, onView, onEdit, onDelete, onAddFollowUp, onAddLead, title = 'My Leads' }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
-  // Default: logged-in tele executive's own added leads ("Add By" = me).
-  const [addByFilter, setAddByFilter] = useState(() => (
-    currentUserId != null && !isSuperAdmin ? String(currentUserId) : 'All'
-  ));
+  // Assigned leads may be created by another telecaller — default "All" so
+  // manager-assigned work is not hidden by an Add By = me filter.
+  const [addByFilter, setAddByFilter] = useState('All');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(() => {
     try {
@@ -1877,12 +1885,6 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, roleName = '', isSu
       return 10;
     }
   });
-
-  useEffect(() => {
-    if (isSuperAdmin) return;
-    if (currentUserId == null) return;
-    setAddByFilter((prev) => (prev === 'All' || prev == null ? String(currentUserId) : prev));
-  }, [currentUserId, isSuperAdmin]);
 
   const addByOptions = useMemo(() => {
     const map = new Map();
@@ -2263,8 +2265,8 @@ function TeleDashboard({
 }) {
   const cards = [
     { title: 'Total Leads', value: leadsLoaded ? leads.length : undefined, note: 'All assigned leads', icon: Users, tone: 'bg-[#e7efff] text-[#1d4ed8]' },
-    { title: 'High Alert · Today', value: followUpsLoaded ? todayFollowUps.length : undefined, note: 'Follow-ups due today', icon: Zap, tone: 'bg-[#fff7ed] text-[#f59e0b]' },
-    { title: 'Extra High · Pending', value: followUpsLoaded ? overdueFollowUps.length : undefined, note: 'Missed earlier — still pending', icon: AlertTriangle, tone: 'bg-[#fef2f2] text-[#dc2626]' },
+    { title: 'Today Follow-up', value: followUpsLoaded ? todayFollowUps.length : undefined, note: 'Follow-ups due today', icon: Zap, tone: 'bg-[#fff7ed] text-[#f59e0b]' },
+    { title: 'High Alert Follow-ups', value: followUpsLoaded ? overdueFollowUps.length : undefined, note: 'Missed earlier — still pending', icon: AlertTriangle, tone: 'bg-[#fef2f2] text-[#dc2626]' },
     { title: 'Won Leads', value: leadsLoaded ? wonCount : undefined, note: 'Converted leads', icon: Trophy, tone: 'bg-[#f0e9ff] text-[#7c3aed]' },
     { title: 'Lost Leads', value: leadsLoaded ? lostCount : undefined, note: 'Closed as lost', icon: XCircle, tone: 'bg-[#feecec] text-[#dc2626]' },
   ];
@@ -2360,20 +2362,12 @@ function TeleFollowUpsPage({
 }) {
   const [tab, setTab] = useState(initialTab || 'today');
   const [search, setSearch] = useState('');
-  // Default: follow-ups on leads this tele user added ("Add By" = me).
-  const [addByFilter, setAddByFilter] = useState(() => (
-    currentUserId != null && !isSuperAdmin ? String(currentUserId) : 'All'
-  ));
+  // Assigned leads can be created by another user — default All.
+  const [addByFilter, setAddByFilter] = useState('All');
 
   useEffect(() => {
     if (initialTab) setTab(initialTab);
   }, [initialTab]);
-
-  useEffect(() => {
-    if (isSuperAdmin) return;
-    if (currentUserId == null) return;
-    setAddByFilter((prev) => (prev === 'All' || prev == null ? String(currentUserId) : prev));
-  }, [currentUserId, isSuperAdmin]);
 
   const leadById = useMemo(() => {
     const map = new Map();
@@ -2414,9 +2408,9 @@ function TeleFollowUpsPage({
     if (currentUserId == null) return false;
     const lead = leadById.get(String(item.lead));
     if (lead) {
-      return String(lead.created_by) === String(currentUserId) || String(lead.assigned_to) === String(currentUserId);
+      return lead.assigned_to != null && String(lead.assigned_to) === String(currentUserId);
     }
-    return String(item.created_by) === String(currentUserId);
+    return item.lead_assigned_to != null && String(item.lead_assigned_to) === String(currentUserId);
   }, [isSuperAdmin, currentUserId, leadById]);
 
   const holderLeads = useMemo(
@@ -2448,8 +2442,8 @@ function TeleFollowUpsPage({
   }, [loaded, tab, today.length, overdue.length, upcoming.length]);
 
   const cards = [
-    { id: 'today', title: 'High Alert · Today', value: loaded ? today.length : undefined, note: 'Follow-ups due today', icon: Zap, tone: 'bg-[#fff7ed] text-[#f59e0b]', activeRing: 'border-[#f59e0b] ring-4 ring-[#fde68a]' },
-    { id: 'overdue', title: 'Extra High · Pending', value: loaded ? overdue.length : undefined, note: 'Missed earlier — still pending', icon: AlertTriangle, tone: 'bg-[#fef2f2] text-[#dc2626]', activeRing: 'border-[#dc2626] ring-4 ring-[#fecaca]' },
+    { id: 'today', title: 'Today Follow-up', value: loaded ? today.length : undefined, note: 'Follow-ups due today', icon: Zap, tone: 'bg-[#fff7ed] text-[#f59e0b]', activeRing: 'border-[#f59e0b] ring-4 ring-[#fde68a]' },
+    { id: 'overdue', title: 'High Alert Follow-ups', value: loaded ? overdue.length : undefined, note: 'Missed earlier — still pending', icon: AlertTriangle, tone: 'bg-[#fef2f2] text-[#dc2626]', activeRing: 'border-[#dc2626] ring-4 ring-[#fecaca]' },
     { id: 'upcoming', title: 'Upcoming', value: loaded ? upcoming.length : undefined, note: 'Still to be taken', icon: CalendarDays, tone: 'bg-[#e7efff] text-[#1d4ed8]', activeRing: 'border-[#1d4ed8] ring-4 ring-[#dbeafe]' },
     { id: 'completed', title: 'Completed', value: loaded ? completed.length : undefined, note: 'Saved history', icon: CheckCircle2, tone: 'bg-[#e8f8eb] text-[#0d9f4a]', activeRing: 'border-[#0d9f4a] ring-4 ring-[#bbf7d0]' },
     { id: 'all', title: 'All Follow-ups', value: loaded ? holderFollowUps.length : undefined, note: 'Full record', icon: Phone, tone: 'bg-[#e7efff] text-[#1d4ed8]', activeRing: 'border-[#1d4ed8] ring-4 ring-[#dbeafe]' },
@@ -2490,7 +2484,7 @@ function TeleFollowUpsPage({
           >
             <span className="grid size-9 place-items-center rounded-full bg-[#f59e0b] text-white"><Zap className="size-4" /></span>
             <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-extrabold text-[#92400e]">High Alert · Today</p>
+              <p className="text-[13px] font-extrabold text-[#92400e]">Today Follow-up</p>
               <p className="text-[11px] font-semibold text-[#b45309]">{today.length} follow-up{today.length === 1 ? '' : 's'} due today</p>
             </div>
             <span className="text-[20px] font-extrabold text-[#f59e0b]">{today.length}</span>
@@ -2505,7 +2499,7 @@ function TeleFollowUpsPage({
           >
             <span className="grid size-9 place-items-center rounded-full bg-[#dc2626] text-white"><AlertTriangle className="size-4" /></span>
             <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-extrabold text-[#991b1b]">Extra High · Pending</p>
+              <p className="text-[13px] font-extrabold text-[#991b1b]">High Alert Follow-ups</p>
               <p className="text-[11px] font-semibold text-[#b91c1c]">{overdue.length} overdue pending</p>
             </div>
             <span className="text-[20px] font-extrabold text-[#dc2626]">{overdue.length}</span>
@@ -2561,7 +2555,7 @@ function TeleFollowUpsPage({
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="font-display text-[17px] font-extrabold text-[#102446]">
-              {tab === 'today' ? "High Alert · Today's Follow-ups" : tab === 'overdue' ? 'Extra High Alert · Pending' : tab === 'upcoming' ? 'Upcoming follow-ups' : 'Follow-up Diary'}
+              {tab === 'today' ? 'Today Follow-up' : tab === 'overdue' ? 'High Alert Follow-ups' : tab === 'upcoming' ? 'Upcoming follow-ups' : 'Follow-up Diary'}
             </h2>
             <p className="mt-1 text-[12px] font-semibold text-[#7585a2]">
               {tab === 'today'
@@ -2659,10 +2653,10 @@ function TeleFollowUpsPage({
                         <p className="font-display text-[15px] font-extrabold text-[#102446]">{item.lead_customer_name || 'Lead'}</p>
                         <span className="text-[12px] font-bold text-[#7585a2]">{item.lead_mobile_number || ''}</span>
                         {isTodayAlert ? (
-                          <span className="inline-flex rounded-full bg-[#f59e0b] px-2 py-0.5 text-[10px] font-extrabold uppercase text-white">High Alert</span>
+                          <span className="inline-flex rounded-full bg-[#f59e0b] px-2 py-0.5 text-[10px] font-extrabold uppercase text-white">Today Follow-up</span>
                         ) : null}
                         {isExtraAlert ? (
-                          <span className="inline-flex rounded-full bg-[#dc2626] px-2 py-0.5 text-[10px] font-extrabold uppercase text-white">Extra High</span>
+                          <span className="inline-flex rounded-full bg-[#dc2626] px-2 py-0.5 text-[10px] font-extrabold uppercase text-white">High Alert</span>
                         ) : null}
                         {isUpcoming ? (
                           <span className="inline-flex rounded-full bg-[#1d4ed8] px-2 py-0.5 text-[10px] font-extrabold uppercase text-white">Upcoming</span>

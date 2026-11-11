@@ -995,12 +995,19 @@ class ProjectApprovalDocument(models.Model):
 
 # Project Management pipeline. Order matters: "Mark Done" advances a project to
 # the next entry. Names must match the frontend PM_STAGE_STEPS (src/App.jsx).
-PM_STAGES = ['Site Survey', 'Quotation', 'Material Planning', 'Job Sheet', 'Dispatch', 'Installation', 'Sales Challan', 'Invoice']
+# Quotation stays a Lead-module business feature — not part of the PM pipeline.
+PM_STAGES = ['Site Survey', 'Material Planning', 'Job Sheet', 'Dispatch', 'Installation']
+# Legacy stage kept for reading old tracker rows / history only.
+PM_LEGACY_STAGES = ['Quotation']
 PM_STAGE_COMPLETED = 'Completed'
 
 
 class ProjectPipelineStage(models.Model):
-    STAGE_CHOICES = [(s, s) for s in PM_STAGES] + [(PM_STAGE_COMPLETED, PM_STAGE_COMPLETED)]
+    STAGE_CHOICES = (
+        [(s, s) for s in PM_STAGES]
+        + [(s, s) for s in PM_LEGACY_STAGES]
+        + [(PM_STAGE_COMPLETED, PM_STAGE_COMPLETED)]
+    )
 
     project = models.OneToOneField(Project, on_delete=models.CASCADE, related_name='pm_stage_tracker')
     stage = models.CharField(max_length=30, choices=STAGE_CHOICES, default=PM_STAGES[0])

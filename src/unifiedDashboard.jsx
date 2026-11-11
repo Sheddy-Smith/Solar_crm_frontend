@@ -103,7 +103,7 @@ function InsightsHeader({ onOpenSection, onExport, onIncentive }) {
   );
 }
 
-export const LEAD_STATUS_FILTER_OPTIONS = ['All', 'New', 'Follow-up', 'Quotation', 'Won', 'Lost'];
+export const LEAD_STATUS_FILTER_OPTIONS = ['All', 'New', 'Quotation', 'Won', 'Lost'];
 
 function FilterBar({ dateFrom, dateTo, projectType, leadStatus, assignedTo, assigneeOptions, formattedRange, onFrom, onTo, onProjectType, onLeadStatus, onAssignedTo, onApply }) {
   return (

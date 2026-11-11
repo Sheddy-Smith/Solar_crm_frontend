@@ -88,8 +88,8 @@ export function CrmFollowUpsPage({
   }, [overdue]);
 
   const cards = [
-    { id: 'today', title: 'High Alert · Today', value: loaded ? today.length : undefined, note: 'Follow-ups due today', icon: Zap, tone: 'bg-[#fff7ed] text-[#f59e0b]', activeRing: 'border-[#f59e0b] ring-4 ring-[#fde68a]' },
-    { id: 'overdue', title: 'Extra High · Pending', value: loaded ? overdue.length : undefined, note: 'Missed earlier — still pending', icon: AlertTriangle, tone: 'bg-[#fef2f2] text-[#dc2626]', activeRing: 'border-[#dc2626] ring-4 ring-[#fecaca]' },
+    { id: 'today', title: 'Today Follow-up', value: loaded ? today.length : undefined, note: 'Follow-ups due today', icon: Zap, tone: 'bg-[#fff7ed] text-[#f59e0b]', activeRing: 'border-[#f59e0b] ring-4 ring-[#fde68a]' },
+    { id: 'overdue', title: 'High Alert Follow-ups', value: loaded ? overdue.length : undefined, note: 'Missed earlier — still pending', icon: AlertTriangle, tone: 'bg-[#fef2f2] text-[#dc2626]', activeRing: 'border-[#dc2626] ring-4 ring-[#fecaca]' },
     { id: 'completed', title: 'Completed', value: loaded ? completed.length : undefined, note: 'Saved history', icon: CheckCircle2, tone: 'bg-[#e8f8eb] text-[#0d9f4a]', activeRing: 'border-[#0d9f4a] ring-4 ring-[#bbf7d0]' },
     { id: 'all', title: 'All Follow-ups', value: loaded ? (rows || []).length : undefined, note: 'Full record', icon: Phone, tone: 'bg-[#e7efff] text-[#1d4ed8]', activeRing: 'border-[#1d4ed8] ring-4 ring-[#dbeafe]' },
   ];
@@ -131,7 +131,7 @@ export function CrmFollowUpsPage({
         <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#0e582a]">Lead</p>
         <h1 className="mt-1 font-display text-[22px] font-extrabold text-[#163d70]">Follow-ups</h1>
         <p className="mt-1 text-[13px] font-semibold text-[#7b88a2]">
-          High Alert, Extra High pending, and full conversation history — same as Tele portal.
+          Today Follow-up, High Alert Follow-ups, and full conversation history — same as Tele portal.
         </p>
       </div>
 
@@ -147,7 +147,7 @@ export function CrmFollowUpsPage({
           >
             <span className="grid size-9 place-items-center rounded-full bg-[#f59e0b] text-white"><Zap className="size-4" /></span>
             <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-extrabold text-[#92400e]">High Alert · Today</p>
+              <p className="text-[13px] font-extrabold text-[#92400e]">Today Follow-up</p>
               <p className="text-[11px] font-semibold text-[#b45309]">{today.length} follow-up{today.length === 1 ? '' : 's'} due today</p>
             </div>
             <span className="text-[20px] font-extrabold text-[#f59e0b]">{today.length}</span>
@@ -162,7 +162,7 @@ export function CrmFollowUpsPage({
           >
             <span className="grid size-9 place-items-center rounded-full bg-[#dc2626] text-white"><AlertTriangle className="size-4" /></span>
             <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-extrabold text-[#991b1b]">Extra High · Pending</p>
+              <p className="text-[13px] font-extrabold text-[#991b1b]">High Alert Follow-ups</p>
               <p className="text-[11px] font-semibold text-[#b91c1c]">{overdue.length} overdue pending</p>
             </div>
             <span className="text-[20px] font-extrabold text-[#dc2626]">{overdue.length}</span>
@@ -213,7 +213,7 @@ export function CrmFollowUpsPage({
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="font-display text-[17px] font-extrabold text-[#102446]">
-              {tab === 'today' ? "High Alert · Today's Follow-ups" : tab === 'overdue' ? 'Extra High Alert · Pending' : 'Follow-up Diary'}
+              {tab === 'today' ? 'Today Follow-up' : tab === 'overdue' ? 'High Alert Follow-ups' : 'Follow-up Diary'}
             </h2>
             <p className="mt-1 text-[12px] font-semibold text-[#7585a2]">
               {tab === 'today'
@@ -275,8 +275,8 @@ export function CrmFollowUpsPage({
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-display text-[15px] font-extrabold text-[#102446]">{item.lead_customer_name || 'Lead'}</p>
                       <span className="text-[12px] font-bold text-[#7585a2]">{item.lead_mobile_number || ''}</span>
-                      {isTodayAlert ? <span className="inline-flex rounded-full bg-[#f59e0b] px-2 py-0.5 text-[10px] font-extrabold uppercase text-white">High Alert</span> : null}
-                      {isExtraAlert ? <span className="inline-flex rounded-full bg-[#dc2626] px-2 py-0.5 text-[10px] font-extrabold uppercase text-white">Extra High</span> : null}
+                      {isTodayAlert ? <span className="inline-flex rounded-full bg-[#f59e0b] px-2 py-0.5 text-[10px] font-extrabold uppercase text-white">Today Follow-up</span> : null}
+                      {isExtraAlert ? <span className="inline-flex rounded-full bg-[#dc2626] px-2 py-0.5 text-[10px] font-extrabold uppercase text-white">High Alert</span> : null}
                       <span className="inline-flex rounded-full bg-[#eef2f8] px-2 py-0.5 text-[10px] font-extrabold uppercase text-[#53647f]">{item.status}</span>
                     </div>
                     <p className="mt-1 text-[12px] font-bold text-[#53647f]">

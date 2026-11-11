@@ -204,13 +204,13 @@ class LeadListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'customer_name', 'mobile_number', 'ivrs_number',
             'alternate_number', 'email', 'source',
-            'project_name', 'project_type', 'estimated_capacity',
+            'project_name', 'project_type', 'estimated_capacity', 'project_cost',
             # Needed for Create Lead → Continue with Basic Details prefill
             # (duplicate-mobile flow). IVRS/project stay optional on the form.
             'address', 'city', 'state', 'latitude', 'longitude',
             'status', 'priority', 'category', 'remarks',
             'assigned_to', 'assigned_to_name', 'created_by', 'created_by_name',
-            'next_follow_up', 'created_at', 'created_at_display', 'survey_status',
+            'next_follow_up', 'created_at', 'created_at_display', 'last_activity_at', 'survey_status',
         ]
 
     def get_assigned_to_name(self, obj):
@@ -239,7 +239,7 @@ class LeadDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Lead
         fields = '__all__'
-        read_only_fields = ['created_by', 'created_at', 'updated_at']
+        read_only_fields = ['created_by', 'created_at', 'updated_at', 'last_activity_at']
 
     def get_created_by_name(self, obj):
         return _user_name(obj.created_by)
@@ -261,7 +261,7 @@ class LeadCreateSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'customer_name', 'mobile_number', 'ivrs_number',
             'alternate_number', 'email',
-            'project_name', 'project_type', 'estimated_capacity', 'requirement_details',
+            'project_name', 'project_type', 'estimated_capacity', 'project_cost', 'requirement_details',
             'address', 'city', 'state', 'latitude', 'longitude',
             'source', 'priority', 'remarks',
             'status', 'next_follow_up', 'assigned_to', 'created_at',

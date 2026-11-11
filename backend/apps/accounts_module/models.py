@@ -653,6 +653,74 @@ class SellChallanLine(models.Model):
         ordering = ['sort_order', 'id']
 
 
+class CustomerLedgerManualEntry(models.Model):
+    """Manual Customer Ledger rows from the Add New Ledger modal (sale / payment / discount)."""
+    TYPE_CHOICES = [
+        ('sale', 'Sale (Debit)'),
+        ('payment', 'Payment (Credit)'),
+        ('discount', 'Discount (Credit)'),
+    ]
+    # Payment channel — separate from entry_type (debit/credit accounting classification).
+    PAYMENT_MODE_CHOICES = [
+        ('Cash', 'Cash'),
+        ('UPI', 'UPI'),
+        ('Bank Transfer / NEFT / RTGS / IMPS', 'Bank Transfer / NEFT / RTGS / IMPS'),
+        ('Cheque', 'Cheque'),
+        ('Loan / Finance', 'Loan / Finance'),
+        ('Credit Card', 'Credit Card'),
+        ('Debit Card', 'Debit Card'),
+        ('Other', 'Other'),
+    ]
+
+    party = models.ForeignKey(Account, on_delete=models.CASCADE, related_name='manual_ledger_entries')
+    entry_date = models.DateField()
+    entry_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='sale')
+    payment_mode = models.CharField(max_length=60, blank=True, default='')
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+    vehicle_no = models.CharField(max_length=40, blank=True)
+    reference_no = models.CharField(max_length=100, blank=True)
+    work = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='manual_ledger_entries_created',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'{self.get_entry_type_display()} {self.amount} — {self.party_id}'
+
+    class Meta:
+        ordering = ['-entry_date', '-created_at']
+        verbose_name = 'Customer ledger manual entry'
+        verbose_name_plural = 'Customer ledger manual entries'
+
+
+class VendorLedgerManualEntry(models.Model):
+    """Manual Vendor Ledger rows (work credit / payment debit) from Add Manual Entry."""
+
+    party = models.ForeignKey(Account, on_delete=models.CASCADE, related_name='vendor_manual_ledger_entries')
+    entry_date = models.DateField()
+    vehicle_no = models.CharField(max_length=40, blank=True)
+    wheeler = models.CharField(max_length=40, blank=True)
+    owner_name = models.CharField(max_length=200, blank=True)
+    work = models.TextField(blank=True)
+    debit = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    credit = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='vendor_manual_ledger_entries_created',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'Vendor manual {self.entry_date} — {self.party_id}'
+
+    class Meta:
+        ordering = ['-entry_date', '-created_at']
+        verbose_name = 'Vendor ledger manual entry'
+        verbose_name_plural = 'Vendor ledger manual entries'
+
+
 class GstOpeningBalance(models.Model):
     month = models.DateField(unique=True)
     igst_opening = models.DecimalField(max_digits=14, decimal_places=2, default=0)

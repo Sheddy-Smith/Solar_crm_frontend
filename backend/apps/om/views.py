@@ -53,7 +53,7 @@ class OmBaseViewSet(viewsets.ModelViewSet):
         # Sales / Tele Sales Executives only see O&M records tied to their
         # own leads' projects.
         filt = lead_owner_filter(self.request.user, prefix=prefix)
-        return qs.filter(**filt) if filt else qs
+        return qs.filter(filt) if filt else qs
 
     def _field_only(self):
         return not has_full_om_access(self.request.user)

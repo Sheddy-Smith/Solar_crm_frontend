@@ -89,6 +89,7 @@ export const SIDEBAR_MODULE_BY_LABEL = {
   Insights: 'Insights',
   'Daily Tasks': 'Daily Tasks',
   'AMC & Warranty': 'AMC & Warranty',
+  'Sync, Share & Backup': 'Settings',
   Settings: 'Settings',
 };
 

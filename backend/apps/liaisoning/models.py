@@ -106,14 +106,36 @@ class LiaisonCommissioning(models.Model):
         ('Scheduled', 'Scheduled'),
         ('In Progress', 'In Progress'),
         ('Completed', 'Completed'),
+        ('Cancelled', 'Cancelled'),
     ]
 
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='lc_commissionings')
     engineer = models.CharField(max_length=200, blank=True)
+    assigned_employee = models.ForeignKey(
+        'workforce.Employee',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='lc_commissionings',
+    )
     date = models.DateField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Scheduled')
     checklist = models.JSONField(default=list, blank=True)
     remarks = models.TextField(blank=True)
+    daily_task = models.ForeignKey(
+        'daily_tasks.DailyTask',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='lc_commissionings',
+    )
+    staff_task = models.ForeignKey(
+        'daily_tasks.StaffDailyTask',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='lc_commissionings',
+    )
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='lc_commissionings_created')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -162,10 +184,12 @@ class LiaisonDocument(models.Model):
         ('General', 'General'),
         ('Application', 'Application'),
         ('Approval', 'Approval'),
+        ('Loan Process', 'Loan Process'),
         ('Agreement', 'Agreement'),
         ('Inspection', 'Inspection'),
         ('Net Meter', 'Net Meter'),
         ('Commissioning', 'Commissioning'),
+        ('Inspection Placed', 'Inspection Placed'),
         ('Compliance', 'Compliance'),
     ]
     TYPE_CHOICES = [
@@ -274,13 +298,99 @@ class LiaisonNetMeter(models.Model):
         ordering = ['-created_at']
 
 
+class LiaisonLoanProcess(models.Model):
+    """Solar project loan / finance tracking after DISCOM application."""
+
+    TYPE_CHOICES = [
+        ('Bank Loan', 'Bank Loan'),
+        ('NBFC', 'NBFC'),
+        ('Solar Finance', 'Solar Finance'),
+        ('Subsidy-linked Loan', 'Subsidy-linked Loan'),
+        ('Other', 'Other'),
+    ]
+    STATUS_CHOICES = [
+        ('Draft', 'Draft'),
+        ('Applied', 'Applied'),
+        ('Under Review', 'Under Review'),
+        ('Sanctioned', 'Sanctioned'),
+        ('Disbursed', 'Disbursed'),
+        ('Rejected', 'Rejected'),
+    ]
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='lc_loan_processes')
+    loan_type = models.CharField(max_length=40, choices=TYPE_CHOICES, default='Bank Loan')
+    financier_name = models.CharField(max_length=200, blank=True)
+    loan_account_number = models.CharField(max_length=100, blank=True)
+    loan_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    applied_date = models.DateField(null=True, blank=True)
+    sanctioned_date = models.DateField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Applied')
+    remarks = models.TextField(blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='lc_loan_processes_created')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'LC-LOAN-{self.id:04d} — {self.project.project_name}'
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+class LiaisonInspectionPlaced(models.Model):
+    """Post-commissioning inspection placement (CEIG / DISCOM / MEDP)."""
+
+    AUTHORITY_CHOICES = [
+        ('CEIG', 'CEIG'),
+        ('DISCOM', 'DISCOM'),
+        ('MEDP', 'MEDP'),
+        ('Electrical Inspector', 'Electrical Inspector'),
+        ('Other', 'Other'),
+    ]
+    STATUS_CHOICES = [
+        ('Placed', 'Placed'),
+        ('Scheduled', 'Scheduled'),
+        ('In Progress', 'In Progress'),
+        ('Completed', 'Completed'),
+        ('Cancelled', 'Cancelled'),
+    ]
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='lc_inspections_placed')
+    authority = models.CharField(max_length=40, choices=AUTHORITY_CHOICES, default='CEIG')
+    reference_number = models.CharField(max_length=100, blank=True)
+    placed_date = models.DateField(null=True, blank=True)
+    scheduled_date = models.DateField(null=True, blank=True)
+    inspector_name = models.CharField(max_length=200, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Placed')
+    remarks = models.TextField(blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='lc_inspections_placed_created')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'LC-IPL-{self.id:04d} — {self.project.project_name}'
+
+    class Meta:
+        ordering = ['-created_at']
+
+
 # Order matters: "Mark Done" advances a project to the next entry.
-LIAISON_STAGES = ['Documents', 'Application', 'Agreement', 'Inspection', 'Net Meter', 'Commissioning', 'Subsidy']
+# Final 8-stage flow: Inspection sits after Commissioning (replaces Inspection Placed).
+LIAISON_STAGES = [
+    'Documents', 'Application', 'Loan Process', 'Agreement',
+    'Net Meter', 'Commissioning', 'Inspection', 'Subsidy',
+]
 LIAISON_STAGE_COMPLETED = 'Completed'
+# Old mid-pipeline Inspection / Inspection Placed may still appear in history JSON.
+LIAISON_LEGACY_STAGES = ['Inspection Placed']
 
 
 class LiaisonProjectStage(models.Model):
-    STAGE_CHOICES = [(s, s) for s in LIAISON_STAGES] + [(LIAISON_STAGE_COMPLETED, LIAISON_STAGE_COMPLETED)]
+    STAGE_CHOICES = (
+        [(s, s) for s in LIAISON_STAGES]
+        + [(s, s) for s in LIAISON_LEGACY_STAGES]
+        + [(LIAISON_STAGE_COMPLETED, LIAISON_STAGE_COMPLETED)]
+    )
 
     project = models.OneToOneField(Project, on_delete=models.CASCADE, related_name='liaison_stage')
     stage = models.CharField(max_length=20, choices=STAGE_CHOICES, default=LIAISON_STAGES[0])

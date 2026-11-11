@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cx } from '../lib/utils.js';
 
-export const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
+export const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50, 100];
 const STORAGE_PREFIX = 'crm-page-size:';
 
 function readPageSize(storageKey, fallback) {

@@ -29,8 +29,8 @@ class LeadViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'category', 'assigned_to']
     search_fields = ['customer_name', 'mobile_number', 'ivrs_number', 'project_name']
-    ordering_fields = ['created_at', 'next_follow_up', 'customer_name']
-    ordering = ['-created_at']
+    ordering_fields = ['created_at', 'next_follow_up', 'customer_name', 'last_activity_at']
+    ordering = ['-last_activity_at', '-created_at']
 
     def get_queryset(self):
         user = self.request.user
@@ -38,6 +38,30 @@ class LeadViewSet(viewsets.ModelViewSet):
         owner_q = lead_owner_q(user)
         if owner_q is not None:
             qs = qs.filter(owner_q)
+
+        # Lead List category chips (New/Hot/Warm/Cool/Won/Lost) — server-side so
+        # counts and pages match full book, not only the current page slice.
+        bucket = (self.request.query_params.get('category_bucket') or '').strip().lower()
+        if bucket == 'won':
+            qs = qs.filter(status='Won')
+        elif bucket == 'lost':
+            qs = qs.filter(status='Lost')
+        elif bucket == 'hot':
+            qs = qs.exclude(status__in=['Won', 'Lost']).filter(
+                Q(priority='High') | Q(category='Hot')
+            )
+        elif bucket == 'cool':
+            qs = qs.exclude(status__in=['Won', 'Lost']).exclude(
+                Q(priority='High') | Q(category='Hot')
+            ).filter(Q(priority='Low') | Q(category='Cool'))
+        elif bucket == 'warm':
+            qs = qs.exclude(status__in=['Won', 'Lost']).exclude(
+                Q(priority='High') | Q(priority='Low') | Q(category='Hot') | Q(category='Cool')
+            ).filter(Q(status='Quotation') | Q(category='Warm'))
+        elif bucket == 'new':
+            qs = qs.filter(status='New').exclude(
+                Q(priority='High') | Q(priority='Low') | Q(category='Hot') | Q(category='Cool') | Q(category='Warm')
+            )
         return qs
 
     def get_serializer_class(self):
@@ -48,28 +72,33 @@ class LeadViewSet(viewsets.ModelViewSet):
         return LeadListSerializer
 
     def perform_create(self, serializer):
+        from django.utils import timezone
         user = self.request.user
+        now = timezone.now()
         # Tele Sales: land unassigned in the manager pool.
         # Sales Executive (tele/CRM): auto-own the lead they personally add.
+        # New leads get last_activity_at so they sort with recently-worked list.
         if is_lead_scoped(user):
             role = getattr(getattr(user, 'role', None), 'name', '')
             if role == 'Sales Executive':
-                serializer.save(created_by=user, assigned_to=user)
+                serializer.save(created_by=user, assigned_to=user, last_activity_at=now)
             else:
-                serializer.save(created_by=user, assigned_to=None)
+                serializer.save(created_by=user, assigned_to=None, last_activity_at=now)
         else:
-            serializer.save(created_by=user)
+            serializer.save(created_by=user, last_activity_at=now)
 
     def perform_update(self, serializer):
+        from django.utils import timezone
         user = self.request.user
         if is_lead_scoped(user) and not is_own_lead(user, serializer.instance):
             raise PermissionDenied('You can only edit leads you added or that are assigned to you.')
         # Scoped executives cannot reassign leads via PATCH unless they have
         # Lead → Assign in the permission matrix (Settings → Roles).
+        # Successful Save/Update bumps last_activity_at so the lead rises to top of Lead List.
         if is_lead_scoped(user) and not can_manage_leads(user):
-            serializer.save(assigned_to=serializer.instance.assigned_to)
+            serializer.save(assigned_to=serializer.instance.assigned_to, last_activity_at=timezone.now())
         else:
-            serializer.save()
+            serializer.save(last_activity_at=timezone.now())
 
     def perform_destroy(self, instance):
         user = self.request.user
@@ -119,7 +148,7 @@ class LeadViewSet(viewsets.ModelViewSet):
     def overdue(self, request):
         qs = self.get_queryset().filter(
             next_follow_up__lt=timezone.now(),
-            status__in=['New', 'Follow-up'],
+            status__in=Lead.OPEN_STATUSES,
         )[:200]
         serializer = LeadListSerializer(qs, many=True)
         return Response(serializer.data)
@@ -159,19 +188,40 @@ class LeadViewSet(viewsets.ModelViewSet):
         period = request.query_params.get('period')
         period_qs, range_start, range_end = period_created_at_queryset(qs, period, anchor)
 
-        # One aggregate round-trip for status buckets (was 6–10 sequential COUNTs).
+        # One aggregate round-trip for status + Lead List category chips.
         from django.db.models import Count, Q
+        open_q = Q(status__in=Lead.OPEN_STATUSES)
+        hot_q = ~Q(status__in=['Won', 'Lost']) & (Q(priority='High') | Q(category='Hot'))
+        cool_q = (
+            ~Q(status__in=['Won', 'Lost'])
+            & ~Q(priority='High') & ~Q(category='Hot')
+            & (Q(priority='Low') | Q(category='Cool'))
+        )
+        warm_q = (
+            ~Q(status__in=['Won', 'Lost'])
+            & ~Q(priority='High') & ~Q(priority='Low')
+            & ~Q(category='Hot') & ~Q(category='Cool')
+            & (Q(status='Quotation') | Q(category='Warm'))
+        )
+        new_cat_q = (
+            Q(status='New')
+            & ~Q(priority='High') & ~Q(priority='Low')
+            & ~Q(category='Hot') & ~Q(category='Cool') & ~Q(category='Warm')
+        )
         buckets = qs.aggregate(
             total=Count('id'),
             new=Count('id', filter=Q(status='New')),
-            follow_up=Count('id', filter=Q(status='Follow-up')),
             quotation=Count('id', filter=Q(status='Quotation')),
             won=Count('id', filter=Q(status='Won')),
             lost=Count('id', filter=Q(status='Lost')),
             overdue=Count(
                 'id',
-                filter=Q(next_follow_up__lt=timezone.now(), status__in=['New', 'Follow-up']),
+                filter=Q(next_follow_up__lt=timezone.now()) & open_q,
             ),
+            cat_new=Count('id', filter=new_cat_q),
+            cat_hot=Count('id', filter=hot_q),
+            cat_warm=Count('id', filter=warm_q),
+            cat_cool=Count('id', filter=cool_q),
         )
         period_buckets = period_qs.aggregate(
             created_in_period=Count('id'),
@@ -181,7 +231,8 @@ class LeadViewSet(viewsets.ModelViewSet):
         return Response({
             'total': buckets['total'] or 0,
             'new': buckets['new'] or 0,
-            'follow_up': buckets['follow_up'] or 0,
+            # Legacy key kept at 0 — Follow-up is no longer a lead status.
+            'follow_up': 0,
             'today_followups': filter_field_on_local_date(qs, 'next_follow_up', today).count(),
             'quotation': buckets['quotation'] or 0,
             'won': buckets['won'] or 0,
@@ -189,6 +240,14 @@ class LeadViewSet(viewsets.ModelViewSet):
             'created_in_period': period_buckets['created_in_period'] or 0,
             'won_in_period': period_buckets['won_in_period'] or 0,
             'overdue': buckets['overdue'] or 0,
+            'categories': {
+                'New leads': buckets['cat_new'] or 0,
+                'Hot leads': buckets['cat_hot'] or 0,
+                'Warm leads': buckets['cat_warm'] or 0,
+                'Cool leads': buckets['cat_cool'] or 0,
+                'Won leads': buckets['won'] or 0,
+                'Lost leads': buckets['lost'] or 0,
+            },
             'range_start': range_start.isoformat() if range_start else None,
             'range_end': range_end.isoformat() if range_end else None,
         })
@@ -215,6 +274,8 @@ class LeadViewSet(viewsets.ModelViewSet):
         # get_object() already scopes lead-scoped roles to their own leads.
         lead = self.get_object()
         new_status = request.data.get('status')
+        if new_status == 'Follow-up':
+            new_status = 'New'
         if new_status not in dict(Lead.STATUS_CHOICES):
             return Response({'error': 'Invalid status'}, status=status.HTTP_400_BAD_REQUEST)
         lead.status = new_status

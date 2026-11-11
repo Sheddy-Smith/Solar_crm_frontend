@@ -41,19 +41,66 @@ def find_party_by_phone(phone, account_type='Customer'):
     return None
 
 
-def ensure_customers_from_all_leads(created_by=None):
+def owned_customer_phone_keys(user):
+    """Normalized phones for leads owned by a lead-scoped user.
+
+    Returns None when the user is not lead-scoped (no restriction).
+    Returns a set (possibly empty) for Sales / Tele Sales Executives.
+    """
+    from apps.accounts.permissions import lead_owner_q
+    from apps.leads.models import Lead
+
+    owner_q = lead_owner_q(user)
+    if owner_q is None:
+        return None
+    keys = set()
+    mobiles = (
+        Lead.objects.filter(is_deleted=False)
+        .filter(owner_q)
+        .exclude(mobile_number='')
+        .values_list('mobile_number', flat=True)
+    )
+    for mobile in mobiles:
+        key = normalize_phone(mobile)
+        if key:
+            keys.add(key)
+    return keys
+
+
+def filter_customer_parties_for_user(qs, user):
+    """Restrict Customer Account rows to phones of owned leads (lead-scoped roles)."""
+    from django.db.models import Q
+
+    keys = owned_customer_phone_keys(user)
+    if keys is None:
+        return qs
+    customers = qs.filter(account_type='Customer')
+    others = qs.exclude(account_type='Customer')
+    if not keys:
+        return others
+    phone_q = Q()
+    for key in keys:
+        phone_q |= Q(phone=key) | Q(phone__endswith=key)
+    return (others | customers.filter(phone_q)).distinct()
+
+
+def ensure_customers_from_all_leads(created_by=None, lead_qs=None):
     """Upsert Customer Account rows for every lead phone (any status).
 
     Phone is the primary key for customer identity so one person can own
     multiple leads/projects (home solar, office solar, etc.) under one row.
+    Pass `lead_qs` to limit sync to a scoped lead queryset.
     """
     from apps.leads.models import Lead
 
-    leads = (
-        Lead.objects.filter(is_deleted=False)
-        .exclude(mobile_number='')
-        .order_by('-updated_at', '-id')
-    )
+    if lead_qs is None:
+        leads = (
+            Lead.objects.filter(is_deleted=False)
+            .exclude(mobile_number='')
+            .order_by('-updated_at', '-id')
+        )
+    else:
+        leads = lead_qs.exclude(mobile_number='').order_by('-updated_at', '-id')
     by_phone = {}
     for lead in leads.iterator():
         key = normalize_phone(lead.mobile_number)
@@ -236,12 +283,32 @@ def recalculate_party_balance(party_id):
     payable = PurchaseInvoice.objects.filter(supplier_id=party_id).exclude(
         status='Cancelled',
     ).aggregate(total=Sum('balance_due'))['total'] or Decimal('0')
-    from .models import PurchaseChallan
+    from .models import CustomerLedgerManualEntry, PaymentVoucher, PurchaseChallan, VendorLedgerManualEntry
     payable += PurchaseChallan.objects.filter(
         supplier_id=party_id, status='Received',
     ).aggregate(total=Sum('balance_due'))['total'] or Decimal('0')
+    manual_sale = CustomerLedgerManualEntry.objects.filter(
+        party_id=party_id, entry_type='sale',
+    ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+    manual_credit = CustomerLedgerManualEntry.objects.filter(
+        party_id=party_id,
+    ).exclude(entry_type='sale').aggregate(total=Sum('amount'))['total'] or Decimal('0')
+    vendor_vouchers = PaymentVoucher.objects.filter(
+        payee_type='Vendor', payee_name=party.name, status='Completed',
+    ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+    vendor_manual_credit = VendorLedgerManualEntry.objects.filter(
+        party_id=party_id,
+    ).aggregate(total=Sum('credit'))['total'] or Decimal('0')
+    vendor_manual_debit = VendorLedgerManualEntry.objects.filter(
+        party_id=party_id,
+    ).aggregate(total=Sum('debit'))['total'] or Decimal('0')
 
-    party.balance = party.opening_balance - received + made + receivable - payable
+    # Vendor payable rises with completed vouchers / manual credit work, falls with payments / manual debit.
+    party.balance = (
+        party.opening_balance - received + made + receivable - payable
+        + manual_sale - manual_credit
+        + vendor_vouchers + vendor_manual_credit - vendor_manual_debit
+    )
     party.save(update_fields=['balance', 'updated_at'])
 
 

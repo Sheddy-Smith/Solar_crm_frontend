@@ -3,7 +3,8 @@ from apps.projects.models import Project
 from .models import (
     LiaisonApplication, LiaisonApproval, LiaisonInspection,
     LiaisonCommissioning, LiaisonCompliance, LiaisonDocument,
-    LiaisonAgreement, LiaisonNetMeter, LIAISON_STAGES,
+    LiaisonAgreement, LiaisonNetMeter, LiaisonLoanProcess, LiaisonInspectionPlaced,
+    LIAISON_STAGES,
 )
 
 
@@ -95,6 +96,7 @@ class LiaisonCommissioningSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source='project.customer_name', read_only=True)
     record_no = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
+    assigned_employee_name = serializers.CharField(source='assigned_employee.name', read_only=True)
 
     def get_record_no(self, obj):
         return f'LC-COM-{obj.id:04d}'
@@ -102,14 +104,45 @@ class LiaisonCommissioningSerializer(serializers.ModelSerializer):
     def get_created_by_name(self, obj):
         return _user_name(obj.created_by)
 
+    def validate_assigned_employee(self, value):
+        if value is None:
+            raise serializers.ValidationError('Please select an engineer from the employee list.')
+        if getattr(value, 'status', '') == 'On Leave':
+            raise serializers.ValidationError('Selected employee is On Leave.')
+        return value
+
+    def create(self, validated_data):
+        from .commissioning_tasks import sync_commissioning_tasks
+        request = self.context.get('request')
+        actor = getattr(request, 'user', None) if request else None
+        employee = validated_data.get('assigned_employee')
+        if employee and not validated_data.get('engineer'):
+            validated_data['engineer'] = employee.name
+        obj = super().create(validated_data)
+        sync_commissioning_tasks(obj, actor=actor)
+        return obj
+
+    def update(self, instance, validated_data):
+        from .commissioning_tasks import sync_commissioning_tasks
+        request = self.context.get('request')
+        actor = getattr(request, 'user', None) if request else None
+        employee = validated_data.get('assigned_employee', instance.assigned_employee)
+        if employee and 'engineer' not in validated_data:
+            validated_data['engineer'] = employee.name
+        obj = super().update(instance, validated_data)
+        sync_commissioning_tasks(obj, actor=actor)
+        return obj
+
     class Meta:
         model = LiaisonCommissioning
         fields = [
             'id', 'record_no', 'project', 'project_name', 'customer_name',
-            'engineer', 'date', 'status', 'checklist', 'remarks',
+            'engineer', 'assigned_employee', 'assigned_employee_name',
+            'date', 'status', 'checklist', 'remarks',
+            'daily_task', 'staff_task',
             'created_by', 'created_by_name', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['created_by', 'created_at', 'updated_at']
+        read_only_fields = ['created_by', 'created_at', 'updated_at', 'daily_task', 'staff_task', 'engineer']
 
 
 class LiaisonComplianceSerializer(serializers.ModelSerializer):
@@ -149,6 +182,52 @@ class LiaisonDocumentSerializer(serializers.ModelSerializer):
             'uploaded_by', 'uploaded_by_name', 'uploaded_at',
         ]
         read_only_fields = ['uploaded_by', 'uploaded_at']
+
+
+class LiaisonLoanProcessSerializer(serializers.ModelSerializer):
+    project_name = serializers.CharField(source='project.project_name', read_only=True)
+    customer_name = serializers.CharField(source='project.customer_name', read_only=True)
+    record_no = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
+
+    def get_record_no(self, obj):
+        return f'LC-LOAN-{obj.id:04d}'
+
+    def get_created_by_name(self, obj):
+        return _user_name(obj.created_by)
+
+    class Meta:
+        model = LiaisonLoanProcess
+        fields = [
+            'id', 'record_no', 'project', 'project_name', 'customer_name',
+            'loan_type', 'financier_name', 'loan_account_number', 'loan_amount',
+            'applied_date', 'sanctioned_date', 'status', 'remarks',
+            'created_by', 'created_by_name', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['created_by', 'created_at', 'updated_at']
+
+
+class LiaisonInspectionPlacedSerializer(serializers.ModelSerializer):
+    project_name = serializers.CharField(source='project.project_name', read_only=True)
+    customer_name = serializers.CharField(source='project.customer_name', read_only=True)
+    record_no = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
+
+    def get_record_no(self, obj):
+        return f'LC-IPL-{obj.id:04d}'
+
+    def get_created_by_name(self, obj):
+        return _user_name(obj.created_by)
+
+    class Meta:
+        model = LiaisonInspectionPlaced
+        fields = [
+            'id', 'record_no', 'project', 'project_name', 'customer_name',
+            'authority', 'reference_number', 'placed_date', 'scheduled_date',
+            'inspector_name', 'status', 'remarks',
+            'created_by', 'created_by_name', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['created_by', 'created_at', 'updated_at']
 
 
 class LiaisonAgreementSerializer(serializers.ModelSerializer):
@@ -210,6 +289,8 @@ class LiaisonProjectSerializer(serializers.ModelSerializer):
 
     def get_stage_index(self, obj):
         stage = getattr(obj, 'lc_stage', LIAISON_STAGES[0])
+        if stage == 'Inspection Placed':
+            stage = 'Inspection'
         return LIAISON_STAGES.index(stage) if stage in LIAISON_STAGES else len(LIAISON_STAGES)
 
     def get_stage_history(self, obj):
@@ -228,10 +309,12 @@ class LiaisonProjectSerializer(serializers.ModelSerializer):
         return {
             'Documents': getattr(obj, 'documents_count', 0),
             'Application': getattr(obj, 'applications_count', 0),
+            'Loan Process': getattr(obj, 'loan_processes_count', 0),
             'Agreement': getattr(obj, 'agreements_count', 0),
             'Inspection': getattr(obj, 'inspections_count', 0),
             'Net Meter': getattr(obj, 'net_meters_count', 0),
             'Commissioning': getattr(obj, 'commissionings_count', 0),
+            'Inspection Placed': getattr(obj, 'inspections_placed_count', 0),
             'Subsidy': getattr(obj, 'subsidies_count', 0),
         }
 

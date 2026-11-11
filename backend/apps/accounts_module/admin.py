@@ -7,6 +7,8 @@ from .models import (
     PaymentVoucher,
     PurchaseChallan, PurchaseChallanLine,
     SellChallan, SellChallanLine,
+    CustomerLedgerManualEntry,
+    VendorLedgerManualEntry,
     GstOpeningBalance,
 )
 
@@ -81,6 +83,19 @@ class SellChallanAdmin(admin.ModelAdmin):
     list_filter = ['status']
     search_fields = ['challan_no', 'party_name', 'vehicle_no', 'site_address', 'remarks']
     inlines = [SellChallanLineInline]
+
+
+@admin.register(CustomerLedgerManualEntry)
+class CustomerLedgerManualEntryAdmin(admin.ModelAdmin):
+    list_display = ['entry_date', 'party', 'entry_type', 'payment_mode', 'amount', 'reference_no', 'vehicle_no', 'created_at']
+    list_filter = ['entry_type', 'payment_mode']
+    search_fields = ['reference_no', 'vehicle_no', 'work', 'party__name', 'party__phone']
+
+
+@admin.register(VendorLedgerManualEntry)
+class VendorLedgerManualEntryAdmin(admin.ModelAdmin):
+    list_display = ['entry_date', 'party', 'vehicle_no', 'owner_name', 'debit', 'credit', 'created_at']
+    search_fields = ['vehicle_no', 'wheeler', 'owner_name', 'work', 'party__name', 'party__phone']
 
 
 @admin.register(GstOpeningBalance)

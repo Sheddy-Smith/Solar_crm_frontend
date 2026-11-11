@@ -179,6 +179,7 @@ SETTING_CATEGORIES = {
         'liveSync': True,
         'retentionDays': '30',
         'autoBackup': True,
+        'autoBackupEveryDays': '1',
     },
 }
 

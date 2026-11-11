@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Download, ExternalLink, Eye, FileText, Pencil, Phone, Plus, Receipt, Search, Trash2, X } from 'lucide-react';
+import { Download, ExternalLink, Eye, FileText, Pencil, Phone, Plus, Receipt, Save, Search, Trash2, X } from 'lucide-react';
 import { accountsModuleApi } from './api.js';
 import { exportNotifyCsv, normalizeApiRows } from './lib/utils.js';
 import { moduleCaps } from './settingsHubPages.jsx';
@@ -78,6 +78,7 @@ function TypeBadge({ value }) {
     receipt: 'bg-[#dbeafe] text-[#1d4ed8]',
     opening: 'bg-[#f1f5f9] text-[#475569]',
     purchase: 'bg-[#ede9fe] text-[#6d28d9]',
+    manual: 'bg-[#ffedd5] text-[#c2410c]',
   }[key] || 'bg-[#f1f5f9] text-[#475569]';
   return <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide ${tone}`}>{key || '—'}</span>;
 }
@@ -353,6 +354,18 @@ function VendorDetailsTab({ caps, onNotify, addRequested = false, onAddRequestCo
   );
 }
 
+function emptyManualForm() {
+  return {
+    entry_date: todayIso(),
+    vehicle_no: '',
+    wheeler: '',
+    owner_name: '',
+    work: '',
+    debit: '',
+    credit: '',
+  };
+}
+
 function VendorLedgerTab({ onNotify, onOpenSection }) {
   const [vendors, setVendors] = useState([]);
   const [partyId, setPartyId] = useState('');
@@ -363,13 +376,25 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
   const [category, setCategory] = useState('');
   const [payload, setPayload] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [payOpen, setPayOpen] = useState(false);
-  const [payForm, setPayForm] = useState({ amount: '', payment_date: todayIso(), payment_mode: 'Cash', remarks: '' });
+  const [reloadKey, setReloadKey] = useState(0);
+  const [draftOpen, setDraftOpen] = useState(false);
+  const [draftForm, setDraftForm] = useState(emptyManualForm());
+  const [editRow, setEditRow] = useState(null);
   const [saving, setSaving] = useState(false);
   const [detail, setDetail] = useState(null);
+  const [voucherOpen, setVoucherOpen] = useState(false);
+  const [voucherForm, setVoucherForm] = useState({
+    voucher_date: todayIso(),
+    amount: '',
+    category: '',
+    particulars: '',
+    payment_mode: 'Cash',
+    status: 'Completed',
+  });
+  const [savingVoucher, setSavingVoucher] = useState(false);
 
   useEffect(() => {
-    accountsModuleApi.parties.list({ account_type: 'Vendor', page_size: 25 })
+    accountsModuleApi.parties.list({ account_type: 'Vendor', page_size: 200 })
       .then((data) => setVendors(normalizeApiRows(data)))
       .catch((e) => onNotify(e.message || 'Failed to load vendors', 'error'));
   }, [onNotify]);
@@ -382,40 +407,13 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
     return { start: monthStartIso(d), end: monthEndIso(d) };
   }, [mode, month, start, end]);
 
-  useEffect(() => {
-    if (!partyId) { setPayload(null); return; }
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      try {
-        const params = {};
-        if (range.start) params.start = range.start;
-        if (range.end) params.end = range.end;
-        if (category.trim()) params.category = category.trim();
-        const qs = new URLSearchParams(params).toString();
-        const data = await accountsModuleApi.partyLedger(partyId, qs);
-        if (!cancelled) setPayload(data);
-      } catch (e) {
-        if (!cancelled) onNotify(e.message || 'Failed to load ledger', 'error');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [partyId, range.start, range.end, category, onNotify]);
-
-  const savePayment = async () => {
-    const amount = Number(payForm.amount || 0);
-    if (amount <= 0) {
-      onNotify('Enter payment amount', 'error');
+  const loadLedger = useCallback(async () => {
+    if (!partyId) {
+      setPayload(null);
       return;
     }
-    setSaving(true);
+    setLoading(true);
     try {
-      await accountsModuleApi.settleParty(partyId, payForm);
-      onNotify('Vendor payment saved', 'success');
-      setPayOpen(false);
-      setPayForm({ amount: '', payment_date: todayIso(), payment_mode: 'Cash', remarks: '' });
       const params = {};
       if (range.start) params.start = range.start;
       if (range.end) params.end = range.end;
@@ -423,24 +421,168 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
       const qs = new URLSearchParams(params).toString();
       setPayload(await accountsModuleApi.partyLedger(partyId, qs));
     } catch (e) {
-      onNotify(e.message || 'Payment failed', 'error');
+      onNotify(e.message || 'Failed to load ledger', 'error');
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
-  };
+  }, [partyId, range.start, range.end, category, onNotify]);
+
+  useEffect(() => { loadLedger(); }, [loadLedger, reloadKey]);
+
+  useEffect(() => {
+    setDraftOpen(false);
+    setEditRow(null);
+    setDraftForm(emptyManualForm());
+    setVoucherOpen(false);
+  }, [partyId]);
 
   const selected = useMemo(
     () => vendors.find((v) => String(v.id) === String(partyId)) || payload?.party || null,
     [vendors, partyId, payload],
   );
   const entries = payload?.results || [];
-  const { pageRows: pageEntries, pagination } = usePagedRows(entries, 'vendor-ledger', { resetKey: `${partyId}|${range.start}|${range.end}|${category}` });
+  const vouchers = payload?.vouchers || [];
+  const { pageRows: pageEntries, pagination } = usePagedRows(entries, 'vendor-ledger', { resetKey: `${partyId}|${range.start}|${range.end}|${category}|${reloadKey}` });
   const summary = payload?.summary || {};
-  const voucherCount = entries.filter((e) => /voucher|service/i.test(`${e.particulars || ''} ${e.ref || ''} ${e.type_label || ''}`)).length;
+  const voucherCount = Number(summary.voucher_count ?? payload?.totals?.voucher_count ?? vouchers.length ?? 0);
   const totalDebit = Number(summary.total_debit ?? entries.reduce((s, e) => s + Number(e.debit || 0), 0));
   const totalCredit = Number(summary.total_credit ?? entries.reduce((s, e) => s + Number(e.credit || 0), 0));
   const prevBal = Number(summary.previous_balance ?? 0);
   const netBal = Number(summary.final_balance ?? summary.current_balance ?? (entries.length ? entries[entries.length - 1].balance : 0));
+
+  const openAddManual = () => {
+    if (!partyId) {
+      onNotify('Select a vendor first', 'error');
+      return;
+    }
+    setEditRow(null);
+    setDraftForm(emptyManualForm());
+    setDraftOpen(true);
+  };
+
+  const openEditManual = (row) => {
+    if (!row?.editable || !row.source_id) return;
+    setDraftOpen(false);
+    setEditRow(row);
+    setDraftForm({
+      entry_date: String(row.date || todayIso()).slice(0, 10),
+      vehicle_no: row.vehicle_no || '',
+      wheeler: row.wheeler || '',
+      owner_name: row.owner_name || '',
+      work: row.work || row.particulars || '',
+      debit: row.debit ? String(row.debit) : '',
+      credit: row.credit ? String(row.credit) : '',
+    });
+  };
+
+  const cancelDraft = () => {
+    setDraftOpen(false);
+    setEditRow(null);
+    setDraftForm(emptyManualForm());
+  };
+
+  const saveManualEntry = async () => {
+    const form = draftForm;
+    if (!partyId) {
+      onNotify('Select a vendor first', 'error');
+      return;
+    }
+    if (!form.entry_date) {
+      onNotify('Date is required', 'error');
+      return;
+    }
+    const debit = Number(form.debit || 0);
+    const credit = Number(form.credit || 0);
+    if (debit <= 0 && credit <= 0) {
+      onNotify('Enter Debit or Credit amount', 'error');
+      return;
+    }
+    if (debit > 0 && credit > 0) {
+      onNotify('Enter either Debit or Credit, not both', 'error');
+      return;
+    }
+    const body = {
+      entry_date: form.entry_date,
+      vehicle_no: form.vehicle_no || '',
+      wheeler: form.wheeler || '',
+      owner_name: form.owner_name || '',
+      work: form.work || '',
+      debit: debit > 0 ? debit : 0,
+      credit: credit > 0 ? credit : 0,
+    };
+    setSaving(true);
+    try {
+      if (editRow?.source_id) {
+        await accountsModuleApi.updateVendorManualEntry(partyId, editRow.source_id, body);
+        onNotify('Manual entry updated', 'success');
+      } else {
+        await accountsModuleApi.addVendorManualEntry(partyId, body);
+        onNotify('Manual entry saved', 'success');
+      }
+      cancelDraft();
+      setReloadKey((k) => k + 1);
+    } catch (e) {
+      onNotify(e.message || 'Failed to save manual entry', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteManualEntry = async (row) => {
+    if (!row?.editable || !row.source_id) return;
+    if (!window.confirm('Delete this manual ledger entry?')) return;
+    try {
+      await accountsModuleApi.deleteVendorManualEntry(partyId, row.source_id);
+      onNotify('Manual entry deleted', 'success');
+      setReloadKey((k) => k + 1);
+    } catch (e) {
+      onNotify(e.message || 'Delete failed', 'error');
+    }
+  };
+
+  const saveVendorVoucher = async () => {
+    const amount = Number(voucherForm.amount || 0);
+    if (!partyId || !selected?.name) {
+      onNotify('Select a vendor first', 'error');
+      return;
+    }
+    if (!(amount > 0)) {
+      onNotify('Voucher amount must be greater than zero', 'error');
+      return;
+    }
+    if (!voucherForm.voucher_date) {
+      onNotify('Voucher date is required', 'error');
+      return;
+    }
+    setSavingVoucher(true);
+    try {
+      await accountsModuleApi.vouchers.create({
+        voucher_date: voucherForm.voucher_date,
+        entry_type: 'Voucher',
+        payee_type: 'Vendor',
+        payee_name: selected.name,
+        category: voucherForm.category || selected.vendor_type || 'Vendor',
+        particulars: voucherForm.particulars || `Service — ${selected.name}`,
+        payment_mode: voucherForm.payment_mode || 'Cash',
+        amount,
+        status: voucherForm.status || 'Completed',
+      });
+      onNotify('Vendor voucher created', 'success');
+      setVoucherForm({
+        voucher_date: todayIso(),
+        amount: '',
+        category: selected.vendor_type || '',
+        particulars: '',
+        payment_mode: 'Cash',
+        status: 'Completed',
+      });
+      setReloadKey((k) => k + 1);
+    } catch (e) {
+      onNotify(e.message || 'Failed to create voucher', 'error');
+    } finally {
+      setSavingVoucher(false);
+    }
+  };
 
   const savePdf = () => {
     if (!entries.length) {
@@ -449,6 +591,28 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
     }
     window.print();
   };
+
+  const renderManualInputs = (form, setForm, { compact = false } = {}) => (
+    <>
+      <td className="px-2 py-2"><input type="date" className={inputClass} value={form.entry_date} onChange={(e) => setForm((f) => ({ ...f, entry_date: e.target.value }))} /></td>
+      <td className="px-2 py-2"><input className={`${inputClass} border-[#fca5a5]`} placeholder="Vehicle No" value={form.vehicle_no} onChange={(e) => setForm((f) => ({ ...f, vehicle_no: e.target.value }))} /></td>
+      <td className="px-2 py-2"><input className={inputClass} placeholder="Wheeler" value={form.wheeler} onChange={(e) => setForm((f) => ({ ...f, wheeler: e.target.value }))} /></td>
+      <td className="px-2 py-2"><input className={inputClass} placeholder="Owner Name" value={form.owner_name} onChange={(e) => setForm((f) => ({ ...f, owner_name: e.target.value }))} /></td>
+      <td className="px-2 py-2"><textarea rows={compact ? 2 : 3} className={`${inputClass} h-auto min-h-[44px] py-2`} placeholder="Work details" value={form.work} onChange={(e) => setForm((f) => ({ ...f, work: e.target.value }))} /></td>
+      <td className="px-2 py-2"><input type="number" min="0" step="0.01" className={inputClass} placeholder="0" value={form.debit} onChange={(e) => setForm((f) => ({ ...f, debit: e.target.value, credit: e.target.value ? '' : f.credit }))} /></td>
+      <td className="px-2 py-2"><input type="number" min="0" step="0.01" className={inputClass} placeholder="0" value={form.credit} onChange={(e) => setForm((f) => ({ ...f, credit: e.target.value, debit: e.target.value ? '' : f.debit }))} /></td>
+      <td className="px-2 py-2">
+        <div className="flex gap-1">
+          <button type="button" disabled={saving} onClick={saveManualEntry} className="grid size-8 place-items-center rounded-[8px] bg-[#dcfce7] text-[#15803d] hover:bg-[#bbf7d0]" title="Save">
+            <Save className="size-4" />
+          </button>
+          <button type="button" disabled={saving} onClick={cancelDraft} className="grid size-8 place-items-center rounded-[8px] bg-[#f1f5f9] text-[#64748b] hover:bg-[#e2e8f0]" title="Cancel">
+            <X className="size-4" />
+          </button>
+        </div>
+      </td>
+    </>
+  );
 
   const kpiCards = [
     { label: 'Net Previous Balance', value: prevBal, tone: 'bg-[#fffbeb] border-[#fde68a] text-[#b45309]', hint: prevBal > 0 ? 'Payable' : prevBal < 0 ? 'Receivable' : '' },
@@ -496,13 +660,21 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
           </Field>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-          <button type="button" disabled={!partyId} onClick={() => setPayOpen(true)} className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#dc2626] px-4 text-[13px] font-extrabold text-white disabled:opacity-50 sm:w-auto">
+          <button type="button" disabled={!partyId} onClick={openAddManual} className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#dc2626] px-4 text-[13px] font-extrabold text-white disabled:opacity-50 sm:w-auto">
             <Plus className="size-4" /> Add Manual Entry
           </button>
-          <button type="button" disabled={!partyId} onClick={() => onOpenSection?.('Voucher')} className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#7c3aed] px-4 text-[13px] font-extrabold text-white disabled:opacity-50 sm:w-auto">
+          <button
+            type="button"
+            disabled={!partyId}
+            onClick={() => {
+              setVoucherForm((f) => ({ ...f, category: selected?.vendor_type || f.category || '' }));
+              setVoucherOpen(true);
+            }}
+            className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#7c3aed] px-4 text-[13px] font-extrabold text-white disabled:opacity-50 sm:w-auto"
+          >
             <Receipt className="size-4" /> Voucher ({voucherCount})
           </button>
-          <button type="button" disabled={!entries.length} onClick={() => exportNotifyCsv(onNotify, 'vendor-ledger', ['Date', 'Type', 'Ref', 'Work', 'Category', 'Debit', 'Credit', 'Balance'], entries.map((e) => [e.date, e.type_label || e.type, e.ref, e.work || e.particulars, e.category, e.debit, e.credit, e.balance]))} className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] border border-[#d9e4f2] px-4 text-[13px] font-extrabold text-[#284276] disabled:opacity-50 sm:w-auto">
+          <button type="button" disabled={!entries.length} onClick={() => exportNotifyCsv(onNotify, 'vendor-ledger', ['Date', 'Vehicle No', 'Wheeler', 'Owner Name', 'Work', 'Debit', 'Credit', 'Balance'], entries.map((e) => [e.date, e.vehicle_no, e.wheeler, e.owner_name, e.work || e.particulars, e.debit, e.credit, e.balance]))} className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] border border-[#d9e4f2] px-4 text-[13px] font-extrabold text-[#284276] disabled:opacity-50 sm:w-auto">
             <Download className="size-4" /> Export CSV
           </button>
           <button type="button" disabled={!entries.length} onClick={savePdf} className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] border border-[#d9e4f2] px-4 text-[13px] font-extrabold text-[#284276] disabled:opacity-50 sm:w-auto">
@@ -518,7 +690,7 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
       ) : (
         <>
           <div className="rounded-[14px] border border-[#bfdbfe] bg-[#eff6ff] px-4 py-3">
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-[13px]">
+            <div className="grid gap-2 text-[13px] sm:grid-cols-2 lg:grid-cols-4">
               <p><span className="font-bold text-[#64748b]">Vendor:</span> <span className="font-extrabold text-[#1e3261]">{selected?.name || '—'}</span></p>
               <p><span className="font-bold text-[#64748b]">Phone:</span> <span className="font-extrabold text-[#1e3261]">{selected?.phone || '—'}</span></p>
               <p><span className="font-bold text-[#64748b]">Type:</span> <span className="font-extrabold text-[#1e3261]">{selected?.vendor_type || '—'}</span></p>
@@ -542,64 +714,105 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
               <p className="py-10 text-center text-[13px] font-semibold text-[#7a8fa6]">Loading...</p>
             ) : (
               <>
-              <LedgerMobileCards
-                entries={pageEntries}
-                emptyText="No entries found for the selected filters."
-                totalDebit={totalDebit}
-                totalCredit={totalCredit}
-                finalBalance={netBal}
-                onOpen={setDetail}
-                TypeBadge={TypeBadge}
-                fmtDate={fmtDisplayDate}
-                fmtMoney={fmtRs}
-              />
-              <div className="hidden overflow-x-auto lg:block">
-                <table className="min-w-[1000px] w-full text-left text-[13px]">
-                  <thead className="bg-[#f1f5f9] text-[11px] font-extrabold uppercase tracking-wide text-[#64748b]">
-                    <tr>
-                      {['Date', 'Type', 'Ref No', 'Work', 'Category', 'Debit (₹)', 'Credit (₹)', 'Balance (₹)', 'Actions'].map((h) => (
-                        <th key={h} className="px-3 py-2.5">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {entries.length === 0 ? (
-                      <tr><td colSpan={9} className="px-3 py-10 text-center text-[#7a8fa6]">No entries found for the selected filters.</td></tr>
-                    ) : pageEntries.map((e, i) => {
-                      const bal = Number(e.balance || 0);
-                      return (
-                        <tr key={`${e.ref}-${i}`} className={`border-t border-[#edf2f8] ${i % 2 ? 'bg-[#f8fafc]' : 'bg-white'}`}>
-                          <td className="px-3 py-2.5 whitespace-nowrap">{fmtDisplayDate(e.date)}</td>
-                          <td className="px-3 py-2.5"><TypeBadge value={e.type_label || e.type} /></td>
-                          <td className="px-3 py-2.5 font-semibold text-[#0b65e5]">{e.ref || '—'}</td>
-                          <td className="max-w-[240px] truncate px-3 py-2.5" title={e.work || e.particulars || ''}>{e.work || e.particulars || '—'}</td>
-                          <td className="px-3 py-2.5">{e.category || '—'}</td>
-                          <td className="px-3 py-2.5 font-extrabold text-[#dc2626]">{e.debit ? fmtRs(e.debit) : '—'}</td>
-                          <td className="px-3 py-2.5 font-extrabold text-[#16a34a]">{e.credit ? fmtRs(e.credit) : '—'}</td>
-                          <td className={`px-3 py-2.5 font-extrabold ${bal > 0 ? 'text-[#dc2626]' : 'text-[#166534]'}`}>{fmtRs(Math.abs(bal))} ({bal >= 0 ? 'Dr' : 'Cr'})</td>
-                          <td className="px-3 py-2.5">
-                            <button type="button" onClick={() => setDetail(e)} className="grid size-8 place-items-center rounded-[8px] text-[#7c3aed] hover:bg-[#f5f3ff]" title="View">
-                              <Eye className="size-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                  {entries.length ? (
-                    <tfoot>
-                      <tr className="border-t-2 border-[#cbd5e1] bg-[#f8fafc] font-extrabold">
-                        <td className="px-3 py-3" colSpan={5}>Totals:</td>
-                        <td className="px-3 py-3 text-[#dc2626]">{fmtRs(totalDebit)}</td>
-                        <td className="px-3 py-3 text-[#16a34a]">{fmtRs(totalCredit)}</td>
-                        <td className={`px-3 py-3 ${netBal > 0 ? 'text-[#dc2626]' : 'text-[#166534]'}`}>{fmtRs(Math.abs(netBal))} ({netBal >= 0 ? 'Dr' : 'Cr'})</td>
-                        <td />
+                {(draftOpen || editRow) ? (
+                  <div className="mb-4 rounded-[12px] border border-[#fecaca] bg-[#fff7f7] p-3 lg:hidden">
+                    <p className="mb-2 text-[12px] font-extrabold text-[#b91c1c]">{editRow ? 'Edit Manual Entry' : 'Add Manual Entry'}</p>
+                    <div className="grid gap-2">
+                      <Field label="Date"><input type="date" className={inputClass} value={draftForm.entry_date} onChange={(e) => setDraftForm((f) => ({ ...f, entry_date: e.target.value }))} /></Field>
+                      <Field label="Vehicle No"><input className={inputClass} value={draftForm.vehicle_no} onChange={(e) => setDraftForm((f) => ({ ...f, vehicle_no: e.target.value }))} /></Field>
+                      <Field label="Wheeler"><input className={inputClass} value={draftForm.wheeler} onChange={(e) => setDraftForm((f) => ({ ...f, wheeler: e.target.value }))} /></Field>
+                      <Field label="Owner Name"><input className={inputClass} value={draftForm.owner_name} onChange={(e) => setDraftForm((f) => ({ ...f, owner_name: e.target.value }))} /></Field>
+                      <Field label="Work"><textarea className={`${inputClass} h-20 py-2`} value={draftForm.work} onChange={(e) => setDraftForm((f) => ({ ...f, work: e.target.value }))} /></Field>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Field label="Debit"><input type="number" min="0" step="0.01" className={inputClass} value={draftForm.debit} onChange={(e) => setDraftForm((f) => ({ ...f, debit: e.target.value, credit: e.target.value ? '' : f.credit }))} /></Field>
+                        <Field label="Credit"><input type="number" min="0" step="0.01" className={inputClass} value={draftForm.credit} onChange={(e) => setDraftForm((f) => ({ ...f, credit: e.target.value, debit: e.target.value ? '' : f.debit }))} /></Field>
+                      </div>
+                      <div className="flex gap-2">
+                        <button type="button" disabled={saving} onClick={saveManualEntry} className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-[8px] bg-[#dc2626] px-3 text-[13px] font-extrabold text-white disabled:opacity-60">
+                          <Save className="size-4" />{saving ? 'Saving...' : 'Save'}
+                        </button>
+                        <button type="button" disabled={saving} onClick={cancelDraft} className="h-10 rounded-[8px] border px-4 text-[13px] font-semibold">Cancel</button>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                <LedgerMobileCards
+                  entries={pageEntries}
+                  emptyText="No entries found for the selected filters."
+                  totalDebit={totalDebit}
+                  totalCredit={totalCredit}
+                  finalBalance={netBal}
+                  onOpen={setDetail}
+                  TypeBadge={TypeBadge}
+                  fmtDate={fmtDisplayDate}
+                  fmtMoney={fmtRs}
+                />
+                <div className="hidden overflow-x-auto lg:block">
+                  <table className="min-w-[1100px] w-full text-left text-[13px]">
+                    <thead className="bg-[#f1f5f9] text-[11px] font-extrabold uppercase tracking-wide text-[#64748b]">
+                      <tr>
+                        {['Date', 'Vehicle No', 'Wheeler', 'Owner Name', 'Work', 'Debit', 'Credit', 'Actions'].map((h) => (
+                          <th key={h} className="px-3 py-2.5">{h}</th>
+                        ))}
                       </tr>
-                    </tfoot>
-                  ) : null}
-                </table>
-              </div>
-              <TablePagination {...pagination} className="mt-3" />
+                    </thead>
+                    <tbody>
+                      {draftOpen ? (
+                        <tr className="border-t border-[#fecaca] bg-[#fff7f7]">
+                          {renderManualInputs(draftForm, setDraftForm)}
+                        </tr>
+                      ) : null}
+                      {entries.length === 0 && !draftOpen ? (
+                        <tr><td colSpan={8} className="px-3 py-10 text-center text-[#7a8fa6]">No entries found for the selected filters.</td></tr>
+                      ) : pageEntries.map((e, i) => {
+                        if (editRow && String(editRow.source_id) === String(e.source_id) && e.source === 'manual') {
+                          return (
+                            <tr key={`edit-${e.source_id}`} className="border-t border-[#fed7aa] bg-[#fff7ed]">
+                              {renderManualInputs(draftForm, setDraftForm, { compact: true })}
+                            </tr>
+                          );
+                        }
+                        return (
+                          <tr key={`${e.ref}-${i}`} className={`border-t border-[#edf2f8] ${i % 2 ? 'bg-[#f8fafc]' : 'bg-white'}`}>
+                            <td className="whitespace-nowrap px-3 py-2.5">{fmtDisplayDate(e.date)}</td>
+                            <td className="px-3 py-2.5 font-semibold text-[#1e3261]">{e.vehicle_no || '—'}</td>
+                            <td className="px-3 py-2.5">{e.wheeler || '—'}</td>
+                            <td className="px-3 py-2.5">{e.owner_name || '—'}</td>
+                            <td className="max-w-[280px] px-3 py-2.5" title={e.work || e.particulars || ''}>
+                              <div className="line-clamp-3 whitespace-pre-wrap">{e.work || e.particulars || '—'}</div>
+                              {e.type_label ? <div className="mt-1"><TypeBadge value={e.type_label || e.type} /></div> : null}
+                            </td>
+                            <td className="px-3 py-2.5 font-extrabold text-[#dc2626]">{e.debit ? fmtRs(e.debit) : '—'}</td>
+                            <td className="px-3 py-2.5 font-extrabold text-[#16a34a]">{e.credit ? fmtRs(e.credit) : '—'}</td>
+                            <td className="px-3 py-2.5">
+                              <div className="flex gap-1">
+                                <button type="button" onClick={() => setDetail(e)} className="grid size-8 place-items-center rounded-[8px] text-[#7c3aed] hover:bg-[#f5f3ff]" title="View"><Eye className="size-4" /></button>
+                                {e.editable ? (
+                                  <>
+                                    <button type="button" onClick={() => openEditManual(e)} className="grid size-8 place-items-center rounded-[8px] text-[#0b65e5] hover:bg-[#eff6ff]" title="Edit"><Pencil className="size-4" /></button>
+                                    <button type="button" onClick={() => deleteManualEntry(e)} className="grid size-8 place-items-center rounded-[8px] text-[#dc2626] hover:bg-[#fef2f2]" title="Delete"><Trash2 className="size-4" /></button>
+                                  </>
+                                ) : null}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    {entries.length ? (
+                      <tfoot>
+                        <tr className="border-t-2 border-[#cbd5e1] bg-[#f8fafc] font-extrabold">
+                          <td className="px-3 py-3" colSpan={5}>Totals:</td>
+                          <td className="px-3 py-3 text-[#dc2626]">{fmtRs(totalDebit)}</td>
+                          <td className="px-3 py-3 text-[#16a34a]">{fmtRs(totalCredit)}</td>
+                          <td className={`px-3 py-3 ${netBal > 0 ? 'text-[#dc2626]' : 'text-[#166534]'}`}>{fmtRs(Math.abs(netBal))} {netBal > 0 ? 'Payable' : netBal < 0 ? 'Receivable' : ''}</td>
+                        </tr>
+                      </tfoot>
+                    ) : null}
+                  </table>
+                </div>
+                <TablePagination {...pagination} className="mt-3" />
               </>
             )}
           </div>
@@ -612,6 +825,9 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
             <p><span className="font-bold text-[#64748b]">Date:</span> {fmtDisplayDate(detail.date)}</p>
             <p><span className="font-bold text-[#64748b]">Type:</span> <TypeBadge value={detail.type_label || detail.type} /></p>
             <p><span className="font-bold text-[#64748b]">Ref:</span> {detail.ref || '—'}</p>
+            <p><span className="font-bold text-[#64748b]">Vehicle:</span> {detail.vehicle_no || '—'}</p>
+            <p><span className="font-bold text-[#64748b]">Wheeler:</span> {detail.wheeler || '—'}</p>
+            <p><span className="font-bold text-[#64748b]">Owner:</span> {detail.owner_name || '—'}</p>
             <p><span className="font-bold text-[#64748b]">Work:</span> {detail.work || detail.particulars || '—'}</p>
             <p><span className="font-bold text-[#64748b]">Debit:</span> {detail.debit ? fmtRs(detail.debit) : '—'}</p>
             <p><span className="font-bold text-[#64748b]">Credit:</span> {detail.credit ? fmtRs(detail.credit) : '—'}</p>
@@ -620,26 +836,64 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
         </ModalShell>
       ) : null}
 
-      {payOpen ? (
+      {voucherOpen ? (
         <ModalShell
-          title="Vendor Payment"
-          onClose={() => setPayOpen(false)}
+          title={`Vendor Vouchers (${voucherCount})`}
+          onClose={() => !savingVoucher && setVoucherOpen(false)}
           footer={(
             <>
-              <button type="button" onClick={() => setPayOpen(false)} className="h-10 rounded-[8px] border px-4 text-[13px] font-semibold">Cancel</button>
-              <button type="button" disabled={saving} onClick={savePayment} className="h-10 rounded-[8px] bg-[#dc2626] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">{saving ? 'Saving...' : 'Save Payment'}</button>
+              <button type="button" disabled={savingVoucher} onClick={() => onOpenSection?.('Voucher')} className="mr-auto h-10 rounded-[8px] border border-[#ddd6fe] bg-[#f5f3ff] px-4 text-[13px] font-semibold text-[#6d28d9]">Open Accounts Voucher</button>
+              <button type="button" disabled={savingVoucher} onClick={() => setVoucherOpen(false)} className="h-10 rounded-[8px] border px-4 text-[13px] font-semibold">Close</button>
+              <button type="button" disabled={savingVoucher} onClick={saveVendorVoucher} className="h-10 rounded-[8px] bg-[#7c3aed] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">{savingVoucher ? 'Saving...' : 'Create Voucher'}</button>
             </>
           )}
         >
-          <div className="grid gap-3">
-            <Field label="Amount" required><input type="number" className={inputClass} value={payForm.amount} onChange={(e) => setPayForm((f) => ({ ...f, amount: e.target.value }))} /></Field>
-            <Field label="Payment Date"><input type="date" className={inputClass} value={payForm.payment_date} onChange={(e) => setPayForm((f) => ({ ...f, payment_date: e.target.value }))} /></Field>
-            <Field label="Payment Mode">
-              <select className={inputClass} value={payForm.payment_mode} onChange={(e) => setPayForm((f) => ({ ...f, payment_mode: e.target.value }))}>
-                {['Cash', 'UPI', 'NEFT', 'RTGS', 'Cheque', 'Other'].map((m) => <option key={m}>{m}</option>)}
-              </select>
-            </Field>
-            <Field label="Remarks"><textarea className={`${inputClass} h-20 py-2`} value={payForm.remarks} onChange={(e) => setPayForm((f) => ({ ...f, remarks: e.target.value }))} /></Field>
+          <div className="grid gap-4">
+            <div className="rounded-[12px] border border-[#ede9fe] bg-[#faf5ff] p-3">
+              <p className="mb-3 text-[12px] font-extrabold text-[#6d28d9]">New Voucher — {selected?.name || 'Vendor'}</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Voucher Date" required><input type="date" className={inputClass} value={voucherForm.voucher_date} onChange={(e) => setVoucherForm((f) => ({ ...f, voucher_date: e.target.value }))} /></Field>
+                <Field label="Amount (₹)" required><input type="number" min="0" step="0.01" className={inputClass} value={voucherForm.amount} onChange={(e) => setVoucherForm((f) => ({ ...f, amount: e.target.value }))} /></Field>
+                <Field label="Category"><input className={inputClass} placeholder="e.g., Cabin Denting" value={voucherForm.category} onChange={(e) => setVoucherForm((f) => ({ ...f, category: e.target.value }))} /></Field>
+                <Field label="Payment Mode">
+                  <select className={inputClass} value={voucherForm.payment_mode} onChange={(e) => setVoucherForm((f) => ({ ...f, payment_mode: e.target.value }))}>
+                    {['Cash', 'UPI', 'NEFT', 'RTGS', 'Cheque', 'Other'].map((m) => <option key={m}>{m}</option>)}
+                  </select>
+                </Field>
+                <div className="sm:col-span-2">
+                  <Field label="Particulars / Work"><textarea className={`${inputClass} h-20 py-2`} value={voucherForm.particulars} onChange={(e) => setVoucherForm((f) => ({ ...f, particulars: e.target.value }))} /></Field>
+                </div>
+              </div>
+            </div>
+            <div>
+              <p className="mb-2 text-[12px] font-extrabold text-[#334155]">Existing vouchers</p>
+              {vouchers.length === 0 ? (
+                <p className="rounded-[10px] border border-dashed border-[#e2e8f0] px-3 py-6 text-center text-[12px] font-semibold text-[#94a3b8]">No vouchers yet for this vendor.</p>
+              ) : (
+                <div className="max-h-56 overflow-y-auto rounded-[10px] border border-[#e2e9f3]">
+                  <table className="w-full text-left text-[12px]">
+                    <thead className="sticky top-0 bg-[#f8fafc] text-[10px] font-extrabold uppercase tracking-wide text-[#64748b]">
+                      <tr>
+                        <th className="px-3 py-2">Date</th>
+                        <th className="px-3 py-2">Voucher</th>
+                        <th className="px-3 py-2">Category</th>
+                        <th className="px-3 py-2">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {vouchers.map((v) => (
+                        <tr key={v.id} className="border-t border-[#edf2f8]">
+                          <td className="px-3 py-2">{fmtDisplayDate(v.voucher_date)}</td>
+                          <td className="px-3 py-2 font-semibold text-[#6d28d9]">{v.voucher_no}</td>
+                          <td className="px-3 py-2">{v.category || '—'}</td>
+                          <td className="px-3 py-2 font-extrabold text-[#16a34a]">{fmtRs(v.amount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         </ModalShell>
       ) : null}

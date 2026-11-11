@@ -40,6 +40,7 @@ export function LedgerMobileCards({
             details={[
               { label: 'Debit', value: e.debit ? fmtMoney(e.debit) : '—', tone: e.debit ? 'danger' : undefined },
               { label: 'Credit', value: e.credit ? fmtMoney(e.credit) : '—', tone: e.credit ? 'success' : undefined },
+              e.payment_mode ? { label: 'Payment Mode', value: e.payment_mode } : null,
               e.category ? { label: 'Category', value: e.category } : null,
               e.vehicle_no ? { label: 'Vehicle No', value: e.vehicle_no } : null,
             ]}

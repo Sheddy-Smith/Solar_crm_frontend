@@ -83,7 +83,8 @@ class InactiveCreatorFollowUpVisibilityTests(TestCase):
         self.assertEqual(matched['lead_assigned_to'], self.assignee.id)
         self.assertEqual(matched['lead_created_by'], self.creator.id)
 
-    def test_creator_loses_assigned_lead_but_keeps_unassigned(self):
+    def test_tele_creator_only_sees_assigned_leads(self):
+        """Tele Sales Executive My Leads = assigned_to only (no unassigned pool)."""
         assigned_lead, _ = self._lead_with_scheduled(assigned_to=self.assignee)
         pool_lead = Lead.objects.create(
             customer_name='Still In Tele Pool',
@@ -92,10 +93,16 @@ class InactiveCreatorFollowUpVisibilityTests(TestCase):
             assigned_to=None,
             status='New',
         )
+        tele_owned, _ = self._lead_with_scheduled(assigned_to=self.creator)
 
         self.assertFalse(is_own_lead(self.creator, assigned_lead))
-        self.assertTrue(is_own_lead(self.creator, pool_lead))
+        self.assertFalse(is_own_lead(self.creator, pool_lead))
+        self.assertTrue(is_own_lead(self.creator, tele_owned))
         self.assertTrue(is_own_lead(self.assignee, assigned_lead))
+        self.assertEqual(
+            list(Lead.objects.filter(lead_owner_q(self.creator)).values_list('id', flat=True)),
+            [tele_owned.id],
+        )
 
     def test_sales_executive_self_assigned_create_path_still_owned(self):
         """Active SE workflow: perform_create sets assigned_to=self — still visible."""
@@ -109,6 +116,22 @@ class InactiveCreatorFollowUpVisibilityTests(TestCase):
         )
         self.assertTrue(is_own_lead(se, lead))
         self.assertEqual(Lead.objects.filter(lead_owner_q(se)).filter(id=lead.id).count(), 1)
+
+    def test_sales_executive_keeps_lead_they_added_after_reassign(self):
+        """SE sees leads they created even after assignment moves to someone else."""
+        se = self.assignee
+        other = make_user('sales.other@test.com', 'Sales Executive', LEAD_PERMS)
+        lead = Lead.objects.create(
+            customer_name='SE Created Then Reassigned',
+            mobile_number='9000012348',
+            created_by=se,
+            assigned_to=other,
+            status='Follow-up',
+        )
+        self.assertTrue(is_own_lead(se, lead))
+        self.assertTrue(is_own_lead(other, lead))
+        self.assertEqual(Lead.objects.filter(lead_owner_q(se)).filter(id=lead.id).count(), 1)
+        self.assertEqual(Lead.objects.filter(lead_owner_q(other)).filter(id=lead.id).count(), 1)
 
     def test_history_rows_preserved_when_creator_inactive(self):
         lead, follow_up = self._lead_with_scheduled(assigned_to=self.assignee)

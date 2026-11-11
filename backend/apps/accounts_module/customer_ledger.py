@@ -52,18 +52,22 @@ def visit_count(party):
 
 
 def party_totals(party, year=None):
-    from .models import Payment, SellInvoice
+    from .models import CustomerLedgerManualEntry, Payment, SellInvoice
 
     invoices = SellInvoice.objects.filter(party_id=party.id).exclude(status='Cancelled')
     received = Payment.objects.filter(party_id=party.id, direction='Received', status='Completed')
     made = Payment.objects.filter(party_id=party.id, direction='Made', status='Completed')
+    manual = CustomerLedgerManualEntry.objects.filter(party_id=party.id)
     if year:
         invoices = invoices.filter(invoice_date__year=year)
         received = received.filter(payment_date__year=year)
         made = made.filter(payment_date__year=year)
+        manual = manual.filter(entry_date__year=year)
 
     debit = _d(invoices.aggregate(t=Sum('total_amount'))['t']) + _d(made.aggregate(t=Sum('amount'))['t'])
     credit = _d(received.aggregate(t=Sum('amount'))['t'])
+    debit += _d(manual.filter(entry_type='sale').aggregate(t=Sum('amount'))['t'])
+    credit += _d(manual.exclude(entry_type='sale').aggregate(t=Sum('amount'))['t'])
     opening = _d(party.opening_balance)
     if opening > 0:
         debit += opening
@@ -71,7 +75,8 @@ def party_totals(party, year=None):
         credit += abs(opening)
     last_inv = invoices.order_by('-invoice_date').values_list('invoice_date', flat=True).first()
     last_pay = received.order_by('-payment_date').values_list('payment_date', flat=True).first()
-    last_date = max([d for d in (last_inv, last_pay) if d] or [None])
+    last_manual = manual.order_by('-entry_date').values_list('entry_date', flat=True).first()
+    last_date = max([d for d in (last_inv, last_pay, last_manual) if d] or [None])
     return {
         'opening': opening,
         'debit': debit,
@@ -109,7 +114,7 @@ def credit_aging_15_plus(party):
 
 
 def build_ledger_entries(party, start=None, end=None):
-    from .models import Payment, SellInvoice
+    from .models import CustomerLedgerManualEntry, Payment, SellInvoice
 
     vehicle_fallback = (party.vehicle_number or '').strip()
     entries = []
@@ -125,19 +130,23 @@ def build_ledger_entries(party, start=None, end=None):
             'credit': float(abs(opening)) if opening < 0 else 0,
             'type': 'Opening',
             'type_label': 'opening',
+            'payment_mode': '',
         })
 
     invoices = SellInvoice.objects.filter(party_id=party.id).exclude(status='Cancelled')
     received = Payment.objects.filter(party_id=party.id, direction='Received', status='Completed')
     made = Payment.objects.filter(party_id=party.id, direction='Made', status='Completed')
+    manual = CustomerLedgerManualEntry.objects.filter(party_id=party.id)
     if start:
         invoices = invoices.filter(invoice_date__gte=start)
         received = received.filter(payment_date__gte=start)
         made = made.filter(payment_date__gte=start)
+        manual = manual.filter(entry_date__gte=start)
     if end:
         invoices = invoices.filter(invoice_date__lte=end)
         received = received.filter(payment_date__lte=end)
         made = made.filter(payment_date__lte=end)
+        manual = manual.filter(entry_date__lte=end)
 
     for inv in invoices.order_by('invoice_date', 'id'):
         particulars = f'Sell Invoice {inv.invoice_no or inv.id}'
@@ -152,6 +161,7 @@ def build_ledger_entries(party, start=None, end=None):
             'credit': 0,
             'type': 'Invoice',
             'type_label': _entry_type_label('Invoice', f'{particulars} {work}'),
+            'payment_mode': (getattr(inv, 'payment_mode', None) or '').strip(),
             'source_id': inv.id,
             'source_kind': 'sell_invoice',
         })
@@ -168,6 +178,7 @@ def build_ledger_entries(party, start=None, end=None):
             'credit': float(_d(pay.amount)),
             'type': 'Receipt',
             'type_label': _entry_type_label('Receipt', particulars),
+            'payment_mode': (getattr(pay, 'payment_mode', None) or '').strip(),
             'source_id': pay.id,
             'source_kind': 'payment',
         })
@@ -184,8 +195,27 @@ def build_ledger_entries(party, start=None, end=None):
             'credit': 0,
             'type': 'Payment',
             'type_label': _entry_type_label('Payment', particulars),
+            'payment_mode': (getattr(pay, 'payment_mode', None) or '').strip(),
             'source_id': pay.id,
             'source_kind': 'payment',
+        })
+
+    for row in manual.order_by('entry_date', 'id'):
+        is_debit = row.entry_type == 'sale'
+        work = (row.work or '').strip() or row.get_entry_type_display()
+        entries.append({
+            'date': _iso(row.entry_date),
+            'particulars': work,
+            'work': work,
+            'ref': (row.reference_no or '').strip() or f'MLE-{row.id}',
+            'vehicle_no': (row.vehicle_no or '').strip() or vehicle_fallback or '',
+            'debit': float(_d(row.amount)) if is_debit else 0,
+            'credit': float(_d(row.amount)) if not is_debit else 0,
+            'type': 'Invoice' if is_debit else 'Receipt',
+            'type_label': row.entry_type,
+            'payment_mode': (row.payment_mode or '').strip(),
+            'source_id': row.id,
+            'source_kind': 'manual_ledger',
         })
 
     dated = [e for e in entries if e['date']]
@@ -232,7 +262,7 @@ def ledger_summary(party, entries, start=None):
 
 def merge_duplicate_customers_by_phone():
     """Keep one Customer Account per normalized mobile; move linked rows onto the keeper."""
-    from .models import Account, Payment, SellChallan, SellInvoice
+    from .models import Account, CustomerLedgerManualEntry, Payment, SellChallan, SellInvoice
     from .services import normalize_phone
 
     by_phone = {}
@@ -252,6 +282,7 @@ def merge_duplicate_customers_by_phone():
             SellInvoice.objects.filter(party_id=dup.id).update(party_id=keeper.id)
             SellChallan.objects.filter(party_id=dup.id).update(party_id=keeper.id)
             Payment.objects.filter(party_id=dup.id).update(party_id=keeper.id)
+            CustomerLedgerManualEntry.objects.filter(party_id=dup.id).update(party_id=keeper.id)
             fields = []
             if not keeper.email and dup.email:
                 keeper.email = dup.email

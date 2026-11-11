@@ -45,7 +45,7 @@ def won_projects(user):
     ).exclude(status='Cancelled')
     filt = lead_owner_filter(user, prefix='lead__')
     if filt:
-        qs = qs.filter(**filt)
+        qs = qs.filter(filt)
     return qs
 
 
@@ -125,7 +125,7 @@ def pending_quotations(user):
     )
     filt = lead_owner_filter(user)
     if filt:
-        qs = qs.filter(**filt)
+        qs = qs.filter(filt)
     rows = []
     for lead in qs:
         project = next((p for p in lead.projects.all() if not p.is_deleted), None)

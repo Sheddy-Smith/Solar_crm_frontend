@@ -422,6 +422,10 @@ export const accountsModuleApi = {
   partyLedger: (id, qs = '') => request(`/accounts/parties/${id}/ledger/${qs ? '?' + qs : ''}`),
   creditLedger: () => request('/accounts/parties/credit-ledger/'),
   settleParty: (id, data) => request(`/accounts/parties/${id}/settle/`, { method: 'POST', body: data }),
+  addLedgerEntry: (id, data) => request(`/accounts/parties/${id}/add-ledger-entry/`, { method: 'POST', body: data }),
+  addVendorManualEntry: (id, data) => request(`/accounts/parties/${id}/add-vendor-manual-entry/`, { method: 'POST', body: data }),
+  updateVendorManualEntry: (id, entryId, data) => request(`/accounts/parties/${id}/vendor-manual-entries/${entryId}/`, { method: 'PATCH', body: data }),
+  deleteVendorManualEntry: (id, entryId) => request(`/accounts/parties/${id}/vendor-manual-entries/${entryId}/delete/`, { method: 'DELETE' }),
 };
 
 // ─── Follow-ups ──────────────────────────────────────────────────────────────
@@ -486,6 +490,8 @@ export const projectApi = {
   },
   updateProgress: (id, progress) =>
     request(`/projects/${id}/update_progress/`, { method: 'POST', body: { progress_percent: progress } }),
+  ensureInstallationTasks: (id) =>
+    request(`/projects/${id}/ensure-installation-tasks/`, { method: 'POST', body: {} }),
   summary: () => request('/projects/summary/'),
   getSystemConfig: (id) => request(`/projects/${id}/system_config/`),
   saveSystemConfig: (id, data) => request(`/projects/${id}/system_config/`, { method: 'PUT', body: data }),
@@ -784,6 +790,8 @@ export const lcInspectionApi = lcCrud('inspections');
 export const lcCommissioningApi = lcCrud('commissionings');
 export const lcComplianceApi = lcCrud('compliances');
 export const lcDocumentApi = lcCrud('documents');
+export const lcLoanProcessApi = lcCrud('loan-processes');
+export const lcInspectionPlacedApi = lcCrud('inspections-placed');
 export const lcAgreementApi = lcCrud('agreements');
 export const lcNetMeterApi = lcCrud('net-meters');
 export const lcProjectApi = {

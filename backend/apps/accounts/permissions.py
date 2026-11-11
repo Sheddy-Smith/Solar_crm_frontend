@@ -12,32 +12,16 @@ def is_lead_scoped(user):
     return getattr(getattr(user, 'role', None), 'name', '') in LEAD_SCOPED_ROLES
 
 
-def lead_owner_filter(user, prefix=''):
-    """Queryset filter kwargs scoping to this user's own leads, keyed by role.
-
-    Prefer `lead_owner_q()` for assignee-primary ownership (created only while
-    unassigned). This helper remains for simple single-field scopes. Returns
-    None if the user isn't lead-scoped (i.e. they see everything)."""
-    role = getattr(getattr(user, 'role', None), 'name', '')
-    if role == 'Sales Executive':
-        # Assignee-primary: projects/billing use assigned_to. Full created|unassigned
-        # OR is in lead_owner_q() for leads / follow-ups.
-        return {f'{prefix}assigned_to': user}
-    if role == 'Tele Sales Executive':
-        return {f'{prefix}created_by': user}
-    return None
-
-
 def lead_owner_q(user, prefix=''):
-    """Q() scoping lead-scoped roles with assignee-primary ownership.
+    """Q() scoping lead-scoped roles to their own leads.
 
-    Pending follow-ups / leads belong to `assigned_to` when set. The creator
-    only keeps ownership while the lead is still unassigned. Creator
-    `is_active` must never gate assignee visibility — an inactive tele/sales
-    creator must not hide Scheduled rows from the assigned executive.
+    Sales Executive: leads assigned to them OR leads they added (created_by).
+    Tele Sales Executive: ONLY leads assigned to them (Tele portal My Leads —
+    unassigned pool leads stay with managers until explicitly assigned).
 
-    `prefix` is prepended to field names (e.g. 'lead__' for FollowUp). Returns
-    None when the user is not lead-scoped."""
+    Creator `is_active` must never gate assignee visibility. `prefix` is prepended
+    to field names (e.g. 'lead__' for FollowUp). Returns None when the user is
+    not lead-scoped (they see everything)."""
     from django.db.models import Q
 
     role = getattr(getattr(user, 'role', None), 'name', '')
@@ -45,23 +29,33 @@ def lead_owner_q(user, prefix=''):
         return None
     created = f'{prefix}created_by'
     assigned = f'{prefix}assigned_to'
-    # Unassigned leads I created, OR leads explicitly assigned to me.
-    return Q(**{created: user, f'{prefix}assigned_to__isnull': True}) | Q(**{assigned: user})
+    if role == 'Sales Executive':
+        return Q(**{created: user}) | Q(**{assigned: user})
+    # Tele Sales Executive — assigned leads only.
+    return Q(**{assigned: user})
+
+
+def lead_owner_filter(user, prefix=''):
+    """Alias for `lead_owner_q` — returns a Django Q (or None).
+
+    Call sites must use `qs.filter(filt)` (not `filter(**filt)`)."""
+    return lead_owner_q(user, prefix=prefix)
 
 
 def is_own_lead(user, lead):
-    """True if `lead` belongs to this (Tele) Sales Executive per assignee-primary
-    ownership. For object-level guards (e.g. attaching a follow-up or
-    quotation to a lead) where lead_owner_filter's queryset kwargs don't
-    directly apply. Non-scoped roles always own everything."""
+    """True if `lead` belongs to this (Tele) Sales Executive.
+
+    Sales Executive: assigned to them OR created by them.
+    Tele Sales Executive: assigned to them only.
+    Non-scoped roles always own everything."""
     role = getattr(getattr(user, 'role', None), 'name', '')
     if role not in LEAD_SCOPED_ROLES:
         return True
-    # Assigned executive always owns — even when the original creator is inactive.
     if lead.assigned_to_id == user.id:
         return True
-    # Creator keeps ownership only while the lead is still unassigned.
-    return lead.created_by_id == user.id and lead.assigned_to_id is None
+    if role == 'Sales Executive':
+        return lead.created_by_id == user.id
+    return False
 
 
 def is_super_admin(user):
@@ -192,9 +186,14 @@ class HasModulePermission(BasePermission):
         action = getattr(view, 'action', None)
         module_map = getattr(view, 'permission_module_map', {})
         module = module_map.get(action) if action else None
+        modules = None
         if not module:
-            module = getattr(view, 'permission_module', None)
-        if not module:
+            modules = getattr(view, 'permission_modules', None)
+            if modules:
+                modules = tuple(modules)
+            else:
+                module = getattr(view, 'permission_module', None)
+        if not module and not modules:
             return False
 
         action_map = {**MODULE_ACTION_FLAGS, **getattr(view, 'permission_action_map', {})}
@@ -218,7 +217,9 @@ class HasModulePermission(BasePermission):
         if not role:
             return False
 
-        perm = role.permissions.filter(module=module).first()
-        if not perm:
-            return False
-        return perm.full_access or getattr(perm, flag, False)
+        check_modules = modules or (module,)
+        for mod in check_modules:
+            perm = role.permissions.filter(module=mod).first()
+            if perm and (perm.full_access or getattr(perm, flag, False)):
+                return True
+        return False

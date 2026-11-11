@@ -1,18 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle, Boxes, CheckCircle2, Download, IndianRupee, Pencil, Plus, RefreshCw,
-  Search, SlidersHorizontal, Tags, Trash2, Upload, Zap,
+  SlidersHorizontal, Tags, Trash2, Upload, Zap,
 } from 'lucide-react';
 import { inventoryApi } from './api.js';
-import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
+import { fetchEveryPage } from './lib/listQuery.js';
 import { exportNotifyCsv } from './lib/utils.js';
 import { moduleCaps } from './settingsHubPages.jsx';
+import { InventoryItemsWorkbench } from './inventoryItemsWorkbench.jsx';
 
 const INV_UNITS = ['Nos', 'pcs', 'Meter', 'Kg', 'kg', 'Ltr', 'ltr', 'Roll', 'Set'];
 const STRUCTURE_PACK_TYPES = ['Unit', 'Packet', 'Bundels'];
-const STOCK_STATUS_OPTIONS = ['All Stock', 'In Stock', 'Low Stock', 'Out of Stock'];
 const INVERTOR_TYPES = ['On-Grid', 'Off-Grid', 'Hybrid'];
 const PANEL_TYPES = ['DCR Bifacial', 'DCR Topcon', 'NDCR Bifacial', 'NDCR Topcon'];
 const BATTERY_TYPES = ['LFP', 'LTB', 'Lead Acid'];
@@ -454,10 +454,6 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
   const [categories, setCategories] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('All Categories');
-  const [stockFilter, setStockFilter] = useState('All Stock');
   const [modal, setModal] = useState(null);
   const [adjustItem, setAdjustItem] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -465,22 +461,13 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
   onNotifyRef.current = onNotify;
   const seedAttemptedRef = useRef(false);
 
-  useEffect(() => {
-    const timer = setTimeout(() => setSearch(searchInput), 350);
-    return () => clearTimeout(timer);
-  }, [searchInput]);
-
   const load = useCallback((opts = {}) => {
     const showSpinner = opts.showSpinner !== false;
     if (showSpinner) setLoading(true);
-    const itemParams = { page_size: 25 };
-    if (category !== 'All Categories') itemParams.category = category;
-    if (stockFilter !== 'All Stock') itemParams.stock_status = stockFilter;
-    if (search.trim()) itemParams.search = search.trim();
     Promise.all([
-      inventoryApi.items.list(itemParams),
-      inventoryApi.categories.list({ page_size: 25 }).catch(() => ({ results: [] })),
-      inventoryApi.warehouses.list({ page_size: 25 }).catch(() => ({ results: [] })),
+      fetchEveryPage((page, pageSize) => inventoryApi.items.list({ page, page_size: pageSize })),
+      inventoryApi.categories.list({ page_size: 100 }).catch(() => ({ results: [] })),
+      inventoryApi.warehouses.list({ page_size: 100 }).catch(() => ({ results: [] })),
     ]).then(async ([items, cats, wh]) => {
       let catRows = normalizeRows(cats).filter((c) => c.is_active !== false).map(mergeCategoryFormConfig);
       // Seed defaults once — view-only roles (Sales Executive) cannot create; use local fallbacks.
@@ -498,7 +485,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
           ),
         );
         if (created.some(Boolean)) {
-          catRows = normalizeRows(await inventoryApi.categories.list({ page_size: 25 }).catch(() => ({ results: [] })))
+          catRows = normalizeRows(await inventoryApi.categories.list({ page_size: 100 }).catch(() => ({ results: [] })))
             .filter((c) => c.is_active !== false)
             .map(mergeCategoryFormConfig);
         }
@@ -513,17 +500,16 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
           form_fields: DEFAULT_CUSTOM_FIELDS,
         }));
       }
-      setRows(normalizeRows(items));
+      setRows(Array.isArray(items) ? items : normalizeRows(items));
       setCategories(catRows);
       setWarehouses(normalizeRows(wh));
     }).catch((e) => onNotifyRef.current?.(e.message || 'Failed to load products', 'error'))
       .finally(() => setLoading(false));
-  }, [category, stockFilter, search]);
+  }, []);
 
   useEffect(() => { load(); }, [load]);
 
   const filtered = rows;
-  const { pageRows, pagination } = usePagedRows(filtered, 'inventory-products', { resetKey: `${search}|${category}|${stockFilter}` });
 
   const patchForm = (patch) => setModal((m) => ({ ...m, form: { ...m.form, ...patch } }));
 
@@ -608,7 +594,6 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
   const activeCategoryNames = categories.filter((c) => c.is_active !== false).map((c) => c.name).filter(Boolean);
   const fallbackNames = FALLBACK_PRODUCT_CATEGORIES.map((c) => c.name);
   const defaultCategoryName = activeCategoryNames[0] || fallbackNames[0] || 'Structure';
-  const catOptions = ['All Categories', ...new Set([...activeCategoryNames, ...fallbackNames, ...rows.map((r) => r.category)].filter(Boolean))];
   const modalCategoryOptions = (() => {
     const names = [...(activeCategoryNames.length ? activeCategoryNames : fallbackNames)];
     if (modal?.form?.category && !names.includes(modal.form.category)) names.push(modal.form.category);
@@ -638,132 +623,51 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
   });
 
   const openAdjust = (r) => {
-    if (r.warehouse) setAdjustItem({ id: r.id, name: r.name, quantity: '', direction: 'add', notes: '' });
+    if (!r.warehouse) {
+      onNotify('Assign a warehouse to this product first', 'error');
+      return;
+    }
+    setAdjustItem({ id: r.id, name: r.name, quantity: '', direction: 'add', notes: '' });
   };
 
   const deleteProduct = (r) => inventoryApi.items.delete(r.id).then(load).catch((e) => onNotify(e.message, 'error'));
 
   return (
-    <div className="space-y-4">
-      <PageHeading title="Inventory" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Inventory' }, { label: 'Products' }]}
-        actions={(
-          <div className="flex flex-wrap items-center gap-2">
-            {caps.export ? (
-              <button type="button" onClick={() => exportNotifyCsv(onNotify, 'inventory-products', ['Code', 'Name', 'Category', 'Stock', 'Unit', 'Valuation'], filtered.map((r) => [r.item_code, r.name, r.category, r.current_stock, r.unit, r.valuation]))} className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] px-4 text-[13px] font-bold text-[#284276]"><Download className="size-4" />Export CSV</button>
-            ) : null}
-            {caps.add ? (
-              <button type="button" onClick={openAddProduct} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white"><Plus className="size-4" />Add Product</button>
-            ) : null}
-          </div>
-        )}
-      />
-      <Subnav activeSection={activeSection} onOpenSection={onOpenSection} />
-      <div className={cx(panelClass, 'space-y-4 p-4')}>
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
-          <div className="relative col-span-2 min-w-0 sm:min-w-[220px] sm:flex-1">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#7a8fa6]" />
-            <input className="h-11 w-full rounded-[8px] border border-[#d9e2ec] pl-9 pr-3 text-[13px] sm:h-10" placeholder="Search by name, code, category..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} />
-          </div>
-          <select aria-label="Category" value={category} onChange={(e) => setCategory(e.target.value)} className="h-11 min-w-0 rounded-[8px] border border-[#d9e2ec] bg-white px-2 text-[13px] font-semibold text-[#1e3261] lg:hidden">
-            {catOptions.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-          </select>
-          <select aria-label="Stock status" value={stockFilter} onChange={(e) => setStockFilter(e.target.value)} className="h-11 min-w-0 rounded-[8px] border border-[#d9e2ec] bg-white px-2 text-[13px] font-semibold text-[#1e3261] lg:hidden">
-            {STOCK_STATUS_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-          </select>
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-0.5">
+        <div>
+          <p className="text-[12px] font-bold text-[#7a8fa6]">
+            <button type="button" onClick={() => onOpenSection('Dashboard')} className="hover:text-[#0b65e5]">Dashboard</button>
+            <span className="mx-1.5">/</span>
+            <button type="button" onClick={() => onOpenSection('Inventory Overview')} className="hover:text-[#0b65e5]">Inventory</button>
+            <span className="mx-1.5">/</span>
+            <span className="text-[#1e3261]">Products</span>
+          </p>
         </div>
-        {loading ? <p className="py-12 text-center text-[#7a8fa6]">Loading...</p> : (
-          <>
-          {!filtered.length ? (
-            <MobileCardEmpty icon={Boxes} title="No products found" />
-          ) : (
-            <MobileCardList>
-              {pageRows.map((r) => (
-                <MobileRecordCard
-                  key={r.id}
-                  icon={Boxes}
-                  title={r.name}
-                  subtitle={[r.item_code || r.record_no, r.category].filter(Boolean).join(' · ')}
-                  aside={fmtInvRs(r.valuation)}
-                  badges={<InvStatusBadge status={r.stock_status} />}
-                  details={[
-                    { label: 'Stock', value: `${r.current_stock ?? 0} ${r.unit || ''}`.trim(), tone: Number(r.current_stock) <= 0 ? 'danger' : undefined },
-                    { label: 'Reorder At', value: r.minimum_stock ?? '—' },
-                  ]}
-                  actions={[
-                    { label: r.warehouse ? 'Adjust Stock' : 'No Warehouse', icon: SlidersHorizontal, tone: 'blue', disabled: !r.warehouse, onClick: () => openAdjust(r) },
-                    caps.edit ? { label: 'Edit', icon: Pencil, tone: 'purple', onClick: () => openEditProduct(r) } : null,
-                  ]}
-                  menu={caps.delete ? [{ label: 'Delete', icon: Trash2, danger: true, onClick: () => deleteProduct(r) }] : []}
-                />
-              ))}
-            </MobileCardList>
-          )}
-          <div className="hidden overflow-auto rounded-[12px] border border-[#e5eaf2] lg:block">
-            <table className="w-full min-w-[1000px] text-left text-[13px]">
-              <thead><tr className="bg-[#f8fafc] text-[11px] font-extrabold uppercase text-[#7a8fa6]">
-                <th className="px-3 py-3">Code</th>
-                <th className="px-3 py-3">Name</th>
-                <th className="px-3 py-3">
-                  <TableHeaderFilter
-                    label="Category"
-                    value={category}
-                    active={category !== 'All Categories'}
-                    options={catOptions}
-                    onChange={setCategory}
-                  />
-                </th>
-                <th className="px-3 py-3">Stock</th>
-                <th className="px-3 py-3">Reorder</th>
-                <th className="px-3 py-3">Valuation</th>
-                <th className="px-3 py-3">
-                  <TableHeaderFilter
-                    label="Status"
-                    value={stockFilter}
-                    active={stockFilter !== 'All Stock'}
-                    options={STOCK_STATUS_OPTIONS}
-                    onChange={setStockFilter}
-                  />
-                </th>
-                <th className="px-3 py-3">Actions</th>
-              </tr></thead>
-              <tbody className="divide-y divide-[#f1f5f9]">
-                {pageRows.map((r) => (
-                  <tr key={r.id} className="hover:bg-[#f8fbff]">
-                    <td className="px-3 py-2 font-extrabold text-[#0b65e5]">{r.item_code || r.record_no}</td>
-                    <td className="px-3 py-2 font-semibold">{r.name}</td>
-                    <td className="px-3 py-2">{r.category}</td>
-                    <td className="px-3 py-2">{r.current_stock} {r.unit}</td>
-                    <td className="px-3 py-2">{r.minimum_stock}</td>
-                    <td className="px-3 py-2">{fmtInvRs(r.valuation)}</td>
-                    <td className="px-3 py-2"><InvStatusBadge status={r.stock_status} /></td>
-                    <td className="px-3 py-2">
-                      <div className="flex gap-1">
-                        <button
-                          type="button"
-                          title={r.warehouse ? 'Adjust stock' : 'Assign a warehouse first'}
-                          disabled={!r.warehouse}
-                          onClick={() => openAdjust(r)}
-                          className="grid size-8 place-items-center rounded-[8px] border border-[#d4e4ff] bg-[#f5f9ff] text-[#0b65e5] transition hover:bg-[#e8f1ff] disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          <SlidersHorizontal className="size-3.5" />
-                        </button>
-                        {caps.edit ? (
-                          <button type="button" onClick={() => openEditProduct(r)} className="grid size-8 place-items-center rounded-[8px] border border-[#e9dffb] bg-[#f8f4ff] text-[#7c3aed]"><Pencil className="size-3.5" /></button>
-                        ) : null}
-                        {caps.delete ? (
-                          <button type="button" onClick={() => deleteProduct(r)} className="grid size-8 place-items-center rounded-[8px] border border-[#fecaca] bg-[#fff5f5] text-[#ef4444]"><Trash2 className="size-3.5" /></button>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {!filtered.length ? <p className="py-10 text-center text-[#7a8fa6]">No products found</p> : null}
-          </div>
-          <TablePagination {...pagination} className="rounded-[12px] border border-[#e5eaf2]" />
-          </>
-        )}
+        {caps.export ? (
+          <button
+            type="button"
+            onClick={() => exportNotifyCsv(onNotify, 'inventory-products', ['Code', 'Name', 'Category', 'Stock', 'Unit', 'Valuation'], filtered.map((r) => [r.item_code, r.name, r.category, r.current_stock, r.unit, r.valuation]))}
+            className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#d9e4f2] px-3 text-[12px] font-bold text-[#284276]"
+          >
+            <Download className="size-3.5" />
+            Export
+          </button>
+        ) : null}
+      </div>
+      <Subnav activeSection={activeSection} onOpenSection={onOpenSection} />
+      <div className={cx(panelClass, 'space-y-0 overflow-hidden p-0')}>
+        <InventoryItemsWorkbench
+          items={rows}
+          categories={categories}
+          loading={loading}
+          caps={caps}
+          onReload={() => load({ showSpinner: false })}
+          onNotify={onNotify}
+          onAddItem={openAddProduct}
+          onEditItem={openEditProduct}
+          onAdjustItem={openAdjust}
+        />
       </div>
       <DashboardFooter />
 

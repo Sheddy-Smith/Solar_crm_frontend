@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, Download, Eye, FileText, IndianRupee, Pencil, Phone, Plus, RefreshCw, Search, Trash2, TrendingDown, TrendingUp, Wallet, X } from 'lucide-react';
 import { accountsModuleApi } from './api.js';
 import { exportNotifyCsv, normalizeApiRows } from './lib/utils.js';
@@ -18,8 +18,8 @@ function balanceTone(value) {
 }
 
 const TABS = [
-  { key: 'Customer Details', label: 'Customer Details' },
-  { key: 'Customer Ledger', label: 'Customer Ledger' },
+  { key: 'Customer Details', label: 'All Client Detail' },
+  { key: 'Customer Ledger', label: 'Won Client Ledger' },
   { key: 'Overall Credit Ledger', label: 'Overall Credit Ledger' },
 ];
 
@@ -113,6 +113,104 @@ function Field({ label, required, children }) {
 }
 
 const inputClass = 'h-10 w-full rounded-[8px] border border-[#d9e4f2] px-3 text-[13px] font-semibold text-[#1e3261] outline-none';
+
+function customerOptionLabel(c) {
+  if (!c) return '';
+  return `${c.name || '—'}${c.phone ? ` (${c.phone})` : ''}`;
+}
+
+/** Searchable customer picker for ledger filters / Add New Ledger modal. */
+function CustomerSearchSelect({ customers, value, onChange, placeholder = 'Choose a customer' }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const rootRef = useRef(null);
+  const inputRef = useRef(null);
+
+  const selected = useMemo(
+    () => customers.find((c) => String(c.id) === String(value)) || null,
+    [customers, value],
+  );
+
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return customers;
+    return customers.filter((c) => {
+      const hay = `${c.name || ''} ${c.phone || ''} ${c.company || ''}`.toLowerCase();
+      return hay.includes(needle);
+    });
+  }, [customers, query]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDoc = (e) => {
+      if (rootRef.current && !rootRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  useEffect(() => {
+    if (open) {
+      setQuery('');
+      window.setTimeout(() => inputRef.current?.focus(), 0);
+    }
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={`${inputClass} flex items-center justify-between gap-2 text-left`}
+      >
+        <span className={selected ? 'truncate text-[#1e3261]' : 'truncate text-[#8a98af]'}>
+          {selected ? customerOptionLabel(selected) : placeholder}
+        </span>
+        <Search className="size-3.5 shrink-0 text-[#7585a2]" />
+      </button>
+      {open ? (
+        <div className="absolute left-0 right-0 z-30 mt-1 overflow-hidden rounded-[10px] border border-[#d9e4f2] bg-white shadow-lg">
+          <div className="border-b border-[#edf2f8] p-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[#8a98af]" />
+              <input
+                ref={inputRef}
+                className="h-9 w-full rounded-[8px] border border-[#d9e4f2] bg-[#f8fafc] pl-8 pr-3 text-[12px] font-semibold text-[#1e3261] outline-none focus:border-[#0b65e5]"
+                placeholder="Search name or phone..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="max-h-56 overflow-y-auto py-1">
+            <button
+              type="button"
+              onClick={() => { onChange(''); setOpen(false); }}
+              className="flex w-full px-3 py-2 text-left text-[12px] font-semibold text-[#8a98af] hover:bg-[#f5f9ff]"
+            >
+              {placeholder}
+            </button>
+            {filtered.length === 0 ? (
+              <p className="px-3 py-3 text-[12px] font-semibold text-[#8a98af]">No customer matched</p>
+            ) : filtered.map((c) => {
+              const active = String(c.id) === String(value);
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => { onChange(String(c.id)); setOpen(false); }}
+                  className={`flex w-full px-3 py-2 text-left text-[12px] font-semibold hover:bg-[#f5f9ff] ${active ? 'bg-[#eff6ff] text-[#0b65e5]' : 'text-[#1e3261]'}`}
+                >
+                  {customerOptionLabel(c)}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export function CustomerModulePage({ activeSection, onOpenSection, onNotify, loggedInUser = null }) {
   const caps = moduleCaps(loggedInUser, 'Customer');
@@ -262,7 +360,7 @@ function CustomerDetailsTab({ caps, onNotify, onOpenSection }) {
   return (
     <>
       <div className="rounded-[12px] border border-[#dbeafe] bg-[#f8fbff] px-3 py-2 text-[12px] font-semibold text-[#284276]">
-        Mobile number is the customer key. All leads (New / Hot / Warm / Cool / Won / Lost) appear here once per mobile — one customer can have multiple projects (home, office, etc.).
+        All Client Detail: mobile number is the customer key. All leads (New / Hot / Warm / Cool / Won / Lost) appear here once per mobile — one customer can have multiple projects (home, office, etc.).
       </div>
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <input className={`${inputClass} w-full sm:max-w-xs`} placeholder="Search name, mobile, project..." value={q} onChange={(e) => setQ(e.target.value)} />
@@ -444,6 +542,28 @@ function CustomerDetailsTab({ caps, onNotify, onOpenSection }) {
   );
 }
 
+const LEDGER_PAYMENT_MODE_OPTIONS = [
+  'Cash',
+  'UPI',
+  'Bank Transfer / NEFT / RTGS / IMPS',
+  'Cheque',
+  'Loan / Finance',
+  'Credit Card',
+  'Debit Card',
+  'Other',
+];
+
+const emptyLedgerForm = () => ({
+  party_id: '',
+  entry_date: todayIso(),
+  entry_type: 'sale',
+  payment_mode: '',
+  amount: '',
+  vehicle_no: '',
+  reference_no: '',
+  work: '',
+});
+
 function CustomerLedgerTab({ onNotify, onOpenSection }) {
   const [customers, setCustomers] = useState([]);
   const [partyId, setPartyId] = useState('');
@@ -455,11 +575,18 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
   const [fixing, setFixing] = useState(false);
   const [detail, setDetail] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [ledgerModal, setLedgerModal] = useState(null);
+  const [savingLedger, setSavingLedger] = useState(false);
 
   const loadCustomers = useCallback(async () => {
     try {
       await accountsModuleApi.syncCustomersFromLeads().catch(() => null);
-      const data = await accountsModuleApi.parties.list({ account_type: 'Customer', page_size: 25 });
+      // Won Client Ledger: only customers linked to Won leads (payments / statements).
+      const data = await accountsModuleApi.parties.list({
+        account_type: 'Customer',
+        won_only: true,
+        page_size: 500,
+      });
       setCustomers(normalizeApiRows(data));
     } catch (e) {
       onNotify(e.message || 'Failed to load customers', 'error');
@@ -498,7 +625,7 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
     const rows = payload?.results || [];
     const needle = q.trim().toLowerCase();
     if (!needle) return rows;
-    return rows.filter((e) => `${e.particulars || ''} ${e.work || ''} ${e.ref || ''} ${e.vehicle_no || ''} ${e.type_label || ''}`.toLowerCase().includes(needle));
+    return rows.filter((e) => `${e.particulars || ''} ${e.work || ''} ${e.ref || ''} ${e.vehicle_no || ''} ${e.type_label || ''} ${e.payment_mode || ''}`.toLowerCase().includes(needle));
   }, [payload, q]);
   const { pageRows: pageEntries, pagination } = usePagedRows(entries, 'customer-ledger', { resetKey: `${partyId}|${start}|${end}|${q}` });
 
@@ -509,6 +636,12 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
     current_balance: entries.length ? Number(entries[entries.length - 1].balance || 0) : 0,
     previous_balance: 0,
     opening: Number(selected?.opening_balance || 0),
+    project_cost: 0,
+    work_completion_pct: 0,
+    work_done_value: 0,
+    received_payment: 0,
+    outstanding_amount: 0,
+    remaining_work_value: 0,
   };
 
   const finalBalance = Number(summary.final_balance ?? summary.current_balance ?? 0);
@@ -543,8 +676,8 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
     exportNotifyCsv(
       onNotify,
       `customer-ledger-${selected?.phone || selected?.name || partyId}`,
-      ['Date', 'Vehicle No', 'Type', 'Challan/Receipt No', 'Work', 'Debit', 'Credit', 'Balance'],
-      entries.map((e) => [e.date, e.vehicle_no, e.type_label || e.type, e.ref, e.work || e.particulars, e.debit, e.credit, e.balance]),
+      ['Date', 'Vehicle No', 'Type', 'Payment Mode', 'Challan/Receipt No', 'Work', 'Debit', 'Credit', 'Balance'],
+      entries.map((e) => [e.date, e.vehicle_no, e.type_label || e.type, e.payment_mode || '', e.ref, e.work || e.particulars, e.debit, e.credit, e.balance]),
     );
   };
 
@@ -556,18 +689,67 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
     window.print();
   };
 
+  const openAddLedger = () => {
+    const form = emptyLedgerForm();
+    if (partyId) form.party_id = String(partyId);
+    setLedgerModal({ form });
+  };
+
+  const saveLedgerEntry = async () => {
+    const form = ledgerModal?.form || {};
+    const targetId = String(form.party_id || '').trim();
+    if (!targetId) {
+      onNotify('Please select a customer', 'error');
+      return;
+    }
+    if (!form.entry_date) {
+      onNotify('Date is required', 'error');
+      return;
+    }
+    if (!form.entry_type) {
+      onNotify('Transaction Type is required', 'error');
+      return;
+    }
+    const amount = Number(form.amount);
+    if (!(amount > 0)) {
+      onNotify('Amount must be greater than zero', 'error');
+      return;
+    }
+    setSavingLedger(true);
+    try {
+      await accountsModuleApi.addLedgerEntry(targetId, {
+        entry_date: form.entry_date,
+        entry_type: form.entry_type,
+        payment_mode: form.payment_mode,
+        amount,
+        vehicle_no: form.vehicle_no || '',
+        reference_no: form.reference_no || '',
+        work: form.work || '',
+      });
+      setLedgerModal(null);
+      setPartyId(targetId);
+      setReloadKey((k) => k + 1);
+      onNotify('Ledger entry saved', 'success');
+    } catch (e) {
+      onNotify(e.message || 'Failed to save ledger entry', 'error');
+    } finally {
+      setSavingLedger(false);
+    }
+  };
+
   const kpiCards = [
-    { label: 'Total Debit (Sales)', value: summary.total_debit, tone: 'bg-[#eff6ff] border-[#bfdbfe] text-[#1d4ed8]', Icon: TrendingUp },
-    { label: 'Total Credit (Payments)', value: summary.total_credit, tone: 'bg-[#ecfdf5] border-[#a7f3d0] text-[#047857]', Icon: TrendingDown },
-    { label: 'Credit 15+ Days Old', value: summary.credit_15_plus, tone: 'bg-[#fef2f2] border-[#fecaca] text-[#dc2626]', Icon: AlertCircle },
-    { label: 'Current Balance', value: summary.current_balance, tone: 'bg-[#f5f3ff] border-[#ddd6fe] text-[#6d28d9]', Icon: Wallet, suffix: Number(summary.current_balance) >= 0 ? ' (Dr)' : ' (Cr)' },
-    { label: 'Previous Balance', value: summary.previous_balance, tone: 'bg-[#fff7ed] border-[#fed7aa] text-[#c2410c]', Icon: Wallet },
+    { label: 'Project Cost', value: summary.project_cost, tone: 'bg-[#eff6ff] border-[#bfdbfe] text-[#1d4ed8]', Icon: IndianRupee },
+    { label: 'Work Completion (%)', value: summary.work_completion_pct, tone: 'bg-[#ecfdf5] border-[#a7f3d0] text-[#047857]', Icon: TrendingUp, format: 'pct' },
+    { label: 'Work Done Value', value: summary.work_done_value, tone: 'bg-[#f5f3ff] border-[#ddd6fe] text-[#6d28d9]', Icon: Wallet },
+    { label: 'Received Payment', value: summary.received_payment ?? summary.total_credit, tone: 'bg-[#ecfdf5] border-[#a7f3d0] text-[#047857]', Icon: TrendingDown },
+    { label: 'Outstanding Amount', value: summary.outstanding_amount, tone: 'bg-[#fef2f2] border-[#fecaca] text-[#dc2626]', Icon: AlertCircle },
+    { label: 'Remaining Work Value', value: summary.remaining_work_value, tone: 'bg-[#fff7ed] border-[#fed7aa] text-[#c2410c]', Icon: Wallet },
   ];
 
   return (
     <>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-[16px] font-extrabold text-[#111827]">Customer Ledger</h2>
+        <h2 className="text-[16px] font-extrabold text-[#111827]">Won Client Ledger</h2>
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={refreshAll} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#284276]">
             <RefreshCw className="size-3.5" /> Refresh
@@ -581,8 +763,11 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
           <button type="button" disabled={fixing} onClick={fixDuplicates} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#fecaca] bg-[#fef2f2] px-3 text-[12px] font-extrabold text-[#dc2626] disabled:opacity-50">
             {fixing ? 'Fixing...' : 'Fix Duplicates'}
           </button>
-          <button type="button" onClick={() => onOpenSection?.('Customer Details')} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-[#dc2626] px-3 text-[12px] font-extrabold text-white">
+          <button type="button" onClick={() => onOpenSection?.('Customer Details')} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#284276]">
             <Plus className="size-3.5" /> Add Customer
+          </button>
+          <button type="button" onClick={openAddLedger} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-[#dc2626] px-3 text-[12px] font-extrabold text-white">
+            <Plus className="size-3.5" /> Add New Ledger
           </button>
         </div>
       </div>
@@ -590,13 +775,13 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
       <div className="rounded-[14px] border border-[#e2e9f3] bg-white p-4 shadow-sm">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <Field label="Select Customer *">
-            <select className={inputClass} value={partyId} onChange={(e) => setPartyId(e.target.value)}>
-              <option value="">Choose a customer</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}{c.phone ? ` (${c.phone})` : ''}</option>
-              ))}
-            </select>
-            <p className="mt-1 text-[11px] font-semibold text-[#0b65e5]">Only customers linked from invoices & payment receipts are shown.</p>
+            <CustomerSearchSelect
+              customers={customers}
+              value={partyId}
+              onChange={setPartyId}
+              placeholder="Choose a customer"
+            />
+            <p className="mt-1 text-[11px] font-semibold text-[#0b65e5]">Only Won-lead customers are listed here for payment transactions &amp; statements.</p>
           </Field>
           <Field label="Start Date"><input type="date" className={inputClass} value={start} onChange={(e) => setStart(e.target.value)} /></Field>
           <Field label="End Date"><input type="date" className={inputClass} value={end} onChange={(e) => setEnd(e.target.value)} /></Field>
@@ -611,15 +796,15 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
         </div>
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            {kpiCards.map(({ label, value, tone, Icon, suffix }) => (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {kpiCards.map(({ label, value, tone, Icon, suffix, format }) => (
               <article key={label} className={`rounded-[14px] border p-4 ${tone}`}>
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-[11px] font-bold opacity-80">{label}</p>
                   <Icon className="size-4 opacity-70" />
                 </div>
                 <p className="mt-2 text-[22px] font-extrabold tracking-tight">
-                  {fmtCompact(value)}{suffix || ''}
+                  {format === 'pct' ? `${Number(value || 0).toFixed(1)}%` : `${fmtCompact(value)}${suffix || ''}`}
                 </p>
               </article>
             ))}
@@ -655,14 +840,14 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
                 <table className="min-w-[1100px] w-full text-left text-[13px]">
                   <thead className="bg-[#f1f5f9] text-[11px] font-extrabold uppercase tracking-wide text-[#64748b]">
                     <tr>
-                      {['Date', 'Vehicle No', 'Type', 'Challan/Receipt No.', 'Work', 'Debit (₹)', 'Credit (₹)', 'Balance (₹)', 'Action'].map((h) => (
+                      {['Date', 'Vehicle No', 'Type', 'Payment Mode', 'Challan/Receipt No.', 'Work', 'Debit (₹)', 'Credit (₹)', 'Balance (₹)', 'Action'].map((h) => (
                         <th key={h} className="px-3 py-2.5">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {entries.length === 0 ? (
-                      <tr><td colSpan={9} className="px-3 py-10 text-center text-[#7a8fa6]">No ledger entries for this customer.</td></tr>
+                      <tr><td colSpan={10} className="px-3 py-10 text-center text-[#7a8fa6]">No ledger entries for this customer.</td></tr>
                     ) : pageEntries.map((e, i) => {
                       const bal = Number(e.balance || 0);
                       return (
@@ -670,6 +855,7 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
                           <td className="px-3 py-2.5 whitespace-nowrap">{fmtDisplayDate(e.date)}</td>
                           <td className="px-3 py-2.5">{e.vehicle_no || '—'}</td>
                           <td className="px-3 py-2.5"><TypeBadge value={e.type_label || e.type} /></td>
+                          <td className="px-3 py-2.5 whitespace-nowrap text-[#334155]">{e.payment_mode || '—'}</td>
                           <td className="px-3 py-2.5 font-semibold text-[#334155]">{e.ref || '—'}</td>
                           <td className="max-w-[260px] truncate px-3 py-2.5" title={e.work || e.particulars || ''}>{e.work || e.particulars || '—'}</td>
                           <td className="px-3 py-2.5 whitespace-nowrap">{e.debit ? fmtRs(e.debit) : '—'}</td>
@@ -687,7 +873,7 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
                   {entries.length ? (
                     <tfoot>
                       <tr className="border-t-2 border-[#cbd5e1] bg-[#f8fafc] font-extrabold">
-                        <td className="px-3 py-3" colSpan={5}>Totals:</td>
+                        <td className="px-3 py-3" colSpan={6}>Totals:</td>
                         <td className="px-3 py-3 whitespace-nowrap">{fmtRs(summary.total_debit)}</td>
                         <td className="px-3 py-3 whitespace-nowrap">{fmtRs(summary.total_credit)}</td>
                         <td className={`px-3 py-3 whitespace-nowrap ${finalIsCredit ? 'text-[#166534]' : 'text-[#dc2626]'}`}>
@@ -715,12 +901,89 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
           <div className="grid gap-2 text-[13px]">
             <p><span className="font-bold text-[#64748b]">Date:</span> {fmtDisplayDate(detail.date)}</p>
             <p><span className="font-bold text-[#64748b]">Type:</span> <TypeBadge value={detail.type_label || detail.type} /></p>
+            <p><span className="font-bold text-[#64748b]">Payment Mode:</span> {detail.payment_mode || '—'}</p>
             <p><span className="font-bold text-[#64748b]">Ref:</span> {detail.ref || '—'}</p>
             <p><span className="font-bold text-[#64748b]">Vehicle:</span> {detail.vehicle_no || '—'}</p>
             <p><span className="font-bold text-[#64748b]">Work:</span> {detail.work || detail.particulars || '—'}</p>
             <p><span className="font-bold text-[#64748b]">Debit:</span> {detail.debit ? fmtRs(detail.debit) : '—'}</p>
             <p><span className="font-bold text-[#64748b]">Credit:</span> {detail.credit ? fmtRs(detail.credit) : '—'}</p>
             <p><span className="font-bold text-[#64748b]">Balance:</span> {fmtRs(detail.balance)}</p>
+          </div>
+        </ModalShell>
+      ) : null}
+
+      {ledgerModal ? (
+        <ModalShell
+          title="Add New Ledger"
+          onClose={() => !savingLedger && setLedgerModal(null)}
+          footer={(
+            <>
+              <button type="button" disabled={savingLedger} onClick={() => setLedgerModal(null)} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-semibold text-[#334155] disabled:opacity-50">Cancel</button>
+              <button type="button" disabled={savingLedger} onClick={saveLedgerEntry} className="h-10 rounded-[8px] bg-[#dc2626] px-4 text-[13px] font-extrabold text-white disabled:opacity-50">
+                {savingLedger ? 'Saving...' : 'Save Entry'}
+              </button>
+            </>
+          )}
+        >
+          <div className="grid gap-3">
+            <Field label="Customer" required>
+              <CustomerSearchSelect
+                customers={customers}
+                value={ledgerModal.form.party_id}
+                onChange={(next) => setLedgerModal((m) => ({ ...m, form: { ...m.form, party_id: next } }))}
+                placeholder="Select customer"
+              />
+            </Field>
+            <Field label="Date" required>
+              <input
+                type="date"
+                className={inputClass}
+                value={ledgerModal.form.entry_date}
+                onChange={(e) => setLedgerModal((m) => ({ ...m, form: { ...m.form, entry_date: e.target.value } }))}
+              />
+            </Field>
+            <Field label="Transaction Type" required>
+              <select
+                className={inputClass}
+                value={ledgerModal.form.entry_type}
+                onChange={(e) => setLedgerModal((m) => ({ ...m, form: { ...m.form, entry_type: e.target.value } }))}
+              >
+                <option value="sale">Sale (Debit)</option>
+                <option value="payment">Payment (Credit)</option>
+                <option value="discount">Discount (Credit)</option>
+              </select>
+            </Field>
+            <Field label="Payment Mode">
+              <select
+                className={inputClass}
+                value={ledgerModal.form.payment_mode}
+                onChange={(e) => setLedgerModal((m) => ({ ...m, form: { ...m.form, payment_mode: e.target.value } }))}
+              >
+                <option value="">Select payment mode</option>
+                {LEDGER_PAYMENT_MODE_OPTIONS.map((mode) => (
+                  <option key={mode} value={mode}>{mode}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Amount (₹)" required>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                className={inputClass}
+                placeholder="0.00"
+                value={ledgerModal.form.amount}
+                onChange={(e) => setLedgerModal((m) => ({ ...m, form: { ...m.form, amount: e.target.value } }))}
+              />
+            </Field>
+            <Field label="Work / Description">
+              <textarea
+                className={`${inputClass} h-24 py-2`}
+                placeholder="Work description"
+                value={ledgerModal.form.work}
+                onChange={(e) => setLedgerModal((m) => ({ ...m, form: { ...m.form, work: e.target.value } }))}
+              />
+            </Field>
           </div>
         </ModalShell>
       ) : null}

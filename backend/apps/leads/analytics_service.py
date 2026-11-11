@@ -71,7 +71,7 @@ def lead_analytics(
         bucket['total'] += 1
         if status == 'New':
             bucket['new'] += 1
-        elif status == 'Follow-up':
+        elif status == 'Quotation':
             bucket['follow_up'] += 1
         elif status == 'Won':
             bucket['won'] += 1
@@ -121,7 +121,7 @@ def lead_analytics(
         with_ivrs=Count('id', filter=~Q(ivrs_number='')),
         overdue=Count(
             'id',
-            filter=Q(next_follow_up__lt=timezone.now(), status__in=['New', 'Follow-up']),
+            filter=Q(next_follow_up__lt=timezone.now(), status__in=['New', 'Quotation']),
         ),
     )
     total = totals['total'] or 0
