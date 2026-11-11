@@ -75,15 +75,12 @@ class LeadViewSet(viewsets.ModelViewSet):
         from django.utils import timezone
         user = self.request.user
         now = timezone.now()
-        # Tele Sales: land unassigned in the manager pool.
-        # Sales Executive (tele/CRM): auto-own the lead they personally add.
+        # Sales + Tele Sales Executives auto-own leads they personally add
+        # (Tele My Leads is assigned_to-only, so create must set assigned_to=self
+        # or the new lead vanishes from their portal after save).
         # New leads get last_activity_at so they sort with recently-worked list.
         if is_lead_scoped(user):
-            role = getattr(getattr(user, 'role', None), 'name', '')
-            if role == 'Sales Executive':
-                serializer.save(created_by=user, assigned_to=user, last_activity_at=now)
-            else:
-                serializer.save(created_by=user, assigned_to=None, last_activity_at=now)
+            serializer.save(created_by=user, assigned_to=user, last_activity_at=now)
         else:
             serializer.save(created_by=user, last_activity_at=now)
 
@@ -308,14 +305,8 @@ class LeadViewSet(viewsets.ModelViewSet):
         except (User.DoesNotExist, ValueError, TypeError):
             return Response({'error': 'Invalid or inactive user.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Any active account except Tele Sales Executive may be assigned.
-        role_name = getattr(getattr(assignee, 'role', None), 'name', '') or ''
-        if role_name == 'Tele Sales Executive':
-            return Response(
-                {'error': 'Leads cannot be assigned to a Tele Sales Executive.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
+        # Tele Sales Executives are valid assignees (Tele portal My Leads =
+        # assigned_to filter). Any other active non-deleted account is fine too.
         lead.assigned_to_id = assignee.pk
         lead.save(update_fields=['assigned_to', 'updated_at'])
         return Response({'assigned_to': lead.assigned_to_id})

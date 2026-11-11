@@ -4042,7 +4042,7 @@ function TeleLeadCreateModal({ onClose, onSaved, onNotify }) {
     setSaving(true);
     const { status, category } = mapTeleStatusToApi(form.leadStatus);
     try {
-      // Backend force-assigns the lead to the logged-in tele executive.
+      // Backend assigns the new lead to the logged-in Tele executive (My Leads).
       const created = await leadApi.create({
         customer_name: form.customer_name.trim(),
         mobile_number: form.mobile_number.trim(),
