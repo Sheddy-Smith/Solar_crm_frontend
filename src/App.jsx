@@ -27447,6 +27447,8 @@ function mapApiUserToSettingsRow(apiUser) {
     roleId: apiUser.role,
     branchId: apiUser.branch,
     isDeleted,
+    // Super Admin API only — last password sealed in vault (for Edit User form).
+    loginPassword: isDeleted ? '' : (apiUser.login_password || ''),
   };
 }
 
@@ -27573,7 +27575,11 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
         if (payload.password) {
           await userApi.changePassword(payload.id, { new_password: payload.password });
         }
-        const mapped = mapApiUserToSettingsRow(updated);
+        const mapped = {
+          ...mapApiUserToSettingsRow(updated),
+          // Keep / refresh visible password in local row after edit/reset.
+          loginPassword: payload.password || editingUser?.loginPassword || '',
+        };
         setUsers((current) => current.map((item) => (item.id === mapped.id ? mapped : item)));
         setEditingUser(null);
         onNotify(`${mapped.name} updated`);
@@ -27589,7 +27595,10 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
       role: payload.roleId || undefined,
       branch: payload.branchId || undefined,
     }).then((created) => {
-      const mapped = mapApiUserToSettingsRow(created);
+      const mapped = {
+        ...mapApiUserToSettingsRow(created),
+        loginPassword: payload.password || created?.login_password || '',
+      };
       setUsers((current) => [mapped, ...current]);
       setAddUserOpen(false);
       onNotify(`${mapped.name} added`);
@@ -27809,6 +27818,14 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
           onEdit={() => { setEditingUser(selectedUser); setSelectedUser(null); }}
           onToggleStatus={toggleUserStatus}
           onNotify={onNotify}
+          onPasswordUpdated={(userId, password) => {
+            setUsers((current) => current.map((item) => (
+              item.id === userId ? { ...item, loginPassword: password } : item
+            )));
+            setSelectedUser((current) => (
+              current?.id === userId ? { ...current, loginPassword: password } : current
+            ));
+          }}
           canResetPassword={canManageUsers}
           canToggleStatus={canManageUsers}
         />
@@ -27830,6 +27847,7 @@ function normalizeSettingsPhone(phone) {
 function SettingsUserFormModal({ initialUser = null, onClose, onSave, onNotify }) {
   const [roles, setRoles] = useState([]);
   const [branches, setBranches] = useState([]);
+  const existingPassword = initialUser?.loginPassword || '';
   const [form, setForm] = useState(() => ({
     id: initialUser?.id,
     name: initialUser?.name || '',
@@ -27838,8 +27856,8 @@ function SettingsUserFormModal({ initialUser = null, onClose, onSave, onNotify }
     roleId: initialUser?.roleId || '',
     branchId: initialUser?.branchId || '',
     status: initialUser?.status || 'Active',
-    password: '',
-    confirmPassword: '',
+    password: existingPassword,
+    confirmPassword: existingPassword,
   }));
 
   useEffect(() => {
@@ -27881,12 +27899,15 @@ function SettingsUserFormModal({ initialUser = null, onClose, onSave, onNotify }
         onNotify?.('Passwords do not match', 'error');
         return;
       }
-    } else if (form.password && form.password.length < 8) {
-      onNotify?.('New password must be at least 8 characters', 'error');
-      return;
-    } else if (form.password && form.password !== form.confirmPassword) {
-      onNotify?.('Passwords do not match', 'error');
-      return;
+    } else if (form.password || form.confirmPassword) {
+      if (form.password.length < 8) {
+        onNotify?.('Password must be at least 8 characters', 'error');
+        return;
+      }
+      if (form.password !== form.confirmPassword) {
+        onNotify?.('Passwords do not match', 'error');
+        return;
+      }
     }
 
     const phone = normalizeSettingsPhone(form.phone);
@@ -27895,11 +27916,14 @@ function SettingsUserFormModal({ initialUser = null, onClose, onSave, onNotify }
       return;
     }
 
+    const passwordChanged = Boolean(initialUser) && form.password && form.password !== existingPassword;
     onSave({
       ...form,
       name,
       email: form.email.trim(),
       phone,
+      // Avoid re-hashing the same vault password on every profile save.
+      password: initialUser ? (passwordChanged ? form.password : '') : form.password,
     });
   };
 
@@ -27918,28 +27942,28 @@ function SettingsUserFormModal({ initialUser = null, onClose, onSave, onNotify }
           <ReportSelect label="Branch" value={String(form.branchId || '')} onChange={(value) => updateField('branchId', value ? Number(value) : '')} options={['', ...branches.map((branch) => String(branch.id))]} optionLabels={{ '': branches.length ? 'Select branch' : 'No branches available', ...Object.fromEntries(branches.map((branch) => [String(branch.id), branch.name])) }} />
           <ReportSelect label="Status" value={form.status} onChange={(value) => updateField('status', value)} options={['Active', 'Inactive']} />
           <div className="sm:col-span-2">
-            <p className="mb-2 text-[12px] font-extrabold text-[#53647f]">
-              {initialUser ? 'Password reset (optional)' : 'Password'}
-            </p>
+            <p className="mb-2 text-[12px] font-extrabold text-[#53647f]">Password</p>
             {initialUser ? (
               <p className="mb-3 text-[11px] font-semibold text-[#8a98af]">
-                Current password cannot be shown. Leave blank to keep it, or enter a new password below to reset.
+                {existingPassword
+                  ? 'Current password is shown below (use the eye icon to reveal/hide). Change it and Save to reset.'
+                  : 'No saved password on file for this older account. Set a new password here — it will appear next time you edit.'}
               </p>
             ) : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <ModalTextInput
-                label={initialUser ? 'New Password' : 'Password'}
+                label={initialUser ? 'Password' : 'Password'}
                 type="password"
                 value={form.password}
                 onChange={(value) => updateField('password', value)}
-                placeholder={initialUser ? 'Leave blank to keep current' : 'Min 8 characters'}
+                placeholder={initialUser ? (existingPassword ? 'Current password' : 'Set new password (min 8)') : 'Min 8 characters'}
               />
               <ModalTextInput
                 label="Confirm Password"
                 type="password"
                 value={form.confirmPassword}
                 onChange={(value) => updateField('confirmPassword', value)}
-                placeholder={initialUser ? 'Re-enter only if resetting' : 'Re-enter password'}
+                placeholder="Re-enter password"
               />
             </div>
           </div>
@@ -27953,7 +27977,7 @@ function SettingsUserFormModal({ initialUser = null, onClose, onSave, onNotify }
   );
 }
 
-function SettingsUserProfileModal({ user, onClose, onEdit, onToggleStatus, onNotify, canResetPassword = true, canToggleStatus = true }) {
+function SettingsUserProfileModal({ user, onClose, onEdit, onToggleStatus, onNotify, onPasswordUpdated, canResetPassword = true, canToggleStatus = true }) {
   const [resetOpen, setResetOpen] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -27971,6 +27995,7 @@ function SettingsUserProfileModal({ user, onClose, onEdit, onToggleStatus, onNot
     setResetting(true);
     try {
       await userApi.changePassword(user.id, { new_password: newPassword });
+      onPasswordUpdated?.(user.id, newPassword);
       onNotify(`Password reset for ${user.name}`, 'success');
       setResetOpen(false);
       setNewPassword('');

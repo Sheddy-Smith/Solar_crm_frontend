@@ -264,7 +264,7 @@ class UserViewSet(viewsets.ModelViewSet):
             ensure_employee_for_user(user)
         except Exception:
             pass
-        return Response(UserSerializer(user).data)
+        return Response(UserSerializer(user, context={'request': request}).data)
 
     def update(self, request, *args, **kwargs):
         user = self.get_object()
@@ -305,7 +305,10 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
+        return Response(
+            UserSerializer(user, context={'request': request}).data,
+            status=status.HTTP_201_CREATED,
+        )
 
     @action(detail=False, methods=['get'])
     def me(self, request):
@@ -386,8 +389,11 @@ class UserViewSet(viewsets.ModelViewSet):
         if is_self and not is_super_admin(request.user):
             if not user.check_password(serializer.validated_data.get('old_password') or ''):
                 return Response({'old_password': 'Wrong password.'}, status=status.HTTP_400_BAD_REQUEST)
-        user.set_password(serializer.validated_data['new_password'])
-        user.save()
+        new_password = serializer.validated_data['new_password']
+        user.set_password(new_password)
+        from .password_vault import seal_password
+        user.password_vault = seal_password(new_password)
+        user.save(update_fields=['password', 'password_vault', 'updated_at'])
         return Response({'message': 'Password changed successfully.'})
 
     @action(detail=True, methods=['post'])

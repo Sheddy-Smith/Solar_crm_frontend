@@ -39,18 +39,30 @@ class UserSerializer(serializers.ModelSerializer):
     initials = serializers.ReadOnlyField()
     is_super_admin = serializers.SerializerMethodField()
     permissions = serializers.SerializerMethodField()
+    # Super Admin only — last password set via Users UI (from encrypted vault).
+    login_password = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             'id', 'email', 'name', 'mobile', 'role', 'role_name', 'branch', 'branch_name',
             'is_active', 'is_deleted', 'initials', 'created_at', 'is_super_admin', 'permissions',
-            'language', 'typing_transliteration',
+            'language', 'typing_transliteration', 'login_password',
         ]
-        read_only_fields = ['language', 'typing_transliteration']
+        read_only_fields = ['language', 'typing_transliteration', 'login_password']
 
     def get_is_super_admin(self, obj):
         return is_super_admin(obj)
+
+    def get_login_password(self, obj):
+        request = self.context.get('request')
+        viewer = getattr(request, 'user', None) if request else None
+        if not viewer or not is_super_admin(viewer):
+            return None
+        if getattr(obj, 'is_deleted', False):
+            return None
+        from .password_vault import reveal_password
+        return reveal_password(obj) or None
 
     def get_permissions(self, obj):
         if not obj.role:
@@ -79,6 +91,8 @@ class UserCreateSerializer(serializers.ModelSerializer):
         password = validated_data.pop('password')
         user = User(**validated_data)
         user.set_password(password)
+        from .password_vault import seal_password
+        user.password_vault = seal_password(password)
         user.save()
         try:
             from apps.workforce.services import ensure_employee_for_user
