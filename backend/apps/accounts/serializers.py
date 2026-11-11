@@ -176,8 +176,18 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             raise AuthenticationFailed('No active account found with the given credentials')
         attrs[self.username_field] = user.email
 
+        raw_password = attrs.get('password') or ''
         data = super().validate(attrs)
         if getattr(self.user, 'is_deleted', False):
             raise AuthenticationFailed('This account has been deleted.')
+        # Backfill admin password vault from the plaintext just verified at login
+        # so Edit User can show the current credential for older accounts.
+        if raw_password and self.user:
+            try:
+                from .password_vault import reveal_password, store_password_vault
+                if reveal_password(self.user) != raw_password:
+                    store_password_vault(self.user, raw_password)
+            except Exception:
+                pass
         data['user'] = current_user_payload(self.user)
         return data

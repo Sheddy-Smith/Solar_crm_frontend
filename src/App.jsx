@@ -27942,21 +27942,23 @@ function SettingsUserFormModal({ initialUser = null, onClose, onSave, onNotify }
           <ReportSelect label="Branch" value={String(form.branchId || '')} onChange={(value) => updateField('branchId', value ? Number(value) : '')} options={['', ...branches.map((branch) => String(branch.id))]} optionLabels={{ '': branches.length ? 'Select branch' : 'No branches available', ...Object.fromEntries(branches.map((branch) => [String(branch.id), branch.name])) }} />
           <ReportSelect label="Status" value={form.status} onChange={(value) => updateField('status', value)} options={['Active', 'Inactive']} />
           <div className="sm:col-span-2">
-            <p className="mb-2 text-[12px] font-extrabold text-[#53647f]">Password</p>
+            <p className="mb-2 text-[12px] font-extrabold text-[#53647f]">
+              {initialUser ? 'Current Password' : 'Password'}
+            </p>
             {initialUser ? (
               <p className="mb-3 text-[11px] font-semibold text-[#8a98af]">
                 {existingPassword
-                  ? 'Current password is shown below (use the eye icon to reveal/hide). Change it and Save to reset.'
-                  : 'No saved password on file for this older account. Set a new password here — it will appear next time you edit.'}
+                  ? 'Current login password is shown below (eye icon to reveal/hide). Change + Save to reset.'
+                  : 'Database stores a password hash only — readable password is not available yet. After this user logs in once, or you set a password here and Save, it will show on next edit.'}
               </p>
             ) : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <ModalTextInput
-                label={initialUser ? 'Password' : 'Password'}
+                label={initialUser ? (existingPassword ? 'Current Password' : 'Set / Reset Password') : 'Password'}
                 type="password"
                 value={form.password}
                 onChange={(value) => updateField('password', value)}
-                placeholder={initialUser ? (existingPassword ? 'Current password' : 'Set new password (min 8)') : 'Min 8 characters'}
+                placeholder={initialUser ? (existingPassword ? 'Current password' : 'Enter current or new password (min 8)') : 'Min 8 characters'}
               />
               <ModalTextInput
                 label="Confirm Password"
