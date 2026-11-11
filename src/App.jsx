@@ -27847,7 +27847,8 @@ function normalizeSettingsPhone(phone) {
 function SettingsUserFormModal({ initialUser = null, onClose, onSave, onNotify }) {
   const [roles, setRoles] = useState([]);
   const [branches, setBranches] = useState([]);
-  const existingPassword = initialUser?.loginPassword || '';
+  const [savedPassword, setSavedPassword] = useState(() => initialUser?.loginPassword || '');
+  const existingPassword = savedPassword || '';
   const [form, setForm] = useState(() => ({
     id: initialUser?.id,
     name: initialUser?.name || '',
@@ -27856,8 +27857,8 @@ function SettingsUserFormModal({ initialUser = null, onClose, onSave, onNotify }
     roleId: initialUser?.roleId || '',
     branchId: initialUser?.branchId || '',
     status: initialUser?.status || 'Active',
-    password: existingPassword,
-    confirmPassword: existingPassword,
+    password: initialUser?.loginPassword || '',
+    confirmPassword: initialUser?.loginPassword || '',
   }));
 
   useEffect(() => {
@@ -27876,7 +27877,26 @@ function SettingsUserFormModal({ initialUser = null, onClose, onSave, onNotify }
         }
       })
       .catch(() => onNotify?.('Could not load roles or branches', 'error'));
-  }, [initialUser]);  
+  }, [initialUser]);
+
+  // Fresh login_password from API (after user login backfill / password reset).
+  useEffect(() => {
+    if (!initialUser?.id) return undefined;
+    let cancelled = false;
+    userApi.get(initialUser.id)
+      .then((data) => {
+        if (cancelled) return;
+        const pwd = data?.login_password || '';
+        setSavedPassword(pwd);
+        setForm((current) => ({
+          ...current,
+          password: pwd,
+          confirmPassword: pwd,
+        }));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [initialUser?.id]);
 
   const updateField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
 
@@ -27942,23 +27962,23 @@ function SettingsUserFormModal({ initialUser = null, onClose, onSave, onNotify }
           <ReportSelect label="Branch" value={String(form.branchId || '')} onChange={(value) => updateField('branchId', value ? Number(value) : '')} options={['', ...branches.map((branch) => String(branch.id))]} optionLabels={{ '': branches.length ? 'Select branch' : 'No branches available', ...Object.fromEntries(branches.map((branch) => [String(branch.id), branch.name])) }} />
           <ReportSelect label="Status" value={form.status} onChange={(value) => updateField('status', value)} options={['Active', 'Inactive']} />
           <div className="sm:col-span-2">
-            <p className="mb-2 text-[12px] font-extrabold text-[#53647f]">
-              {initialUser ? 'Current Password' : 'Password'}
-            </p>
+            <p className="mb-2 text-[12px] font-extrabold text-[#53647f]">Password</p>
             {initialUser ? (
               <p className="mb-3 text-[11px] font-semibold text-[#8a98af]">
                 {existingPassword
-                  ? 'Current login password is shown below (eye icon to reveal/hide). Change + Save to reset.'
-                  : 'Database stores a password hash only — readable password is not available yet. After this user logs in once, or you set a password here and Save, it will show on next edit.'}
+                  ? 'Current password is pre-filled in both fields (eye icon to hide). Change both + Save to reset.'
+                  : 'Readable password not saved yet for this account. Set the same password in both fields and Save — next Edit will show it pre-filled. (User login once also saves it.)'}
               </p>
             ) : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <ModalTextInput
-                label={initialUser ? (existingPassword ? 'Current Password' : 'Set / Reset Password') : 'Password'}
+                label="Password"
                 type="password"
                 value={form.password}
                 onChange={(value) => updateField('password', value)}
-                placeholder={initialUser ? (existingPassword ? 'Current password' : 'Enter current or new password (min 8)') : 'Min 8 characters'}
+                placeholder={initialUser ? 'Password (min 8)' : 'Min 8 characters'}
+                autoComplete="new-password"
+                defaultReveal={Boolean(existingPassword)}
               />
               <ModalTextInput
                 label="Confirm Password"
@@ -27966,6 +27986,8 @@ function SettingsUserFormModal({ initialUser = null, onClose, onSave, onNotify }
                 value={form.confirmPassword}
                 onChange={(value) => updateField('confirmPassword', value)}
                 placeholder="Re-enter password"
+                autoComplete="new-password"
+                defaultReveal={Boolean(existingPassword)}
               />
             </div>
           </div>
@@ -31909,9 +31931,12 @@ function EditRoleModal({ role, onClose, onSave }) {
   );
 }
 
-function ModalTextInput({ label, value, onChange, placeholder, type = 'text' }) {
-  const [showPassword, setShowPassword] = useState(false);
+function ModalTextInput({ label, value, onChange, placeholder, type = 'text', autoComplete, defaultReveal = false }) {
+  const [showPassword, setShowPassword] = useState(Boolean(defaultReveal));
   const isPassword = type === 'password';
+  useEffect(() => {
+    if (defaultReveal) setShowPassword(true);
+  }, [defaultReveal]);
   return (
     <label className="block">
       <span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">{label}</span>
@@ -31921,6 +31946,8 @@ function ModalTextInput({ label, value, onChange, placeholder, type = 'text' }) 
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}
+          autoComplete={autoComplete || (isPassword ? 'new-password' : 'off')}
+          name={isPassword ? `user-${label.replace(/\s+/g, '-').toLowerCase()}` : undefined}
           className={cx(
             'h-11 w-full rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d] transition placeholder:text-[#8493ab] focus:border-blue-500 focus:ring-4 focus:ring-blue-100',
             isPassword && 'pr-11',

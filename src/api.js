@@ -228,6 +228,7 @@ export const userApi = {
     const qs = new URLSearchParams(params).toString();
     return request(`/users/${qs ? '?' + qs : ''}`);
   },
+  get: (id) => request(`/users/${id}/`),
   /** Active users for dropdowns — available to every signed-in role. */
   options: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
