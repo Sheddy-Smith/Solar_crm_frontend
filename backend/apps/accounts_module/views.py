@@ -77,14 +77,26 @@ class AccountViewSet(AccountsBaseViewSet):
     def get_queryset(self):
         qs = Account.objects.select_related('created_by').all()
         qs = filter_customer_parties_for_user(qs, self.request.user)
-        # Won Client Ledger: only parties linked to at least one Won lead (by mobile).
+        # Client Ledger: Won leads OR any lead that already has a quotation
+        # (quotation materials/pricing post to that customer account).
         won_only = str(self.request.query_params.get('won_only') or '').lower() in ('1', 'true', 'yes')
         if won_only:
-            from apps.leads.models import Lead
+            from apps.leads.models import Lead, Quotation
             from django.db.models import Q
 
             phones = set()
-            for mobile in Lead.objects.filter(is_deleted=False, status='Won').exclude(mobile_number='').values_list('mobile_number', flat=True):
+            lead_qs = Lead.objects.filter(is_deleted=False).exclude(mobile_number='')
+            for mobile in lead_qs.filter(status='Won').values_list('mobile_number', flat=True):
+                key = normalize_phone(mobile)
+                if key:
+                    phones.add(key)
+            quoted_lead_ids = (
+                Quotation.objects.filter(is_deleted=False)
+                .exclude(status='Rejected')
+                .values_list('lead_id', flat=True)
+                .distinct()
+            )
+            for mobile in lead_qs.filter(id__in=quoted_lead_ids).values_list('mobile_number', flat=True):
                 key = normalize_phone(mobile)
                 if key:
                     phones.add(key)

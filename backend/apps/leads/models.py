@@ -680,6 +680,18 @@ def create_project_for_won_lead(sender, instance, **kwargs):
                 if quote_total <= 0:
                     existing.total_value = lead_cost
                     existing.save(update_fields=['total_value', 'updated_at'])
+        try:
+            from apps.leads.quotation_sync import sync_quotation_downstream
+            latest_quote = (
+                Quotation.objects.filter(lead=instance, is_deleted=False)
+                .exclude(status='Rejected')
+                .order_by('-updated_at', '-id')
+                .first()
+            )
+            if latest_quote:
+                sync_quotation_downstream(latest_quote, user=instance.created_by)
+        except Exception:
+            pass
         return
 
     try:
@@ -712,6 +724,20 @@ def create_project_for_won_lead(sender, instance, **kwargs):
     try:
         from apps.accounts_module.services import get_or_create_party_for_project
         get_or_create_party_for_project(project)
+    except Exception:
+        pass
+
+    # Quotation (any prior status) → customer ledger + material planning auto-fill.
+    try:
+        from apps.leads.quotation_sync import sync_quotation_downstream
+        latest_quote = (
+            Quotation.objects.filter(lead=instance, is_deleted=False)
+            .exclude(status='Rejected')
+            .order_by('-updated_at', '-id')
+            .first()
+        )
+        if latest_quote:
+            sync_quotation_downstream(latest_quote, user=instance.created_by)
     except Exception:
         pass
 

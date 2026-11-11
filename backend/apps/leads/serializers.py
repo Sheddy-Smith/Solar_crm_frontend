@@ -172,12 +172,24 @@ class QuotationSerializer(serializers.ModelSerializer):
     def get_sales_executive_name(self, obj):
         return _user_name(obj.sales_executive) if obj.sales_executive else ''
 
+    def _sync_downstream(self, quotation):
+        """Quotation pricing → customer ledger; materials → material planning."""
+        try:
+            from .quotation_sync import sync_quotation_downstream
+            request = self.context.get('request')
+            user = getattr(request, 'user', None) if request else None
+            sync_quotation_downstream(quotation, user=user)
+        except Exception:
+            # Quotation save must not fail if accounts/MP sync has a soft error.
+            pass
+
     def create(self, validated_data):
         items_data = validated_data.pop('items', [])
         quotation = Quotation.objects.create(**validated_data)
         for item_data in items_data:
             QuotationItem.objects.create(quotation=quotation, **item_data)
         quotation.recalculate_totals()
+        self._sync_downstream(quotation)
         return quotation
 
     def update(self, instance, validated_data):
@@ -190,6 +202,7 @@ class QuotationSerializer(serializers.ModelSerializer):
             for item_data in items_data:
                 QuotationItem.objects.create(quotation=instance, **item_data)
         instance.recalculate_totals()
+        self._sync_downstream(instance)
         return instance
 
 

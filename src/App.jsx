@@ -4989,9 +4989,10 @@ function AppHeader({
           onClick={() => { onAppBack(); notify('Previous page'); }}
           title="Back (Alt + ←)"
           aria-label="Go back"
-          className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#dce7f5] bg-white text-[#52637f] shadow-[0_2px_8px_rgba(15,39,92,0.05)] transition hover:border-[#cfdbee] hover:bg-[#f5f9ff] hover:text-[#2158d6]"
+          className="inline-flex h-8 items-center gap-1 rounded-[8px] border border-[#dce7f5] bg-white px-2.5 text-[12px] font-extrabold text-[#52637f] shadow-[0_2px_8px_rgba(15,39,92,0.05)] transition hover:border-[#cfdbee] hover:bg-[#f5f9ff] hover:text-[#2158d6]"
         >
           <ChevronLeft className="size-4" strokeWidth={2.5} />
+          Back
         </button>
       </div>
     ) : null}
@@ -10564,7 +10565,7 @@ function getModuleSubnavLabel(item) {
   }
 
   if (item === 'Customer Ledger') {
-    return 'Won Client Ledger';
+    return 'Client Ledger';
   }
 
   if (item === 'Project Installation') {

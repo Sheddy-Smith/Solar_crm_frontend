@@ -19,7 +19,7 @@ function balanceTone(value) {
 
 const TABS = [
   { key: 'Customer Details', label: 'All Client Detail' },
-  { key: 'Customer Ledger', label: 'Won Client Ledger' },
+  { key: 'Customer Ledger', label: 'Client Ledger' },
   { key: 'Overall Credit Ledger', label: 'Overall Credit Ledger' },
 ];
 
@@ -581,7 +581,8 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
   const loadCustomers = useCallback(async () => {
     try {
       await accountsModuleApi.syncCustomersFromLeads().catch(() => null);
-      // Won Client Ledger: only customers linked to Won leads (payments / statements).
+      // Client Ledger: Won leads + leads that already have a quotation
+      // (quotation materials/pricing land on that customer account).
       const data = await accountsModuleApi.parties.list({
         account_type: 'Customer',
         won_only: true,
@@ -749,7 +750,7 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
   return (
     <>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-[16px] font-extrabold text-[#111827]">Won Client Ledger</h2>
+        <h2 className="text-[16px] font-extrabold text-[#111827]">Client Ledger</h2>
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={refreshAll} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#284276]">
             <RefreshCw className="size-3.5" /> Refresh

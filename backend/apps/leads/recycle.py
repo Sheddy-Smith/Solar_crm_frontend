@@ -63,6 +63,11 @@ def soft_delete_quotation(quotation, user):
     quotation.deleted_at = now
     quotation.deleted_by = user
     quotation.save(update_fields=['is_deleted', 'deleted_at', 'deleted_by', 'updated_at'])
+    try:
+        from apps.leads.quotation_sync import sync_quotation_to_customer_ledger
+        sync_quotation_to_customer_ledger(quotation, user=user)
+    except Exception:
+        pass
     return quotation
 
 
@@ -71,6 +76,11 @@ def restore_quotation(quotation):
     quotation.deleted_at = None
     quotation.deleted_by = None
     quotation.save(update_fields=['is_deleted', 'deleted_at', 'deleted_by', 'updated_at'])
+    try:
+        from apps.leads.quotation_sync import sync_quotation_downstream
+        sync_quotation_downstream(quotation)
+    except Exception:
+        pass
     return quotation
 
 
