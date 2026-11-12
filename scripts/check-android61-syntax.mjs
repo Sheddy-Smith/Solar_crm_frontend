@@ -29,18 +29,24 @@ if (!targets.length && !legacyOnly) {
 
 // Note: minifiers emit ternaries like `void 0===r?.8:r` (meaning `r===undefined?.8:r`).
 // That is NOT optional chaining — require a letter/_/$/[ after `?.`.
+// Also strip known false positives before scanning:
+//   - `/()??/` feature-detect regex (core-js / regenerator; also in vendor)
+//   - `\d+n{…}` CSS-module / hashed class tokens (not BigInt literals)
 const checks = [
   { name: 'optional_chaining', re: /\?\.(?:[A-Za-z_$]|\[)/g },
   { name: 'nullish_coalescing', re: /\?\?(?![?=])/g },
   { name: 'private_field_or_method', re: /this\.#\w+|(?<![\w$])#\w+\(|(?<![\w$])#\w+\s*=/g },
-  { name: 'bigint_literal', re: /\b\d+n\b/g },
+  // Real BigInt: 7n as a token; exclude 7n{hash} CSS-module style identifiers.
+  { name: 'bigint_literal', re: /(?<![\w$])\d+n(?![\w${])/g },
 ];
 
 let failed = false;
 const summary = [];
 
 for (const file of targets) {
-  const text = fs.readFileSync(path.join(distAssets, file), 'utf8');
+  let text = fs.readFileSync(path.join(distAssets, file), 'utf8');
+  // Neutralize /()??/ feature detection so ?? is not counted as nullish coalescing.
+  text = text.replace(/\/\(\)\?\?\//g, '/()/');
   const hits = {};
   for (const { name, re } of checks) {
     const m = text.match(re) || [];

@@ -28,8 +28,13 @@ class LatestFollowUpWinsTests(TestCase):
         self.client = APIClient()
         self.client.force_authenticate(self.user)
         self.now = timezone.now()
+        # Tele Sales ownership is assignee-primary — created_by alone is not enough.
         self.lead = Lead.objects.create(
-            customer_name='Ramesh Kaur', mobile_number='7700010008', created_by=self.user, status='Follow-up',
+            customer_name='Ramesh Kaur',
+            mobile_number='7700010008',
+            created_by=self.user,
+            assigned_to=self.user,
+            status='Follow-up',
         )
         self.planned_at = self.now + timedelta(days=3)
         self.planned = FollowUp.objects.create(

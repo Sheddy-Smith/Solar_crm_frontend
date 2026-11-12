@@ -29,10 +29,19 @@ def ensure_installation_checklist(project, user=None):
 
     created = []
     for label, weight in INSTALLATION_TASK_WEIGHTS:
+        canonical = label.strip()
+        existing = ProjectChecklistItem.objects.filter(
+            project=project, phase='Installation', label__iexact=canonical,
+        ).first()
+        if existing:
+            if existing.label != canonical:
+                existing.label = canonical
+                existing.save(update_fields=['label'])
+            continue
         item, was_created = ProjectChecklistItem.objects.get_or_create(
             project=project,
             phase='Installation',
-            label=label,
+            label=canonical,
             defaults={
                 'category': 'Installation',
                 'notes': f'Weightage {weight}%',

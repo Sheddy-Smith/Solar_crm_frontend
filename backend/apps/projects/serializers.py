@@ -314,6 +314,23 @@ class ProjectChecklistItemSerializer(serializers.ModelSerializer):
         model = ProjectChecklistItem
         fields = ['id', 'project', 'phase', 'category', 'label', 'is_checked', 'notes', 'checked_by', 'checked_by_name', 'checked_at']
 
+    def validate(self, attrs):
+        label = (attrs.get('label') if 'label' in attrs else getattr(self.instance, 'label', '') or '').strip()
+        phase = attrs.get('phase') if 'phase' in attrs else getattr(self.instance, 'phase', None)
+        project = attrs.get('project') if 'project' in attrs else getattr(self.instance, 'project', None)
+        if project is not None and phase and label:
+            qs = ProjectChecklistItem.objects.filter(
+                project=project, phase=phase, label__iexact=label,
+            )
+            if self.instance is not None:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError({
+                    'label': 'A checklist item with this label already exists for this phase.',
+                })
+        attrs['label'] = label
+        return attrs
+
 
 class InstallationMaterialSerializer(serializers.ModelSerializer):
     inventory_item_name = serializers.CharField(source='inventory_item.name', read_only=True)

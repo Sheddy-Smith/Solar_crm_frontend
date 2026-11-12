@@ -39,6 +39,9 @@ jobs:
         working-directory: backend
         run: pip install -r requirements.txt
 
+      - name: Guard against secret dumps in tree
+        run: python scripts/check_no_secret_dumps.py
+
       # Fast suite uses SQLite (development settings when argv contains "test").
       # Production MySQL/Postgres migration compatibility still needs a separate
       # integration job against the real engine before major releases.

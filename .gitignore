@@ -43,6 +43,12 @@ Data/*.json
 !Data/*.png
 !Data/*.jpg
 !Data/*.webp
+backend/audit_test.db
+backend/test_db.sqlite3
+*.sqlite3
+.env.local
+*.pem
+*.p12
 
 # Reference desktop app (too large for GitHub) and its extracted source,
 # kept locally only for UI/UX comparison — not part of this project.

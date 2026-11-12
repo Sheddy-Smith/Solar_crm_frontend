@@ -107,12 +107,33 @@ def _ip_matches(ip, ip_range):
         return False
 
 
-# Process-local counter for ops/alerting when enforcement fails open.
+# Process-local counters only — NOT durable monitoring. Prefer log shipping.
 _fail_open_events = 0
 
 
 def get_ip_fail_open_count():
+    """In-process counter for tests/local diagnostics. Not cross-worker durable."""
     return _fail_open_events
+
+
+def _emit_fail_open_metric(path):
+    """Best-effort structured metric hook without requiring Prometheus/StatsD."""
+    try:
+        from django.core.cache import cache
+        cache.add('ip_access_fail_open_total', 0)
+        try:
+            cache.incr('ip_access_fail_open_total')
+        except ValueError:
+            cache.set('ip_access_fail_open_total', 1, timeout=None)
+    except Exception:
+        # Metrics must never break request handling.
+        pass
+    logger.error(
+        'security.metric ip_access_fail_open=1 path=%s count=%s',
+        path,
+        _fail_open_events,
+        extra={'event': 'ip_access_fail_open', 'path': path, 'count': _fail_open_events},
+    )
 
 
 class IpAccessMiddleware:
@@ -134,12 +155,14 @@ class IpAccessMiddleware:
         except Exception:
             # Fail open — deliberate availability policy (see module docstring).
             _fail_open_events += 1
+            path = getattr(request, 'path', '')
             logger.exception(
                 'IpAccessMiddleware check failed; allowing request through (fail-open). '
                 'count=%s path=%s',
                 _fail_open_events,
-                getattr(request, 'path', ''),
+                path,
             )
+            _emit_fail_open_metric(path)
             blocked, reason = False, ''
 
         if blocked:

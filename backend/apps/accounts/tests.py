@@ -80,7 +80,8 @@ class PermissionRegressionTests(TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.data['total'], 2)
         self.assertEqual(res.data['created_in_period'], 1)
-        self.assertEqual(res.data['follow_up'], 1)
+        # Legacy `follow_up` status KPI is intentionally always 0 (see LeadViewSet.stats).
+        self.assertEqual(res.data['follow_up'], 0)
 
     def test_failed_login_is_logged(self):
         make_user('login@test.com', 'Any Role')
@@ -133,6 +134,7 @@ class PermissionRegressionTests(TestCase):
             customer_name='Jivan Gupta',
             mobile_number='9407556185',
             created_by=user,
+            assigned_to=user,
             status='Follow-up',
             next_follow_up=old_due,
         )

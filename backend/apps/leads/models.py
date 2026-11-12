@@ -128,6 +128,13 @@ class Lead(models.Model):
     def save(self, *args, **kwargs):
         digits = ''.join(ch for ch in str(self.mobile_number or '') if ch.isdigit())
         self.normalized_mobile = digits[-10:] if len(digits) >= 10 else digits
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None:
+            fields = set(update_fields)
+            # Any mobile_number write must also persist the canonical key.
+            if 'mobile_number' in fields or 'normalized_mobile' not in fields:
+                fields.add('normalized_mobile')
+            kwargs['update_fields'] = list(fields)
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -530,26 +537,35 @@ class Quotation(models.Model):
 class QuotationDownstreamSync(models.Model):
     """Durable outbox for quotation → ledger / material-plan sync.
 
-    Quotation rows commit first; sync status is tracked here so failures can be
-    retried without losing the quotation (financial reconciliation).
+    The pending outbox row is created in the same DB transaction as the
+    quotation. Processing runs after commit; failures stay retryable without
+    rolling back the quotation.
     """
 
     STATUS_PENDING = 'pending'
+    STATUS_PROCESSING = 'processing'
     STATUS_SUCCESS = 'success'
     STATUS_FAILED = 'failed'
     STATUS_CHOICES = [
         (STATUS_PENDING, 'Pending'),
+        (STATUS_PROCESSING, 'Processing'),
         (STATUS_SUCCESS, 'Success'),
         (STATUS_FAILED, 'Failed'),
     ]
+    MAX_ATTEMPTS = 8
+    LOCK_STALE_SECONDS = 300
 
     quotation = models.OneToOneField(
         Quotation, on_delete=models.CASCADE, related_name='downstream_sync',
     )
     status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
     attempts = models.PositiveIntegerField(default=0)
-    last_error = models.TextField(blank=True, default='')
+    last_error = models.CharField(max_length=255, blank=True, default='')
+    last_error_code = models.CharField(max_length=64, blank=True, default='')
+    correlation_id = models.CharField(max_length=36, blank=True, default='')
     last_synced_at = models.DateTimeField(null=True, blank=True)
+    locked_at = models.DateTimeField(null=True, blank=True)
+    lock_token = models.CharField(max_length=36, blank=True, default='')
     requested_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True, related_name='quotation_sync_requests',
     )
@@ -726,7 +742,10 @@ def create_project_for_won_lead(sender, instance, **kwargs):
                     existing.total_value = lead_cost
                     existing.save(update_fields=['total_value', 'updated_at'])
         try:
-            from apps.leads.quotation_sync import sync_quotation_downstream
+            from apps.leads.quotation_sync import (
+                ensure_quotation_outbox_pending,
+                run_quotation_downstream_sync,
+            )
             latest_quote = (
                 Quotation.objects.filter(lead=instance, is_deleted=False)
                 .exclude(status='Rejected')
@@ -734,7 +753,8 @@ def create_project_for_won_lead(sender, instance, **kwargs):
                 .first()
             )
             if latest_quote:
-                sync_quotation_downstream(latest_quote, user=instance.created_by)
+                ensure_quotation_outbox_pending(latest_quote, user=instance.created_by)
+                run_quotation_downstream_sync(latest_quote.pk, user_id=getattr(instance.created_by, 'pk', None))
         except Exception:
             pass
         return
@@ -772,9 +792,12 @@ def create_project_for_won_lead(sender, instance, **kwargs):
     except Exception:
         pass
 
-    # Quotation (any prior status) → customer ledger + material planning auto-fill.
+    # Quotation (any prior status) → durable outbox → customer ledger + material planning.
     try:
-        from apps.leads.quotation_sync import sync_quotation_downstream
+        from apps.leads.quotation_sync import (
+            ensure_quotation_outbox_pending,
+            run_quotation_downstream_sync,
+        )
         latest_quote = (
             Quotation.objects.filter(lead=instance, is_deleted=False)
             .exclude(status='Rejected')
@@ -782,7 +805,8 @@ def create_project_for_won_lead(sender, instance, **kwargs):
             .first()
         )
         if latest_quote:
-            sync_quotation_downstream(latest_quote, user=instance.created_by)
+            ensure_quotation_outbox_pending(latest_quote, user=instance.created_by)
+            run_quotation_downstream_sync(latest_quote.pk, user_id=getattr(instance.created_by, 'pk', None))
     except Exception:
         pass
 

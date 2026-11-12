@@ -177,16 +177,22 @@ class QuotationSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         items_data = validated_data.pop('items', [])
+        request = self.context.get('request')
+        user = getattr(request, 'user', None) if request else None
         with transaction.atomic():
             quotation = Quotation.objects.create(**validated_data)
             for item_data in items_data:
                 QuotationItem.objects.create(quotation=quotation, **item_data)
             quotation.recalculate_totals()
-        self._sync_downstream(quotation)
+            # Pending outbox row is written in this same transaction; process after commit.
+            from .quotation_sync import enqueue_quotation_downstream_sync
+            enqueue_quotation_downstream_sync(quotation, user=user)
         return quotation
 
     def update(self, instance, validated_data):
         items_data = validated_data.pop('items', None)
+        request = self.context.get('request')
+        user = getattr(request, 'user', None) if request else None
         with transaction.atomic():
             for attr, value in validated_data.items():
                 setattr(instance, attr, value)
@@ -196,7 +202,8 @@ class QuotationSerializer(serializers.ModelSerializer):
                 for item_data in items_data:
                     QuotationItem.objects.create(quotation=instance, **item_data)
             instance.recalculate_totals()
-        self._sync_downstream(instance)
+            from .quotation_sync import enqueue_quotation_downstream_sync
+            enqueue_quotation_downstream_sync(instance, user=user)
         return instance
 
 

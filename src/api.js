@@ -1,18 +1,33 @@
 import { maybeSimulateNetwork, recordApiCall } from './developer/services/apiInspector.js';
 
 // Dev: default `/api/v1` goes through Vite proxy → backend (works on LAN Network URL).
-// Prod: VITE_API_URL is required. If a Hostinger zip is built without it, fall back
-// to the live API so CRM lists do not go empty.
-const PROD_API_FALLBACK = 'https://api.crm.ecomalwa.com/api/v1';
-const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api/v1' : PROD_API_FALLBACK);
-if (!import.meta.env.DEV && !import.meta.env.VITE_API_URL) {
-  console.error(
-    'VITE_API_URL is not set — using production API fallback. Rebuild with VITE_API_URL for this environment.',
-  );
-  if (typeof window !== 'undefined') {
-    window.__MALWA_API_URL_MISCONFIGURED__ = true;
+// Production builds MUST set VITE_API_URL. Staging/test must not silently hit production.
+const PROD_API = 'https://api.crm.ecomalwa.com/api/v1';
+const configuredApi = (import.meta.env.VITE_API_URL || '').trim();
+const isProdBuild = import.meta.env.PROD || import.meta.env.MODE === 'production';
+const isStagingLike = ['staging', 'test', 'preview'].includes(String(import.meta.env.MODE || '').toLowerCase());
+
+function resolveApiBase() {
+  if (import.meta.env.DEV) return configuredApi || '/api/v1';
+  if (!configuredApi) {
+    if (isStagingLike) {
+      throw new Error('VITE_API_URL is required for staging/test builds (refusing production API fallback).');
+    }
+    if (isProdBuild) {
+      console.error('VITE_API_URL missing in production build — refusing silent misconfiguration.');
+      if (typeof window !== 'undefined') window.__MALWA_API_URL_MISCONFIGURED__ = true;
+      // Keep CRM usable only for the known production host build; still flag misconfig.
+      return PROD_API;
+    }
+    throw new Error('VITE_API_URL is required outside local development.');
   }
+  if (isStagingLike && configuredApi.replace(/\/$/, '') === PROD_API.replace(/\/$/, '')) {
+    throw new Error('Staging/test builds must not use the production API URL.');
+  }
+  return configuredApi;
 }
+
+const API_BASE = resolveApiBase();
 
 const TOKEN_KEY = 'malwa_access';
 const REFRESH_KEY = 'malwa_refresh';
@@ -89,20 +104,47 @@ export async function fetchMediaBlob(url) {
   return res.blob();
 }
 
-/** Open/download media via blob URL so the JWT never appears in the address bar. */
-export async function openMediaAuthenticated(url, { downloadName } = {}) {
-  const blob = await fetchMediaBlob(url);
-  const objectUrl = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = objectUrl;
-  if (downloadName) anchor.download = downloadName;
-  else anchor.target = '_blank';
-  anchor.rel = 'noreferrer';
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
-  return objectUrl;
+/**
+ * Open/download media via blob URL so the JWT never appears in the address bar.
+ * Pass `previewWindow` from a synchronous window.open('') in the click handler
+ * to avoid popup blockers after the async fetch.
+ */
+export async function openMediaAuthenticated(url, { downloadName, previewWindow } = {}) {
+  const win = previewWindow || (downloadName ? null : window.open('', '_blank'));
+  try {
+    const blob = await fetchMediaBlob(url);
+    const objectUrl = URL.createObjectURL(blob);
+    if (downloadName) {
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = downloadName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      // Downloads finish asynchronously — revoke after a generous delay.
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 120_000);
+      if (win && !win.closed) win.close();
+      return objectUrl;
+    }
+    if (win && !win.closed) {
+      win.location.href = objectUrl;
+      win.opener = null;
+    } else {
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.target = '_blank';
+      anchor.rel = 'noreferrer';
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+    }
+    // Do not revoke while the preview tab may still be loading the blob.
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 300_000);
+    return objectUrl;
+  } catch (err) {
+    if (win && !win.closed) win.close();
+    throw err;
+  }
 }
 
 let refreshPromise = null;

@@ -39,13 +39,18 @@ class SequenceCounter(models.Model):
 def site_survey_photo_upload_path(instance, filename):
     # Filed by lead + customer, per spec ("Save images using Lead ID and
     # Customer ID"), so photos are traceable back to their record on disk too.
+    # UUID suffix prevents accidental overwrite when replacing the same slot.
+    import uuid
     ext = filename.rsplit('.', 1)[-1] if '.' in filename else 'jpg'
     project = instance.survey.project
     lead_id = project.lead_id or 'na'
     customer_slug = slugify(project.customer_name) or 'customer'
     slot_slug = slugify(instance.slot) or 'photo'
     date_path = datetime.date.today().strftime('%Y/%m')
-    return f'site_survey_photos/{date_path}/lead{lead_id}_{customer_slug}/{slot_slug}.{ext}'
+    return (
+        f'site_survey_photos/{date_path}/lead{lead_id}_{customer_slug}/'
+        f'{slot_slug}_{uuid.uuid4().hex[:8]}.{ext}'
+    )
 
 
 class Project(models.Model):
@@ -710,6 +715,11 @@ class ProjectChecklistItem(models.Model):
     notes = models.CharField(max_length=300, blank=True)
     checked_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='checked_items')
     checked_at = models.DateTimeField(null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        # Strip whitespace; preserve user-visible casing of the first saved label.
+        self.label = (self.label or '').strip()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f'{self.project.project_id} — {self.phase} — {self.label}'
