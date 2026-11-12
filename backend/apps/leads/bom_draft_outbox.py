@@ -10,7 +10,7 @@ import uuid
 from datetime import timedelta
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import F, Q
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -87,19 +87,64 @@ def claim_lead_bom_draft_outbox(lead_id):
         if sync is None:
             return None
         if sync.attempts >= LeadBomDraftOutbox.MAX_ATTEMPTS:
-            sync.status = LeadBomDraftOutbox.STATUS_FAILED
-            sync.last_error_code = 'MaxAttempts'
-            sync.last_error = 'BOM draft outbox exceeded max attempts.'
-            sync.save(update_fields=['status', 'last_error_code', 'last_error', 'updated_at'])
+            LeadBomDraftOutbox.objects.filter(pk=sync.pk).update(
+                status=LeadBomDraftOutbox.STATUS_FAILED,
+                last_error_code='MaxAttempts',
+                last_error='BOM draft outbox exceeded max attempts.',
+                lock_token='',
+                locked_at=None,
+                updated_at=now,
+            )
             return None
         LeadBomDraftOutbox.objects.filter(pk=sync.pk).update(
             status=LeadBomDraftOutbox.STATUS_PROCESSING,
             locked_at=now,
             lock_token=token,
-            attempts=sync.attempts + 1,
+            attempts=F('attempts') + 1,
+            updated_at=now,
         )
         sync.refresh_from_db()
+        if sync.lock_token != token:
+            return None
         return sync
+
+
+def finalize_lead_bom_draft_outbox(sync, token, *, fields):
+    """Apply terminal status only if this worker still owns lock_token.
+
+    Returns True when the conditional update matched; False if another worker
+    reclaimed the stale lock (caller must not treat its local result as authoritative).
+    """
+    from .models import LeadBomDraftOutbox
+
+    if not token:
+        logger.warning(
+            'BOM draft outbox finalize refused — empty lock_token lead_id=%s',
+            getattr(sync, 'lead_id', None),
+        )
+        return False
+
+    payload = {
+        **fields,
+        'lock_token': '',
+        'locked_at': None,
+        'updated_at': timezone.now(),
+    }
+    updated = LeadBomDraftOutbox.objects.filter(
+        pk=sync.pk,
+        lock_token=token,
+        status=LeadBomDraftOutbox.STATUS_PROCESSING,
+    ).update(**payload)
+    if updated != 1:
+        logger.warning(
+            'BOM draft outbox stale lock lost ownership lead_id=%s sync_id=%s token=%s…',
+            getattr(sync, 'lead_id', None),
+            getattr(sync, 'pk', None),
+            token[:8],
+        )
+        return False
+    sync.refresh_from_db()
+    return True
 
 
 def process_lead_bom_draft_outbox(lead_id, user_id=None):
@@ -113,13 +158,15 @@ def process_lead_bom_draft_outbox(lead_id, user_id=None):
     if sync is None:
         return {'ok': True, 'skipped': True, 'reason': 'not_claimable'}
 
+    token = sync.lock_token
     lead = Lead.objects.filter(pk=lead_id, is_deleted=False).first()
     if not lead:
-        sync.status = LeadBomDraftOutbox.STATUS_FAILED
-        sync.last_error_code = 'LeadMissing'
-        sync.last_error = 'Lead not found or deleted.'
-        sync.save(update_fields=['status', 'last_error_code', 'last_error', 'updated_at'])
-        return {'ok': False, 'reason': 'lead_missing'}
+        owned = finalize_lead_bom_draft_outbox(sync, token, fields={
+            'status': LeadBomDraftOutbox.STATUS_FAILED,
+            'last_error_code': 'LeadMissing',
+            'last_error': 'Lead not found or deleted.',
+        })
+        return {'ok': False, 'reason': 'lead_missing', 'owned': owned}
 
     user = None
     if user_id:
@@ -131,44 +178,46 @@ def process_lead_bom_draft_outbox(lead_id, user_id=None):
     except Exception as exc:
         code, message = _safe_error(exc)
         logger.exception('BOM draft outbox processing failed lead_id=%s', lead_id)
-        sync.status = LeadBomDraftOutbox.STATUS_FAILED
-        sync.last_error_code = code
-        sync.last_error = message
-        sync.lock_token = ''
-        sync.locked_at = None
-        sync.save(update_fields=[
-            'status', 'last_error_code', 'last_error', 'lock_token', 'locked_at', 'updated_at',
-        ])
-        return {'ok': False, 'reason': code}
+        owned = finalize_lead_bom_draft_outbox(sync, token, fields={
+            'status': LeadBomDraftOutbox.STATUS_FAILED,
+            'last_error_code': code,
+            'last_error': message,
+        })
+        return {'ok': False, 'reason': code, 'owned': owned}
 
     if skip:
-        sync.status = LeadBomDraftOutbox.STATUS_SKIPPED
-        sync.last_skip_reason = str(skip)[:64]
-        sync.quotation = quotation
-        sync.lock_token = ''
-        sync.locked_at = None
-        sync.save(update_fields=[
-            'status', 'last_skip_reason', 'quotation', 'lock_token', 'locked_at', 'updated_at',
-        ])
-        logger.info('BOM draft outbox skipped lead_id=%s reason=%s', lead_id, skip)
-        return {'ok': True, 'skipped': True, 'reason': skip, 'created': False}
+        owned = finalize_lead_bom_draft_outbox(sync, token, fields={
+            'status': LeadBomDraftOutbox.STATUS_SKIPPED,
+            'last_skip_reason': str(skip)[:64],
+            'quotation_id': getattr(quotation, 'pk', None),
+        })
+        if owned:
+            logger.info('BOM draft outbox skipped lead_id=%s reason=%s', lead_id, skip)
+        return {'ok': True, 'skipped': True, 'reason': skip, 'created': False, 'owned': owned}
 
-    sync.status = LeadBomDraftOutbox.STATUS_SUCCESS
-    sync.quotation = quotation
-    sync.last_skip_reason = ''
-    sync.last_error = ''
-    sync.last_error_code = ''
-    sync.lock_token = ''
-    sync.locked_at = None
-    sync.save(update_fields=[
-        'status', 'quotation', 'last_skip_reason', 'last_error', 'last_error_code',
-        'lock_token', 'locked_at', 'updated_at',
-    ])
-    logger.info(
-        'BOM draft outbox success lead_id=%s quotation_id=%s created=%s',
-        lead_id, getattr(quotation, 'pk', None), created,
-    )
-    return {'ok': True, 'created': created, 'quotation_id': getattr(quotation, 'pk', None)}
+    owned = finalize_lead_bom_draft_outbox(sync, token, fields={
+        'status': LeadBomDraftOutbox.STATUS_SUCCESS,
+        'quotation_id': getattr(quotation, 'pk', None),
+        'last_skip_reason': '',
+        'last_error': '',
+        'last_error_code': '',
+    })
+    if owned:
+        logger.info(
+            'BOM draft outbox success lead_id=%s quotation_id=%s created=%s',
+            lead_id, getattr(quotation, 'pk', None), created,
+        )
+    else:
+        logger.warning(
+            'BOM draft outbox success ignored — lock lost lead_id=%s quotation_id=%s',
+            lead_id, getattr(quotation, 'pk', None),
+        )
+    return {
+        'ok': True,
+        'created': created,
+        'quotation_id': getattr(quotation, 'pk', None),
+        'owned': owned,
+    }
 
 
 def enqueue_lead_bom_draft_after_commit(lead, user=None):

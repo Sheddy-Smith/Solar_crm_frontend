@@ -8,7 +8,11 @@ from django.test import TestCase, TransactionTestCase
 from rest_framework.test import APIClient
 
 from apps.accounts.tests import make_user
-from apps.leads.bom_draft_outbox import process_lead_bom_draft_outbox
+from apps.leads.bom_draft_outbox import (
+    claim_lead_bom_draft_outbox,
+    finalize_lead_bom_draft_outbox,
+    process_lead_bom_draft_outbox,
+)
 from apps.leads.models import Lead, LeadBomDraftOutbox, Quotation
 from apps.projects.bom_models import BomCapacityConfig, BomLine, BomVersion
 from apps.projects.bom_services import (
@@ -346,3 +350,108 @@ class BomActivationConcurrencyTests(TransactionTestCase):
         )
         self.assertEqual(len(errors), 0, msg=f'Unexpected activate errors: {errors}')
         self.assertEqual(len(active), 1, msg=f'Expected 1 Active, got {active}')
+
+
+class LeadBomDraftOutboxLockTests(TransactionTestCase):
+    """Stale-lock reclaim must not let the old worker overwrite status."""
+
+    def test_stale_worker_cannot_overwrite_after_reclaim(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        user = _superuser('bom-outbox-lock@test.com')
+        _activate_5kw_bom(user)
+        # Avoid auto-process race: create lead without capacity, then enqueue manually.
+        lead = Lead.objects.create(
+            customer_name='Lock Race',
+            mobile_number='9876500066',
+            estimated_capacity='',
+            created_by=user,
+            status='New',
+        )
+        lead.estimated_capacity = '5'
+        lead.save(update_fields=['estimated_capacity', 'updated_at'])
+        # Force a clean pending row for controlled claim/finalize.
+        LeadBomDraftOutbox.objects.update_or_create(
+            lead=lead,
+            defaults={
+                'status': LeadBomDraftOutbox.STATUS_PENDING,
+                'attempts': 0,
+                'capacity_snapshot': '5',
+                'lock_token': '',
+                'locked_at': None,
+                'requested_by': user,
+            },
+        )
+
+        worker_a = claim_lead_bom_draft_outbox(lead.pk)
+        self.assertIsNotNone(worker_a)
+        token_a = worker_a.lock_token
+        self.assertTrue(token_a)
+
+        # Make worker A's lock stale so worker B can reclaim.
+        LeadBomDraftOutbox.objects.filter(pk=worker_a.pk).update(
+            locked_at=timezone.now() - timedelta(seconds=LeadBomDraftOutbox.LOCK_STALE_SECONDS + 5),
+        )
+
+        worker_b = claim_lead_bom_draft_outbox(lead.pk)
+        self.assertIsNotNone(worker_b)
+        token_b = worker_b.lock_token
+        self.assertTrue(token_b)
+        self.assertNotEqual(token_a, token_b)
+
+        # Worker B wins.
+        owned_b = finalize_lead_bom_draft_outbox(worker_b, token_b, fields={
+            'status': LeadBomDraftOutbox.STATUS_SUCCESS,
+            'last_skip_reason': '',
+            'last_error': '',
+            'last_error_code': '',
+        })
+        self.assertTrue(owned_b)
+        worker_b.refresh_from_db()
+        self.assertEqual(worker_b.status, LeadBomDraftOutbox.STATUS_SUCCESS)
+
+        # Late worker A must not overwrite SUCCESS → FAILED.
+        owned_a = finalize_lead_bom_draft_outbox(worker_a, token_a, fields={
+            'status': LeadBomDraftOutbox.STATUS_FAILED,
+            'last_error_code': 'StaleOverwrite',
+            'last_error': 'should not land',
+        })
+        self.assertFalse(owned_a)
+        worker_b.refresh_from_db()
+        self.assertEqual(worker_b.status, LeadBomDraftOutbox.STATUS_SUCCESS)
+        self.assertNotEqual(worker_b.last_error_code, 'StaleOverwrite')
+
+    def test_finalize_requires_processing_and_matching_token(self):
+        user = _superuser('bom-outbox-token@test.com')
+        lead = Lead.objects.create(
+            customer_name='Token Guard',
+            mobile_number='9876500065',
+            estimated_capacity='',
+            created_by=user,
+            status='New',
+        )
+        sync = LeadBomDraftOutbox.objects.create(
+            lead=lead,
+            status=LeadBomDraftOutbox.STATUS_PROCESSING,
+            lock_token='token-real',
+            capacity_snapshot='5',
+            requested_by=user,
+        )
+        self.assertFalse(finalize_lead_bom_draft_outbox(sync, 'token-wrong', fields={
+            'status': LeadBomDraftOutbox.STATUS_FAILED,
+            'last_error_code': 'WrongToken',
+            'last_error': 'nope',
+        }))
+        sync.refresh_from_db()
+        self.assertEqual(sync.status, LeadBomDraftOutbox.STATUS_PROCESSING)
+        self.assertEqual(sync.lock_token, 'token-real')
+
+        self.assertTrue(finalize_lead_bom_draft_outbox(sync, 'token-real', fields={
+            'status': LeadBomDraftOutbox.STATUS_SKIPPED,
+            'last_skip_reason': 'approved_or_sent_exists',
+        }))
+        sync.refresh_from_db()
+        self.assertEqual(sync.status, LeadBomDraftOutbox.STATUS_SKIPPED)
+        self.assertEqual(sync.lock_token, '')
