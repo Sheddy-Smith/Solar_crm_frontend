@@ -6109,7 +6109,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
           <div className="flex flex-wrap items-center gap-2">
             <p>
               {visibleLeadRows.length > 0
-                ? `Showing ${(safePage - 1) * LEAD_PAGE_SIZE + 1}–${Math.min(safePage * LEAD_PAGE_SIZE, visibleLeadRows.length)} of ${visibleLeadRows.length} entries`
+                ? `Showing ${(safePage - 1) * LEAD_PAGE_SIZE + 1}–${Math.min(safePage * LEAD_PAGE_SIZE, totalLeadCount)} of ${totalLeadCount} entries`
                 : hasLeadFilters
                   ? `0 of ${totalLeadCount} leads match your filters`
                   : 'No leads to display'}
