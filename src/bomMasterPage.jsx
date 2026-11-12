@@ -121,6 +121,8 @@ export function BomMasterPage({ onNotify }) {
   };
 
   const selectedCapacity = capacities.find((c) => c.id === selectedCapacityId);
+  const isActiveBom = selectedVersion?.status === 'Active';
+  const canMutateBom = Boolean(selectedVersion) && !isActiveBom;
 
   return (
     <div className="space-y-4 p-4 md:p-6">
@@ -191,10 +193,20 @@ export function BomMasterPage({ onNotify }) {
                   >
                     <Plus className="size-3.5" /> New Version
                   </button>
-                  <button type="button" disabled={saving || !selectedVersion} onClick={saveVersion} className="rounded-[8px] border border-[#d9e2ec] bg-white px-3 py-2 text-[12px] font-extrabold disabled:opacity-50">
+                  <button
+                    type="button"
+                    disabled={saving || !canMutateBom}
+                    onClick={saveVersion}
+                    className="rounded-[8px] border border-[#d9e2ec] bg-white px-3 py-2 text-[12px] font-extrabold disabled:opacity-50"
+                  >
                     Save Draft
                   </button>
-                  <button type="button" disabled={saving || !selectedVersion?.id} onClick={activate} className="rounded-[8px] bg-[#0d9f4a] px-3 py-2 text-[12px] font-extrabold text-white disabled:opacity-50">
+                  <button
+                    type="button"
+                    disabled={saving || !selectedVersion?.id || isActiveBom}
+                    onClick={activate}
+                    className="rounded-[8px] bg-[#0d9f4a] px-3 py-2 text-[12px] font-extrabold text-white disabled:opacity-50"
+                  >
                     Activate
                   </button>
                 </div>
@@ -235,7 +247,7 @@ export function BomMasterPage({ onNotify }) {
                     <label key={key} className="block text-[11px] font-extrabold text-[#8895ab]">
                       {label}
                       <input
-                        disabled={selectedVersion.status === 'Active'}
+                        disabled={!canMutateBom}
                         className="mt-1 w-full rounded-[8px] border border-[#d9e2ec] px-3 py-2 text-[13px] font-bold text-[#1e3261] disabled:bg-[#f5f7fb]"
                         value={selectedVersion[key] ?? ''}
                         onChange={(e) => setSelectedVersion({ ...selectedVersion, [key]: e.target.value })}
@@ -275,12 +287,19 @@ export function BomMasterPage({ onNotify }) {
                   </div>
 
                   <div className="mt-3 grid gap-2 sm:grid-cols-5">
-                    <input placeholder="Category" className="rounded-[8px] border border-[#d9e2ec] px-2 py-2 text-[12px]" value={lineDraft.category} onChange={(e) => setLineDraft({ ...lineDraft, category: e.target.value })} />
-                    <input placeholder="Material name *" className="rounded-[8px] border border-[#d9e2ec] px-2 py-2 text-[12px] sm:col-span-2" value={lineDraft.material_name} onChange={(e) => setLineDraft({ ...lineDraft, material_name: e.target.value })} />
-                    <input placeholder="Qty" className="rounded-[8px] border border-[#d9e2ec] px-2 py-2 text-[12px]" value={lineDraft.quantity} onChange={(e) => setLineDraft({ ...lineDraft, quantity: e.target.value })} />
-                    <input placeholder="Unit price" className="rounded-[8px] border border-[#d9e2ec] px-2 py-2 text-[12px]" value={lineDraft.unit_price} onChange={(e) => setLineDraft({ ...lineDraft, unit_price: e.target.value })} />
+                    <input disabled={!canMutateBom} placeholder="Category" className="rounded-[8px] border border-[#d9e2ec] px-2 py-2 text-[12px] disabled:bg-[#f5f7fb]" value={lineDraft.category} onChange={(e) => setLineDraft({ ...lineDraft, category: e.target.value })} />
+                    <input disabled={!canMutateBom} placeholder="Material name *" className="rounded-[8px] border border-[#d9e2ec] px-2 py-2 text-[12px] sm:col-span-2 disabled:bg-[#f5f7fb]" value={lineDraft.material_name} onChange={(e) => setLineDraft({ ...lineDraft, material_name: e.target.value })} />
+                    <input disabled={!canMutateBom} placeholder="Qty" className="rounded-[8px] border border-[#d9e2ec] px-2 py-2 text-[12px] disabled:bg-[#f5f7fb]" value={lineDraft.quantity} onChange={(e) => setLineDraft({ ...lineDraft, quantity: e.target.value })} />
+                    <input disabled={!canMutateBom} placeholder="Unit price" className="rounded-[8px] border border-[#d9e2ec] px-2 py-2 text-[12px] disabled:bg-[#f5f7fb]" value={lineDraft.unit_price} onChange={(e) => setLineDraft({ ...lineDraft, unit_price: e.target.value })} />
                   </div>
-                  <button type="button" onClick={addLineLocal} className="mt-2 rounded-[8px] border border-[#d9e2ec] px-3 py-2 text-[12px] font-extrabold">Add line</button>
+                  <button
+                    type="button"
+                    disabled={!canMutateBom}
+                    onClick={addLineLocal}
+                    className="mt-2 rounded-[8px] border border-[#d9e2ec] px-3 py-2 text-[12px] font-extrabold disabled:opacity-50"
+                  >
+                    Add line
+                  </button>
                 </div>
               </div>
             ) : (

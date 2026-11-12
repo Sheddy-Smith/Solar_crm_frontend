@@ -1,12 +1,25 @@
 """BOM lookup, quotation draft seeding, and MaterialPlan generation from BOM versions."""
 from __future__ import annotations
 
+import threading
+import time
+from collections import defaultdict
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 
-from django.db import transaction
+from django.db import OperationalError, transaction
 from django.db.models import F, Q, Sum
 from django.utils import timezone
+
+# In-process serialization for concurrent activate() in the same worker
+# (complements DB select_for_update used across processes/connections).
+_CAPACITY_ACTIVATE_GUARDS = defaultdict(threading.Lock)
+_CAPACITY_ACTIVATE_GUARDS_LOCK = threading.Lock()
+
+
+def _capacity_activate_guard(capacity_config_id):
+    with _CAPACITY_ACTIVATE_GUARDS_LOCK:
+        return _CAPACITY_ACTIVATE_GUARDS[capacity_config_id]
 
 
 def parse_capacity_kw(raw) -> Optional[Decimal]:
@@ -74,34 +87,59 @@ def ensure_default_capacity_shells(capacities=(3, 4, 5, 6), user=None):
     return created
 
 
-@transaction.atomic
 def activate_bom_version(version, user=None):
     """Activate one version; demote other Active versions for same capacity.
 
-    Uses row locks so concurrent activate calls cannot leave two Active versions.
+    Serialization:
+    1) In-process threading.Lock per capacity (same-worker / test threads)
+    2) BomCapacityConfig.select_for_update() (cross-connection / MySQL workers)
+    3) BomVersion.select_for_update() on the target row
     """
-    from .bom_models import BomVersion
+    from .bom_models import BomCapacityConfig, BomVersion
 
-    locked = (
-        BomVersion.objects.select_for_update()
-        .select_related('capacity_config')
-        .filter(pk=version.pk)
-        .first()
-    )
-    if not locked:
+    version_id = getattr(version, 'pk', version)
+    meta = BomVersion.objects.filter(pk=version_id).values('capacity_config_id').first()
+    if not meta:
         raise ValueError('BOM version not found.')
-    if locked.pending_configuration and not locked.lines.exists():
-        raise ValueError('Cannot activate a BOM with pending configuration and no material lines.')
-    BomVersion.objects.select_for_update().filter(
-        capacity_config_id=locked.capacity_config_id,
-        status=BomVersion.STATUS_ACTIVE,
-    ).exclude(pk=locked.pk).update(status=BomVersion.STATUS_INACTIVE)
-    locked.status = BomVersion.STATUS_ACTIVE
-    if not locked.effective_date:
-        locked.effective_date = timezone.localdate()
-    locked.pending_configuration = False
-    locked.save(update_fields=['status', 'effective_date', 'pending_configuration', 'updated_at'])
-    return locked
+    capacity_config_id = meta['capacity_config_id']
+
+    last_exc = None
+    for attempt in range(6):
+        try:
+            with _capacity_activate_guard(capacity_config_id):
+                with transaction.atomic():
+                    # Capacity lock first — all activate paths for this kW queue here.
+                    BomCapacityConfig.objects.select_for_update().get(pk=capacity_config_id)
+
+                    locked = (
+                        BomVersion.objects.select_for_update()
+                        .select_related('capacity_config')
+                        .filter(pk=version_id)
+                        .first()
+                    )
+                    if not locked:
+                        raise ValueError('BOM version not found.')
+                    if locked.pending_configuration and not locked.lines.exists():
+                        raise ValueError(
+                            'Cannot activate a BOM with pending configuration and no material lines.'
+                        )
+                    BomVersion.objects.filter(
+                        capacity_config_id=locked.capacity_config_id,
+                        status=BomVersion.STATUS_ACTIVE,
+                    ).exclude(pk=locked.pk).update(status=BomVersion.STATUS_INACTIVE)
+                    locked.status = BomVersion.STATUS_ACTIVE
+                    if not locked.effective_date:
+                        locked.effective_date = timezone.localdate()
+                    locked.pending_configuration = False
+                    locked.save(update_fields=[
+                        'status', 'effective_date', 'pending_configuration', 'updated_at',
+                    ])
+                    return locked
+        except OperationalError as exc:
+            # SQLite can raise "database table is locked" under threaded writers.
+            last_exc = exc
+            time.sleep(0.05 * (attempt + 1))
+    raise last_exc
 
 
 def assert_bom_version_mutable(version):
@@ -149,8 +187,10 @@ def bom_preview(version) -> dict:
 def create_draft_quotation_from_bom(lead, bom_version=None, user=None, force_new=False):
     """Create (or return existing Draft) quotation for lead from active/BOM version.
 
-    Does not overwrite Approved/Sent quotations. Duplicate Draft for same BOM
-    is reused unless force_new=True.
+    Does not overwrite Approved/Sent quotations. If an Approved/Sent quote already
+    exists for the same Lead + BOM version, skips Draft creation and returns that
+    quotation with created=False. Duplicate Draft for same BOM is reused unless
+    force_new=True (force_new still cannot invent a Draft over Approved/Sent).
     """
     from apps.leads.models import Quotation, QuotationItem
 
@@ -160,6 +200,20 @@ def create_draft_quotation_from_bom(lead, bom_version=None, user=None, force_new
         raise ValueError('No active BOM configured for this lead capacity.')
     if bom_version.pending_configuration and not bom_version.lines.exists():
         raise ValueError('Active BOM is still pending configuration (no material lines).')
+
+    # BUG-01: never auto-create another Draft when Approved/Sent already exists for this BOM.
+    frozen = (
+        Quotation.objects.filter(
+            lead=lead,
+            is_deleted=False,
+            bom_version=bom_version,
+            status__in=('Approved', 'Sent'),
+        )
+        .order_by('-id')
+        .first()
+    )
+    if frozen:
+        return frozen, False
 
     existing = (
         Quotation.objects.filter(lead=lead, is_deleted=False, status='Draft', bom_version=bom_version)
@@ -324,9 +378,11 @@ def maybe_draft_quotation_for_lead(lead, user=None):
     """Best-effort Draft quotation from active BOM when lead has a capacity.
 
     Returns (quotation|None, created: bool, skip_reason: str|None).
-    Does not raise when BOM is missing/pending — callers treat that as skip.
-    Raises only on unexpected DB errors so signals can log/surface them.
+    Does not raise when BOM is missing/pending/Approved — callers treat as skip.
+    Raises only on unexpected DB errors (callers/outbox decide whether to surface).
     """
+    from apps.leads.models import Quotation
+
     kw = parse_capacity_kw(getattr(lead, 'estimated_capacity', None))
     if kw is None:
         return None, False, 'no_capacity'
@@ -335,8 +391,15 @@ def maybe_draft_quotation_for_lead(lead, user=None):
         return None, False, 'no_active_bom'
     if bom.pending_configuration and not bom.lines.exists():
         return None, False, 'bom_pending_configuration'
+    if Quotation.objects.filter(
+        lead=lead, is_deleted=False, bom_version=bom, status__in=('Approved', 'Sent'),
+    ).exists():
+        return None, False, 'approved_or_sent_exists'
     try:
         quotation, created = create_draft_quotation_from_bom(lead, bom_version=bom, user=user)
+        # create_draft may return the frozen quote if race — treat as skip when not Draft.
+        if quotation is not None and (quotation.status or '') in ('Approved', 'Sent'):
+            return quotation, False, 'approved_or_sent_exists'
         return quotation, created, None
     except ValueError as exc:
         return None, False, str(exc)

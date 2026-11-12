@@ -546,6 +546,55 @@ class Quotation(models.Model):
         ordering = ['-created_at']
 
 
+class LeadBomDraftOutbox(models.Model):
+    """Durable outbox for Lead → Active BOM → Draft quotation seeding.
+
+    Lead create/update must succeed even if quotation generation fails.
+    A pending outbox row is written with the Lead; processing runs after
+    commit (and can be retried) without rolling back the Lead.
+    """
+
+    STATUS_PENDING = 'pending'
+    STATUS_PROCESSING = 'processing'
+    STATUS_SUCCESS = 'success'
+    STATUS_FAILED = 'failed'
+    STATUS_SKIPPED = 'skipped'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_PROCESSING, 'Processing'),
+        (STATUS_SUCCESS, 'Success'),
+        (STATUS_FAILED, 'Failed'),
+        (STATUS_SKIPPED, 'Skipped'),
+    ]
+    MAX_ATTEMPTS = 8
+    LOCK_STALE_SECONDS = 300
+
+    lead = models.OneToOneField(Lead, on_delete=models.CASCADE, related_name='bom_draft_outbox')
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
+    attempts = models.PositiveIntegerField(default=0)
+    capacity_snapshot = models.CharField(max_length=50, blank=True, default='')
+    last_error = models.CharField(max_length=255, blank=True, default='')
+    last_error_code = models.CharField(max_length=64, blank=True, default='')
+    last_skip_reason = models.CharField(max_length=64, blank=True, default='')
+    quotation = models.ForeignKey(
+        'Quotation', on_delete=models.SET_NULL, null=True, blank=True, related_name='bom_draft_outbox_rows',
+    )
+    locked_at = models.DateTimeField(null=True, blank=True)
+    lock_token = models.CharField(max_length=36, blank=True, default='')
+    requested_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='lead_bom_draft_requests',
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['status', '-updated_at'], name='lead_bom_draft_upd_idx'),
+        ]
+
+    def __str__(self):
+        return f'LeadBomDraftOutbox(lead={self.lead_id}, {self.status})'
+
+
 class QuotationDownstreamSync(models.Model):
     """Durable outbox for quotation → ledger / material-plan sync.
 
@@ -708,43 +757,30 @@ def _capture_previous_lead_capacity(sender, instance, **kwargs):
 
 @receiver(post_save, sender=Lead)
 def auto_draft_quotation_from_bom_on_lead(sender, instance, created, **kwargs):
-    """Lead create/update with plant capacity → Draft quotation from Active BOM.
+    """Lead create/update with capacity → enqueue durable BOM Draft outbox.
 
-    Skips when capacity empty, BOM missing/pending, or Approved/Sent quote already exists
-    for the same BOM (create_draft_quotation_from_bom is idempotent for Draft).
-    Capacity change to a new Active BOM creates/reuses Draft for that BOM without
-    overwriting Approved quotations.
+    BUG-04: Quotation generation must NOT roll back Lead create/update.
+    Outbox is written in this transaction; processing runs on_commit. Failures
+    stay retryable with structured logging; Lead remains persisted.
     """
     if getattr(instance, 'is_deleted', False):
         return
     capacity = (instance.estimated_capacity or '').strip()
     if not capacity:
         return
-    prev = getattr(instance, '_previous_estimated_capacity', None)
-    if not created and (prev or '').strip() == capacity:
-        # Capacity unchanged — still ensure a Draft exists (idempotent) for first-time BOM enablement.
-        pass
     try:
-        from apps.projects.bom_services import maybe_draft_quotation_for_lead
-        quotation, created_quote, skip = maybe_draft_quotation_for_lead(
-            instance, user=instance.created_by,
+        from apps.leads.bom_draft_outbox import enqueue_lead_bom_draft_after_commit
+        enqueue_lead_bom_draft_after_commit(instance, user=instance.created_by)
+        logger.info(
+            'BOM draft outbox enqueued lead_id=%s capacity=%s created=%s',
+            instance.pk, capacity, created,
         )
-        if skip:
-            logger.info(
-                'BOM draft quotation skipped lead_id=%s capacity=%s reason=%s',
-                instance.pk, capacity, skip,
-            )
-        elif created_quote:
-            logger.info(
-                'BOM draft quotation created lead_id=%s quotation_id=%s bom_version_id=%s',
-                instance.pk, quotation.pk, getattr(quotation, 'bom_version_id', None),
-            )
     except Exception:
+        # Never raise — Lead API success must stay consistent even if outbox write fails.
         logger.exception(
-            'BOM draft quotation failed lead_id=%s capacity=%s',
+            'BOM draft outbox enqueue failed lead_id=%s capacity=%s (Lead kept)',
             instance.pk, capacity,
         )
-        raise
 
 
 @receiver(post_save, sender=Lead)

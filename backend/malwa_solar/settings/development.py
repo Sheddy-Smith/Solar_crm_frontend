@@ -51,8 +51,10 @@ LOGGING = {
 
 # In local development, use SQLite for test runs so `manage.py test` works
 # even when the configured MySQL user lacks CREATE DATABASE privileges.
+# Set DJANGO_TEST_USE_MYSQL=1 to exercise MySQL locking (select_for_update /
+# concurrent BOM activation) against the configured DATABASE_URL.
 # Runtime stack matches Hostinger: MySQL via DATABASE_URL + REDIS_URL=disabled.
-if 'test' in sys.argv:
+if 'test' in sys.argv and not env.bool('DJANGO_TEST_USE_MYSQL', default=False):  # noqa: F405
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
