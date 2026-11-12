@@ -500,16 +500,35 @@ export function ProjectCustomerReconciliationPanel({ onNotify }) {
         <div>
           <h2 className="text-[18px] font-extrabold text-[#111827]">Project Customer Reconciliation</h2>
           <p className="text-[12px] font-semibold text-[#53647f]">
-            Orphans: {report?.total_orphans ?? '—'} · High-confidence: {report?.auto_linkable_high_confidence ?? '—'} · Manual review: {report?.needs_manual_review ?? '—'}
+            Orphans: {report?.total_orphans ?? '—'} · High: {report?.auto_linkable_high_confidence ?? '—'} · Exact name: {report?.exact_name_linkable ?? '—'} · Manual: {report?.needs_manual_review ?? '—'}
           </p>
         </div>
-        <button type="button" onClick={load} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border px-3 text-[12px] font-extrabold text-[#284276]">
-          <RefreshCw className="size-3.5" /> Refresh
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" disabled={busy} onClick={async () => {
+            setBusy(true);
+            try {
+              const result = await accountsModuleApi.applyOrphanReconciliation({ create_missing: true, dry_run: false });
+              onNotify?.(
+                `Reconciled · linked high ${result.linked_high || 0}, exact ${result.linked_exact_name || 0}, created ${result.customers_created || 0}, remaining ${result.remaining_orphans || 0}`,
+                'success',
+              );
+              await load();
+            } catch (e) {
+              onNotify?.(e.message || 'Bulk reconcile failed', 'error');
+            } finally {
+              setBusy(false);
+            }
+          }} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-[#16a34a] px-3 text-[12px] font-extrabold text-white disabled:opacity-50">
+            <Link2 className="size-3.5" /> Apply bulk reconcile
+          </button>
+          <button type="button" onClick={load} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border px-3 text-[12px] font-extrabold text-[#284276]">
+            <RefreshCw className="size-3.5" /> Refresh
+          </button>
+        </div>
       </div>
 
-      <div className="rounded-[12px] border border-[#fee2e2] bg-[#fff5f5] p-3 text-[12px] font-semibold text-[#991b1b]">
-        Name-only matching is disabled. Create Customer requires a verified mobile. Unresolved orphans stay nullable until business confirmation.
+      <div className="rounded-[12px] border border-[#ffedd5] bg-[#fff7ed] p-3 text-[12px] font-semibold text-[#9a3412]">
+        Bulk reconcile links exact customer_name matches, then creates missing Customers with provisional 7800xxxxxx mobiles (verify later). Fuzzy name matching stays disabled.
       </div>
 
       <label className="flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] px-3">

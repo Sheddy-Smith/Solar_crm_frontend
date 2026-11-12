@@ -27,6 +27,12 @@ backend/venv/
 .claude/settings.local.json
 .pytest_cache/
 .coverage
+test-results/
+playwright-report/
+e2e-results.json
+scripts/_e2e_auth.json
+scripts/_inject_auth*
+scripts/_make_inject_expr.py
 
 # Phase 3 isolated staging MySQL datadir + load artifacts (never production)
 .staging-mysql/

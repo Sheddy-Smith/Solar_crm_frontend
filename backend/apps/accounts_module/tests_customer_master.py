@@ -284,6 +284,25 @@ class CustomerMasterTests(TestCase):
         self.assertIsNone(orphan2.customer_id)
         self.assertTrue(ProjectCustomerLinkAudit.objects.filter(project=orphan2, action='skip_review').exists())
 
+    def test_apply_orphan_reconciliation_exact_name_and_create(self):
+        existing = Account.objects.create(name='Exact Match Cust', account_type='Customer', phone='9000000020')
+        p1 = Project.objects.create(
+            project_name='Orphan Exact', customer=None, customer_name='Exact Match Cust', capacity_kwp=3,
+        )
+        p2 = Project.objects.create(
+            project_name='Orphan Create', customer=None, customer_name='Brand New Orphan Cust', capacity_kwp=4,
+        )
+        res = self.client.post('/api/v1/accounts/parties/apply-orphan-reconciliation/', {
+            'create_missing': True, 'dry_run': False,
+        }, format='json')
+        self.assertEqual(res.status_code, 200, res.content)
+        p1.refresh_from_db()
+        p2.refresh_from_db()
+        self.assertEqual(p1.customer_id, existing.id)
+        self.assertIsNotNone(p2.customer_id)
+        self.assertTrue(p2.customer.phone.startswith('7800'))
+        self.assertEqual(res.data.get('remaining_orphans'), 0)
+
     def test_project_linked_quotation(self):
         party = Account.objects.create(name='PL Cust', account_type='Customer', phone='9000000016')
         project = Project.objects.create(

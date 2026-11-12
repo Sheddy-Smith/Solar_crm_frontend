@@ -438,6 +438,25 @@ class AccountViewSet(AccountsBaseViewSet):
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(result)
 
+    @action(detail=False, methods=['post'], url_path='apply-orphan-reconciliation')
+    def apply_orphan_reconciliation(self, request):
+        """Admin bulk reconcile: exact-name link + optional create-from-name."""
+        if not (
+            getattr(request.user, 'is_super_admin', False)
+            or getattr(request.user, 'is_superuser', False)
+        ):
+            return Response({'detail': 'Only super admins can bulk-reconcile orphans.'}, status=status.HTTP_403_FORBIDDEN)
+        from .project_reconciliation import apply_orphan_reconciliation as apply_fn
+        dry_run = str(request.data.get('dry_run') or '').lower() in ('1', 'true', 'yes')
+        create_missing = str(request.data.get('create_missing', 'true')).lower() in ('1', 'true', 'yes')
+        try:
+            result = apply_fn(user=request.user, create_missing=create_missing, dry_run=dry_run)
+        except Exception as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        actions = result.get('actions') or []
+        result = {**result, 'actions': actions[:50], 'actions_total': len(actions)}
+        return Response({'ok': True, **result})
+
     @action(detail=False, methods=['get'], url_path='detect-duplicates')
     def detect_duplicates(self, request):
         """Suggestion-only duplicate groups — never merges automatically."""
