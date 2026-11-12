@@ -80,9 +80,14 @@ class _InMemoryLoginThrottle:
         self._hits = defaultdict(deque)
 
     def allow(self, request):
+        from malwa_solar.ip_access_middleware import get_client_ip
+
         rate = settings.REST_FRAMEWORK.get('DEFAULT_THROTTLE_RATES', {}).get('login', '10/min')
         limit, window_seconds = _parse_throttle_rate(rate)
-        ident = request.META.get('REMOTE_ADDR', 'unknown')
+        # Same trusted-proxy policy as IpAccessMiddleware — otherwise every
+        # user behind nginx shares REMOTE_ADDR=127.0.0.1 and throttles each other.
+        # Per-process only (not distributed across workers).
+        ident = get_client_ip(request) or 'unknown'
         now = time.monotonic()
         with self._lock:
             hits = self._hits[ident]
@@ -264,7 +269,8 @@ class UserViewSet(viewsets.ModelViewSet):
             from apps.workforce.services import ensure_employee_for_user
             ensure_employee_for_user(user)
         except Exception:
-            pass
+            logger = __import__('logging').getLogger(__name__)
+            logger.exception('Workforce sync failed after soft_delete user_id=%s', user.pk)
         return Response(UserSerializer(user, context={'request': request}).data)
 
     def update(self, request, *args, **kwargs):
@@ -279,7 +285,8 @@ class UserViewSet(viewsets.ModelViewSet):
             from apps.workforce.services import ensure_employee_for_user
             ensure_employee_for_user(self.get_object())
         except Exception:
-            pass
+            logger = __import__('logging').getLogger(__name__)
+            logger.exception('Workforce sync failed after user update user_id=%s', self.get_object().pk)
         return response
 
     def partial_update(self, request, *args, **kwargs):
@@ -294,6 +301,19 @@ class UserViewSet(viewsets.ModelViewSet):
             self.throttle_fail_closed = True
             return [SafeLoginRateThrottle()]
         return super().get_throttles()
+
+    def check_throttles(self, request):
+        # Same in-memory fail-closed fallback as login when Redis/cache errors.
+        if getattr(self, 'action', None) != 'verify_password':
+            return super().check_throttles(request)
+        try:
+            super().check_throttles(request)
+        except Throttled:
+            raise
+        except Exception:
+            allowed, wait = _login_throttle_fallback.allow(request)
+            if not allowed:
+                raise Throttled(wait=wait)
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -415,5 +435,6 @@ class UserViewSet(viewsets.ModelViewSet):
             from apps.workforce.services import ensure_employee_for_user
             ensure_employee_for_user(user)
         except Exception:
-            pass
+            logger = __import__('logging').getLogger(__name__)
+            logger.exception('Workforce sync failed after toggle_active user_id=%s', user.pk)
         return Response({'is_active': user.is_active})

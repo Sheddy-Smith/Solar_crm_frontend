@@ -3,21 +3,24 @@ const LISTENERS = new Set();
 /** @type {Array<object>} */
 let logs = [];
 
-const SENSITIVE = /password|token|authorization|refresh|cookie|otp|secret|access[_-]?key|login[_-]?password|api[_-]?key|private[_-]?key/i;
+const SENSITIVE = /password|token|authorization|refresh|cookie|otp|secret|access[_-]?key|login[_-]?password|api[_-]?key|private[_-]?key|client[_-]?secret/i;
+const SENSITIVE_QUERY = /([?&](?:access|access_token|refresh|refresh_token|token|password|api_key|client_secret|authorization)=)[^&]*/gi;
 
 export function maskSensitive(value, depth = 0) {
   if (value == null || depth > 4) return value;
   if (typeof value === 'string') {
-    if (value.length > 24 && /^[A-Za-z0-9\-_.]+$/.test(value) && value.split('.').length === 3) {
-      return `${value.slice(0, 8)}…[masked]`;
+    let out = value;
+    if (out.length > 24 && /^[A-Za-z0-9\-_.]+$/.test(out) && out.split('.').length === 3) {
+      return `${out.slice(0, 8)}…[masked]`;
     }
-    // Redact access= JWT fragments that may appear inside logged URLs.
-    if (/([?&]access=)/i.test(value) || /Bearer\s+[A-Za-z0-9\-_.]+/i.test(value)) {
-      return value
-        .replace(/([?&]access=)[^&]*/gi, '$1[masked]')
+    if (SENSITIVE_QUERY.test(out) || /Bearer\s+[A-Za-z0-9\-_.]+/i.test(out)) {
+      out = out
+        .replace(SENSITIVE_QUERY, '$1[masked]')
         .replace(/(Bearer\s+)[A-Za-z0-9\-_.]+/gi, '$1[masked]');
     }
-    return value;
+    // Reset lastIndex because SENSITIVE_QUERY is global.
+    SENSITIVE_QUERY.lastIndex = 0;
+    return out;
   }
   if (Array.isArray(value)) return value.map((v) => maskSensitive(v, depth + 1));
   if (typeof value === 'object') {

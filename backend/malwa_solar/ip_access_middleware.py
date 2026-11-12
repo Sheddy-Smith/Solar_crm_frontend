@@ -75,11 +75,18 @@ def get_client_ip(request):
     """Client IP with X-Forwarded-For only when REMOTE_ADDR is a trusted proxy.
 
     Spoofed XFF from direct clients is ignored so allow-lists cannot be bypassed.
+
+    Multi-proxy note: left-most is used only when the immediate peer
+    (REMOTE_ADDR) is trusted *and* the edge proxy is configured to sanitize
+    or overwrite client-supplied XFF before appending. If the edge merely
+    forwards attacker-controlled XFF unchanged, configure the proxy to set a
+    canonical client header instead of widening TRUSTED_PROXIES.
     """
     remote = (request.META.get('REMOTE_ADDR') or '').strip()
     forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
     if forwarded and remote in _trusted_proxy_set():
-        # Left-most is the original client when each trusted hop appends.
+        # Left-most is the original client when each trusted hop appends after
+        # sanitizing inbound XFF (nginx real_ip / proxy_set_header).
         return forwarded.split(',')[0].strip() or remote or None
     return remote or None
 
@@ -100,19 +107,39 @@ def _ip_matches(ip, ip_range):
         return False
 
 
+# Process-local counter for ops/alerting when enforcement fails open.
+_fail_open_events = 0
+
+
+def get_ip_fail_open_count():
+    return _fail_open_events
+
+
 class IpAccessMiddleware:
-    """Blocks requests whose client IP fails the active IpAccessRule rows."""
+    """Blocks requests whose client IP fails the active IpAccessRule rows.
+
+    Availability trade-off: unexpected exceptions FAIL OPEN so a rules DB
+    outage cannot take the whole CRM down. Ops must alert on
+    ``IpAccessMiddleware fail-open`` log lines / ``get_ip_fail_open_count()``.
+    Sensitive auth endpoints still rely on login throttling separately.
+    """
 
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
+        global _fail_open_events
         try:
             blocked, reason = self._check(request)
         except Exception:
-            # Fail open — see module docstring. A broken IP check must never
-            # be able to take the whole site down.
-            logger.exception('IpAccessMiddleware check failed; allowing request through (fail-open).')
+            # Fail open — deliberate availability policy (see module docstring).
+            _fail_open_events += 1
+            logger.exception(
+                'IpAccessMiddleware check failed; allowing request through (fail-open). '
+                'count=%s path=%s',
+                _fail_open_events,
+                getattr(request, 'path', ''),
+            )
             blocked, reason = False, ''
 
         if blocked:

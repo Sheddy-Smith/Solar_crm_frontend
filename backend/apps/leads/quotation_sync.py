@@ -352,3 +352,64 @@ def sync_quotation_downstream(quotation, user=None) -> dict:
         'material_plans': plans,
         'amount': float(quotation_amount(quotation)),
     }
+
+
+def run_quotation_downstream_sync(quotation_id, user_id=None) -> dict:
+    """Execute sync and persist durable outbox status for retries."""
+    import logging
+
+    from django.contrib.auth import get_user_model
+    from django.utils import timezone
+
+    from .models import Quotation, QuotationDownstreamSync
+
+    logger = logging.getLogger(__name__)
+    quotation = Quotation.objects.filter(pk=quotation_id, is_deleted=False).first()
+    if quotation is None:
+        return {'ok': False, 'reason': 'missing'}
+
+    user = None
+    if user_id:
+        User = get_user_model()
+        user = User.objects.filter(pk=user_id).first()
+
+    sync, _ = QuotationDownstreamSync.objects.get_or_create(
+        quotation=quotation,
+        defaults={'requested_by': user, 'status': QuotationDownstreamSync.STATUS_PENDING},
+    )
+    if user and sync.requested_by_id is None:
+        sync.requested_by = user
+
+    sync.attempts = (sync.attempts or 0) + 1
+    try:
+        result = sync_quotation_downstream(quotation, user=user)
+        sync.status = QuotationDownstreamSync.STATUS_SUCCESS
+        sync.last_error = ''
+        sync.last_synced_at = timezone.now()
+        sync.save(update_fields=['status', 'last_error', 'last_synced_at', 'attempts', 'requested_by', 'updated_at'])
+        return {'ok': True, **result}
+    except Exception as exc:
+        sync.status = QuotationDownstreamSync.STATUS_FAILED
+        sync.last_error = str(exc)[:1000]
+        sync.save(update_fields=['status', 'last_error', 'attempts', 'requested_by', 'updated_at'])
+        logger.exception(
+            'Quotation downstream sync failed for quotation_id=%s number=%s',
+            quotation.pk,
+            getattr(quotation, 'quotation_number', ''),
+        )
+        return {'ok': False, 'error': str(exc)}
+
+
+def enqueue_quotation_downstream_sync(quotation, user=None):
+    """Schedule durable sync after the surrounding DB transaction commits."""
+    from django.db import transaction
+
+    quotation_id = getattr(quotation, 'pk', None)
+    if not quotation_id:
+        return
+    user_id = getattr(user, 'pk', None) if user is not None else None
+
+    def _run():
+        run_quotation_downstream_sync(quotation_id, user_id=user_id)
+
+    transaction.on_commit(_run)

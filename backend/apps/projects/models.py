@@ -716,6 +716,12 @@ class ProjectChecklistItem(models.Model):
 
     class Meta:
         ordering = ['phase', 'category', 'id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['project', 'phase', 'label'],
+                name='uniq_project_checklist_phase_label',
+            ),
+        ]
 
 
 class InstallationMaterial(models.Model):

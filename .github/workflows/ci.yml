@@ -39,6 +39,9 @@ jobs:
         working-directory: backend
         run: pip install -r requirements.txt
 
+      # Fast suite uses SQLite (development settings when argv contains "test").
+      # Production MySQL/Postgres migration compatibility still needs a separate
+      # integration job against the real engine before major releases.
       - name: Run Django tests
         working-directory: backend
         env:

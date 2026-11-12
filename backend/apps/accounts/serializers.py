@@ -85,7 +85,11 @@ class UserCreateSerializer(serializers.ModelSerializer):
             ensure_employee_for_user(user)
         except Exception:
             # User creation must not fail if workforce sync has a transient issue.
-            pass
+            import logging
+            logging.getLogger(__name__).exception(
+                'Workforce employee sync failed after user create user_id=%s',
+                getattr(user, 'pk', None),
+            )
         return user
 
 

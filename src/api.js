@@ -68,16 +68,41 @@ export function getMediaUrl(url) {
   return `${base}${separator}access=${encodeURIComponent(token)}`;
 }
 
-/** Fetch media with Authorization header (no JWT in the URL). */
+/** Fetch media with Authorization header (no JWT in the URL). Retries once after refresh on 401. */
 export async function fetchMediaBlob(url) {
   const resolved = resolveMediaUrl(url);
   if (!resolved) throw new Error('Missing media URL');
-  const headers = {};
-  const token = tokenStore.getAccess();
-  if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(resolved, { headers, credentials: 'omit' });
+
+  const doFetch = (accessToken) => {
+    const headers = {};
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+    return fetch(resolved, { headers, credentials: 'omit' });
+  };
+
+  let res = await doFetch(tokenStore.getAccess());
+  if (res.status === 401) {
+    const next = await refreshAccessToken();
+    if (!next) throw new Error('Media fetch failed (401)');
+    res = await doFetch(next);
+  }
   if (!res.ok) throw new Error(`Media fetch failed (${res.status})`);
   return res.blob();
+}
+
+/** Open/download media via blob URL so the JWT never appears in the address bar. */
+export async function openMediaAuthenticated(url, { downloadName } = {}) {
+  const blob = await fetchMediaBlob(url);
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = objectUrl;
+  if (downloadName) anchor.download = downloadName;
+  else anchor.target = '_blank';
+  anchor.rel = 'noreferrer';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+  return objectUrl;
 }
 
 let refreshPromise = null;

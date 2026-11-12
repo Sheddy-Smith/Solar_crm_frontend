@@ -37,6 +37,12 @@ Data/
 *_dump.sql
 *readonly_dump.sql
 hostinger_to_local.sql
+hostinger_to_local.json
+HOSTINGER_MYSQL_CREATE_TABLES*.sql
+Data/*.json
+!Data/*.png
+!Data/*.jpg
+!Data/*.webp
 
 # Reference desktop app (too large for GitHub) and its extracted source,
 # kept locally only for UI/UX comparison — not part of this project.

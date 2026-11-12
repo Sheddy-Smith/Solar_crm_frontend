@@ -91,7 +91,9 @@ ASGI_APPLICATION = 'malwa_solar.asgi.application'
 AUTH_USER_MODEL = 'accounts.User'
 
 # Only these REMOTE_ADDR values may supply X-Forwarded-For (IpAccessMiddleware).
-# Comma-separated IPs/CIDRs via env; defaults to loopback (nginx on same host).
+# Comma-separated IPs via env; defaults to loopback (nginx on same host).
+# Production: verify Django's actual REMOTE_ADDR through the real proxy, then set
+# TRUSTED_PROXIES to that address. Do not trust broad public CIDRs.
 TRUSTED_PROXIES = tuple(
     part.strip()
     for part in env.list('TRUSTED_PROXIES', default=['127.0.0.1', '::1'])

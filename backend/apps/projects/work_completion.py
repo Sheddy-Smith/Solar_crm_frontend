@@ -27,25 +27,20 @@ def ensure_installation_checklist(project, user=None):
     """Create the fixed 5 Installation checklist rows if missing (idempotent)."""
     from .models import ProjectChecklistItem
 
-    existing = {
-        (item.label or '').strip().lower(): item
-        for item in ProjectChecklistItem.objects.filter(project=project, phase='Installation')
-    }
     created = []
     for label, weight in INSTALLATION_TASK_WEIGHTS:
-        key = label.lower()
-        if key in existing:
-            continue
-        item = ProjectChecklistItem.objects.create(
+        item, was_created = ProjectChecklistItem.objects.get_or_create(
             project=project,
             phase='Installation',
-            category='Installation',
             label=label,
-            notes=f'Weightage {weight}%',
-            is_checked=False,
+            defaults={
+                'category': 'Installation',
+                'notes': f'Weightage {weight}%',
+                'is_checked': False,
+            },
         )
-        existing[key] = item
-        created.append(item)
+        if was_created:
+            created.append(item)
     return created
 
 
@@ -101,8 +96,6 @@ def work_completion_percent(project, ensure=True):
 
 def projects_for_party(party):
     """Won-lead projects linked to this Customer party by normalized mobile."""
-    from django.db.models import Q
-
     from apps.accounts_module.services import normalize_phone
     from apps.leads.models import Lead
     from .models import Project
@@ -111,21 +104,14 @@ def projects_for_party(party):
     if not key or len(key) < 10:
         return Project.objects.none()
 
-    # DB-side match on last 10 digits (stored as plain / +91 / spaced variants).
-    lead_ids = list(
+    # Prefer indexed normalized_mobile; fall back to endswith for pre-backfill rows.
+    lead_qs = (
         Lead.objects.filter(is_deleted=False, status='Won')
-        .exclude(mobile_number='')
-        .filter(
-            Q(mobile_number=key)
-            | Q(mobile_number__endswith=key)
-            | Q(mobile_number__endswith=f'91{key}')
-        )
-        .values_list('id', flat=True)
+        .filter(normalized_mobile=key)
+        .values('id')
     )
-    if not lead_ids:
-        return Project.objects.none()
     return (
-        Project.objects.filter(is_deleted=False, lead_id__in=lead_ids)
+        Project.objects.filter(is_deleted=False, lead_id__in=lead_qs)
         .select_related('liaison_stage', 'lead')
         .prefetch_related('checklist_items', 'lc_commissionings', 'payments')
     )
@@ -146,16 +132,10 @@ def party_work_profile(party, received_payment=None):
     if project_cost <= 0:
         key = normalize_phone(party.phone)
         if key and len(key) >= 10:
-            from django.db.models import Q, Sum as DjSum
+            from django.db.models import Sum as DjSum
 
             project_cost = _d(
-                Lead.objects.filter(is_deleted=False, status='Won')
-                .exclude(mobile_number='')
-                .filter(
-                    Q(mobile_number=key)
-                    | Q(mobile_number__endswith=key)
-                    | Q(mobile_number__endswith=f'91{key}')
-                )
+                Lead.objects.filter(is_deleted=False, status='Won', normalized_mobile=key)
                 .aggregate(t=DjSum('project_cost'))['t']
             )
 

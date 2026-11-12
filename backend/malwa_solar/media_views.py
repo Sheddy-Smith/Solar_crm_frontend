@@ -38,9 +38,10 @@ _VIDEO_TYPES = {
     '.mov': 'video/quicktime',
 }
 
-# Path prefix (under MEDIA_ROOT) → permission module name(s).
-# First matching prefix wins. Unlisted prefixes require authenticated user only
-# (legacy/misc uploads) but still reject anonymous access.
+# Path folder (under MEDIA_ROOT) → permission module name.
+# Enumerated from model upload_to callables / strings. Unmapped paths are DENIED
+# (allow-list only). Matching uses folder-boundary rules — not bare startswith —
+# so project_images_backup/... does not match project_images.
 _MEDIA_MODULE_PREFIXES = (
     ('lead_survey_photos', 'Lead'),
     ('project_images', 'Project Management'),
@@ -49,13 +50,15 @@ _MEDIA_MODULE_PREFIXES = (
     ('site_survey_photos', 'Project Management'),
     ('subsidy_docs', 'Project Management'),
     ('approval_docs', 'Project Management'),
+    ('expense_docs', 'Project Management'),  # legacy on-disk paths
+    ('sub_cd_docs', 'Project Management'),  # legacy on-disk paths
     ('liaison_docs', 'Liaisoning & Commissioning'),
     ('om_signatures', 'O&M'),
     ('om_insurance', 'O&M'),
     ('om_reports', 'O&M'),
     ('om_docs', 'O&M'),
-    ('amc/', 'O&M'),
-    ('workforce/', 'User Management'),
+    ('amc', 'AMC & Warranty'),
+    ('workforce', 'Employee'),
     ('bug_reports', 'Settings'),
     ('backups', 'Settings'),
 )
@@ -113,7 +116,8 @@ def _content_type_for(path):
 def _module_for_media_path(path):
     normalized = (path or '').replace('\\', '/').lstrip('/')
     for prefix, module in _MEDIA_MODULE_PREFIXES:
-        if normalized.startswith(prefix):
+        folder = prefix.rstrip('/')
+        if normalized == folder or normalized.startswith(folder + '/'):
             return module
     return None
 
@@ -123,9 +127,9 @@ def _user_can_view_module(user, module):
 
     if is_super_admin(user):
         return True
+    # Unknown / unmapped paths must not bypass module authorization.
     if not module:
-        # Authenticated but unmapped path — allow signed-in staff only.
-        return True
+        return False
     role = getattr(user, 'role', None)
     if not role:
         return False
@@ -133,6 +137,40 @@ def _user_can_view_module(user, module):
     if not perm:
         return False
     return bool(perm.full_access or perm.can_view)
+
+
+def _lead_id_from_media_path(path):
+    """Extract lead PK embedded in survey photo folders (lead123_customer)."""
+    normalized = (path or '').replace('\\', '/').lstrip('/')
+    match = re.search(r'(?:^|/)lead(\d+)_', normalized)
+    if match:
+        return int(match.group(1))
+    return None
+
+
+def _user_can_access_media_object(user, path):
+    """Object-level gate for lead-scoped roles (Sales / Tele Executives).
+
+    Module ACL alone would let any Lead-viewer open another executive's
+    survey photo if they guessed the URL. Resolve owning Lead when the path
+    encodes a lead id; otherwise allow (module check already passed).
+    """
+    from apps.accounts.permissions import is_lead_scoped, is_own_lead, is_super_admin
+
+    if is_super_admin(user) or not is_lead_scoped(user):
+        return True
+    lead_id = _lead_id_from_media_path(path)
+    if lead_id is None:
+        # Path does not encode ownership — module ACL is the remaining gate.
+        return True
+    from apps.leads.models import Lead
+
+    lead = Lead.objects.filter(pk=lead_id, is_deleted=False).only(
+        'id', 'assigned_to_id', 'created_by_id',
+    ).first()
+    if lead is None:
+        return False
+    return is_own_lead(user, lead)
 
 
 def _authenticate_media_user(request):
@@ -166,6 +204,8 @@ def secure_media_serve(request, path):
 
     module = _module_for_media_path(path)
     if not _user_can_view_module(user, module):
+        return HttpResponseForbidden('You do not have permission to access this file.')
+    if not _user_can_access_media_object(user, path):
         return HttpResponseForbidden('You do not have permission to access this file.')
 
     try:

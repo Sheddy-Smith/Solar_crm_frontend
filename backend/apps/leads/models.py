@@ -68,6 +68,8 @@ class Lead(models.Model):
     # Mandatory fields
     customer_name = models.CharField(max_length=200)
     mobile_number = models.CharField(max_length=15)
+    # Canonical last-10 digits for DB-side matching (Customer ledger / work %).
+    normalized_mobile = models.CharField(max_length=10, blank=True, default='', db_index=True)
     ivrs_number = models.CharField(max_length=50, unique=True, blank=True, default=generate_ivrs)
 
     PROJECT_TYPE_CHOICES = [
@@ -123,6 +125,11 @@ class Lead(models.Model):
     # Bumped only on successful Save/Update (not open / cancel) — Lead List "recently worked" sort.
     last_activity_at = models.DateTimeField(null=True, blank=True, db_index=True)
 
+    def save(self, *args, **kwargs):
+        digits = ''.join(ch for ch in str(self.mobile_number or '') if ch.isdigit())
+        self.normalized_mobile = digits[-10:] if len(digits) >= 10 else digits
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f'{self.customer_name} — {self.ivrs_number}'
 
@@ -133,6 +140,7 @@ class Lead(models.Model):
             models.Index(fields=['is_deleted', 'assigned_to', '-created_at'], name='lead_del_assignee_created_idx'),
             models.Index(fields=['is_deleted', 'next_follow_up'], name='lead_del_next_followup_idx'),
             models.Index(fields=['is_deleted', '-last_activity_at', '-created_at'], name='lead_del_last_activity_idx'),
+            models.Index(fields=['is_deleted', 'status', 'normalized_mobile'], name='lead_norm_mobile_idx'),
         ]
 
 
@@ -517,6 +525,43 @@ class Quotation(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+
+
+class QuotationDownstreamSync(models.Model):
+    """Durable outbox for quotation → ledger / material-plan sync.
+
+    Quotation rows commit first; sync status is tracked here so failures can be
+    retried without losing the quotation (financial reconciliation).
+    """
+
+    STATUS_PENDING = 'pending'
+    STATUS_SUCCESS = 'success'
+    STATUS_FAILED = 'failed'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_SUCCESS, 'Success'),
+        (STATUS_FAILED, 'Failed'),
+    ]
+
+    quotation = models.OneToOneField(
+        Quotation, on_delete=models.CASCADE, related_name='downstream_sync',
+    )
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
+    attempts = models.PositiveIntegerField(default=0)
+    last_error = models.TextField(blank=True, default='')
+    last_synced_at = models.DateTimeField(null=True, blank=True)
+    requested_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='quotation_sync_requests',
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['status', '-updated_at'], name='quote_sync_upd_idx'),
+        ]
+
+    def __str__(self):
+        return f'QuotationDownstreamSync({self.quotation_id}, {self.status})'
 
 
 class QuotationItem(models.Model):

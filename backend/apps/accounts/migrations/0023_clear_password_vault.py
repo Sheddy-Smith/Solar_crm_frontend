@@ -1,3 +1,9 @@
+"""Destructive security migration: wipe + drop recoverable password_vault.
+
+Forward-only by design. Reverse recreates an empty TextField but CANNOT restore
+cleared ciphertext. Prefer rolling forward with a corrected release rather than
+migrating backward expecting vault recovery.
+"""
 from django.db import migrations
 
 
@@ -13,7 +19,8 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(clear_vault, migrations.RunPython.noop),
+        # reverse_code=noop: schema may come back empty; vault data is gone.
+        migrations.RunPython(clear_vault, reverse_code=migrations.RunPython.noop),
         migrations.RemoveField(
             model_name='user',
             name='password_vault',
