@@ -23,9 +23,10 @@ def next_item_code():
     return f'ITEM-{num:04d}'
 
 
-def inventory_summary():
+def inventory_summary(date_from=None, date_to=None):
     from .models import InventoryItem, StockMovement
 
+    # Stock on-hand is a live snapshot; date filters scope movement activity only.
     qs = InventoryItem.objects.filter(is_active=True)
     total_value = qs.aggregate(val=Sum(F('current_stock') * F('rate')))['val'] or 0
 
@@ -51,6 +52,10 @@ def inventory_summary():
     )
 
     movement_qs = StockMovement.objects.all()
+    if date_from:
+        movement_qs = movement_qs.filter(created_at__date__gte=date_from)
+    if date_to:
+        movement_qs = movement_qs.filter(created_at__date__lte=date_to)
     total_movements = movement_qs.count()
 
     in_rows = (
@@ -95,6 +100,7 @@ def inventory_summary():
         'total_movements': total_movements,
         'stock_in_by_unit': unit_map(in_rows),
         'stock_out_by_unit': unit_map(out_rows),
+        'date_filtered': bool(date_from or date_to),
         'alerts': {
             'critical': [alert_row(i) for i in critical_qs[:12]],
             'warning': [alert_row(i) for i in warning_qs[:12]],

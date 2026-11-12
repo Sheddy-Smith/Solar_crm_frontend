@@ -15,7 +15,7 @@ import {
   ClipboardPlus, FilePlus2, FolderKanban, Home, IndianRupee, Menu, MoreHorizontal,
   Plus, UserPlus, Users,
 } from 'lucide-react';
-import { analyticsApi } from './api.js';
+import { analyticsApi, dashboardApi } from './api.js';
 import { hasAnyModuleAccess } from './settingsHubPages.jsx';
 
 const cx = (...parts) => parts.filter(Boolean).join(' ');
@@ -37,8 +37,6 @@ const DONUT_COLORS = {
   Won: '#16a34a',
   Lost: '#ef4444',
 };
-
-const FALLBACK_SPARK = [4, 6, 5, 8, 7, 10, 9, 12].map((v, i) => ({ i, v }));
 
 function DeltaLine({ delta, tone }) {
   if (!delta) return null;
@@ -84,11 +82,14 @@ export function MobileDashboardPage({
   followUps,
   projectSummary,
   loggedInUser = null,
+  dateFrom = '',
+  dateTo = '',
   onOpenSection,
   onQuickAction,
   onOpenMenu,
 }) {
   const [analytics, setAnalytics] = useState(null);
+  const [revenueTrend, setRevenueTrend] = useState([]);
 
   useEffect(() => {
     // Operations / non-Lead roles get 403 here — skip so dashboard boot stays quiet.
@@ -96,13 +97,46 @@ export function MobileDashboardPage({
       setAnalytics(null);
       return;
     }
-    analyticsApi.leads().then((data) => {
+    const params = {};
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
+    analyticsApi.leads(params).then((data) => {
       if (data) setAnalytics(data);
     }).catch(() => {});
-  }, [loggedInUser]);
+  }, [loggedInUser, dateFrom, dateTo]);
+
+  useEffect(() => {
+    // DASH-05: Revenue spark must use payment amounts, never lead counts / dummy data.
+    if (
+      loggedInUser
+      && !hasAnyModuleAccess(loggedInUser, 'Dashboard')
+      && !hasAnyModuleAccess(loggedInUser, 'Accounts')
+      && !hasAnyModuleAccess(loggedInUser, 'Lead')
+    ) {
+      setRevenueTrend([]);
+      return;
+    }
+    const params = {};
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
+    dashboardApi.unified(params).then((data) => {
+      const rows = data?.finance?.accounts?.received_monthly_trend;
+      setRevenueTrend(Array.isArray(rows) ? rows : []);
+    }).catch(() => setRevenueTrend([]));
+  }, [loggedInUser, dateFrom, dateTo]);
 
   const kpis = (stats || []).filter((s) => s.title !== 'Revenue Overview');
-  const revenue = (stats || []).find((s) => s.title === 'Revenue Overview');
+  const revenue = (stats || []).find((s) => s.title === 'Revenue Overview') || (
+    revenueTrend.length
+      ? {
+          title: 'Revenue Overview',
+          value: `₹${Number(revenueTrend.reduce((sum, row) => sum + Number(row.amount || 0), 0)).toLocaleString('en-IN')}`,
+          delta: 'Completed receipts (12 mo)',
+          deltaTone: 'positive',
+          target: 'Payment Received',
+        }
+      : null
+  );
 
   const trendData = useMemo(() => {
     const rows = analytics?.monthly_trend;
@@ -110,9 +144,11 @@ export function MobileDashboardPage({
     return rows.map((r) => ({ month: (r.month || '').split(' ')[0], leads: r.total ?? 0 }));
   }, [analytics]);
 
-  const sparkData = trendData.length >= 2
-    ? trendData.map((r, i) => ({ i, v: r.leads }))
-    : FALLBACK_SPARK;
+  // Never fall back to dummy spark values or lead counts for Revenue.
+  const sparkData = useMemo(() => {
+    if (!Array.isArray(revenueTrend) || revenueTrend.length === 0) return [];
+    return revenueTrend.map((row, i) => ({ i, v: Number(row.amount || 0) }));
+  }, [revenueTrend]);
 
   const statusData = useMemo(() => {
     const rows = analytics?.status_distribution;
@@ -216,19 +252,23 @@ export function MobileDashboardPage({
             <button type="button" onClick={() => onOpenSection(revenue.target, 'Revenue report opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View Report</button>
           </div>
           <DeltaLine delta={revenue.delta} tone={revenue.deltaTone} />
-          <div className="mt-2 h-[52px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={sparkData} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
-                <defs>
-                  <linearGradient id="mobileRevSpark" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#16a34a" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="#16a34a" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <Area type="monotone" dataKey="v" stroke="#16a34a" strokeWidth={2} fill="url(#mobileRevSpark)" dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+          {sparkData.length > 0 ? (
+            <div className="mt-2 h-[52px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={sparkData} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
+                  <defs>
+                    <linearGradient id="mobileRevSpark" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#16a34a" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="#16a34a" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <Area type="monotone" dataKey="v" stroke="#16a34a" strokeWidth={2} fill="url(#mobileRevSpark)" dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <p className="mt-2 text-[11px] font-bold text-[#8895ab]">Revenue trend loads from completed receipts.</p>
+          )}
         </section>
       ) : null}
 

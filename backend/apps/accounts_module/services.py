@@ -669,10 +669,66 @@ def _sum_amount(qs):
     return qs.aggregate(total=Sum('amount'))['total'] or Decimal('0')
 
 
-def accounts_dashboard_summary():
+def _payment_monthly_received_trend(months=12):
+    """Last N calendar months of completed Received payments (for revenue sparks)."""
+    from collections import defaultdict
+    from datetime import datetime
+
+    from django.utils import timezone
+
+    now = timezone.localdate()
+    start = datetime(now.year, now.month, 1).date()
+    # Walk back months-1 months from current month start.
+    y, m = start.year, start.month
+    for _ in range(months - 1):
+        m -= 1
+        if m <= 0:
+            m = 12
+            y -= 1
+    range_start = datetime(y, m, 1).date()
+
+    rows = (
+        Payment.objects.filter(
+            status='Completed',
+            direction='Received',
+            payment_date__gte=range_start,
+            payment_date__lte=now,
+        )
+        .values_list('payment_date', 'amount')
+    )
+    by_month = defaultdict(lambda: Decimal('0'))
+    for pay_date, amount in rows.iterator(chunk_size=2000):
+        if not pay_date:
+            continue
+        key = f'{pay_date.year}-{pay_date.month:02d}'
+        by_month[key] += Decimal(str(amount or 0))
+
+    month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    trend = []
+    cy, cm = y, m
+    for _ in range(months):
+        key = f'{cy}-{cm:02d}'
+        trend.append({
+            'month': f'{month_names[cm - 1]} {cy}',
+            'key': key,
+            'amount': float(by_month[key]),
+        })
+        cm += 1
+        if cm > 12:
+            cm = 1
+            cy += 1
+    return trend
+
+
+def accounts_dashboard_summary(date_from=None, date_to=None):
     from .models import PaymentVoucher
 
     payments = Payment.objects.all()
+    if date_from:
+        payments = payments.filter(payment_date__gte=date_from)
+    if date_to:
+        payments = payments.filter(payment_date__lte=date_to)
+
     received = _sum_amount(payments.filter(direction='Received', status='Completed'))
     payments_made = _sum_amount(payments.filter(direction='Made', status='Completed'))
     pending_in = _sum_amount(payments.filter(direction='Received', status='Pending'))
@@ -682,12 +738,17 @@ def accounts_dashboard_summary():
     # counting. Material-dispatch cost vouchers are stock consumption (already paid through the
     # purchase invoice), not cash out, so they stay out of these totals.
     vouchers = PaymentVoucher.objects.filter(material_plan__isnull=True)
+    if date_from:
+        vouchers = vouchers.filter(voucher_date__gte=date_from)
+    if date_to:
+        vouchers = vouchers.filter(voucher_date__lte=date_to)
     vouchers_paid = _sum_amount(vouchers.filter(status='Completed'))
     vouchers_pending = _sum_amount(vouchers.filter(status='Pending'))
     expense_vouchers = vouchers.filter(entry_type='Expense').exclude(status='Cancelled')
 
     made = payments_made + vouchers_paid
     pending_out = pending_payments_out + vouchers_pending
+    # Bank / party / cheque counts are live snapshots (not period-scoped).
     bank_total = BankAccount.objects.filter(status='Active').aggregate(
         total=Sum('balance'),
     )['total'] or Decimal('0')
@@ -706,4 +767,6 @@ def accounts_dashboard_summary():
         'bank_count': BankAccount.objects.filter(status='Active').count(),
         'pending_cheques': Cheque.objects.filter(status__in=['Issued', 'Pending', 'Deposited']).count(),
         'total_payments': payments.count(),
+        'received_monthly_trend': _payment_monthly_received_trend(12),
+        'date_filtered': bool(date_from or date_to),
     }

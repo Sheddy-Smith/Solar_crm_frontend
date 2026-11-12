@@ -7,9 +7,13 @@ from django.utils import timezone
 from .models import Project
 
 
-def project_kpi_analytics():
+def project_kpi_analytics(date_from=None, date_to=None):
     """Project KPI bundle using DB aggregates (no full-table Python materialization)."""
     qs = Project.objects.filter(is_deleted=False)
+    if date_from:
+        qs = qs.filter(created_at__date__gte=date_from)
+    if date_to:
+        qs = qs.filter(created_at__date__lte=date_to)
 
     status_rows = list(qs.values('status').annotate(c=Count('id')))
     status_counts = { (r['status'] or 'Planning'): r['c'] for r in status_rows }

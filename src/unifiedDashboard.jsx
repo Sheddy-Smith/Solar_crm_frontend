@@ -61,6 +61,15 @@ function kpiFromReports(reports, title) {
 // The API only returns period totals (no time series), so this chart shows an
 // even weekly split of the real totals — labelled as an estimate in the UI.
 function buildCashFlowTrend(finance) {
+  const monthly = finance?.accounts?.received_monthly_trend;
+  if (Array.isArray(monthly) && monthly.length > 0) {
+    return monthly.map((row) => ({
+      label: String(row.month || row.key || '').split(' ')[0] || '—',
+      inflow: Number(row.amount || 0),
+      outflow: 0,
+      net: Number(row.amount || 0),
+    }));
+  }
   const received = Number(finance?.total_received || 0);
   const made = Number(finance?.total_made || 0);
   const net = Number(finance?.net_balance || 0);
@@ -530,14 +539,20 @@ export function UnifiedDashboardPage({
   const formattedRange = `${formatReportDate(dateFrom)} - ${formatReportDate(dateTo)}`;
   const cashFlowTrend = useMemo(() => buildCashFlowTrend(finance), [finance]);
 
+  const omUnavailable = Boolean(alerts?.om_unavailable);
   const alertCards = ALERT_DEFS
     .filter((def) => !def.key.startsWith('om_') || (alerts && def.key in alerts))
-    .map((def) => ({
-      ...def,
-      value: Number(alerts?.[def.key] ?? 0),
-    }));
+    .map((def) => {
+      const raw = alerts?.[def.key];
+      const unavailable = def.key.startsWith('om_') && (omUnavailable || raw == null);
+      return {
+        ...def,
+        unavailable,
+        value: unavailable ? null : Number(raw ?? 0),
+      };
+    });
 
-  const alertBadgeCount = alertCards.filter((a) => a.value > 0).length;
+  const alertBadgeCount = alertCards.filter((a) => Number(a.value) > 0).length;
 
   return (
     <div className="space-y-4">
@@ -617,7 +632,7 @@ export function UnifiedDashboardPage({
                 <KpiCard label="Won" value={sales.won} caption="Won leads" icon={Trophy} iconBg="bg-[#dcfce7]" iconColor="text-[#16a34a]" onClick={() => onOpenSection('Lead List')} />
                 <KpiCard label="Lost" value={sales.lost} caption="Lost leads" icon={XCircle} iconBg="bg-[#fee2e2]" iconColor="text-[#ef4444]" onClick={() => onOpenSection('Lead List')} />
                 <KpiCard label="Conversion Rate" value={`${sales.conversion_rate}%`} caption="Won / Total Leads" icon={Target} iconBg="bg-[#dbeafe]" iconColor="text-[#3b82f6]" onClick={() => onOpenSection('Lead List')} />
-                <KpiCard label="Quotation Follow ups" value={kpiFromReports(reports, 'Follow-ups')} caption="Pending follow ups" icon={ArrowUpRight} iconBg="bg-[#ede9fe]" iconColor="text-[#8b5cf6]" onClick={() => onOpenSection('Lead List')} />
+                <KpiCard label="Follow-ups" value={kpiFromReports(reports, 'Follow-ups')} caption="Scheduled / logged follow-ups" icon={ArrowUpRight} iconBg="bg-[#ede9fe]" iconColor="text-[#8b5cf6]" onClick={() => onOpenSection('Follow-ups')} />
                 <KpiCard label="Pending Quotations" value={overview?.operations?.pending_flow?.quotations ?? 0} caption="Won leads without quotation" icon={Hourglass} iconBg="bg-[#ffedd5]" iconColor="text-[#f59e0b]" onClick={() => onOpenSection('Pending Quotations')} />
               </section>
 
@@ -750,12 +765,19 @@ export function UnifiedDashboardPage({
 
           {tab === 'alerts' ? (
             <div className="space-y-4">
+              {omUnavailable ? (
+                <div className={`${CARD} border-[#fecaca] bg-[#fef2f2] p-4`}>
+                  <p className="text-[13px] font-bold text-[#b91c1c]">
+                    O&amp;M alerts unavailable{alerts?.om_error ? ` — ${alerts.om_error}` : ''}. Other CRM alerts below are still live.
+                  </p>
+                </div>
+              ) : null}
               <section className="grid gap-4 sm:grid-cols-2">
                 {alertCards.map((item) => (
                   <AlertCard
                     key={item.label}
                     label={item.label}
-                    value={item.value}
+                    value={item.unavailable ? '—' : item.value}
                     icon={item.icon}
                     iconBg={item.iconBg}
                     iconColor={item.iconColor}

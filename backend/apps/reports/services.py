@@ -1,8 +1,8 @@
-from django.db.models import F, Sum
+from django.db.models import Count, F, Q, Sum
 
 
 def reports_dashboard(date_from=None, date_to=None):
-    from apps.leads.models import Lead
+    from apps.leads.models import FollowUp, Lead
     from apps.projects.models import Project
     from apps.accounts_module.models import Payment
     from apps.inventory.models import InventoryItem
@@ -10,26 +10,31 @@ def reports_dashboard(date_from=None, date_to=None):
     from apps.om.pending_flow import pending_counts_global
     from apps.amc.models import AmcContract, AmcServiceRequest
 
-    lead_qs = Lead.objects.all()
+    # DASH-04: never include soft-deleted leads in report KPIs.
+    lead_qs = Lead.objects.filter(is_deleted=False)
     if date_from:
         lead_qs = lead_qs.filter(created_at__date__gte=date_from)
     if date_to:
         lead_qs = lead_qs.filter(created_at__date__lte=date_to)
 
-    from django.db.models import Count, Q
-
     lead_counts = lead_qs.aggregate(
         total=Count('id'),
         new=Count('id', filter=Q(status='New')),
         won=Count('id', filter=Q(status='Won')),
-        follow_up=Count('id', filter=Q(status='Quotation')),
         quotation=Count('id', filter=Q(status='Quotation')),
     )
     total_leads = lead_counts['total'] or 0
     new_leads = lead_counts['new'] or 0
     won_leads = lead_counts['won'] or 0
-    follow_up_done = lead_counts['follow_up'] or 0
     quotations = lead_counts['quotation'] or 0
+
+    # DASH-01: Follow-ups KPI counts FollowUp rows (not Lead status=Quotation).
+    follow_qs = FollowUp.objects.filter(is_deleted=False, lead__is_deleted=False)
+    if date_from:
+        follow_qs = follow_qs.filter(scheduled_at__date__gte=date_from)
+    if date_to:
+        follow_qs = follow_qs.filter(scheduled_at__date__lte=date_to)
+    follow_up_done = follow_qs.count()
 
     payment_qs = Payment.objects.filter(status='Completed', direction='Received')
     if date_from:
@@ -49,9 +54,15 @@ def reports_dashboard(date_from=None, date_to=None):
 
     from apps.accounts_module.services import accounts_dashboard_summary
 
-    accounts = accounts_dashboard_summary()
+    accounts = accounts_dashboard_summary(date_from=date_from, date_to=date_to)
 
-    project_counts = Project.objects.aggregate(
+    # Soft-deleted projects must not appear in report project KPIs.
+    project_qs = Project.objects.filter(is_deleted=False)
+    if date_from:
+        project_qs = project_qs.filter(created_at__date__gte=date_from)
+    if date_to:
+        project_qs = project_qs.filter(created_at__date__lte=date_to)
+    project_counts = project_qs.aggregate(
         total=Count('id'),
         active=Count('id', filter=~Q(status__in=['Completed', 'Cancelled'])),
         completed=Count('id', filter=Q(status='Completed')),

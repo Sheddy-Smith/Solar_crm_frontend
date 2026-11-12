@@ -65,13 +65,30 @@ def _cache_key(params, viewer_fingerprint: str = ''):
     return f'unified_dashboard:{CACHE_SCOPE}:g{gen}:{fp}:{digest}'
 
 
+_OM_ALERT_KEYS = (
+    'om_service_overdue',
+    'om_service_due',
+    'om_critical_complaints',
+    'om_open_tickets',
+    'om_insurance_expiring',
+    'om_insurance_expired',
+    'om_free_expiring',
+    'om_free_expired',
+)
+
+
 def _om_alerts():
+    """Return O&M alert fields. On failure keep keys present + om_unavailable flag."""
     try:
         from apps.om.dashboard import dashboard_summary
         data = dashboard_summary()
     except Exception:
         logger.exception('O&M alerts for the unified dashboard failed')
-        return {}
+        # DASH-06: do not silently omit keys — frontend can show unavailable state.
+        payload = {key: None for key in _OM_ALERT_KEYS}
+        payload['om_unavailable'] = True
+        payload['om_error'] = 'O&M dashboard summary unavailable'
+        return payload
     summary = data['summary']
     upcoming = {row['key']: row['count'] for row in data['alerts']['upcoming']}
     return {
@@ -83,6 +100,8 @@ def _om_alerts():
         'om_insurance_expired': summary['insurance_expired'],
         'om_free_expiring': upcoming.get('free_expiring', 0),
         'om_free_expired': summary['expired_service_plants'],
+        'om_unavailable': False,
+        'om_error': '',
     }
 
 
@@ -124,14 +143,21 @@ def build_unified_dashboard(params=None):
         status_filter=status_filter,
         assigned_to=assigned_to,
     )
-    projects_kpi = project_kpi_analytics()
-    accounts = accounts_dashboard_summary()
-    inventory = inventory_summary()
-    amc = amc_dashboard_summary()
+    # DASH-03: pass the same date window into project / accounts / inventory / AMC.
+    projects_kpi = project_kpi_analytics(date_from=date_from, date_to=date_to)
+    accounts = accounts_dashboard_summary(date_from=date_from, date_to=date_to)
+    inventory = inventory_summary(date_from=date_from, date_to=date_to)
+    amc = amc_dashboard_summary(date_from=date_from, date_to=date_to)
 
     # One grouped query instead of 6 COUNT(*) round-trips (staging Locust hotspot).
+    # DASH-02: exclude soft-deleted projects so summary matches project_kpi_analytics.
     from django.db.models import Count, Q
-    project_counts = Project.objects.aggregate(
+    project_qs = Project.objects.filter(is_deleted=False)
+    if date_from:
+        project_qs = project_qs.filter(created_at__date__gte=date_from)
+    if date_to:
+        project_qs = project_qs.filter(created_at__date__lte=date_to)
+    project_counts = project_qs.aggregate(
         total=Count('id'),
         planning=Count('id', filter=Q(status='Planning')),
         active=Count('id', filter=Q(status='Active')),
@@ -197,6 +223,9 @@ def build_unified_dashboard(params=None):
             'project_type': project_type,
             'status': status_filter,
             'assigned_to': assigned_to,
+            # Snapshot metrics (bank, stock on-hand, active AMC) stay live;
+            # payment / lead / project-created / movement counts respect the range.
+            'date_scope': 'period_activity_plus_live_snapshots',
         },
     }
 
