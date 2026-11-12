@@ -61,6 +61,7 @@ import {
 } from './projectOpsPages.jsx';
 import { ProjectJobSheetPage as OpsJobSheetPage } from './projectJobSheetPage.jsx';
 import { MaterialPlanningPoPage } from './materialPlanningPoPage.jsx';
+import { BomMasterPage } from './bomMasterPage.jsx';
 import { OmPendingFlowPage, OM_PENDING_SECTIONS, OM_PENDING_STEPS } from './omPendingPages.jsx';
 import { OmModulePage, OM_LEGACY_SECTIONS, OM_MODULE_SECTIONS, OM_SECTION_ROUTES } from './omPlantPages.jsx';
 import {
@@ -583,6 +584,7 @@ const projectSubItems = [
   'Project List',
   'Project Site Survey',
   'Project Material Planning',
+  'BOM Master',
   'Project Job Sheet',
   'Project Dispatch',
   'Project Installation',
@@ -1049,6 +1051,7 @@ const projectSubRoutes = {
   'Project Installation': '/projects/installation',
   'Project Dispatch': '/projects/dispatch',
   'Project Material Planning': '/projects/material-planning',
+  'BOM Master': '/projects/bom-master',
   'Project Job Sheet': '/projects/job-sheet',
   'Subsidy': '/projects/subsidy/:projectId',
   'Project Work Orders': '/projects/work-orders/:projectId',
@@ -1545,13 +1548,13 @@ const stats = [
     target: 'Follow-ups',
   },
   {
-    title: 'Won Projects',
+    title: 'Won Leads',
     value: '34',
     delta: '5 this month',
     deltaTone: 'positive',
     icon: Trophy,
     iconBg: 'from-[#16c93f] to-[#39e264]',
-    target: 'Project List',
+    target: 'Lead List',
   },
 ];
 
@@ -2552,9 +2555,11 @@ function App() {
               deltaTone: 'positive',
             };
           }
-          if (s.title === 'Won Projects') {
+          if (s.title === 'Won Leads' || s.title === 'Won Projects') {
+            // Classic card keeps "Won Leads" (Lead status). Project-count KPI lives on Unified Dashboard as won_projects.
             return {
               ...s,
+              title: 'Won Leads',
               value: String(data.won ?? s.value),
               delta: `${data.won_in_period ?? 0} this ${periodLabel}`,
               deltaTone: 'positive',
@@ -10580,6 +10585,10 @@ function getModuleSubnavLabel(item) {
     return 'Material Planning';
   }
 
+  if (item === 'BOM Master') {
+    return 'BOM Master';
+  }
+
   if (item === 'Project Job Sheet') {
     return 'Job Sheet';
   }
@@ -15145,6 +15154,10 @@ function ProjectManagementPage({
         onConsumeAutoOpenQuotation={onConsumeAutoOpenQuotation}
       />
     );
+  }
+
+  if (activeSection === 'BOM Master') {
+    return <BomMasterPage onNotify={onNotify} />;
   }
 
   if (activeSection === 'Project KPI Analytics') {

@@ -174,34 +174,67 @@ def build_unified_dashboard(params=None):
         'cancelled': project_counts['cancelled'] or 0,
     }
 
+    from apps.projects.bom_services import material_shortage_count
+    from apps.projects.models import MaterialPlan
+
+    from decimal import Decimal as _D
+
+    mp_qs = MaterialPlan.objects.filter(project__is_deleted=False)
+    if date_from:
+        mp_qs = mp_qs.filter(created_at__date__gte=date_from)
+    if date_to:
+        mp_qs = mp_qs.filter(created_at__date__lte=date_to)
+    # planned_value is CharField historically — sum via Python for correctness.
+    planned_value_total = _D('0')
+    for raw in mp_qs.values_list('planned_value', flat=True).iterator(chunk_size=500):
+        try:
+            planned_value_total += _D(str(raw or '0').replace(',', '').strip() or '0')
+        except Exception:
+            continue
+    material_planning = {
+        'total_plans': mp_qs.count(),
+        'planned_value': float(planned_value_total.quantize(_D('0.01'))),
+        'shortage_lines': material_shortage_count(),
+    }
+
+    # Won Projects KPI = actual Project rows (not Lead status=Won count).
+    won_projects = project_summary.get('total', 0)
+
     overview = {
         'hero': {
             'total_leads': sales.get('total', 0),
+            'won_projects': won_projects,
             'active_projects': project_summary.get('active', 0),
             'total_projects': project_summary.get('total', 0),
             'cash_received': accounts.get('total_received', 0),
+            'payments_received': accounts.get('total_received', 0),
             'bank_balance': accounts.get('bank_balance', 0),
             'bank_count': accounts.get('bank_count', 0),
             'stock_value': inventory.get('total_value', 0),
             'stock_items': inventory.get('total_items', 0),
             'active_amc': amc.get('active_contracts', 0),
             'open_amc_requests': amc.get('open_service_requests', 0),
+            'customer_outstanding': accounts.get('pending_received', 0),
         },
         'operations': reports.get('operations') or {},
         'inventory': inventory,
         'amc': amc,
+        'material_planning': material_planning,
         'reports_kpis': reports.get('kpis') or [],
     }
 
     finance = {
         'total_received': accounts.get('total_received', 0),
+        'payments_received': accounts.get('total_received', 0),
         'total_made': accounts.get('total_made', 0),
         'net_balance': accounts.get('net_balance', 0),
+        'customer_outstanding': accounts.get('pending_received', 0),
         'inventory_value': inventory.get('total_value', 0),
         'amc_contract_value': float(amc.get('contract_value') or 0),
         'pending_cheques': accounts.get('pending_cheques', 0),
         'bank_balance': accounts.get('bank_balance', 0),
         'revenue_period': reports.get('revenue', 0),
+        'project_value': float(projects_kpi.get('financial', {}).get('total_value') or 0),
         'accounts': accounts,
     }
 
@@ -209,11 +242,12 @@ def build_unified_dashboard(params=None):
 
     return {
         'overview': overview,
-        'sales': sales,
+        'sales': {**sales, 'won_projects': won_projects, 'won_leads': sales.get('won', 0)},
         'projects': {
             'summary': project_summary,
             'kpi': projects_kpi,
         },
+        'material_planning': material_planning,
         'finance': finance,
         'alerts': alerts,
         'reports': reports,

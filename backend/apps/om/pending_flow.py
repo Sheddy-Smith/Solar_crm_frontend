@@ -453,9 +453,14 @@ def pending_counts_global_fast():
         .count()
     )
 
-    materials = InventoryItem.objects.filter(is_active=True).filter(
-        Q(current_stock__lte=0) | Q(minimum_stock__gt=0, current_stock__lte=F('minimum_stock'))
-    ).count()
+    # Prefer MaterialPlan demand shortage (planned remaining − usable stock).
+    try:
+        from apps.projects.bom_services import material_shortage_count
+        materials = material_shortage_count()
+    except Exception:
+        materials = InventoryItem.objects.filter(is_active=True).filter(
+            Q(current_stock__lte=0) | Q(minimum_stock__gt=0, current_stock__lte=F('minimum_stock'))
+        ).count()
 
     return {
         'work_orders': work_orders,

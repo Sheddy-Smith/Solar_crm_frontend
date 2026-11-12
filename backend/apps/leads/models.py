@@ -1,7 +1,6 @@
 import datetime
 import uuid
 from decimal import Decimal, InvalidOperation
-from django.core.files.base import ContentFile
 from django.db import models, transaction, IntegrityError
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
@@ -298,6 +297,16 @@ class Quotation(models.Model):
 
     # D. Plant Details
     plant_capacity_kw = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    # Immutable link to the BOM version used when this quotation was generated.
+    bom_version = models.ForeignKey(
+        'projects.BomVersion', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='quotations',
+    )
+    # When status is Approved, pricing/items edits require creating a revision (new Draft).
+    pricing_frozen = models.BooleanField(default=False)
+    revision_of = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True, related_name='revisions',
+    )
     estimated_annual_generation = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     shadow_free_area = models.CharField(max_length=100, blank=True)
     module_orientation = models.CharField(max_length=50, blank=True)
@@ -688,111 +697,11 @@ def move_alerts_when_follow_up_date_changes(sender, instance, created, **kwargs)
 def create_project_for_won_lead(sender, instance, **kwargs):
     if instance.status != 'Won':
         return
-
-    from apps.projects.models import Project, SiteSurvey, ProjectDocument
-    from apps.liaisoning.models import LiaisonProjectStage
-
-    def _lead_project_cost(lead):
-        cost = Decimal('0')
-        try:
-            latest_quote = (
-                Quotation.objects.filter(lead=lead)
-                .exclude(status='Cancelled')
-                .order_by('-updated_at', '-id')
-                .first()
-            )
-            if latest_quote and latest_quote.grand_total:
-                cost = Decimal(str(latest_quote.grand_total))
-        except Exception:
-            cost = Decimal('0')
-        if cost <= 0 and lead.project_cost:
-            try:
-                cost = Decimal(str(lead.project_cost))
-            except (InvalidOperation, ValueError, TypeError):
-                cost = Decimal('0')
-        return cost
-
-    existing = Project.objects.filter(lead=instance).first()
-    if existing:
-        LiaisonProjectStage.objects.get_or_create(project=existing)
-        # Keep Project Cost in sync when lead cost is set and project value is still empty
-        # (or only mirrors the previous lead cost).
-        resolved = _lead_project_cost(instance)
-        if resolved > 0 and (not existing.total_value or existing.total_value == 0):
-            existing.total_value = resolved
-            existing.save(update_fields=['total_value', 'updated_at'])
-        elif resolved > 0 and instance.project_cost and Decimal(str(instance.project_cost or 0)) > 0:
-            # Prefer explicit lead.project_cost when user updates it on an existing Won lead.
-            lead_cost = Decimal(str(instance.project_cost))
-            if existing.total_value != lead_cost:
-                # Don't overwrite a higher quotation-backed total with a lower manual lead cost.
-                quote_total = Decimal('0')
-                try:
-                    latest_quote = (
-                        Quotation.objects.filter(lead=instance)
-                        .exclude(status='Cancelled')
-                        .order_by('-updated_at', '-id')
-                        .first()
-                    )
-                    if latest_quote and latest_quote.grand_total:
-                        quote_total = Decimal(str(latest_quote.grand_total))
-                except Exception:
-                    quote_total = Decimal('0')
-                if quote_total <= 0:
-                    existing.total_value = lead_cost
-                    existing.save(update_fields=['total_value', 'updated_at'])
-        try:
-            from apps.leads.quotation_sync import (
-                ensure_quotation_outbox_pending,
-                run_quotation_downstream_sync,
-            )
-            latest_quote = (
-                Quotation.objects.filter(lead=instance, is_deleted=False)
-                .exclude(status='Rejected')
-                .order_by('-updated_at', '-id')
-                .first()
-            )
-            if latest_quote:
-                ensure_quotation_outbox_pending(latest_quote, user=instance.created_by)
-                run_quotation_downstream_sync(latest_quote.pk, user_id=getattr(instance.created_by, 'pk', None))
-        except Exception:
-            pass
-        return
-
     try:
-        capacity_kwp = Decimal(instance.estimated_capacity) if instance.estimated_capacity else Decimal('0')
-    except (InvalidOperation, ValueError):
-        capacity_kwp = Decimal('0')
-
-    total_value = _lead_project_cost(instance)
-
-    lead_survey = getattr(instance, 'site_survey', None)
-
-    project = Project.objects.create(
-        project_name=instance.project_name or f'{instance.customer_name} Solar Project',
-        lead=instance,
-        customer_name=instance.customer_name,
-        site_address=(lead_survey.site_address if lead_survey and lead_survey.site_address else instance.address),
-        city=instance.city,
-        state=instance.state,
-        site_size=(lead_survey.site_size_sqft if lead_survey else ''),
-        project_type=instance.project_type or 'On-Grid',
-        capacity_kwp=capacity_kwp,
-        total_value=total_value,
-        manager=instance.assigned_to,
-        status='Planning',
-        created_by=instance.created_by,
-    )
-    # Liaisoning (net metering / DISCOM work) runs in parallel with the project.
-    LiaisonProjectStage.objects.get_or_create(project=project)
-
-    try:
-        from apps.accounts_module.services import get_or_create_party_for_project
-        get_or_create_party_for_project(project)
+        from apps.projects.project_lifecycle import ensure_project_for_lead
+        ensure_project_for_lead(instance, user=instance.created_by)
     except Exception:
         pass
-
-    # Quotation (any prior status) → durable outbox → customer ledger + material planning.
     try:
         from apps.leads.quotation_sync import (
             ensure_quotation_outbox_pending,
@@ -810,30 +719,20 @@ def create_project_for_won_lead(sender, instance, **kwargs):
     except Exception:
         pass
 
-    if lead_survey:
-        SiteSurvey.objects.create(
-            project=project,
-            survey_date=lead_survey.survey_date,
-            surveyed_by=lead_survey.surveyed_by,
-            roof_type=lead_survey.mounting_type,
-            rooftop_area_sqft=lead_survey.site_size_sqft,
-            available_area_sqft=lead_survey.site_size_sqft,
-            latitude=lead_survey.latitude,
-            longitude=lead_survey.longitude,
-            summary_notes=(f'From lead site visit: {lead_survey.customer_feedback}' if lead_survey.customer_feedback else ''),
-        )
-        for photo in lead_survey.photos.all():
-            try:
-                photo.image.open('rb')
-                content = photo.image.read()
-            except (OSError, ValueError):
-                continue
-            finally:
-                photo.image.close()
-            doc = ProjectDocument(
-                project=project,
-                name=photo.caption or f'Site Photo {photo.pk}',
-                category='Site Photos',
-                uploaded_by=lead_survey.surveyed_by,
-            )
-            doc.file.save(photo.image.name.rsplit('/', 1)[-1], ContentFile(content), save=True)
+
+@receiver(post_save, sender=Quotation)
+def ensure_project_when_quotation_approved(sender, instance, **kwargs):
+    """Approved quotation → idempotent project link/create (does not silently rewrite frozen pricing)."""
+    if getattr(instance, 'is_deleted', False):
+        return
+    if (instance.status or '') != 'Approved':
+        return
+    # Freeze pricing on approval.
+    if not instance.pricing_frozen:
+        Quotation.objects.filter(pk=instance.pk).update(pricing_frozen=True)
+        instance.pricing_frozen = True
+    try:
+        from apps.projects.project_lifecycle import ensure_project_for_lead
+        ensure_project_for_lead(instance.lead, quotation=instance, user=instance.created_by)
+    except Exception:
+        pass

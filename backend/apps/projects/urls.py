@@ -11,8 +11,15 @@ from .views import (
     JobSheetViewSet, PmPipelineViewSet,
 )
 from .billing_views import ProjectSalesChallanViewSet, ProjectInvoiceViewSet
+from .bom_views import (
+    ActiveBomForCapacityView, BomCapacityConfigViewSet, BomLineViewSet,
+    BomVersionViewSet, DraftQuotationFromBomView,
+)
 
 router = DefaultRouter()
+router.register('bom-capacities', BomCapacityConfigViewSet, basename='bom-capacity')
+router.register('bom-versions', BomVersionViewSet, basename='bom-version')
+router.register('bom-lines', BomLineViewSet, basename='bom-line')
 router.register('project-pipeline', PmPipelineViewSet, basename='project-pipeline')
 router.register('projects', ProjectViewSet, basename='project')
 router.register('project-activities', ProjectActivityViewSet, basename='project-activity')
@@ -36,5 +43,7 @@ router.register('site-survey-photos', SiteSurveyPhotoViewSet, basename='site-sur
 router.register('site-surveys', SiteSurveyViewSet, basename='site-survey')
 
 urlpatterns = [
+    path('bom/active/', ActiveBomForCapacityView.as_view(), name='bom-active'),
+    path('bom/draft-quotation/', DraftQuotationFromBomView.as_view(), name='bom-draft-quotation'),
     path('', include(router.urls)),
 ]

@@ -12,7 +12,19 @@ _WATCHED = (
     ('projects', 'SiteSurvey'),
     ('projects', 'WorkOrder'),
     ('projects', 'ProjectPayment'),
+    ('projects', 'MaterialPlan'),
+    ('projects', 'BomVersion'),
+    ('projects', 'BomLine'),
     ('accounts_module', 'Payment'),
+    ('accounts_module', 'PaymentVoucher'),
+    ('accounts_module', 'PurchaseChallan'),
+    ('accounts_module', 'PurchaseInvoice'),
+    ('inventory', 'InventoryItem'),
+    ('inventory', 'StockMovement'),
+    ('amc', 'AmcContract'),
+    ('amc', 'AmcServiceRequest'),
+    ('om', 'OmBreakdownTicket'),
+    ('om', 'OmMaintenanceTask'),
 )
 
 

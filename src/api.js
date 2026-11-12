@@ -458,6 +458,22 @@ export const dashboardApi = {
   },
 };
 
+/** Fixed BOM & Pricing Master (capacity-versioned). */
+export const bomApi = {
+  capacities: () => request('/bom-capacities/'),
+  ensureDefaults: () => request('/bom-capacities/ensure-defaults/', { method: 'POST', body: {} }),
+  versions: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/bom-versions/${qs ? `?${qs}` : ''}`);
+  },
+  createVersion: (data) => request('/bom-versions/', { method: 'POST', body: data }),
+  updateVersion: (id, data) => request(`/bom-versions/${id}/`, { method: 'PATCH', body: data }),
+  activateVersion: (id) => request(`/bom-versions/${id}/activate/`, { method: 'POST', body: {} }),
+  preview: (id) => request(`/bom-versions/${id}/preview/`),
+  activeForCapacity: (capacityKw) => request(`/bom/active/?capacity_kw=${encodeURIComponent(capacityKw)}`),
+  draftQuotation: (data) => request('/bom/draft-quotation/', { method: 'POST', body: data }),
+};
+
 export const reportsApi = {
   dashboard: (params = {}) => {
     const qs = new URLSearchParams(

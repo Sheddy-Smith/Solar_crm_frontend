@@ -781,6 +781,15 @@ class MaterialPlan(models.Model):
     planned_value = models.CharField(max_length=50, blank=True, default='')
     # Project planned/charge unit price — NEVER overwrites InventoryItem.rate (purchase cost).
     planning_unit_price = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    # Traceability to BOM / quotation (historical versions preserved).
+    bom_version = models.ForeignKey(
+        'projects.BomVersion', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='material_plans',
+    )
+    source_quotation = models.ForeignKey(
+        'leads.Quotation', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='material_plans',
+    )
     status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='Not Started')
     dispatched_qty = models.CharField(max_length=50, blank=True, default='')
     dispatch_status = models.CharField(max_length=20, choices=DISPATCH_STATUS_CHOICES, default='Pending')
@@ -1033,3 +1042,22 @@ class ProjectPipelineStage(models.Model):
 
     def __str__(self):
         return f'{self.project.project_name} - {self.stage}'
+
+
+# Versioned BOM & pricing master (imported so Django registers models under projects).
+from .bom_models import BomCapacityConfig, BomLine, BomVersion  # noqa: E402,F401
+
+
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+
+@receiver(post_save, sender=Project)
+def maybe_create_amc_on_project_completion(sender, instance, **kwargs):
+    if (instance.status or '') != 'Completed' or getattr(instance, 'is_deleted', False):
+        return
+    try:
+        from .project_lifecycle import ensure_amc_draft_for_completed_project
+        ensure_amc_draft_for_completed_project(instance, user=instance.created_by)
+    except Exception:
+        pass

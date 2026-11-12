@@ -129,7 +129,8 @@ class QuotationSerializer(serializers.ModelSerializer):
             'company_name', 'alternate_number', 'email', 'gst_number', 'aadhaar_number', 'address', 'city', 'state', 'pincode',
             'project_type', 'installation_type', 'sanctioned_load_kw', 'monthly_electricity_bill', 'discom_name',
             'existing_meter_number', 'connection_type', 'consumer_number', 'execution_timeline',
-            'plant_capacity_kw', 'estimated_annual_generation', 'shadow_free_area', 'module_orientation',
+            'plant_capacity_kw', 'bom_version', 'pricing_frozen', 'revision_of',
+            'estimated_annual_generation', 'shadow_free_area', 'module_orientation',
             'panel_brand', 'panel_model', 'panel_type', 'panel_wattage', 'number_of_panels', 'total_dc_capacity',
             'inverter_brand', 'inverter_model', 'inverter_type', 'inverter_capacity', 'inverter_quantity',
             'structure_type', 'structure_material', 'coating_details', 'foundation_type', 'wind_speed_rating',
@@ -154,7 +155,7 @@ class QuotationSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'created_by', 'quotation_number', 'subtotal', 'gst_amount', 'grand_total',
             'customer_contribution', 'total_dc_capacity', 'taxable_value', 'gst_5_amount', 'gst_18_amount',
-            'created_at', 'updated_at',
+            'pricing_frozen', 'created_at', 'updated_at',
         ]
 
     def get_created_by_name(self, obj):
@@ -193,9 +194,33 @@ class QuotationSerializer(serializers.ModelSerializer):
         items_data = validated_data.pop('items', None)
         request = self.context.get('request')
         user = getattr(request, 'user', None) if request else None
+        # Approved / frozen quotations cannot silently rewrite pricing or line items.
+        frozen = bool(instance.pricing_frozen or (instance.status or '') == 'Approved')
+        pricing_keys = {
+            'grand_total', 'subtotal', 'material_cost', 'installation_cost', 'structure_cost',
+            'transportation_cost', 'liaisoning_charges', 'net_metering_charges', 'other_charges',
+            'customer_contribution', 'discount', 'gst_percent', 'gst_amount', 'subsidy_amount',
+            'plant_capacity_kw', 'bom_version', 'items',
+        }
+        if frozen:
+            if items_data is not None:
+                raise serializers.ValidationError({
+                    'items': 'Approved quotation is frozen. Create a revision Draft instead of editing lines.',
+                })
+            # Read-only totals (grand_total etc.) never enter validated_data — still reject client attempts.
+            incoming = self.initial_data if isinstance(self.initial_data, dict) else {}
+            attempted = sorted({k for k in pricing_keys if k in incoming or k in validated_data})
+            if attempted:
+                raise serializers.ValidationError({
+                    'detail': 'Approved quotation pricing is frozen. Create a revision Draft to change amounts.',
+                    'blocked_fields': attempted,
+                })
         with transaction.atomic():
+            new_status = validated_data.get('status', instance.status)
             for attr, value in validated_data.items():
                 setattr(instance, attr, value)
+            if new_status == 'Approved':
+                instance.pricing_frozen = True
             instance.save()
             if items_data is not None:
                 instance.items.all().delete()

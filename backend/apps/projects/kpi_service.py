@@ -121,14 +121,8 @@ def project_kpi_analytics(date_from=None, date_to=None):
         'cancelled': status_counts.get('Cancelled', 0),
     }
 
-    performance_stats = [
-        {'label': 'On-Time Delivery', 'value': '76.12%', 'note': '9.45% vs Last Year', 'tone': 'blue'},
-        {'label': 'Budget Performance', 'value': '93.25%', 'note': '6.21% vs Last Year', 'tone': 'green'},
-        {'label': 'Team Utilization', 'value': '68.45%', 'note': '7.32% vs Last Year', 'tone': 'blue'},
-        {'label': 'Site Visit Completion', 'value': '89.12%', 'note': '11.23% vs Last Year', 'tone': 'purple'},
-        {'label': 'Installation Efficiency', 'value': '71.34%', 'note': '8.14% vs Last Year', 'tone': 'cyan'},
-        {'label': 'Client Satisfaction', 'value': '4.62 / 5', 'note': '0.45 vs Last Year', 'tone': 'amber'},
-    ]
+    # No dummy performance KPIs — empty until real telemetry exists.
+    performance_stats = []
 
     return {
         'summary': summary_counts,
