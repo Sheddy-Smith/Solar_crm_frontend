@@ -27,7 +27,7 @@ class LeadViewSet(viewsets.ModelViewSet):
     permission_classes = [HasModulePermission]
     permission_module = 'Lead'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['status', 'category', 'assigned_to']
+    filterset_fields = ['status', 'category', 'assigned_to', 'customer']
     search_fields = ['customer_name', 'mobile_number', 'ivrs_number', 'project_name']
     ordering_fields = ['created_at', 'next_follow_up', 'customer_name', 'last_activity_at']
     ordering = ['-last_activity_at', '-created_at']
@@ -456,7 +456,7 @@ class QuotationViewSet(viewsets.ModelViewSet):
     permission_classes = [HasModulePermission]
     permission_module = 'Quotation'
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['lead', 'status']
+    filterset_fields = ['lead', 'status', 'customer', 'project']
     ordering = ['-created_at']
 
     def get_queryset(self):

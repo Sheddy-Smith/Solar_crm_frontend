@@ -573,7 +573,7 @@ const leadRelatedPages = ['Lead List', 'Lead Details', 'Lead Edit', 'Follow-ups'
 const leadDetailPages = ['Lead Details', 'Lead Edit', 'Lead Follow-up Create', 'Lead Site Visit Schedule', 'Lead Note Create', 'Lead Status Update', 'Lead Assign'];
 const employeeSubItems = ['Employee Details', 'Employee Ledger'];
 const employeeRelatedPages = ['Employee', ...employeeSubItems];
-const customerSubItems = ['Customer Details', 'Customer Ledger'];
+const customerSubItems = ['Customer Details', 'Customer Ledger', 'Customer Merge', 'Project Reconciliation'];
 const customerRelatedPages = ['Customer', ...customerSubItems, 'Overall Credit Ledger', 'Customer Leads'];
 const vendorSubItems = ['Vendor Details', 'Vendor Ledger'];
 const vendorRelatedPages = ['Vendors', ...vendorSubItems];
@@ -1024,6 +1024,8 @@ const employeeSubRoutes = {
 const customerSubRoutes = {
   'Customer Details': '/customers/details',
   'Customer Ledger': '/customers/ledger',
+  'Customer Merge': '/customers/merge',
+  'Project Reconciliation': '/customers/reconciliation',
   'Overall Credit Ledger': '/customers/credit-ledger',
 };
 
@@ -34932,7 +34934,7 @@ function emptyQuotationDetailForm(template) {
   };
 }
 
-function buildQuotationDetailPayload(template, form, leadId, items) {
+function buildQuotationDetailPayload(template, form, leadId, items, customerId = null, projectId = null) {
   const num = (v) => (v === '' || v === null || v === undefined ? 0 : Number(v));
   const nullableNum = (v) => (v === '' || v === null || v === undefined ? null : Number(v));
   const cleanItems = items.filter((row) => row.item_name && row.item_name.trim());
@@ -34941,7 +34943,9 @@ function buildQuotationDetailPayload(template, form, leadId, items) {
   const numberOfPanels = panelWattage && plantCapacity ? Math.ceil((plantCapacity * 1000) / panelWattage) : null;
 
   return {
-    lead: leadId,
+    lead: leadId || null,
+    customer: customerId || form.customer || form.customer_id || null,
+    project: projectId || form.project || form.project_id || null,
     template,
     project_type: QUOTATION_TEMPLATE_PROJECT_TYPE[template] || '',
     company_name: form.company_name || '',
@@ -35536,6 +35540,123 @@ function isQuotationExpired(quotation) {
   return !Number.isNaN(validTill.getTime()) && validTill < new Date();
 }
 
+function QuotationCustomerPickerModal({ onClose, onSelect, onNotify }) {
+  const [customers, setCustomers] = useState([]);
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    accountsModuleApi.parties.list({ account_type: 'Customer', page_size: 200 })
+      .then((data) => setCustomers(normalizeApiRows(data).filter((row) => row.status !== 'Merged')))
+      .catch(() => {
+        setCustomers([]);
+        onNotify?.('Failed to load customers');
+      })
+      .finally(() => setLoading(false));
+  }, [onNotify]);
+
+  const filtered = customers.filter((row) => {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return `${row.name || ''} ${row.phone || ''} ${row.record_no || ''} ${row.id || ''}`.toLowerCase().includes(q);
+  });
+
+  return (
+    <div className="modal-overlay fixed inset-0 z-95 flex items-end justify-center bg-[#111827]/50 p-0 sm:items-center sm:p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className="modal-pop-in flex max-h-[92vh] w-full max-w-[640px] flex-col overflow-hidden rounded-t-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)] sm:max-h-[85vh] sm:rounded-[16px]">
+        <div className="flex items-start justify-between gap-4 border-b border-[#edf2f8] px-6 py-4">
+          <div>
+            <h2 className="font-display text-[19px] font-extrabold text-[#111827]">Select Customer</h2>
+            <p className="mt-1 text-[13px] font-bold text-[#53647f]">Customer Master is required — Lead is optional.</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close" className="text-[#7585a2]"><X className="size-5" /></button>
+        </div>
+        <div className="border-b border-[#edf2f8] px-6 py-4">
+          <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4">
+            <Search className="size-4 text-[#7386a3]" />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} type="search" placeholder="Search customer by name, mobile, ID..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+          </label>
+        </div>
+        <div className="scroll-soft max-h-[420px] overflow-y-auto p-2">
+          {loading ? <PageLoadingState message="Loading customers..." compact /> : filtered.length === 0 ? (
+            <p className="py-10 text-center text-[13px] font-bold text-[#7386a3]">No customers found</p>
+          ) : filtered.map((row) => (
+            <button key={row.id} type="button" onClick={() => onSelect?.(row)} className="flex w-full items-center justify-between gap-3 rounded-[10px] px-4 py-3 text-left transition hover:bg-[#f8fbff]">
+              <span className="min-w-0">
+                <span className="block truncate text-[14px] font-extrabold text-[#1e3261]">{row.name || '—'}</span>
+                <span className="mt-1 block text-[12px] font-bold text-[#53647f]">{row.phone || '—'} • ACC-{String(row.id).padStart(4, '0')}</span>
+              </span>
+              <span className="shrink-0 text-[12px] font-extrabold text-[#0b65e5]">Select</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QuotationProjectPickerModal({ customer, onClose, onBack, onSelect, onSkip, onNotify }) {
+  const [projects, setProjects] = useState([]);
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!customer?.id) return;
+    projectApi.list({ customer: customer.id, page_size: 100 })
+      .then((data) => setProjects(normalizeApiRows(data)))
+      .catch(() => {
+        setProjects([]);
+        onNotify?.('Failed to load projects for customer');
+      })
+      .finally(() => setLoading(false));
+  }, [customer?.id, onNotify]);
+
+  const filtered = projects.filter((row) => {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return `${row.project_id || ''} ${row.project_name || ''} ${row.id || ''}`.toLowerCase().includes(q);
+  });
+
+  return (
+    <div className="modal-overlay fixed inset-0 z-95 flex items-end justify-center bg-[#111827]/50 p-0 sm:items-center sm:p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className="modal-pop-in flex max-h-[92vh] w-full max-w-[640px] flex-col overflow-hidden rounded-t-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)] sm:max-h-[85vh] sm:rounded-[16px]">
+        <div className="flex items-start justify-between gap-4 border-b border-[#edf2f8] px-6 py-4">
+          <div>
+            <h2 className="font-display text-[19px] font-extrabold text-[#111827]">Select Project</h2>
+            <p className="mt-1 text-[13px] font-bold text-[#53647f]">
+              {customer?.name || 'Customer'} · only projects belonging to this Customer.
+            </p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close" className="text-[#7585a2]"><X className="size-5" /></button>
+        </div>
+        <div className="border-b border-[#edf2f8] px-6 py-4">
+          <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4">
+            <Search className="size-4 text-[#7386a3]" />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} type="search" placeholder="Search project code or name..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
+          </label>
+        </div>
+        <div className="scroll-soft max-h-[420px] overflow-y-auto p-2">
+          {loading ? <PageLoadingState message="Loading projects..." compact /> : filtered.length === 0 ? (
+            <p className="py-10 text-center text-[13px] font-bold text-[#7386a3]">No projects for this Customer</p>
+          ) : filtered.map((row) => (
+            <button key={row.id} type="button" onClick={() => onSelect?.(row)} className="flex w-full items-center justify-between gap-3 rounded-[10px] px-4 py-3 text-left transition hover:bg-[#f8fbff]">
+              <span className="min-w-0">
+                <span className="block truncate text-[14px] font-extrabold text-[#1e3261]">{row.project_name || '—'}</span>
+                <span className="mt-1 block text-[12px] font-bold text-[#53647f]">{row.project_id || row.id} · {row.status || '—'}</span>
+              </span>
+              <span className="shrink-0 text-[12px] font-extrabold text-[#0b65e5]">Select</span>
+            </button>
+          ))}
+        </div>
+        <div className="flex justify-between gap-2 border-t border-[#edf2f8] px-6 py-3">
+          <button type="button" onClick={onBack} className="h-10 rounded-[8px] border px-4 text-[13px] font-semibold">Back</button>
+          <button type="button" onClick={onSkip} className="h-10 rounded-[8px] border border-[#ffedd5] bg-[#fff7ed] px-4 text-[13px] font-extrabold text-[#9a3412]">Continue without project</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function QuotationLeadPickerModal({ onClose, onSelect, onNotify }) {
   const [leads, setLeads] = useState([]);
   const [query, setQuery] = useState('');
@@ -35709,14 +35830,15 @@ function QuotationEditDetailModal({ quotationId, onClose, onSaved, onNotify }) {
 
   const handleSave = async (template, form, items) => {
     if (!quotation || saving) return;
-    const leadId = typeof quotation.lead === 'object' ? quotation.lead.id : quotation.lead;
-    if (!leadId) {
-      onNotify?.('Lead not found for this quotation');
+    const leadId = typeof quotation.lead === 'object' ? quotation.lead?.id : quotation.lead;
+    const customerId = typeof quotation.customer === 'object' ? quotation.customer?.id : quotation.customer;
+    if (!leadId && !customerId) {
+      onNotify?.('Customer (or Lead) is required for this quotation');
       return;
     }
     setSaving(true);
     try {
-      const payload = buildQuotationDetailPayload(template, form, leadId, items);
+      const payload = buildQuotationDetailPayload(template, form, leadId || null, items, customerId || null, quotation.project || null);
       payload.status = quotation.status || 'Draft';
       await quotationApi.update(quotationId, payload);
       onNotify?.('Quotation updated successfully');
@@ -35822,7 +35944,7 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
       .finally(() => setLoading(false));
   }, [onNotify]);
 
-  const startNewQuotation = () => setCreateFlow({ step: 'lead' });
+  const startNewQuotation = () => setCreateFlow({ step: 'source' });
 
   useEffect(() => {
     loadQuotations();
@@ -35863,10 +35985,14 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
   };
 
   const handleCreateQuotationSave = async (template, form, items) => {
-    if (!createFlow?.lead?.id || composeSaving) return;
+    if ((!createFlow?.lead?.id && !createFlow?.customer?.id) || composeSaving) return;
     setComposeSaving(true);
     try {
-      const payload = buildQuotationDetailPayload(template, form, createFlow.lead.id, items);
+      const leadId = createFlow.lead?.id || null;
+      const customerId = createFlow.customer?.id || createFlow.lead?.customer || createFlow.lead?.customer_id || null;
+      const payload = buildQuotationDetailPayload(
+        template, form, leadId, items, customerId, createFlow.project?.id || null,
+      );
       payload.status = 'Draft';
       const created = await quotationApi.create(payload);
       if (!created?.id) throw new Error('Failed to create quotation');
@@ -36116,20 +36242,95 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
         ) : null}
       </section>
 
+      {createFlow?.step === 'source' ? (
+        <div className="modal-overlay fixed inset-0 z-95 flex items-end justify-center bg-[#111827]/50 p-0 sm:items-center sm:p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) closeCreateFlow(); }}>
+          <div className="modal-pop-in w-full max-w-[720px] rounded-t-[16px] bg-white p-5 shadow-2xl sm:rounded-[16px]">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="font-display text-[19px] font-extrabold text-[#111827]">New Quotation</h2>
+                <p className="mt-1 text-[13px] font-bold text-[#53647f]">Lead-based, Customer-direct, or Project-linked workflow.</p>
+              </div>
+              <button type="button" onClick={closeCreateFlow} aria-label="Close" className="text-[#7585a2]"><X className="size-5" /></button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <button type="button" onClick={() => setCreateFlow({ step: 'lead' })} className="rounded-[12px] border border-[#dbe4ff] bg-[#f5f8ff] p-4 text-left hover:border-[#3538cd]">
+                <p className="text-[14px] font-extrabold text-[#1e3261]">Lead-based</p>
+                <p className="mt-1 text-[12px] font-semibold text-[#53647f]">Pick a Lead (IVRS). Customer Master links when available.</p>
+              </button>
+              <button type="button" onClick={() => setCreateFlow({ step: 'customer', requireProject: false })} className="rounded-[12px] border border-[#dcfce7] bg-[#f0fdf4] p-4 text-left hover:border-[#16a34a]">
+                <p className="text-[14px] font-extrabold text-[#166534]">Customer-direct</p>
+                <p className="mt-1 text-[12px] font-semibold text-[#53647f]">Create quotation without a Lead.</p>
+              </button>
+              <button type="button" onClick={() => setCreateFlow({ step: 'customer', requireProject: true })} className="rounded-[12px] border border-[#ffedd5] bg-[#fff7ed] p-4 text-left hover:border-[#ea580c]">
+                <p className="text-[14px] font-extrabold text-[#9a3412]">Project-linked</p>
+                <p className="mt-1 text-[12px] font-semibold text-[#53647f]">Customer → Project belonging to same Customer.</p>
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {createFlow?.step === 'lead' ? (
         <QuotationLeadPickerModal
           onClose={closeCreateFlow}
-          onSelect={(lead) => setCreateFlow({ step: 'template', lead })}
+          onSelect={(lead) => setCreateFlow({
+            step: 'template',
+            lead,
+            customer: lead?.customer ? { id: lead.customer } : null,
+          })}
+          onNotify={onNotify}
+        />
+      ) : null}
+
+      {createFlow?.step === 'customer' ? (
+        <QuotationCustomerPickerModal
+          onClose={closeCreateFlow}
+          onSelect={(customer) => setCreateFlow({
+            step: createFlow.requireProject ? 'project' : 'template',
+            customer,
+            lead: null,
+            requireProject: createFlow.requireProject,
+          })}
+          onNotify={onNotify}
+        />
+      ) : null}
+
+      {createFlow?.step === 'project' && createFlow.customer ? (
+        <QuotationProjectPickerModal
+          customer={createFlow.customer}
+          onClose={closeCreateFlow}
+          onBack={() => setCreateFlow({ step: 'customer', requireProject: true })}
+          onSelect={(project) => setCreateFlow({
+            step: 'template',
+            customer: createFlow.customer,
+            project,
+            lead: null,
+            requireProject: true,
+          })}
+          onSkip={() => setCreateFlow({
+            step: 'template',
+            customer: createFlow.customer,
+            project: null,
+            lead: null,
+            requireProject: true,
+          })}
           onNotify={onNotify}
         />
       ) : null}
 
       {createFlow?.step === 'template' ? (
         <QuotationTemplatePickerModal
-          lead={createFlow.lead}
+          lead={createFlow.lead || createFlow.customer}
           initialTemplate={createFlow.template}
           onClose={closeCreateFlow}
-          onBack={() => setCreateFlow({ step: 'lead', lead: createFlow.lead, draft: createFlow.draft })}
+          onBack={() => setCreateFlow({
+            step: createFlow.lead ? 'lead' : (createFlow.requireProject ? 'project' : 'customer'),
+            lead: createFlow.lead,
+            customer: createFlow.customer,
+            project: createFlow.project,
+            requireProject: createFlow.requireProject,
+            draft: createFlow.draft,
+          })}
           onContinue={(template) => setCreateFlow((prev) => ({ ...prev, step: 'detail', template }))}
         />
       ) : null}
@@ -36139,10 +36340,27 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
           template={createFlow.template}
           initialForm={createFlow.draft?.template === createFlow.template ? createFlow.draft.form : null}
           initialItems={createFlow.draft?.template === createFlow.template ? createFlow.draft.items : null}
-          leadSnapshot={buildLeadSnapshotFromLead(createFlow.lead)}
-          leadIdDisplay={createFlow.lead?.ivrs_number || '—'}
+          leadSnapshot={createFlow.lead
+            ? buildLeadSnapshotFromLead(createFlow.lead)
+            : {
+              customer_name: createFlow.customer?.name || '',
+              mobile_number: createFlow.customer?.phone || '',
+              email: createFlow.customer?.email || '',
+              address: createFlow.customer?.address || '',
+              city: createFlow.customer?.city || '',
+              state: createFlow.customer?.state || '',
+            }}
+          leadIdDisplay={createFlow.lead?.ivrs_number || (createFlow.customer ? `ACC-${String(createFlow.customer.id).padStart(4, '0')}` : '—')}
           onClose={closeCreateFlow}
-          onBack={() => setCreateFlow((prev) => ({ step: 'template', lead: prev.lead, template: prev.template, draft: prev.draft }))}
+          onBack={() => setCreateFlow((prev) => ({
+            step: 'template',
+            lead: prev.lead,
+            customer: prev.customer,
+            project: prev.project,
+            requireProject: prev.requireProject,
+            template: prev.template,
+            draft: prev.draft,
+          }))}
           onTemplateChange={(template) => setCreateFlow((prev) => ({ ...prev, template }))}
           onSave={(template, form, items) => {
             setCreateFlow((prev) => ({ ...prev, draft: { template, form, items } }));
@@ -36297,10 +36515,14 @@ function ProjectQuotationsPanel({ project, loggedInUser, onNotify, onChanged }) 
   };
 
   const handleCreateQuotationSave = async (template, form, items) => {
-    if (!createFlow?.lead?.id || composeSaving) return;
+    if ((!createFlow?.lead?.id && !createFlow?.customer?.id) || composeSaving) return;
     setComposeSaving(true);
     try {
-      const payload = buildQuotationDetailPayload(template, form, createFlow.lead.id, items);
+      const leadId = createFlow.lead?.id || null;
+      const customerId = createFlow.customer?.id || createFlow.lead?.customer || createFlow.lead?.customer_id || null;
+      const payload = buildQuotationDetailPayload(
+        template, form, leadId, items, customerId, createFlow.project?.id || null,
+      );
       payload.status = 'Draft';
       const created = await quotationApi.create(payload);
       if (!created?.id) throw new Error('Failed to create quotation');

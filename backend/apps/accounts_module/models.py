@@ -810,3 +810,33 @@ class CustomerMergeAudit(models.Model):
 
     def __str__(self):
         return f'Merge {self.source_id} → {self.target_id} ({self.created_at})'
+
+
+class ProjectCustomerLinkAudit(models.Model):
+    """Audit trail for orphan Project → Customer reconciliation actions."""
+    ACTION_CHOICES = [
+        ('link_existing', 'Link existing Customer'),
+        ('create_and_link', 'Create Customer and link'),
+        ('skip_review', 'Skipped for manual review'),
+        ('reassign', 'Reassigned Customer'),
+    ]
+    project = models.ForeignKey(
+        'projects.Project', on_delete=models.CASCADE, related_name='customer_link_audits',
+    )
+    customer = models.ForeignKey(
+        Account, on_delete=models.SET_NULL, null=True, blank=True, related_name='project_link_audits',
+    )
+    action = models.CharField(max_length=32, choices=ACTION_CHOICES)
+    match_reason = models.CharField(max_length=200, blank=True, default='')
+    evidence = models.JSONField(default=dict, blank=True)
+    notes = models.TextField(blank=True)
+    performed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='project_customer_links',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.action} project={self.project_id} customer={self.customer_id}'

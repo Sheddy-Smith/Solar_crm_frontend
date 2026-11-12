@@ -237,3 +237,68 @@ class CustomerMasterTests(TestCase):
         Account.objects.filter(pk=merged.pk).update(normalized_phone='9000000013')
         found = find_party_by_phone('9000000013')
         self.assertEqual(found.id, live.id)
+
+    def test_customer_profile_endpoint(self):
+        party = Account.objects.create(name='Profile Cust', account_type='Customer', phone='9000000014')
+        Project.objects.create(project_name='ProfP', customer=party, customer_name='Profile Cust', capacity_kwp=5)
+        res = self.client.get(f'/api/v1/accounts/parties/{party.id}/profile/')
+        self.assertEqual(res.status_code, 200, res.content)
+        self.assertTrue(res.data.get('ok'))
+        self.assertEqual(res.data['overview']['projects_count'], 1)
+        self.assertIn('accounts', res.data)
+        self.assertEqual(len(res.data['projects']), 1)
+
+    def test_orphan_reconciliation_link_and_skip(self):
+        from apps.accounts_module.models import ProjectCustomerLinkAudit
+        party = Account.objects.create(name='OrphanLink', account_type='Customer', phone='9000000015')
+        orphan = Project.objects.create(
+            project_name='OrphanP', customer=None, customer_name='Name Only', capacity_kwp=3,
+        )
+        report = self.client.get('/api/v1/accounts/parties/orphan-projects/')
+        self.assertEqual(report.status_code, 200, report.content)
+        self.assertGreaterEqual(report.data['total_orphans'], 1)
+        row = next(r for r in report.data['results'] if r['project_id'] == orphan.id)
+        self.assertTrue(row['needs_manual_review'])
+
+        bad = self.client.post('/api/v1/accounts/parties/create-customer-for-orphan/', {
+            'project_id': orphan.id, 'name': 'Guess', 'phone': '',
+        }, format='json')
+        self.assertEqual(bad.status_code, 400)
+
+        linked = self.client.post('/api/v1/accounts/parties/link-orphan-project/', {
+            'project_id': orphan.id, 'customer_id': party.id, 'match_reason': 'manual_test',
+        }, format='json')
+        self.assertEqual(linked.status_code, 200, linked.content)
+        orphan.refresh_from_db()
+        self.assertEqual(orphan.customer_id, party.id)
+        self.assertTrue(ProjectCustomerLinkAudit.objects.filter(project=orphan, action='link_existing').exists())
+
+        orphan2 = Project.objects.create(
+            project_name='OrphanSkip', customer=None, customer_name='Skip Me', capacity_kwp=2,
+        )
+        skipped = self.client.post('/api/v1/accounts/parties/skip-orphan-project/', {
+            'project_id': orphan2.id, 'notes': 'needs business review',
+        }, format='json')
+        self.assertEqual(skipped.status_code, 200, skipped.content)
+        orphan2.refresh_from_db()
+        self.assertIsNone(orphan2.customer_id)
+        self.assertTrue(ProjectCustomerLinkAudit.objects.filter(project=orphan2, action='skip_review').exists())
+
+    def test_project_linked_quotation(self):
+        party = Account.objects.create(name='PL Cust', account_type='Customer', phone='9000000016')
+        project = Project.objects.create(
+            project_name='PL Proj', customer=party, customer_name='PL Cust', capacity_kwp=6,
+        )
+        from apps.leads.serializers import QuotationSerializer
+        ser = QuotationSerializer(data={
+            'customer': party.id,
+            'project': project.id,
+            'status': 'Draft',
+            'plant_capacity_kw': '6',
+            'material_cost': '20000',
+        }, context={'request': type('R', (), {'user': self.user})()})
+        self.assertTrue(ser.is_valid(), ser.errors)
+        q = ser.save()
+        self.assertEqual(q.customer_id, party.id)
+        self.assertEqual(q.project_id, project.id)
+        self.assertIsNone(q.lead_id)

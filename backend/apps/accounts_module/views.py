@@ -375,6 +375,69 @@ class AccountViewSet(AccountsBaseViewSet):
         from .customer_ledger import project_ledger_breakdown
         return Response({'ok': True, 'party_id': party.id, **project_ledger_breakdown(party)})
 
+    @action(detail=True, methods=['get'], url_path='profile')
+    def profile(self, request, pk=None):
+        party = self.get_object()
+        if party.account_type != 'Customer':
+            return Response({'detail': 'Profile is only available for Customer parties.'}, status=400)
+        from .project_reconciliation import build_customer_profile
+        return Response({'ok': True, **build_customer_profile(party)})
+
+    @action(detail=False, methods=['get'], url_path='orphan-projects')
+    def orphan_projects(self, request):
+        from .project_reconciliation import orphan_reconciliation_report
+        return Response({'ok': True, **orphan_reconciliation_report()})
+
+    @action(detail=False, methods=['post'], url_path='link-orphan-project')
+    def link_orphan_project(self, request):
+        from .project_reconciliation import link_project_to_customer
+        try:
+            result = link_project_to_customer(
+                project_id=int(request.data.get('project_id')),
+                customer_id=int(request.data.get('customer_id')),
+                user=request.user,
+                notes=str(request.data.get('notes') or ''),
+                match_reason=str(request.data.get('match_reason') or 'manual_ui'),
+            )
+        except (TypeError, ValueError) as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result)
+
+    @action(detail=False, methods=['post'], url_path='create-customer-for-orphan')
+    def create_customer_for_orphan(self, request):
+        from .project_reconciliation import create_customer_and_link_project
+        try:
+            result = create_customer_and_link_project(
+                project_id=int(request.data.get('project_id')),
+                name=str(request.data.get('name') or ''),
+                phone=str(request.data.get('phone') or ''),
+                alternate_phone=str(request.data.get('alternate_phone') or ''),
+                user=request.user,
+                notes=str(request.data.get('notes') or ''),
+            )
+        except (TypeError, ValueError) as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result)
+
+    @action(detail=False, methods=['post'], url_path='skip-orphan-project')
+    def skip_orphan_project(self, request):
+        from .project_reconciliation import skip_orphan_for_review
+        try:
+            result = skip_orphan_for_review(
+                project_id=int(request.data.get('project_id')),
+                user=request.user,
+                notes=str(request.data.get('notes') or ''),
+            )
+        except (TypeError, ValueError) as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result)
+
     @action(detail=False, methods=['get'], url_path='detect-duplicates')
     def detect_duplicates(self, request):
         """Suggestion-only duplicate groups — never merges automatically."""

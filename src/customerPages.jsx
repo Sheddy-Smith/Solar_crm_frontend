@@ -7,6 +7,7 @@ import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/
 import { LedgerMobileCards } from './components/mobile/LedgerMobileCards.jsx';
 import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
 import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
+import { CustomerMergeWizard, CustomerProfileModal, ProjectCustomerReconciliationPanel } from './customerMasterHub.jsx';
 
 function telHref(phone) {
   const digits = String(phone || '').replace(/\D/g, '');
@@ -21,6 +22,8 @@ const TABS = [
   { key: 'Customer Details', label: 'All Client Detail' },
   { key: 'Customer Ledger', label: 'Client Ledger' },
   { key: 'Overall Credit Ledger', label: 'Overall Credit Ledger' },
+  { key: 'Customer Merge', label: 'Merge Wizard' },
+  { key: 'Project Reconciliation', label: 'Project Reconciliation' },
 ];
 
 const emptyForm = {
@@ -248,6 +251,8 @@ export function CustomerModulePage({ activeSection, onOpenSection, onNotify, log
       {tab === 'Customer Details' ? <CustomerDetailsTab caps={caps} onNotify={onNotify} onOpenSection={onOpenSection} /> : null}
       {tab === 'Customer Ledger' ? <CustomerLedgerTab onNotify={onNotify} onOpenSection={onOpenSection} /> : null}
       {tab === 'Overall Credit Ledger' ? <OverallCreditTab onNotify={onNotify} onOpenSection={onOpenSection} /> : null}
+      {tab === 'Customer Merge' ? <CustomerMergeWizard onNotify={onNotify} /> : null}
+      {tab === 'Project Reconciliation' ? <ProjectCustomerReconciliationPanel onNotify={onNotify} /> : null}
     </div>
   );
 }
@@ -258,6 +263,7 @@ function CustomerDetailsTab({ caps, onNotify, onOpenSection }) {
   const [q, setQ] = useState('');
   const [modal, setModal] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [profileId, setProfileId] = useState(null);
   const [saving, setSaving] = useState(false);
 
   const projectItems = (row) => {
@@ -407,10 +413,10 @@ function CustomerDetailsTab({ caps, onNotify, onOpenSection }) {
                   { label: 'GSTIN', value: r.gstin },
                   { label: 'Address', value: r.address || r.city, wide: true },
                 ]}
-                onOpen={caps.view ? () => setDetail(r) : undefined}
+                onOpen={caps.view ? () => setProfileId(r.id) : undefined}
                 actions={[
                   { label: 'Call', icon: Phone, tone: 'green', href: telHref(r.phone), disabled: !telHref(r.phone) },
-                  caps.view ? { label: 'Projects', icon: Eye, tone: 'blue', onClick: () => setDetail(r) } : null,
+                  caps.view ? { label: 'Profile', icon: Eye, tone: 'blue', onClick: () => setProfileId(r.id) } : null,
                   caps.edit ? { label: 'Edit', icon: Pencil, tone: 'slate', onClick: () => setModal({ id: r.id, form: { ...emptyForm, ...r } }) } : null,
                 ]}
                 menu={caps.delete ? [{ label: 'Delete', icon: Trash2, danger: true, onClick: () => remove(r) }] : []}
@@ -454,7 +460,7 @@ function CustomerDetailsTab({ caps, onNotify, onOpenSection }) {
                 <td className={`px-2 py-1 font-extrabold ${Number(r.balance) > 0 ? 'text-[#dc2626]' : 'text-[#166534]'}`}>{fmtRs(r.balance)}</td>
                 <td className="px-2 py-1">
                   <div className="flex gap-0.5">
-                    {caps.view ? (<button type="button" onClick={() => setDetail(r)} className="grid size-7 place-items-center rounded-[6px] text-[#0b65e5] hover:bg-[#eff6ff]" title="View projects"><Eye className="size-3.5" /></button>) : null}
+                    {caps.view ? (<button type="button" onClick={() => setProfileId(r.id)} className="grid size-7 place-items-center rounded-[6px] text-[#0b65e5] hover:bg-[#eff6ff]" title="Open customer profile"><Eye className="size-3.5" /></button>) : null}
                     {caps.edit ? (<button type="button" onClick={() => setModal({ id: r.id, form: { ...emptyForm, ...r } })} className="grid size-7 place-items-center rounded-[6px] text-[#0b65e5] hover:bg-[#eff6ff]"><Pencil className="size-3.5" /></button>) : null}
                     {caps.delete ? (<button type="button" onClick={() => remove(r)} className="grid size-7 place-items-center rounded-[6px] text-[#dc2626] hover:bg-[#fef2f2]"><Trash2 className="size-3.5" /></button>) : null}
                   </div>
@@ -497,11 +503,24 @@ function CustomerDetailsTab({ caps, onNotify, onOpenSection }) {
           </div>
         </ModalShell>
       ) : null}
+      {profileId ? (
+        <CustomerProfileModal
+          customerId={profileId}
+          onClose={() => setProfileId(null)}
+          onNotify={onNotify}
+          onOpenSection={onOpenSection}
+        />
+      ) : null}
       {detail ? (
         <ModalShell
           title={`${detail.name} · ${detail.phone || 'No mobile'}`}
           onClose={() => setDetail(null)}
-          footer={<button type="button" onClick={() => setDetail(null)} className="h-10 rounded-[8px] border px-4 text-[13px] font-semibold">Close</button>}
+          footer={(
+            <>
+              <button type="button" onClick={() => { setProfileId(detail.id); setDetail(null); }} className="h-10 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white">Open full profile</button>
+              <button type="button" onClick={() => setDetail(null)} className="h-10 rounded-[8px] border px-4 text-[13px] font-semibold">Close</button>
+            </>
+          )}
         >
           <div className="space-y-3">
             <p className="text-[12px] font-semibold text-[#53647f]">

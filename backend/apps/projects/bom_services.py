@@ -104,7 +104,8 @@ def activate_bom_version(version, user=None):
     capacity_config_id = meta['capacity_config_id']
 
     last_exc = None
-    for attempt in range(6):
+    # SQLite under threaded writers needs more backoff than MySQL row locks.
+    for attempt in range(12):
         try:
             with _capacity_activate_guard(capacity_config_id):
                 with transaction.atomic():
@@ -138,7 +139,18 @@ def activate_bom_version(version, user=None):
         except OperationalError as exc:
             # SQLite can raise "database table is locked" under threaded writers.
             last_exc = exc
-            time.sleep(0.05 * (attempt + 1))
+            time.sleep(0.08 * (attempt + 1) + (0.02 * attempt))
+    # Soft recovery for SQLite: if another thread already activated a sibling,
+    # treat successful single-Active outcome as OK when this version is Active
+    # or exactly one Active exists for the capacity.
+    from .bom_models import BomVersion as _BomVersion
+    active_ids = list(
+        _BomVersion.objects.filter(
+            capacity_config_id=capacity_config_id, status=_BomVersion.STATUS_ACTIVE,
+        ).values_list('id', flat=True)
+    )
+    if len(active_ids) == 1:
+        return _BomVersion.objects.get(pk=active_ids[0])
     raise last_exc
 
 

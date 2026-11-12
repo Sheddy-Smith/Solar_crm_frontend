@@ -211,6 +211,13 @@ class QuotationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'customer': 'Quotation customer must be a Customer party.'})
         if getattr(customer, 'status', '') == 'Merged':
             raise serializers.ValidationError({'customer': 'Cannot attach quotation to a merged Customer.'})
+        project = attrs.get('project', getattr(instance, 'project', None))
+        if project is not None:
+            project_customer_id = getattr(project, 'customer_id', None)
+            if project_customer_id and customer and project_customer_id != getattr(customer, 'id', None):
+                raise serializers.ValidationError({
+                    'project': 'Project must belong to the same Customer as the quotation.',
+                })
         return attrs
 
     def get_created_by_name(self, obj):
