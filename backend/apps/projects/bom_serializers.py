@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from .bom_models import BomCapacityConfig, BomLine, BomVersion
-from .bom_services import bom_preview
+from .bom_services import assert_bom_version_mutable, bom_preview
 
 
 class BomLineSerializer(serializers.ModelSerializer):
@@ -13,8 +13,22 @@ class BomLineSerializer(serializers.ModelSerializer):
             'id', 'version', 'category', 'material_name', 'sku', 'unit',
             'quantity', 'unit_price', 'line_total', 'sort_order', 'inventory_item',
         ]
+        extra_kwargs = {
+            # Nested under BomVersion create/update — parent supplies version.
+            'version': {'required': False, 'allow_null': True},
+        }
+
     def get_line_total(self, obj):
         return float(obj.line_total)
+
+    def validate(self, attrs):
+        version = attrs.get('version') or getattr(self.instance, 'version', None)
+        if version is not None:
+            try:
+                assert_bom_version_mutable(version)
+            except ValueError as exc:
+                raise serializers.ValidationError({'version': str(exc)}) from exc
+        return attrs
 
 
 class BomVersionSerializer(serializers.ModelSerializer):
@@ -45,6 +59,9 @@ class BomVersionSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         lines_data = validated_data.pop('lines', [])
+        # Never create directly as Active — activation is an explicit action.
+        if validated_data.get('status') == BomVersion.STATUS_ACTIVE:
+            validated_data['status'] = BomVersion.STATUS_DRAFT
         config = validated_data['capacity_config']
         last = config.versions.order_by('-version_number').values_list('version_number', flat=True).first() or 0
         validated_data['version_number'] = last + 1
@@ -62,15 +79,40 @@ class BomVersionSerializer(serializers.ModelSerializer):
         return version
 
     def update(self, instance, validated_data):
-        if instance.status == BomVersion.STATUS_ACTIVE and 'status' not in self.initial_data:
-            # Allow line edits on Active only via explicit inactive→edit→activate workflow preferred;
-            # still allow non-price metadata notes.
-            pass
+        # Active BOM is immutable (materials, pricing, lines). Demote via Activate of a newer Draft only.
+        if instance.status == BomVersion.STATUS_ACTIVE:
+            incoming_status = validated_data.get('status', instance.status)
+            # Allow only notes metadata OR explicit demotion to Inactive/Draft (admin correction).
+            material_keys = {
+                'labour_cost', 'other_charges', 'tax_percent', 'final_project_price',
+                'pending_configuration', 'capacity_config', 'effective_date',
+            }
+            blocked = [k for k in validated_data if k in material_keys]
+            lines_data = validated_data.get('lines', serializers.empty)
+            if blocked or (lines_data is not serializers.empty and 'lines' in (self.initial_data or {})):
+                raise serializers.ValidationError({
+                    'detail': 'Active BOM is immutable. Create a new Draft version, edit it, then Activate.',
+                    'blocked_fields': blocked or ['lines'],
+                })
+            if incoming_status == BomVersion.STATUS_ACTIVE and set(validated_data.keys()) - {'notes', 'status'}:
+                raise serializers.ValidationError({
+                    'detail': 'Active BOM is immutable. Create a new Draft version to change materials or pricing.',
+                })
+
         lines_data = validated_data.pop('lines', None)
+        if instance.status == BomVersion.STATUS_ACTIVE and lines_data is not None:
+            raise serializers.ValidationError({
+                'lines': 'Active BOM lines cannot be edited. Create a new Draft version instead.',
+            })
+
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
         if lines_data is not None:
+            try:
+                assert_bom_version_mutable(instance)
+            except ValueError as exc:
+                raise serializers.ValidationError({'lines': str(exc)}) from exc
             instance.lines.all().delete()
             for i, row in enumerate(lines_data):
                 BomLine.objects.create(version=instance, sort_order=row.get('sort_order', i), **{

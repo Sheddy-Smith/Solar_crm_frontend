@@ -76,21 +76,44 @@ def ensure_default_capacity_shells(capacities=(3, 4, 5, 6), user=None):
 
 @transaction.atomic
 def activate_bom_version(version, user=None):
-    """Activate one version; demote other Active versions for same capacity."""
+    """Activate one version; demote other Active versions for same capacity.
+
+    Uses row locks so concurrent activate calls cannot leave two Active versions.
+    """
     from .bom_models import BomVersion
 
-    if version.pending_configuration and not version.lines.exists():
+    locked = (
+        BomVersion.objects.select_for_update()
+        .select_related('capacity_config')
+        .filter(pk=version.pk)
+        .first()
+    )
+    if not locked:
+        raise ValueError('BOM version not found.')
+    if locked.pending_configuration and not locked.lines.exists():
         raise ValueError('Cannot activate a BOM with pending configuration and no material lines.')
-    BomVersion.objects.filter(
-        capacity_config_id=version.capacity_config_id,
+    BomVersion.objects.select_for_update().filter(
+        capacity_config_id=locked.capacity_config_id,
         status=BomVersion.STATUS_ACTIVE,
-    ).exclude(pk=version.pk).update(status=BomVersion.STATUS_INACTIVE)
-    version.status = BomVersion.STATUS_ACTIVE
-    if not version.effective_date:
-        version.effective_date = timezone.localdate()
-    version.pending_configuration = False
-    version.save(update_fields=['status', 'effective_date', 'pending_configuration', 'updated_at'])
-    return version
+    ).exclude(pk=locked.pk).update(status=BomVersion.STATUS_INACTIVE)
+    locked.status = BomVersion.STATUS_ACTIVE
+    if not locked.effective_date:
+        locked.effective_date = timezone.localdate()
+    locked.pending_configuration = False
+    locked.save(update_fields=['status', 'effective_date', 'pending_configuration', 'updated_at'])
+    return locked
+
+
+def assert_bom_version_mutable(version):
+    """Active BOM versions are immutable — clone a new Draft to change materials/pricing."""
+    from .bom_models import BomVersion
+
+    if version is None:
+        raise ValueError('BOM version required.')
+    if version.status == BomVersion.STATUS_ACTIVE:
+        raise ValueError(
+            'Active BOM is immutable. Create a new Draft version, edit it, then Activate.'
+        )
 
 
 def bom_preview(version) -> dict:
@@ -192,31 +215,32 @@ def create_draft_quotation_from_bom(lead, bom_version=None, user=None, force_new
 
 @transaction.atomic
 def seed_material_plans_from_bom(project, bom_version, quotation=None, replace_undispatched=False):
-    """Create MaterialPlan rows from BOM. Never touch dispatched lines.
+    """Create MaterialPlan rows scoped to this BOM version only.
 
-    If plans already exist for this bom_version tag, skip unless replace_undispatched.
+    Matching key: (project, bom_version, category, items).
+    Never rewrites plans tagged to a different bom_version.
+    Never touches lines that already have dispatched quantity.
+    If this version already has plans and replace_undispatched is False → no-op.
     """
     from .models import MaterialPlan
 
     note_tag = f'BOM v{bom_version.version_number} ({bom_version.capacity_kw} kW)'
-    existing = MaterialPlan.objects.filter(project=project, bom_version=bom_version)
-    if existing.exists() and not replace_undispatched:
-        return existing.count()
-
     created = 0
+    updated = 0
     for line in bom_version.lines.all():
         key_items = (line.material_name or '')[:50]
+        category = (line.category or line.material_name or '')[:100]
+        # Version-scoped identity only — never match/update another bom_version's plans.
         plan = MaterialPlan.objects.filter(
             project=project,
-            category=line.category or line.material_name[:100],
+            bom_version=bom_version,
+            category=category,
             items=key_items,
         ).first()
-        if plan and MaterialPlan.parse_qty(plan.dispatched_qty) > 0:
-            continue
         qty = str(line.quantity)
         value = str(line.line_total)
         payload = {
-            'category': (line.category or line.material_name)[:100],
+            'category': category,
             'items': key_items,
             'uom': line.unit or 'Nos',
             'planned_qty': qty,
@@ -229,23 +253,38 @@ def seed_material_plans_from_bom(project, bom_version, quotation=None, replace_u
             'source_quotation': quotation,
         }
         if plan:
+            if MaterialPlan.parse_qty(plan.dispatched_qty) > 0:
+                continue
+            if not replace_undispatched:
+                # Idempotent: line already exists for this version — leave it.
+                continue
             for k, v in payload.items():
                 setattr(plan, k, v)
             plan.save()
+            updated += 1
         else:
             MaterialPlan.objects.create(project=project, **payload)
             created += 1
-    return created
+    return created + updated
 
 
-def material_plan_shortage_rows(project_ids=None):
-    """Shortage = planned - available stock (floored at 0), per MaterialPlan line."""
-    from apps.inventory.models import InventoryItem
+def material_plan_shortage_rows(project_ids=None, date_from=None, date_to=None, plan_queryset=None):
+    """Shortage = max(remaining − usable stock, 0), per MaterialPlan line.
+
+    date_from/date_to filter MaterialPlan.created_at (same scope as dashboard totals).
+    """
     from .models import MaterialPlan
 
-    qs = MaterialPlan.objects.select_related('inventory_item', 'project').filter(project__is_deleted=False)
-    if project_ids is not None:
-        qs = qs.filter(project_id__in=project_ids)
+    if plan_queryset is not None:
+        qs = plan_queryset.select_related('inventory_item', 'project')
+    else:
+        qs = MaterialPlan.objects.select_related('inventory_item', 'project').filter(project__is_deleted=False)
+        if project_ids is not None:
+            qs = qs.filter(project_id__in=project_ids)
+        if date_from:
+            qs = qs.filter(created_at__date__gte=date_from)
+        if date_to:
+            qs = qs.filter(created_at__date__lte=date_to)
 
     rows = []
     for plan in qs.iterator(chunk_size=500):
@@ -273,5 +312,31 @@ def material_plan_shortage_rows(project_ids=None):
     return rows
 
 
-def material_shortage_count() -> int:
-    return sum(1 for row in material_plan_shortage_rows() if row['shortage_qty'] > 0)
+def material_shortage_count(date_from=None, date_to=None, plan_queryset=None) -> int:
+    return sum(
+        1 for row in material_plan_shortage_rows(
+            date_from=date_from, date_to=date_to, plan_queryset=plan_queryset,
+        ) if row['shortage_qty'] > 0
+    )
+
+
+def maybe_draft_quotation_for_lead(lead, user=None):
+    """Best-effort Draft quotation from active BOM when lead has a capacity.
+
+    Returns (quotation|None, created: bool, skip_reason: str|None).
+    Does not raise when BOM is missing/pending — callers treat that as skip.
+    Raises only on unexpected DB errors so signals can log/surface them.
+    """
+    kw = parse_capacity_kw(getattr(lead, 'estimated_capacity', None))
+    if kw is None:
+        return None, False, 'no_capacity'
+    bom = get_active_bom_version(kw)
+    if bom is None:
+        return None, False, 'no_active_bom'
+    if bom.pending_configuration and not bom.lines.exists():
+        return None, False, 'bom_pending_configuration'
+    try:
+        quotation, created = create_draft_quotation_from_bom(lead, bom_version=bom, user=user)
+        return quotation, created, None
+    except ValueError as exc:
+        return None, False, str(exc)

@@ -1,4 +1,5 @@
 import datetime
+import logging
 import uuid
 from decimal import Decimal, InvalidOperation
 from django.db import models, transaction, IntegrityError
@@ -7,6 +8,8 @@ from django.dispatch import receiver
 from django.utils.text import slugify
 from apps.accounts.models import User
 from malwa_solar.validators import validate_image_extension, validate_upload_size
+
+logger = logging.getLogger(__name__)
 
 
 def generate_ivrs():
@@ -693,6 +696,57 @@ def move_alerts_when_follow_up_date_changes(sender, instance, created, **kwargs)
     align_alerts_to_lead_follow_up_date(instance, getattr(instance, '_previous_next_follow_up', None))
 
 
+@receiver(pre_save, sender=Lead)
+def _capture_previous_lead_capacity(sender, instance, **kwargs):
+    if not instance.pk:
+        instance._previous_estimated_capacity = None
+        return
+    instance._previous_estimated_capacity = (
+        sender.objects.filter(pk=instance.pk).values_list('estimated_capacity', flat=True).first()
+    )
+
+
+@receiver(post_save, sender=Lead)
+def auto_draft_quotation_from_bom_on_lead(sender, instance, created, **kwargs):
+    """Lead create/update with plant capacity → Draft quotation from Active BOM.
+
+    Skips when capacity empty, BOM missing/pending, or Approved/Sent quote already exists
+    for the same BOM (create_draft_quotation_from_bom is idempotent for Draft).
+    Capacity change to a new Active BOM creates/reuses Draft for that BOM without
+    overwriting Approved quotations.
+    """
+    if getattr(instance, 'is_deleted', False):
+        return
+    capacity = (instance.estimated_capacity or '').strip()
+    if not capacity:
+        return
+    prev = getattr(instance, '_previous_estimated_capacity', None)
+    if not created and (prev or '').strip() == capacity:
+        # Capacity unchanged — still ensure a Draft exists (idempotent) for first-time BOM enablement.
+        pass
+    try:
+        from apps.projects.bom_services import maybe_draft_quotation_for_lead
+        quotation, created_quote, skip = maybe_draft_quotation_for_lead(
+            instance, user=instance.created_by,
+        )
+        if skip:
+            logger.info(
+                'BOM draft quotation skipped lead_id=%s capacity=%s reason=%s',
+                instance.pk, capacity, skip,
+            )
+        elif created_quote:
+            logger.info(
+                'BOM draft quotation created lead_id=%s quotation_id=%s bom_version_id=%s',
+                instance.pk, quotation.pk, getattr(quotation, 'bom_version_id', None),
+            )
+    except Exception:
+        logger.exception(
+            'BOM draft quotation failed lead_id=%s capacity=%s',
+            instance.pk, capacity,
+        )
+        raise
+
+
 @receiver(post_save, sender=Lead)
 def create_project_for_won_lead(sender, instance, **kwargs):
     if instance.status != 'Won':
@@ -701,7 +755,8 @@ def create_project_for_won_lead(sender, instance, **kwargs):
         from apps.projects.project_lifecycle import ensure_project_for_lead
         ensure_project_for_lead(instance, user=instance.created_by)
     except Exception:
-        pass
+        logger.exception('Project ensure failed for Won lead_id=%s', instance.pk)
+        raise
     try:
         from apps.leads.quotation_sync import (
             ensure_quotation_outbox_pending,
@@ -717,7 +772,8 @@ def create_project_for_won_lead(sender, instance, **kwargs):
             ensure_quotation_outbox_pending(latest_quote, user=instance.created_by)
             run_quotation_downstream_sync(latest_quote.pk, user_id=getattr(instance.created_by, 'pk', None))
     except Exception:
-        pass
+        logger.exception('Quotation downstream sync failed for Won lead_id=%s', instance.pk)
+        raise
 
 
 @receiver(post_save, sender=Quotation)
@@ -735,4 +791,8 @@ def ensure_project_when_quotation_approved(sender, instance, **kwargs):
         from apps.projects.project_lifecycle import ensure_project_for_lead
         ensure_project_for_lead(instance.lead, quotation=instance, user=instance.created_by)
     except Exception:
-        pass
+        logger.exception(
+            'Project ensure failed for Approved quotation_id=%s lead_id=%s',
+            instance.pk, getattr(instance, 'lead_id', None),
+        )
+        raise

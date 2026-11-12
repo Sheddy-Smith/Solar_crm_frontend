@@ -72,6 +72,26 @@ class BomLineViewSet(viewsets.ModelViewSet):
     }
     filterset_fields = ['version']
 
+    def _guard_mutable(self, version):
+        from .bom_services import assert_bom_version_mutable
+        try:
+            assert_bom_version_mutable(version)
+        except ValueError as exc:
+            raise ValidationError({'detail': str(exc)}) from exc
+
+    def perform_create(self, serializer):
+        version = serializer.validated_data.get('version')
+        self._guard_mutable(version)
+        serializer.save()
+
+    def perform_update(self, serializer):
+        self._guard_mutable(serializer.instance.version)
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self._guard_mutable(instance.version)
+        instance.delete()
+
 
 class ActiveBomForCapacityView(APIView):
     """GET /bom/active/?capacity_kw=5 — used by Lead/Quotation UI."""

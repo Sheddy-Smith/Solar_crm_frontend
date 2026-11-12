@@ -720,6 +720,24 @@ def _payment_monthly_received_trend(months=12):
     return trend
 
 
+def customer_receivable_outstanding():
+    """True customer AR: open SellInvoice.balance_due for Customer parties (non-cancelled).
+
+    This is distinct from Payment rows with status=Pending (cash expected but not cleared),
+    which remain exposed as pending_received on the accounts summary.
+    """
+    total = (
+        SellInvoice.objects.exclude(status='Cancelled')
+        .filter(party__account_type='Customer')
+        .aggregate(total=Sum('balance_due'))['total']
+        or Decimal('0')
+    )
+    # Floor at zero — credit balances are not "outstanding receivable".
+    if total < 0:
+        total = Decimal('0')
+    return float(total)
+
+
 def accounts_dashboard_summary(date_from=None, date_to=None):
     from .models import PaymentVoucher
 
@@ -733,6 +751,7 @@ def accounts_dashboard_summary(date_from=None, date_to=None):
     payments_made = _sum_amount(payments.filter(direction='Made', status='Completed'))
     pending_in = _sum_amount(payments.filter(direction='Received', status='Pending'))
     pending_payments_out = _sum_amount(payments.filter(direction='Made', status='Pending'))
+    customer_outstanding = customer_receivable_outstanding()
 
     # Vouchers / expenses never create a Payment row, so they are added here without double
     # counting. Material-dispatch cost vouchers are stock consumption (already paid through the
@@ -758,7 +777,10 @@ def accounts_dashboard_summary(date_from=None, date_to=None):
         'payments_made': float(payments_made),
         'vouchers_paid': float(vouchers_paid),
         'net_balance': float(received - made),
+        # pending_received = uncleared inbound Payment rows (not ledger AR).
         'pending_received': float(pending_in),
+        # customer_outstanding = open customer sell-invoice receivable (ledger AR).
+        'customer_outstanding': customer_outstanding,
         'pending_made': float(pending_out),
         'total_expenses': float(_sum_amount(expense_vouchers)),
         'expense_count': expense_vouchers.count(),

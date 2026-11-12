@@ -194,7 +194,9 @@ def build_unified_dashboard(params=None):
     material_planning = {
         'total_plans': mp_qs.count(),
         'planned_value': float(planned_value_total.quantize(_D('0.01'))),
-        'shortage_lines': material_shortage_count(),
+        # Same date scope as total_plans / planned_value (MaterialPlan.created_at).
+        'shortage_lines': material_shortage_count(date_from=date_from, date_to=date_to),
+        'date_scope': 'material_plan_created_at',
     }
 
     # Won Projects KPI = actual Project rows (not Lead status=Won count).
@@ -214,7 +216,8 @@ def build_unified_dashboard(params=None):
             'stock_items': inventory.get('total_items', 0),
             'active_amc': amc.get('active_contracts', 0),
             'open_amc_requests': amc.get('open_service_requests', 0),
-            'customer_outstanding': accounts.get('pending_received', 0),
+            'customer_outstanding': accounts.get('customer_outstanding', accounts.get('pending_received', 0)),
+            'pending_received_payments': accounts.get('pending_received', 0),
         },
         'operations': reports.get('operations') or {},
         'inventory': inventory,
@@ -228,7 +231,9 @@ def build_unified_dashboard(params=None):
         'payments_received': accounts.get('total_received', 0),
         'total_made': accounts.get('total_made', 0),
         'net_balance': accounts.get('net_balance', 0),
-        'customer_outstanding': accounts.get('pending_received', 0),
+        # Ledger AR (SellInvoice.balance_due), not pending Payment rows.
+        'customer_outstanding': accounts.get('customer_outstanding', 0),
+        'pending_received_payments': accounts.get('pending_received', 0),
         'inventory_value': inventory.get('total_value', 0),
         'amc_contract_value': float(amc.get('contract_value') or 0),
         'pending_cheques': accounts.get('pending_cheques', 0),

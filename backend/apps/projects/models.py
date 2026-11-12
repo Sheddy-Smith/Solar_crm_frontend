@@ -1056,8 +1056,12 @@ from django.dispatch import receiver
 def maybe_create_amc_on_project_completion(sender, instance, **kwargs):
     if (instance.status or '') != 'Completed' or getattr(instance, 'is_deleted', False):
         return
+    import logging
     try:
         from .project_lifecycle import ensure_amc_draft_for_completed_project
         ensure_amc_draft_for_completed_project(instance, user=instance.created_by)
     except Exception:
-        pass
+        logging.getLogger(__name__).exception(
+            'AMC auto-create failed for completed project_id=%s', instance.pk,
+        )
+        raise

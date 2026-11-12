@@ -220,6 +220,11 @@ export function BomMasterPage({ onNotify }) {
 
             {selectedVersion ? (
               <div className={`${CARD} space-y-4 p-4`}>
+                {selectedVersion.status === 'Active' ? (
+                  <p className="rounded-[8px] border border-[#fde68a] bg-[#fffbeb] px-3 py-2 text-[12px] font-semibold text-[#92400e]">
+                    Active BOM is immutable. Create a New Version to change materials or pricing, then Activate it.
+                  </p>
+                ) : null}
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   {[
                     ['labour_cost', 'Labour cost'],
@@ -230,7 +235,8 @@ export function BomMasterPage({ onNotify }) {
                     <label key={key} className="block text-[11px] font-extrabold text-[#8895ab]">
                       {label}
                       <input
-                        className="mt-1 w-full rounded-[8px] border border-[#d9e2ec] px-3 py-2 text-[13px] font-bold text-[#1e3261]"
+                        disabled={selectedVersion.status === 'Active'}
+                        className="mt-1 w-full rounded-[8px] border border-[#d9e2ec] px-3 py-2 text-[13px] font-bold text-[#1e3261] disabled:bg-[#f5f7fb]"
                         value={selectedVersion[key] ?? ''}
                         onChange={(e) => setSelectedVersion({ ...selectedVersion, [key]: e.target.value })}
                       />

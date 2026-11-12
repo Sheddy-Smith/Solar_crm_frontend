@@ -1,10 +1,13 @@
 """Idempotent project creation / linking for Won leads and Approved quotations."""
 from __future__ import annotations
 
+import logging
 from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
 from django.utils import timezone
+
+logger = logging.getLogger(__name__)
 
 
 @transaction.atomic
@@ -90,11 +93,13 @@ def ensure_project_for_lead(lead, *, quotation=None, user=None):
         created_by=user or locked_lead.created_by,
     )
     LiaisonProjectStage.objects.get_or_create(project=project)
+
     try:
         from apps.accounts_module.services import get_or_create_party_for_project
         get_or_create_party_for_project(project)
     except Exception:
-        pass
+        # Non-fatal for project creation — ledger party can be created later.
+        logger.exception('Customer party create failed for project_id=%s', project.pk)
 
     if lead_survey and not SiteSurvey.objects.filter(project=project).exists():
         try:
@@ -113,13 +118,17 @@ def ensure_project_for_lead(lead, *, quotation=None, user=None):
                 try:
                     photo.image.open('rb')
                     content = photo.image.read()
-                except (OSError, ValueError):
+                except (OSError, ValueError) as exc:
+                    logger.warning(
+                        'Lead survey photo read failed photo_id=%s project_id=%s: %s',
+                        photo.pk, project.pk, exc,
+                    )
                     continue
                 finally:
                     try:
                         photo.image.close()
                     except Exception:
-                        pass
+                        logger.debug('photo close failed photo_id=%s', getattr(photo, 'pk', None), exc_info=True)
                 doc = ProjectDocument(
                     project=project,
                     name=getattr(photo, 'caption', None) or f'Site Photo {photo.pk}',
@@ -128,7 +137,10 @@ def ensure_project_for_lead(lead, *, quotation=None, user=None):
                 )
                 doc.file.save(photo.image.name.rsplit('/', 1)[-1], ContentFile(content), save=True)
         except Exception:
-            pass
+            logger.exception(
+                'Lead site survey transfer failed lead_id=%s project_id=%s',
+                locked_lead.pk, project.pk,
+            )
 
     _seed_bom_plans(project, quote, user)
     return project, True
@@ -146,6 +158,11 @@ def _seed_bom_plans(project, quote, user=None):
         bom = get_active_bom_version(project.capacity_kwp)
     if bom and not bom.pending_configuration:
         seed_material_plans_from_bom(project, bom, quotation=quote)
+    elif bom and bom.pending_configuration:
+        logger.info(
+            'Skip MaterialPlan seed — BOM pending_configuration project_id=%s bom_version_id=%s',
+            project.pk, bom.pk,
+        )
 
 
 def amc_auto_create_enabled() -> bool:
@@ -169,9 +186,8 @@ def amc_auto_create_enabled() -> bool:
 def ensure_amc_draft_for_completed_project(project, user=None):
     """Idempotent AMC shell for Completed projects when auto-create is enabled.
 
-    Does not invent annual_value / dates — leaves Draft-ready Active shell with
-    remarks marking pending commercial configuration. Never duplicates an
-    existing Active/Expiring Soon contract for the same project.
+    Does not invent annual_value / dates — leaves shell with remarks marking
+    pending commercial configuration. Never duplicates a non-cancelled contract.
     """
     from apps.amc.models import AmcContract
 
