@@ -37,6 +37,7 @@ class Account(models.Model):
         ('Active', 'Active'),
         ('Inactive', 'Inactive'),
         ('Pending', 'Pending'),
+        ('Merged', 'Merged'),
     ]
     RELATION_CHOICES = [
         ('Good', 'Good'),
@@ -49,9 +50,14 @@ class Account(models.Model):
     account_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='Customer')
     contact_person = models.CharField(max_length=200, blank=True)
     company = models.CharField(max_length=200, blank=True)
-    phone = models.CharField(max_length=20, blank=True)
+    phone = models.CharField(max_length=20, blank=True, db_index=True)
+    # Alternate mobile for family/business lines — never used as primary identity key.
+    alternate_phone = models.CharField(max_length=20, blank=True, default='')
+    # Canonical last-10 digits of primary phone for lookup / duplicate detection.
+    normalized_phone = models.CharField(max_length=10, blank=True, default='', db_index=True)
     email = models.EmailField(blank=True)
     city = models.CharField(max_length=100, blank=True)
+    state = models.CharField(max_length=100, blank=True, default='')
     address = models.TextField(blank=True)
     gstin = models.CharField(max_length=15, blank=True)
     vehicle_number = models.CharField(max_length=40, blank=True)
@@ -63,15 +69,35 @@ class Account(models.Model):
     opening_balance = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     balance = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     remarks = models.TextField(blank=True)
+    # Soft merge trail — source Customer stays for audit; survivor is merged_into.
+    merged_into = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True, related_name='merged_sources',
+    )
+    merged_at = models.DateTimeField(null=True, blank=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='accounts_parties_created')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        from .services import normalize_phone
+        self.normalized_phone = normalize_phone(self.phone) or ''
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None:
+            fields = set(update_fields)
+            if 'phone' in fields or 'normalized_phone' not in fields:
+                fields.add('normalized_phone')
+            kwargs['update_fields'] = list(fields)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name
 
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['account_type', 'normalized_phone'], name='acct_type_norm_phone_idx'),
+            models.Index(fields=['account_type', 'status'], name='acct_type_status_idx'),
+        ]
 
 
 class BankAccount(models.Model):
@@ -732,3 +758,55 @@ class GstOpeningBalance(models.Model):
 
     class Meta:
         ordering = ['-month']
+
+
+class PaymentAllocation(models.Model):
+    """Explicit allocation of an unallocated (project=null) customer payment to a Project.
+
+    Prevents silent assignment and keeps a reversible audit of advance distribution.
+    """
+    payment = models.ForeignKey(Payment, on_delete=models.CASCADE, related_name='allocations')
+    project = models.ForeignKey(
+        'projects.Project', on_delete=models.PROTECT, related_name='payment_allocations',
+    )
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='payment_allocations_created',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['payment', 'project'], name='pay_alloc_payment_project_idx'),
+        ]
+
+    def __str__(self):
+        return f'Alloc {self.amount} → project {self.project_id} (payment {self.payment_id})'
+
+
+class CustomerMergeAudit(models.Model):
+    """Immutable record of an authorized Customer (Account) merge."""
+    source = models.ForeignKey(
+        Account, on_delete=models.PROTECT, related_name='merge_audits_as_source',
+    )
+    target = models.ForeignKey(
+        Account, on_delete=models.PROTECT, related_name='merge_audits_as_target',
+    )
+    merged_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='customer_merges_performed',
+    )
+    confirmation_token = models.CharField(max_length=64, blank=True, default='')
+    affected_counts = models.JSONField(default=dict, blank=True)
+    financial_snapshot = models.JSONField(default=dict, blank=True)
+    reassignment_details = models.JSONField(default=dict, blank=True)
+    result = models.CharField(max_length=40, default='completed')
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'Merge {self.source_id} → {self.target_id} ({self.created_at})'

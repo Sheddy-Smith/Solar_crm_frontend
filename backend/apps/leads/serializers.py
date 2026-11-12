@@ -112,9 +112,12 @@ class QuotationSerializer(serializers.ModelSerializer):
     items = QuotationItemSerializer(many=True, required=False)
     created_by_name = serializers.SerializerMethodField()
     sales_executive_name = serializers.SerializerMethodField()
-    lead_customer_name = serializers.CharField(source='lead.customer_name', read_only=True)
-    lead_ivrs_number = serializers.CharField(source='lead.ivrs_number', read_only=True)
-    lead_mobile_number = serializers.CharField(source='lead.mobile_number', read_only=True)
+    customer_name = serializers.SerializerMethodField()
+    lead_customer_name = serializers.SerializerMethodField()
+    lead_ivrs_number = serializers.SerializerMethodField()
+    lead_mobile_number = serializers.SerializerMethodField()
+    lead_status = serializers.SerializerMethodField()
+    lost_lead_warning = serializers.SerializerMethodField()
     cost_per_watt = serializers.ReadOnlyField()
     estimated_annual_savings = serializers.ReadOnlyField()
     roi_percent = serializers.ReadOnlyField()
@@ -123,7 +126,9 @@ class QuotationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Quotation
         fields = [
-            'id', 'lead', 'lead_customer_name', 'lead_ivrs_number', 'lead_mobile_number', 'items',
+            'id', 'customer', 'customer_name', 'lead', 'project',
+            'lead_customer_name', 'lead_ivrs_number', 'lead_mobile_number', 'lead_status',
+            'lost_lead_warning', 'items',
             'quotation_number', 'template', 'quotation_date', 'valid_till',
             'sales_executive', 'sales_executive_name',
             'company_name', 'alternate_number', 'email', 'gst_number', 'aadhaar_number', 'address', 'city', 'state', 'pincode',
@@ -157,6 +162,56 @@ class QuotationSerializer(serializers.ModelSerializer):
             'customer_contribution', 'total_dc_capacity', 'taxable_value', 'gst_5_amount', 'gst_18_amount',
             'pricing_frozen', 'created_at', 'updated_at',
         ]
+
+    def get_customer_name(self, obj):
+        if obj.customer_id:
+            return obj.customer.name
+        if obj.lead_id:
+            return obj.lead.customer_name
+        return ''
+
+    def get_lead_customer_name(self, obj):
+        return obj.lead.customer_name if obj.lead_id else ''
+
+    def get_lead_ivrs_number(self, obj):
+        return obj.lead.ivrs_number if obj.lead_id else ''
+
+    def get_lead_mobile_number(self, obj):
+        return obj.lead.mobile_number if obj.lead_id else ''
+
+    def get_lead_status(self, obj):
+        return obj.lead.status if obj.lead_id else ''
+
+    def get_lost_lead_warning(self, obj):
+        if obj.lead_id and obj.lead.status == 'Lost':
+            return 'Lead is marked Lost — quotation is still allowed; Lead status will not change.'
+        return ''
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        instance = getattr(self, 'instance', None)
+        customer = attrs.get('customer', getattr(instance, 'customer', None))
+        lead = attrs.get('lead', getattr(instance, 'lead', None))
+        if customer is None and lead is not None:
+            # Auto-resolve Customer Master from Lead when possible.
+            if getattr(lead, 'customer_id', None):
+                attrs['customer'] = lead.customer
+            else:
+                from apps.accounts_module.services import find_party_by_phone, get_or_create_party_for_lead_safe
+                party = find_party_by_phone(lead.mobile_number)
+                if party is None:
+                    party = get_or_create_party_for_lead_safe(lead, user=self.context.get('request') and self.context['request'].user)
+                attrs['customer'] = party
+        customer = attrs.get('customer', getattr(instance, 'customer', None))
+        if customer is None:
+            raise serializers.ValidationError({
+                'customer': 'Customer is required. Link an existing Customer or create one before saving the quotation.',
+            })
+        if getattr(customer, 'account_type', 'Customer') != 'Customer':
+            raise serializers.ValidationError({'customer': 'Quotation customer must be a Customer party.'})
+        if getattr(customer, 'status', '') == 'Merged':
+            raise serializers.ValidationError({'customer': 'Cannot attach quotation to a merged Customer.'})
+        return attrs
 
     def get_created_by_name(self, obj):
         return _user_name(obj.created_by)
@@ -241,7 +296,7 @@ class LeadListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Lead
         fields = [
-            'id', 'customer_name', 'mobile_number', 'ivrs_number',
+            'id', 'customer', 'customer_name', 'mobile_number', 'ivrs_number',
             'alternate_number', 'email', 'source',
             'project_name', 'project_type', 'estimated_capacity', 'project_cost',
             # Needed for Create Lead → Continue with Basic Details prefill
@@ -298,7 +353,7 @@ class LeadCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Lead
         fields = [
-            'id', 'customer_name', 'mobile_number', 'ivrs_number',
+            'id', 'customer', 'customer_name', 'mobile_number', 'ivrs_number',
             'alternate_number', 'email',
             'project_name', 'project_type', 'estimated_capacity', 'project_cost', 'requirement_details',
             'address', 'city', 'state', 'latitude', 'longitude',
@@ -306,7 +361,7 @@ class LeadCreateSerializer(serializers.ModelSerializer):
             'status', 'next_follow_up', 'assigned_to', 'created_at',
         ]
         read_only_fields = ['id', 'created_at']
-        extra_kwargs = {'status': {'required': True}}
+        extra_kwargs = {'status': {'required': True}, 'customer': {'required': False, 'allow_null': True}}
 
     def validate_ivrs_number(self, value):
         if value and Lead.objects.filter(ivrs_number=value).exists():
@@ -321,3 +376,13 @@ class LeadCreateSerializer(serializers.ModelSerializer):
         if not ivrs:
             raise serializers.ValidationError({'ivrs_number': 'IVRS Number is required.'})
         return attrs
+
+    def create(self, validated_data):
+        lead = super().create(validated_data)
+        if not lead.customer_id:
+            from apps.accounts_module.services import get_or_create_party_for_lead_safe
+            request = self.context.get('request')
+            user = getattr(request, 'user', None) if request else None
+            get_or_create_party_for_lead_safe(lead, user=user)
+            lead.refresh_from_db(fields=['customer'])
+        return lead

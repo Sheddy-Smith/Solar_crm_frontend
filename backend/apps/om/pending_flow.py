@@ -38,14 +38,16 @@ def _days_since(value, today):
 
 
 def won_projects(user):
-    """Won-lead projects still in play — the same set every Project Management
-    hub (Dispatch, Installation, Sales Challan, Invoice) works on."""
-    qs = Project.objects.filter(
-        is_deleted=False, lead__isnull=False, lead__is_deleted=False, lead__status='Won',
-    ).exclude(status='Cancelled')
+    """Won-lead projects and Customer-owned (no-lead) projects still in play —
+    the same set every Project Management hub (Dispatch, Installation, …) works on."""
+    from django.db.models import Q
+    qs = Project.objects.filter(is_deleted=False).exclude(status='Cancelled').filter(
+        Q(lead__isnull=False, lead__is_deleted=False, lead__status='Won')
+        | Q(customer__isnull=False, lead__isnull=True)
+    )
     filt = lead_owner_filter(user, prefix='lead__')
     if filt:
-        qs = qs.filter(filt)
+        qs = qs.filter(Q(filt) | Q(lead__isnull=True, customer__isnull=False))
     return qs
 
 

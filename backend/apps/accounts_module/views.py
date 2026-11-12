@@ -113,6 +113,9 @@ class AccountViewSet(AccountsBaseViewSet):
         if account_type != 'Customer':
             return
         if 'phone' not in validated_data and instance is not None:
+            # Still normalize alternate when present.
+            if 'alternate_phone' in validated_data and validated_data.get('alternate_phone'):
+                validated_data['alternate_phone'] = normalize_phone(validated_data['alternate_phone']) or validated_data['alternate_phone']
             return
         phone = normalize_phone(validated_data.get('phone', instance.phone if instance else ''))
         if not phone:
@@ -120,13 +123,21 @@ class AccountViewSet(AccountsBaseViewSet):
                 from rest_framework.exceptions import ValidationError
                 raise ValidationError({'phone': 'Mobile number is required for customers.'})
             return
+        # Block create/update onto another Active customer phone — never auto-merge.
         existing = find_party_by_phone(phone)
         if existing and (instance is None or existing.id != instance.id):
             from rest_framework.exceptions import ValidationError
             raise ValidationError({
-                'phone': f'Customer already exists for mobile {phone}. One mobile = one customer (multiple projects allowed).',
+                'phone': (
+                    f'Customer already exists for mobile {phone} '
+                    f'(ACC-{existing.id:04d} — {existing.name}). '
+                    'Use Customer Merge to combine records intentionally.'
+                ),
+                'duplicate_customer_id': existing.id,
             })
         validated_data['phone'] = phone
+        if 'alternate_phone' in validated_data and validated_data.get('alternate_phone'):
+            validated_data['alternate_phone'] = normalize_phone(validated_data['alternate_phone']) or validated_data['alternate_phone']
 
     def perform_create(self, serializer):
         self._normalize_customer_phone(serializer.validated_data)
@@ -155,6 +166,7 @@ class AccountViewSet(AccountsBaseViewSet):
     @action(detail=False, methods=['get'], url_path='customer-directory')
     def customer_directory(self, request):
         """Customer Details feed: sync from leads, then return customers + lead/project counts."""
+        from django.db.models import Q
         from apps.leads.models import Lead
         from apps.projects.models import Project
 
@@ -180,22 +192,28 @@ class AccountViewSet(AccountsBaseViewSet):
 
         project_qs = Project.objects.filter(is_deleted=False)
         if owner_q is not None:
-            project_qs = project_qs.filter(lead_owner_q(request.user, prefix='lead__'))
+            project_qs = project_qs.filter(
+                Q(lead_owner_q(request.user, prefix='lead__')) | Q(lead__isnull=True, customer__isnull=False)
+            )
         project_rows = list(
-            project_qs.values('id', 'project_name', 'customer_name', 'lead_id', 'lead__mobile_number', 'status')
+            project_qs.values(
+                'id', 'project_name', 'customer_name', 'customer_id', 'lead_id', 'lead__mobile_number', 'status',
+            )
         )
         projects_by_phone = {}
+        projects_by_customer = {}
         for project in project_rows:
+            if project.get('customer_id'):
+                projects_by_customer.setdefault(project['customer_id'], []).append(project)
             key = normalize_phone(project.get('lead__mobile_number'))
-            if not key:
-                continue
-            projects_by_phone.setdefault(key, []).append(project)
+            if key:
+                projects_by_phone.setdefault(key, []).append(project)
 
         results = []
         for party in parties:
             key = normalize_phone(party.phone)
             party_leads = leads_by_phone.get(key, [])
-            party_projects = projects_by_phone.get(key, [])
+            party_projects = list(projects_by_customer.get(party.id, [])) or projects_by_phone.get(key, [])
             projects = []
             used_project_ids = set()
             for lead in party_leads:
@@ -294,11 +312,24 @@ class AccountViewSet(AccountsBaseViewSet):
                 'results': entries,
             })
 
-        from .customer_ledger import build_ledger_entries, infer_relation, party_totals, visit_count, ledger_summary
+        from .customer_ledger import (
+            build_ledger_entries, infer_relation, party_totals, visit_count, ledger_summary,
+            project_ledger_breakdown,
+        )
         from apps.projects.work_completion import party_work_profile
 
-        entries = build_ledger_entries(party, start=start, end=end)
-        totals = party_totals(party)
+        project_id = request.query_params.get('project_id') or None
+        unallocated_only = str(request.query_params.get('unallocated') or '').lower() in ('1', 'true', 'yes')
+        if project_id:
+            try:
+                project_id = int(project_id)
+            except (TypeError, ValueError):
+                return Response({'detail': 'Invalid project_id.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        entries = build_ledger_entries(
+            party, start=start, end=end, project_id=project_id, unallocated_only=unallocated_only,
+        )
+        totals = party_totals(party, project_id=project_id, unallocated_only=unallocated_only)
         summary = ledger_summary(party, entries, start=start)
         # Prefer ledger credits (payments) as Received Payment; fall back to project payments inside helper.
         work = party_work_profile(party, received_payment=summary.get('total_credit'))
@@ -311,7 +342,12 @@ class AccountViewSet(AccountsBaseViewSet):
             'outstanding_amount': work['outstanding_amount'],
             'remaining_work_value': work['remaining_work_value'],
             'projects_count': work['projects_count'],
+            'scope': (
+                'project' if project_id else ('unallocated' if unallocated_only else 'consolidated')
+            ),
+            'project_id': project_id,
         }
+        breakdown = None if project_id or unallocated_only else project_ledger_breakdown(party)
         return Response({
             'party': AccountSerializer(party).data,
             'visits': visit_count(party),
@@ -321,27 +357,133 @@ class AccountViewSet(AccountsBaseViewSet):
                 'debit': float(totals['debit']),
                 'credit': float(totals['credit']),
                 'net': float(totals['net']),
+                'invoiced': float(totals.get('invoiced') or 0),
+                'received': float(totals.get('received') or 0),
+                'outstanding': float(totals.get('outstanding') or 0),
             },
             'summary': summary,
             'work_profile': work,
+            'breakdown': breakdown,
             'results': entries,
         })
 
+    @action(detail=True, methods=['get'], url_path='project-accounts')
+    def project_accounts(self, request, pk=None):
+        party = self.get_object()
+        if party.account_type != 'Customer':
+            return Response({'detail': 'Only Customer parties support project accounts.'}, status=400)
+        from .customer_ledger import project_ledger_breakdown
+        return Response({'ok': True, 'party_id': party.id, **project_ledger_breakdown(party)})
+
+    @action(detail=False, methods=['get'], url_path='detect-duplicates')
+    def detect_duplicates(self, request):
+        """Suggestion-only duplicate groups — never merges automatically."""
+        from .customer_merge import detect_duplicate_customers
+        return Response({'ok': True, 'results': detect_duplicate_customers()})
+
+    @action(detail=False, methods=['post'], url_path='merge-preview')
+    def merge_preview(self, request):
+        from .customer_merge import preview_customer_merge
+        try:
+            source_id = int(request.data.get('source_id'))
+            target_id = int(request.data.get('target_id'))
+            preview = preview_customer_merge(source_id, target_id)
+        except (TypeError, ValueError) as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'ok': True, **preview})
+
+    @action(detail=False, methods=['post'], url_path='merge')
+    def merge_customers(self, request):
+        """Authorized manual Customer merge. Requires confirm=true. No auto phone merge."""
+        from .customer_merge import execute_customer_merge
+        if not (
+            getattr(request.user, 'is_super_admin', False)
+            or getattr(request.user, 'is_superuser', False)
+            or HasModulePermission().has_permission(request, self)
+        ):
+            return Response({'detail': 'Not authorized to merge customers.'}, status=status.HTTP_403_FORBIDDEN)
+        # Lead-scoped executives cannot merge globally.
+        if lead_owner_q(request.user) is not None and not getattr(request.user, 'is_super_admin', False):
+            return Response({'detail': 'Scoped users cannot merge Customer masters.'}, status=status.HTTP_403_FORBIDDEN)
+        confirm = str(request.data.get('confirm') or '').lower() in ('1', 'true', 'yes')
+        try:
+            result = execute_customer_merge(
+                source_id=int(request.data.get('source_id')),
+                target_id=int(request.data.get('target_id')),
+                user=request.user,
+                notes=str(request.data.get('notes') or ''),
+                confirm=confirm,
+            )
+        except (TypeError, ValueError) as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result)
+
+    @action(detail=False, methods=['get'], url_path='merge-audits')
+    def merge_audits(self, request):
+        from .models import CustomerMergeAudit
+        rows = CustomerMergeAudit.objects.select_related('source', 'target', 'merged_by').order_by('-created_at')[:100]
+        return Response({
+            'results': [
+                {
+                    'id': row.id,
+                    'source_id': row.source_id,
+                    'source_name': row.source.name,
+                    'target_id': row.target_id,
+                    'target_name': row.target.name,
+                    'merged_by': getattr(row.merged_by, 'name', None) or getattr(row.merged_by, 'email', '') or '',
+                    'affected_counts': row.affected_counts,
+                    'financial_snapshot': row.financial_snapshot,
+                    'result': row.result,
+                    'notes': row.notes,
+                    'created_at': row.created_at.isoformat() if row.created_at else None,
+                }
+                for row in rows
+            ]
+        })
+
+    @action(detail=False, methods=['post'], url_path='allocate-payment')
+    def allocate_payment(self, request):
+        from .customer_merge import allocate_payment_to_project
+        try:
+            result = allocate_payment_to_project(
+                payment_id=int(request.data.get('payment_id')),
+                project_id=int(request.data.get('project_id')),
+                amount=request.data.get('amount'),
+                user=request.user,
+                notes=str(request.data.get('notes') or ''),
+            )
+        except (TypeError, ValueError) as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result)
+
     @action(detail=False, methods=['post'], url_path='fix-duplicates')
     def fix_duplicates(self, request):
+        """Legacy endpoint: sync from leads + detect duplicates only (no automatic merge)."""
         from apps.leads.models import Lead
-        from .customer_ledger import merge_duplicate_customers_by_phone
+        from .customer_merge import detect_duplicate_customers
 
         lead_qs = Lead.objects.filter(is_deleted=False)
         owner_q = lead_owner_q(request.user)
         if owner_q is not None:
             lead_qs = lead_qs.filter(owner_q)
         sync = ensure_customers_from_all_leads(created_by=request.user, lead_qs=lead_qs)
-        # Duplicate merge is global admin work — scoped users only sync their customers.
-        if owner_q is not None:
-            return Response({'ok': True, 'sync': sync, 'merge': {'skipped': True, 'reason': 'scoped_user'}})
-        merge = merge_duplicate_customers_by_phone()
-        return Response({'ok': True, 'sync': sync, 'merge': merge})
+        duplicates = detect_duplicate_customers() if owner_q is None else []
+        return Response({
+            'ok': True,
+            'sync': sync,
+            'merge': {
+                'skipped': True,
+                'reason': 'auto_merge_disabled_use_merge_endpoint',
+                'duplicate_groups': len(duplicates),
+            },
+            'duplicates': duplicates,
+        })
 
     @action(detail=False, methods=['get'], url_path='credit-ledger')
     def credit_ledger(self, request):

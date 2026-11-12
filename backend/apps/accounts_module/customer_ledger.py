@@ -51,13 +51,45 @@ def visit_count(party):
     return visits
 
 
-def party_totals(party, year=None):
-    from .models import CustomerLedgerManualEntry, Payment, SellInvoice
+def party_totals(party, year=None, project_id=None, unallocated_only=False):
+    """Party financial totals.
+
+    project_id: restrict to one Project's invoices/payments.
+    unallocated_only: payments/invoices with project IS NULL (customer advances).
+    Opening balance is included only for consolidated (no project filter) views.
+    """
+    from .models import CustomerLedgerManualEntry, Payment, PaymentAllocation, SellInvoice
 
     invoices = SellInvoice.objects.filter(party_id=party.id).exclude(status='Cancelled')
     received = Payment.objects.filter(party_id=party.id, direction='Received', status='Completed')
     made = Payment.objects.filter(party_id=party.id, direction='Made', status='Completed')
     manual = CustomerLedgerManualEntry.objects.filter(party_id=party.id)
+    if project_id is not None:
+        invoices = invoices.filter(project_id=project_id)
+        received = received.filter(project_id=project_id)
+        made = made.filter(project_id=project_id)
+        # Allocations from unallocated advances count toward this project without double-counting
+        # full unallocated payment in consolidated (those stay project_id null on Payment).
+        # Only count allocations from payments that remain unstamped (project IS NULL).
+        # Fully allocated advances stamp Payment.project and are already in `received`.
+        alloc_credit = _d(
+            PaymentAllocation.objects.filter(
+                project_id=project_id,
+                payment__party_id=party.id,
+                payment__status='Completed',
+                payment__project__isnull=True,
+            ).aggregate(t=Sum('amount'))['t']
+        )
+        # Manual entries are party-level only (no project FK) — exclude from project views.
+        manual = manual.none()
+    elif unallocated_only:
+        invoices = invoices.filter(project__isnull=True)
+        received = received.filter(project__isnull=True)
+        made = made.filter(project__isnull=True)
+        manual = manual.none()
+        alloc_credit = Decimal('0')
+    else:
+        alloc_credit = Decimal('0')
     if year:
         invoices = invoices.filter(invoice_date__year=year)
         received = received.filter(payment_date__year=year)
@@ -65,10 +97,10 @@ def party_totals(party, year=None):
         manual = manual.filter(entry_date__year=year)
 
     debit = _d(invoices.aggregate(t=Sum('total_amount'))['t']) + _d(made.aggregate(t=Sum('amount'))['t'])
-    credit = _d(received.aggregate(t=Sum('amount'))['t'])
+    credit = _d(received.aggregate(t=Sum('amount'))['t']) + alloc_credit
     debit += _d(manual.filter(entry_type='sale').aggregate(t=Sum('amount'))['t'])
     credit += _d(manual.exclude(entry_type='sale').aggregate(t=Sum('amount'))['t'])
-    opening = _d(party.opening_balance)
+    opening = _d(party.opening_balance) if project_id is None and not unallocated_only else Decimal('0')
     if opening > 0:
         debit += opening
     elif opening < 0:
@@ -82,6 +114,9 @@ def party_totals(party, year=None):
         'debit': debit,
         'credit': credit,
         'net': debit - credit,
+        'invoiced': _d(invoices.aggregate(t=Sum('total_amount'))['t']),
+        'received': _d(received.aggregate(t=Sum('amount'))['t']) + alloc_credit,
+        'outstanding': debit - credit,
         'last_date': last_date,
         'yearly': debit + credit,
     }
@@ -113,12 +148,13 @@ def credit_aging_15_plus(party):
     return total
 
 
-def build_ledger_entries(party, start=None, end=None):
-    from .models import CustomerLedgerManualEntry, Payment, SellInvoice
+def build_ledger_entries(party, start=None, end=None, project_id=None, unallocated_only=False):
+    from .models import CustomerLedgerManualEntry, Payment, PaymentAllocation, SellInvoice
 
     vehicle_fallback = (party.vehicle_number or '').strip()
     entries = []
-    opening = _d(party.opening_balance)
+    include_opening = project_id is None and not unallocated_only
+    opening = _d(party.opening_balance) if include_opening else Decimal('0')
     if opening:
         entries.append({
             'date': None,
@@ -131,12 +167,23 @@ def build_ledger_entries(party, start=None, end=None):
             'type': 'Opening',
             'type_label': 'opening',
             'payment_mode': '',
+            'project_id': None,
         })
 
     invoices = SellInvoice.objects.filter(party_id=party.id).exclude(status='Cancelled')
     received = Payment.objects.filter(party_id=party.id, direction='Received', status='Completed')
     made = Payment.objects.filter(party_id=party.id, direction='Made', status='Completed')
     manual = CustomerLedgerManualEntry.objects.filter(party_id=party.id)
+    if project_id is not None:
+        invoices = invoices.filter(project_id=project_id)
+        received = received.filter(project_id=project_id)
+        made = made.filter(project_id=project_id)
+        manual = manual.none()
+    elif unallocated_only:
+        invoices = invoices.filter(project__isnull=True)
+        received = received.filter(project__isnull=True)
+        made = made.filter(project__isnull=True)
+        manual = manual.none()
     if start:
         invoices = invoices.filter(invoice_date__gte=start)
         received = received.filter(payment_date__gte=start)
@@ -164,6 +211,7 @@ def build_ledger_entries(party, start=None, end=None):
             'payment_mode': (getattr(inv, 'payment_mode', None) or '').strip(),
             'source_id': inv.id,
             'source_kind': 'sell_invoice',
+            'project_id': inv.project_id,
         })
 
     for pay in received.order_by('payment_date', 'id'):
@@ -181,6 +229,7 @@ def build_ledger_entries(party, start=None, end=None):
             'payment_mode': (getattr(pay, 'payment_mode', None) or '').strip(),
             'source_id': pay.id,
             'source_kind': 'payment',
+            'project_id': pay.project_id,
         })
 
     for pay in made.order_by('payment_date', 'id'):
@@ -198,25 +247,57 @@ def build_ledger_entries(party, start=None, end=None):
             'payment_mode': (getattr(pay, 'payment_mode', None) or '').strip(),
             'source_id': pay.id,
             'source_kind': 'payment',
+            'project_id': pay.project_id,
         })
 
-    for row in manual.order_by('entry_date', 'id'):
-        is_debit = row.entry_type == 'sale'
-        work = (row.work or '').strip() or row.get_entry_type_display()
-        entries.append({
-            'date': _iso(row.entry_date),
-            'particulars': work,
-            'work': work,
-            'ref': (row.reference_no or '').strip() or f'MLE-{row.id}',
-            'vehicle_no': (row.vehicle_no or '').strip() or vehicle_fallback or '',
-            'debit': float(_d(row.amount)) if is_debit else 0,
-            'credit': float(_d(row.amount)) if not is_debit else 0,
-            'type': 'Invoice' if is_debit else 'Receipt',
-            'type_label': row.entry_type,
-            'payment_mode': (row.payment_mode or '').strip(),
-            'source_id': row.id,
-            'source_kind': 'manual_ledger',
-        })
+    if project_id is not None:
+        alloc_qs = PaymentAllocation.objects.filter(
+            project_id=project_id, payment__party_id=party.id, payment__status='Completed',
+        ).select_related('payment')
+        if start:
+            alloc_qs = alloc_qs.filter(created_at__date__gte=start)
+        if end:
+            alloc_qs = alloc_qs.filter(created_at__date__lte=end)
+        for alloc in alloc_qs.order_by('created_at', 'id'):
+            # Skip if payment already stamped onto a project (counted via Payment.received).
+            if alloc.payment.project_id:
+                continue
+            particulars = f'Advance allocated from RCPT-{alloc.payment_id}'
+            entries.append({
+                'date': _iso(alloc.created_at.date() if alloc.created_at else None),
+                'particulars': particulars,
+                'work': alloc.notes or particulars,
+                'ref': f'ALLOC-{alloc.id}',
+                'vehicle_no': vehicle_fallback or '',
+                'debit': 0,
+                'credit': float(_d(alloc.amount)),
+                'type': 'Allocation',
+                'type_label': 'payment',
+                'payment_mode': (getattr(alloc.payment, 'payment_mode', None) or '').strip(),
+                'source_id': alloc.id,
+                'source_kind': 'payment_allocation',
+                'project_id': project_id,
+            })
+
+    if project_id is None and not unallocated_only:
+        for row in manual.order_by('entry_date', 'id'):
+            is_debit = row.entry_type == 'sale'
+            work = (row.work or '').strip() or row.get_entry_type_display()
+            entries.append({
+                'date': _iso(row.entry_date),
+                'particulars': work,
+                'work': work,
+                'ref': (row.reference_no or '').strip() or f'MLE-{row.id}',
+                'vehicle_no': (row.vehicle_no or '').strip() or vehicle_fallback or '',
+                'debit': float(_d(row.amount)) if is_debit else 0,
+                'credit': float(_d(row.amount)) if not is_debit else 0,
+                'type': 'Invoice' if is_debit else 'Receipt',
+                'type_label': row.entry_type,
+                'payment_mode': (row.payment_mode or '').strip(),
+                'source_id': row.id,
+                'source_kind': 'manual_ledger',
+                'project_id': None,
+            })
 
     dated = [e for e in entries if e['date']]
     undated = [e for e in entries if not e['date']]
@@ -227,6 +308,52 @@ def build_ledger_entries(party, start=None, end=None):
         running += _d(row['debit']) - _d(row['credit'])
         out.append({**row, 'balance': float(running)})
     return out
+
+
+def project_ledger_breakdown(party):
+    """Per-project + unallocated financial summary for a Customer."""
+    from apps.projects.models import Project
+
+    projects = list(
+        Project.objects.filter(customer_id=party.id, is_deleted=False).order_by('project_name', 'id')
+    )
+    rows = []
+    for project in projects:
+        totals = party_totals(party, project_id=project.id)
+        rows.append({
+            'project_id': project.id,
+            'project_code': project.project_id,
+            'project_name': project.project_name,
+            'status': project.status,
+            'invoiced': float(totals['invoiced']),
+            'received': float(totals['received']),
+            'outstanding': float(totals['outstanding']),
+            'debit': float(totals['debit']),
+            'credit': float(totals['credit']),
+            'net': float(totals['net']),
+        })
+    unalloc = party_totals(party, unallocated_only=True)
+    consolidated = party_totals(party)
+    return {
+        'projects': rows,
+        'unallocated': {
+            'invoiced': float(unalloc['invoiced']),
+            'received': float(unalloc['received']),
+            'outstanding': float(unalloc['outstanding']),
+            'debit': float(unalloc['debit']),
+            'credit': float(unalloc['credit']),
+            'net': float(unalloc['net']),
+        },
+        'consolidated': {
+            'invoiced': float(consolidated['invoiced']),
+            'received': float(consolidated['received']),
+            'outstanding': float(consolidated['outstanding']),
+            'debit': float(consolidated['debit']),
+            'credit': float(consolidated['credit']),
+            'net': float(consolidated['net']),
+            'projects_count': len(rows),
+        },
+    }
 
 
 def previous_balance_before(party, start):

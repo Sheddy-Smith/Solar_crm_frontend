@@ -27,15 +27,24 @@ def normalize_phone(value):
     return digits
 
 
-def find_party_by_phone(phone, account_type='Customer'):
-    """Resolve a party by normalized mobile (exact or endswith variants)."""
+def find_party_by_phone(phone, account_type='Customer', include_merged=False):
+    """Resolve a party by normalized mobile (exact or endswith variants).
+
+    Merged Customers are excluded by default so lookups prefer the surviving master.
+    """
     key = normalize_phone(phone)
     if not key:
         return None
-    party = Account.objects.filter(account_type=account_type, phone=key).first()
+    qs = Account.objects.filter(account_type=account_type)
+    if not include_merged:
+        qs = qs.exclude(status='Merged')
+    party = qs.filter(normalized_phone=key).order_by('id').first()
     if party:
         return party
-    for candidate in Account.objects.filter(account_type=account_type, phone__endswith=key).exclude(phone=''):
+    party = qs.filter(phone=key).order_by('id').first()
+    if party:
+        return party
+    for candidate in qs.filter(phone__endswith=key).exclude(phone='').order_by('id'):
         if normalize_phone(candidate.phone) == key:
             return candidate
     return None
@@ -84,11 +93,23 @@ def filter_customer_parties_for_user(qs, user):
     return (others | customers.filter(phone_q)).distinct()
 
 
+def get_or_create_party_for_lead_safe(lead, user=None):
+    """Ensure a Customer Account exists for a Lead and optionally link Lead.customer."""
+    from apps.leads.quotation_sync import get_or_create_party_for_lead
+
+    party = get_or_create_party_for_lead(lead, created_by=user)
+    if party and getattr(lead, 'pk', None) and not getattr(lead, 'customer_id', None):
+        type(lead).objects.filter(pk=lead.pk, customer__isnull=True).update(customer_id=party.id)
+        lead.customer_id = party.id
+    return party
+
+
 def ensure_customers_from_all_leads(created_by=None, lead_qs=None):
     """Upsert Customer Account rows for every lead phone (any status).
 
-    Phone is the primary key for customer identity so one person can own
+    Phone is the primary lookup for customer identity so one person can own
     multiple leads/projects (home solar, office solar, etc.) under one row.
+    Also backfills Lead.customer FK when missing.
     Pass `lead_qs` to limit sync to a scoped lead queryset.
     """
     from apps.leads.models import Lead
@@ -152,6 +173,14 @@ def ensure_customers_from_all_leads(created_by=None, lead_qs=None):
         if fields:
             party.save(update_fields=fields + ['updated_at'])
             updated += 1
+
+        # Link Leads missing Customer FK (same phone → same master).
+        party = find_party_by_phone(key)
+        if party:
+            Lead.objects.filter(
+                id__in=[lead.id for lead in group],
+                customer__isnull=True,
+            ).update(customer_id=party.id)
 
     return {
         'created': created,

@@ -73,6 +73,15 @@ class Lead(models.Model):
     # Canonical last-10 digits for DB-side matching (Customer ledger / work %).
     normalized_mobile = models.CharField(max_length=10, blank=True, default='', db_index=True)
     ivrs_number = models.CharField(max_length=50, unique=True, blank=True, default=generate_ivrs)
+    # Optional link to Customer Master (accounts_module.Account). IVRS stays Lead identity.
+    customer = models.ForeignKey(
+        'accounts_module.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='leads',
+        limit_choices_to={'account_type': 'Customer'},
+    )
 
     PROJECT_TYPE_CHOICES = [
         ('On-Grid', 'On-Grid'),
@@ -238,8 +247,12 @@ class Quotation(models.Model):
     STATUS_CHOICES = [
         ('Draft', 'Draft'),
         ('Sent', 'Sent'),
+        ('Viewed', 'Viewed'),
         ('Approved', 'Approved'),
         ('Rejected', 'Rejected'),
+        ('Revised', 'Revised'),
+        ('Expired', 'Expired'),
+        ('Cancelled', 'Cancelled'),
     ]
     TEMPLATE_CHOICES = [
         ('Residential Subsidy', 'Residential Subsidy Solar Quotation'),
@@ -267,7 +280,25 @@ class Quotation(models.Model):
         ('Aluminium', 'Aluminium'),
     ]
 
-    lead = models.ForeignKey(Lead, on_delete=models.CASCADE, related_name='quotations')
+    # Customer Master is required for new quotations; Lead remains optional for sales pipeline.
+    customer = models.ForeignKey(
+        'accounts_module.Account',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='quotations',
+        limit_choices_to={'account_type': 'Customer'},
+    )
+    lead = models.ForeignKey(
+        Lead, on_delete=models.SET_NULL, null=True, blank=True, related_name='quotations',
+    )
+    project = models.ForeignKey(
+        'projects.Project',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='quotations',
+    )
 
     # A. Basic Details
     quotation_number = models.CharField(max_length=30, unique=True, null=True, blank=True)
@@ -457,10 +488,18 @@ class Quotation(models.Model):
         super().save(*args, **kwargs)
 
     def recalculate_totals(self):
-        items_total = sum(item.amount for item in self.items.all()) if self.pk else Decimal('0')
+        def _dec(value):
+            try:
+                return Decimal(str(value or 0))
+            except Exception:
+                return Decimal('0')
+
+        items_total = sum((_dec(item.amount) for item in self.items.all()), Decimal('0')) if self.pk else Decimal('0')
         cost_subtotal = (
-            items_total + self.material_cost + self.structure_cost + self.installation_cost
-            + self.transportation_cost + self.liaisoning_charges + self.net_metering_charges + self.other_charges
+            items_total
+            + _dec(self.material_cost) + _dec(self.structure_cost) + _dec(self.installation_cost)
+            + _dec(self.transportation_cost) + _dec(self.liaisoning_charges)
+            + _dec(self.net_metering_charges) + _dec(self.other_charges)
         )
 
         if self.number_of_panels and self.panel_wattage:
@@ -497,13 +536,15 @@ class Quotation(models.Model):
             self.grand_total = total - Decimal(self.discount or 0)
         else:
             self.subtotal = cost_subtotal
-            self.gst_amount = (self.subtotal * self.gst_percent / 100).quantize(Decimal('0.01'))
-            self.grand_total = self.subtotal + self.gst_amount - self.discount
+            gst_percent = _dec(self.gst_percent)
+            self.gst_amount = (self.subtotal * gst_percent / Decimal('100')).quantize(Decimal('0.01'))
+            self.grand_total = self.subtotal + self.gst_amount - _dec(self.discount)
             self.taxable_value = self.subtotal
             self.gst_5_amount = Decimal('0')
             self.gst_18_amount = Decimal('0')
 
-        self.customer_contribution = self.grand_total - self.subsidy_amount if self.subsidy_applicable else self.grand_total
+        subsidy = _dec(self.subsidy_amount)
+        self.customer_contribution = self.grand_total - subsidy if self.subsidy_applicable else self.grand_total
         self.save(update_fields=[
             'subtotal', 'gst_amount', 'gst_percent', 'grand_total', 'customer_contribution',
             'total_dc_capacity', 'plant_capacity_kw', 'taxable_value', 'gst_5_amount', 'gst_18_amount',
@@ -540,7 +581,12 @@ class Quotation(models.Model):
         return round(float(self.customer_contribution) / savings, 2)
 
     def __str__(self):
-        return f'{self.quotation_number or f"Quotation #{self.pk}"} — {self.lead.customer_name}'
+        name = ''
+        if self.customer_id:
+            name = getattr(self.customer, 'name', '') or ''
+        elif self.lead_id:
+            name = getattr(self.lead, 'customer_name', '') or ''
+        return f'{self.quotation_number or f"Quotation #{self.pk}"} — {name or "Customer"}'
 
     class Meta:
         ordering = ['-created_at']
@@ -823,6 +869,9 @@ def ensure_project_when_quotation_approved(sender, instance, **kwargs):
     if not instance.pricing_frozen:
         Quotation.objects.filter(pk=instance.pk).update(pricing_frozen=True)
         instance.pricing_frozen = True
+    if not instance.lead_id:
+        # Customer-direct Approved quotation does not auto-create a Project.
+        return
     try:
         from apps.projects.project_lifecycle import ensure_project_for_lead
         ensure_project_for_lead(instance.lead, quotation=instance, user=instance.created_by)

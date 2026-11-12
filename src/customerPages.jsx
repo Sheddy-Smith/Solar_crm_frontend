@@ -27,6 +27,8 @@ const emptyForm = {
   name: '',
   company: '',
   phone: '',
+  alternate_phone: '',
+  email: '',
   address: '',
   gstin: '',
   opening_balance: '0',
@@ -35,6 +37,7 @@ const emptyForm = {
   credit_days: '30',
   relation: '',
   city: '',
+  state: '',
 };
 
 function fmtRs(v) {
@@ -476,9 +479,15 @@ function CustomerDetailsTab({ caps, onNotify, onOpenSection }) {
           <div className="grid gap-3">
             <Field label="Name" required><input className={inputClass} value={modal.form.name || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, name: e.target.value } }))} /></Field>
             <Field label="Company"><input className={inputClass} value={modal.form.company || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, company: e.target.value } }))} /></Field>
-            <Field label="Mobile (unique key)" required><input className={inputClass} value={modal.form.phone || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, phone: e.target.value } }))} /></Field>
-            <p className="text-[11px] font-semibold text-[#7a8fa6]">Same mobile = same customer. Add separate leads/projects for home vs office solar.</p>
+            <Field label="Primary Mobile" required><input className={inputClass} value={modal.form.phone || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, phone: e.target.value } }))} /></Field>
+            <Field label="Alternate Mobile"><input className={inputClass} value={modal.form.alternate_phone || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, alternate_phone: e.target.value } }))} /></Field>
+            <p className="text-[11px] font-semibold text-[#7a8fa6]">Primary mobile is the Customer Master lookup key (not IVRS). Duplicate primary mobiles show a warning — merge only via authorized Merge flow.</p>
+            <Field label="Email"><input className={inputClass} value={modal.form.email || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, email: e.target.value } }))} /></Field>
             <Field label="Address"><textarea className={`${inputClass} h-20 py-2`} value={modal.form.address || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, address: e.target.value } }))} /></Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="City"><input className={inputClass} value={modal.form.city || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, city: e.target.value } }))} /></Field>
+              <Field label="State"><input className={inputClass} value={modal.form.state || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, state: e.target.value } }))} /></Field>
+            </div>
             <Field label="GSTIN"><input className={inputClass} placeholder="15 character GST number" maxLength={15} value={modal.form.gstin || ''} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, gstin: e.target.value } }))} /></Field>
             <Field label="Opening Balance (₹)"><input type="number" className={inputClass} value={modal.form.opening_balance || '0'} onChange={(e) => setModal((m) => ({ ...m, form: { ...m.form, opening_balance: e.target.value } }))} /></Field>
             <p className="text-[11px] font-semibold text-[#7a8fa6]">Enter positive value if customer owes you money</p>
@@ -567,6 +576,8 @@ const emptyLedgerForm = () => ({
 function CustomerLedgerTab({ onNotify, onOpenSection }) {
   const [customers, setCustomers] = useState([]);
   const [partyId, setPartyId] = useState('');
+  const [projectId, setProjectId] = useState('');
+  const [projectRows, setProjectRows] = useState([]);
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
   const [q, setQ] = useState('');
@@ -596,6 +607,19 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
 
   useEffect(() => { loadCustomers(); }, [loadCustomers]);
 
+  useEffect(() => {
+    setProjectId('');
+    setProjectRows([]);
+    if (!partyId) return undefined;
+    let cancelled = false;
+    accountsModuleApi.partyProjectAccounts(partyId).then((data) => {
+      if (!cancelled) setProjectRows(data?.projects || []);
+    }).catch(() => {
+      if (!cancelled) setProjectRows([]);
+    });
+    return () => { cancelled = true; };
+  }, [partyId]);
+
   const loadLedger = useCallback(async () => {
     if (!partyId) {
       setPayload(null);
@@ -606,6 +630,8 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
       const params = {};
       if (start) params.start = start;
       if (end) params.end = end;
+      if (projectId === '__unallocated__') params.unallocated = 'true';
+      else if (projectId) params.project_id = projectId;
       const qs = new URLSearchParams(params).toString();
       setPayload(await accountsModuleApi.partyLedger(partyId, qs));
     } catch (e) {
@@ -613,7 +639,7 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
     } finally {
       setLoading(false);
     }
-  }, [partyId, start, end, onNotify]);
+  }, [partyId, projectId, start, end, onNotify]);
 
   useEffect(() => { loadLedger(); }, [loadLedger, reloadKey]);
 
@@ -657,13 +683,18 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
   const fixDuplicates = async () => {
     setFixing(true);
     try {
-      const res = await accountsModuleApi.fixCustomerDuplicates();
-      const removed = res?.merge?.duplicates_removed ?? 0;
+      const res = await accountsModuleApi.detectCustomerDuplicates();
+      const groups = res?.results || [];
       await loadCustomers();
       setReloadKey((k) => k + 1);
-      onNotify(removed ? `Merged ${removed} duplicate customer(s) by mobile` : 'No duplicate mobiles found', 'success');
+      onNotify(
+        groups.length
+          ? `Found ${groups.length} duplicate mobile group(s). Use authorized Customer Merge — auto-merge is disabled.`
+          : 'No duplicate mobiles found',
+        groups.length ? 'error' : 'success',
+      );
     } catch (e) {
-      onNotify(e.message || 'Fix duplicates failed', 'error');
+      onNotify(e.message || 'Duplicate detection failed', 'error');
     } finally {
       setFixing(false);
     }
@@ -762,7 +793,7 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
             <FileText className="size-3.5" /> PDF
           </button>
           <button type="button" disabled={fixing} onClick={fixDuplicates} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#fecaca] bg-[#fef2f2] px-3 text-[12px] font-extrabold text-[#dc2626] disabled:opacity-50">
-            {fixing ? 'Fixing...' : 'Fix Duplicates'}
+            {fixing ? 'Scanning...' : 'Detect Duplicates'}
           </button>
           <button type="button" onClick={() => onOpenSection?.('Customer Details')} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#284276]">
             <Plus className="size-3.5" /> Add Customer
@@ -774,7 +805,7 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
       </div>
 
       <div className="rounded-[14px] border border-[#e2e9f3] bg-white p-4 shadow-sm">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <Field label="Select Customer *">
             <CustomerSearchSelect
               customers={customers}
@@ -782,12 +813,53 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
               onChange={setPartyId}
               placeholder="Choose a customer"
             />
-            <p className="mt-1 text-[11px] font-semibold text-[#0b65e5]">Only Won-lead customers are listed here for payment transactions &amp; statements.</p>
+            <p className="mt-1 text-[11px] font-semibold text-[#0b65e5]">Customer Master ledger — project filter scopes Project-wise vs Consolidated.</p>
+          </Field>
+          <Field label="Account Scope">
+            <select className={inputClass} value={projectId} onChange={(e) => setProjectId(e.target.value)} disabled={!partyId}>
+              <option value="">Consolidated (all projects)</option>
+              <option value="__unallocated__">Unallocated advances</option>
+              {projectRows.map((row) => (
+                <option key={row.project_id} value={row.project_id}>
+                  {row.project_name} · Outstanding {fmtCompact(row.outstanding)}
+                </option>
+              ))}
+            </select>
           </Field>
           <Field label="Start Date"><input type="date" className={inputClass} value={start} onChange={(e) => setStart(e.target.value)} /></Field>
           <Field label="End Date"><input type="date" className={inputClass} value={end} onChange={(e) => setEnd(e.target.value)} /></Field>
           <Field label="Search"><input className={inputClass} placeholder="Search entries..." value={q} onChange={(e) => setQ(e.target.value)} /></Field>
         </div>
+        {payload?.breakdown?.projects?.length ? (
+          <div className="mt-3 overflow-x-auto rounded-[10px] border border-[#eef2f8]">
+            <table className="min-w-full text-left text-[12px]">
+              <thead className="bg-[#f8fbff] text-[#53647f]">
+                <tr>
+                  <th className="px-3 py-2 font-extrabold">Project</th>
+                  <th className="px-3 py-2 font-extrabold">Invoiced</th>
+                  <th className="px-3 py-2 font-extrabold">Received</th>
+                  <th className="px-3 py-2 font-extrabold">Outstanding</th>
+                </tr>
+              </thead>
+              <tbody>
+                {payload.breakdown.projects.map((row) => (
+                  <tr key={row.project_id} className="border-t border-[#eef2f8]">
+                    <td className="px-3 py-2 font-bold text-[#1e3261]">{row.project_name}</td>
+                    <td className="px-3 py-2">{fmtRs(row.invoiced)}</td>
+                    <td className="px-3 py-2">{fmtRs(row.received)}</td>
+                    <td className="px-3 py-2 font-extrabold">{fmtRs(row.outstanding)}</td>
+                  </tr>
+                ))}
+                <tr className="border-t border-[#e2e9f3] bg-[#fff7ed]">
+                  <td className="px-3 py-2 font-extrabold text-[#9a3412]">Unallocated</td>
+                  <td className="px-3 py-2">{fmtRs(payload.breakdown.unallocated?.invoiced)}</td>
+                  <td className="px-3 py-2">{fmtRs(payload.breakdown.unallocated?.received)}</td>
+                  <td className="px-3 py-2 font-extrabold">{fmtRs(payload.breakdown.unallocated?.outstanding)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        ) : null}
       </div>
 
       {!partyId ? (

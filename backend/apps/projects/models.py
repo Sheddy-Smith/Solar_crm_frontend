@@ -79,6 +79,15 @@ class Project(models.Model):
     project_id = models.CharField(max_length=50, unique=True, editable=False)
     project_name = models.CharField(max_length=200)
     lead = models.ForeignKey(Lead, on_delete=models.SET_NULL, null=True, blank=True, related_name='projects')
+    # Customer Master — one Customer can own many Projects. Nullable until backfill completes.
+    customer = models.ForeignKey(
+        'accounts_module.Account',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='projects',
+        limit_choices_to={'account_type': 'Customer'},
+    )
     customer_name = models.CharField(max_length=200)
     site = models.CharField(max_length=200, blank=True)
     site_address = models.TextField(blank=True)

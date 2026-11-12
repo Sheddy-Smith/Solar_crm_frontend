@@ -45,6 +45,7 @@ class AccountCategoryMapSerializer(serializers.ModelSerializer):
 class AccountSerializer(serializers.ModelSerializer):
     record_no = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
+    projects_count = serializers.SerializerMethodField()
 
     def get_record_no(self, obj):
         return f'ACC-{obj.id:04d}'
@@ -52,15 +53,29 @@ class AccountSerializer(serializers.ModelSerializer):
     def get_created_by_name(self, obj):
         return _user_name(obj.created_by)
 
+    def get_projects_count(self, obj):
+        if obj.account_type != 'Customer':
+            return 0
+        try:
+            return obj.projects.filter(is_deleted=False).count()
+        except Exception:
+            return 0
+
     class Meta:
         model = Account
         fields = [
-            'id', 'record_no', 'name', 'account_type', 'contact_person', 'company', 'phone', 'email',
-            'city', 'address', 'gstin', 'vehicle_number', 'vendor_type', 'credit_limit', 'credit_days', 'relation',
+            'id', 'record_no', 'name', 'account_type', 'contact_person', 'company',
+            'phone', 'alternate_phone', 'normalized_phone', 'email',
+            'city', 'state', 'address', 'gstin', 'vehicle_number', 'vendor_type',
+            'credit_limit', 'credit_days', 'relation',
             'status', 'opening_balance', 'balance', 'remarks',
+            'merged_into', 'merged_at', 'projects_count',
             'created_by', 'created_by_name', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['balance', 'created_by', 'created_at', 'updated_at']
+        read_only_fields = [
+            'balance', 'normalized_phone', 'merged_into', 'merged_at',
+            'created_by', 'created_at', 'updated_at',
+        ]
 
 
 class BankAccountSerializer(serializers.ModelSerializer):

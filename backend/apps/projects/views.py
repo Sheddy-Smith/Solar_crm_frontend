@@ -69,7 +69,11 @@ class ProjectViewSet(viewsets.ModelViewSet):
         won_only = str(params.get('won_only') or '').lower() in ('1', 'true', 'yes')
         lead_status = (params.get('lead_status') or '').strip()
         if won_only:
-            qs = qs.filter(lead__status='Won')
+            # Include Won-lead projects and Customer-owned projects without a Lead.
+            qs = qs.filter(
+                Q(lead__status='Won')
+                | Q(customer__isnull=False, lead__isnull=True)
+            )
         elif lead_status:
             qs = qs.filter(lead__status=lead_status)
         pm_stage = (params.get('pm_stage') or params.get('stage') or '').strip()
@@ -85,7 +89,35 @@ class ProjectViewSet(viewsets.ModelViewSet):
         return ProjectListSerializer
 
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        from apps.accounts_module.services import find_party_by_phone, get_or_create_party_for_lead_safe
+        from rest_framework.exceptions import ValidationError
+
+        customer = serializer.validated_data.get('customer')
+        lead = serializer.validated_data.get('lead')
+        if customer is None and lead is not None:
+            customer = getattr(lead, 'customer', None) or get_or_create_party_for_lead_safe(
+                lead, user=self.request.user,
+            )
+            serializer.validated_data['customer'] = customer
+        if customer is None:
+            phone = getattr(lead, 'mobile_number', '') if lead is not None else ''
+            party = find_party_by_phone(phone) if phone else None
+            if party is None:
+                raise ValidationError({
+                    'customer': (
+                        'Customer is required. Select an existing Customer Master '
+                        'or link a Lead with a mobile number.'
+                    ),
+                })
+            serializer.validated_data['customer'] = party
+            customer = party
+        if customer and not serializer.validated_data.get('customer_name'):
+            serializer.validated_data['customer_name'] = customer.name
+        project = serializer.save(created_by=self.request.user)
+        if lead and not getattr(lead, 'customer_id', None) and project.customer_id:
+            type(lead).objects.filter(pk=lead.pk, customer__isnull=True).update(
+                customer_id=project.customer_id,
+            )
 
     def perform_update(self, serializer):
         """Keep Won-lead Team Assignment (lead.assigned_to) in sync with sales_executive.
@@ -104,6 +136,8 @@ class ProjectViewSet(viewsets.ModelViewSet):
         lead = project.lead
         if not lead or lead.is_deleted:
             return
+        # Optional authorized Customer reassignment via PATCH customer=ID is handled
+        # by serializer; dedicated action provides preview-friendly path.
         if project.sales_executive_id is not None:
             from apps.accounts.models import User
             se = User.objects.select_related('role').filter(pk=project.sales_executive_id).first()
@@ -117,6 +151,23 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         soft_delete_project(instance, self.request.user)
+
+    @action(detail=True, methods=['post'], url_path='reassign-customer')
+    def reassign_customer(self, request, pk=None):
+        """Move Project to another Customer Master with financial doc party update."""
+        from apps.accounts_module.customer_merge import reassign_project_customer
+        try:
+            result = reassign_project_customer(
+                project_id=int(pk),
+                new_customer_id=int(request.data.get('customer_id')),
+                user=request.user,
+                update_party_on_docs=str(request.data.get('update_docs', 'true')).lower() in ('1', 'true', 'yes'),
+            )
+        except (TypeError, ValueError) as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result)
 
     @action(detail=True, methods=['post'])
     def update_progress(self, request, pk=None):
@@ -735,8 +786,12 @@ class PmPipelineViewSet(viewsets.ReadOnlyModelViewSet):
         from apps.leads.models import Quotation
 
         qs = (
-            Project.objects.filter(lead__status='Won', lead__is_deleted=False, is_deleted=False)
-            .select_related('lead', 'manager', 'pm_stage_tracker')
+            Project.objects.filter(is_deleted=False)
+            .filter(
+                Q(lead__status='Won', lead__is_deleted=False)
+                | Q(customer__isnull=False, lead__isnull=True)
+            )
+            .select_related('lead', 'customer', 'manager', 'pm_stage_tracker')
             .annotate(
                 pm_stage=Coalesce('pm_stage_tracker__stage', Value(PM_STAGES[0])),
                 survey_state=F('site_survey__status'),
@@ -748,7 +803,8 @@ class PmPipelineViewSet(viewsets.ReadOnlyModelViewSet):
         )
         filt = lead_owner_filter(self.request.user, prefix='lead__')
         if filt:
-            qs = qs.filter(filt)
+            # Customer-owned (no lead) projects remain visible to non-scoped managers only.
+            qs = qs.filter(Q(filt) | Q(lead__isnull=True, customer__isnull=False))
         stage = self.request.query_params.get('stage')
         if stage:
             qs = qs.filter(pm_stage=stage)
@@ -758,12 +814,16 @@ class PmPipelineViewSet(viewsets.ReadOnlyModelViewSet):
     def summary(self, request):
         """Lightweight stage counts for pipeline chips — no full project rows."""
         qs = (
-            Project.objects.filter(lead__status='Won', lead__is_deleted=False, is_deleted=False)
+            Project.objects.filter(is_deleted=False)
+            .filter(
+                Q(lead__status='Won', lead__is_deleted=False)
+                | Q(customer__isnull=False, lead__isnull=True)
+            )
             .annotate(pm_stage=Coalesce('pm_stage_tracker__stage', Value(PM_STAGES[0])))
         )
         filt = lead_owner_filter(request.user, prefix='lead__')
         if filt:
-            qs = qs.filter(filt)
+            qs = qs.filter(Q(filt) | Q(lead__isnull=True, customer__isnull=False))
         rows = qs.values('pm_stage').annotate(count=Count('id'))
         stages = {row['pm_stage'] or PM_STAGES[0]: row['count'] for row in rows}
         total = sum(stages.values())

@@ -3,7 +3,7 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
-from django.db.models import Count, IntegerField, OuterRef, Subquery, Value
+from django.db.models import Count, IntegerField, OuterRef, Q, Subquery, Value
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from apps.projects.models import Project, SubsidyApplication
@@ -191,8 +191,12 @@ class LiaisonProjectViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = (
-            Project.objects.filter(lead__status='Won', is_deleted=False)
-            .select_related('lead', 'manager', 'liaison_stage')
+            Project.objects.filter(is_deleted=False)
+            .filter(
+                Q(lead__status='Won', lead__is_deleted=False)
+                | Q(customer__isnull=False, lead__isnull=True)
+            )
+            .select_related('lead', 'customer', 'manager', 'liaison_stage')
             .annotate(
                 lc_stage=Coalesce('liaison_stage__stage', Value(LIAISON_STAGES[0])),
                 documents_count=_per_project_count(LiaisonDocument),
@@ -208,7 +212,7 @@ class LiaisonProjectViewSet(viewsets.ReadOnlyModelViewSet):
         )
         filt = lead_owner_filter(self.request.user, prefix='lead__')
         if filt:
-            qs = qs.filter(filt)
+            qs = qs.filter(Q(filt) | Q(lead__isnull=True, customer__isnull=False))
         stage = self.request.query_params.get('stage')
         if stage:
             qs = qs.filter(lc_stage=stage)
