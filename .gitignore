@@ -32,6 +32,12 @@ backend/venv/
 .staging-mysql/
 scripts/phase3_results/
 
+# Database dumps / SQL exports (may contain PII and credentials)
+Data/
+*_dump.sql
+*readonly_dump.sql
+hostinger_to_local.sql
+
 # Reference desktop app (too large for GitHub) and its extracted source,
 # kept locally only for UI/UX comparison — not part of this project.
 Malwa_trolley_CRM.exe

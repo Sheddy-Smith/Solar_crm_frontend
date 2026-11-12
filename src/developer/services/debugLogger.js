@@ -3,13 +3,19 @@ const LISTENERS = new Set();
 /** @type {Array<object>} */
 let logs = [];
 
-const SENSITIVE = /password|token|authorization|refresh|cookie|otp|secret|access[_-]?key/i;
+const SENSITIVE = /password|token|authorization|refresh|cookie|otp|secret|access[_-]?key|login[_-]?password|api[_-]?key|private[_-]?key/i;
 
 export function maskSensitive(value, depth = 0) {
   if (value == null || depth > 4) return value;
   if (typeof value === 'string') {
     if (value.length > 24 && /^[A-Za-z0-9\-_.]+$/.test(value) && value.split('.').length === 3) {
       return `${value.slice(0, 8)}…[masked]`;
+    }
+    // Redact access= JWT fragments that may appear inside logged URLs.
+    if (/([?&]access=)/i.test(value) || /Bearer\s+[A-Za-z0-9\-_.]+/i.test(value)) {
+      return value
+        .replace(/([?&]access=)[^&]*/gi, '$1[masked]')
+        .replace(/(Bearer\s+)[A-Za-z0-9\-_.]+/gi, '$1[masked]');
     }
     return value;
   }

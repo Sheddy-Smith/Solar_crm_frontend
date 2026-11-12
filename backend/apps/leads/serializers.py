@@ -1,7 +1,12 @@
+import logging
+
+from django.db import transaction
 from rest_framework import serializers
 from .models import Lead, FollowUp, AdminApproval, Quotation, QuotationItem, LeadSiteSurvey, LeadSurveyPhoto
 from apps.accounts.models import User
 from apps.accounts.serializers import UserSerializer
+
+logger = logging.getLogger(__name__)
 
 
 def _user_name(user):
@@ -164,34 +169,40 @@ class QuotationSerializer(serializers.ModelSerializer):
 
     def _sync_downstream(self, quotation):
         """Quotation pricing → customer ledger; materials → material planning."""
+        from .quotation_sync import sync_quotation_downstream
+        request = self.context.get('request')
+        user = getattr(request, 'user', None) if request else None
         try:
-            from .quotation_sync import sync_quotation_downstream
-            request = self.context.get('request')
-            user = getattr(request, 'user', None) if request else None
             sync_quotation_downstream(quotation, user=user)
         except Exception:
-            # Quotation save must not fail if accounts/MP sync has a soft error.
-            pass
+            # Quotation row is already committed; log sync failure for ops follow-up.
+            logger.exception(
+                'Quotation downstream sync failed for quotation_id=%s number=%s',
+                getattr(quotation, 'pk', None),
+                getattr(quotation, 'quotation_number', ''),
+            )
 
     def create(self, validated_data):
         items_data = validated_data.pop('items', [])
-        quotation = Quotation.objects.create(**validated_data)
-        for item_data in items_data:
-            QuotationItem.objects.create(quotation=quotation, **item_data)
-        quotation.recalculate_totals()
+        with transaction.atomic():
+            quotation = Quotation.objects.create(**validated_data)
+            for item_data in items_data:
+                QuotationItem.objects.create(quotation=quotation, **item_data)
+            quotation.recalculate_totals()
         self._sync_downstream(quotation)
         return quotation
 
     def update(self, instance, validated_data):
         items_data = validated_data.pop('items', None)
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-        if items_data is not None:
-            instance.items.all().delete()
-            for item_data in items_data:
-                QuotationItem.objects.create(quotation=instance, **item_data)
-        instance.recalculate_totals()
+        with transaction.atomic():
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+            instance.save()
+            if items_data is not None:
+                instance.items.all().delete()
+                for item_data in items_data:
+                    QuotationItem.objects.create(quotation=instance, **item_data)
+            instance.recalculate_totals()
         self._sync_downstream(instance)
         return instance
 

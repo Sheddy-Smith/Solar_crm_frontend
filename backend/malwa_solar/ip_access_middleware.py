@@ -58,11 +58,30 @@ def _get_active_rules():
     return _rules_cache['rules']
 
 
+def _trusted_proxy_set():
+    from django.conf import settings
+
+    raw = getattr(settings, 'TRUSTED_PROXIES', None)
+    if raw is None:
+        # Production reverse-proxy default: trust loopback nginx/caddy on the VPS.
+        # Override via TRUSTED_PROXIES env (comma-separated) when the edge IP differs.
+        raw = getattr(settings, 'TRUSTED_PROXIES_DEFAULT', ('127.0.0.1', '::1'))
+    if isinstance(raw, str):
+        raw = [part.strip() for part in raw.split(',') if part.strip()]
+    return set(raw or ())
+
+
 def get_client_ip(request):
+    """Client IP with X-Forwarded-For only when REMOTE_ADDR is a trusted proxy.
+
+    Spoofed XFF from direct clients is ignored so allow-lists cannot be bypassed.
+    """
+    remote = (request.META.get('REMOTE_ADDR') or '').strip()
     forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
-    if forwarded:
-        return forwarded.split(',')[0].strip()
-    return request.META.get('REMOTE_ADDR')
+    if forwarded and remote in _trusted_proxy_set():
+        # Left-most is the original client when each trusted hop appends.
+        return forwarded.split(',')[0].strip() or remote or None
+    return remote or None
 
 
 def _ip_matches(ip, ip_range):

@@ -7,7 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import Throttled, ValidationError
-from malwa_solar.throttling import SafeScopedRateThrottle
+from malwa_solar.throttling import SafeLoginRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -100,8 +100,9 @@ _login_throttle_fallback = _InMemoryLoginThrottle()
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
-    throttle_classes = [SafeScopedRateThrottle]
+    throttle_classes = [SafeLoginRateThrottle]
     throttle_scope = 'login'
+    throttle_fail_closed = True
 
     def check_throttles(self, request):
         # Throttling is a nice-to-have, not something login can afford to
@@ -290,7 +291,8 @@ class UserViewSet(viewsets.ModelViewSet):
         # rate-limit it like login so a stolen session can't brute-force it.
         if self.action == 'verify_password':
             self.throttle_scope = 'login'
-            return [SafeScopedRateThrottle()]
+            self.throttle_fail_closed = True
+            return [SafeLoginRateThrottle()]
         return super().get_throttles()
 
     def get_serializer_class(self):
@@ -365,12 +367,6 @@ class UserViewSet(viewsets.ModelViewSet):
         password = request.data.get('password', '')
         if not request.user.check_password(password):
             return Response({'detail': 'Incorrect password.'}, status=status.HTTP_400_BAD_REQUEST)
-        try:
-            from .password_vault import reveal_password, store_password_vault
-            if password and reveal_password(request.user) != password:
-                store_password_vault(request.user, password)
-        except Exception:
-            pass
         return Response({'verified': True})
 
     @action(detail=True, methods=['post'])
@@ -397,9 +393,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 return Response({'old_password': 'Wrong password.'}, status=status.HTTP_400_BAD_REQUEST)
         new_password = serializer.validated_data['new_password']
         user.set_password(new_password)
-        from .password_vault import seal_password
-        user.password_vault = seal_password(new_password)
-        user.save(update_fields=['password', 'password_vault', 'updated_at'])
+        user.save(update_fields=['password', 'updated_at'])
         return Response({'message': 'Password changed successfully.'})
 
     @action(detail=True, methods=['post'])

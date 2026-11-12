@@ -39,30 +39,18 @@ class UserSerializer(serializers.ModelSerializer):
     initials = serializers.ReadOnlyField()
     is_super_admin = serializers.SerializerMethodField()
     permissions = serializers.SerializerMethodField()
-    # Super Admin only — last password set via Users UI (from encrypted vault).
-    login_password = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             'id', 'email', 'name', 'mobile', 'role', 'role_name', 'branch', 'branch_name',
             'is_active', 'is_deleted', 'initials', 'created_at', 'is_super_admin', 'permissions',
-            'language', 'typing_transliteration', 'login_password',
+            'language', 'typing_transliteration',
         ]
-        read_only_fields = ['language', 'typing_transliteration', 'login_password']
+        read_only_fields = ['language', 'typing_transliteration']
 
     def get_is_super_admin(self, obj):
         return is_super_admin(obj)
-
-    def get_login_password(self, obj):
-        request = self.context.get('request')
-        viewer = getattr(request, 'user', None) if request else None
-        if not viewer or not is_super_admin(viewer):
-            return None
-        if getattr(obj, 'is_deleted', False):
-            return None
-        from .password_vault import reveal_password
-        return reveal_password(obj) or None
 
     def get_permissions(self, obj):
         if not obj.role:
@@ -91,8 +79,6 @@ class UserCreateSerializer(serializers.ModelSerializer):
         password = validated_data.pop('password')
         user = User(**validated_data)
         user.set_password(password)
-        from .password_vault import seal_password
-        user.password_vault = seal_password(password)
         user.save()
         try:
             from apps.workforce.services import ensure_employee_for_user
@@ -176,18 +162,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             raise AuthenticationFailed('No active account found with the given credentials')
         attrs[self.username_field] = user.email
 
-        raw_password = attrs.get('password') or ''
         data = super().validate(attrs)
         if getattr(self.user, 'is_deleted', False):
             raise AuthenticationFailed('This account has been deleted.')
-        # Backfill admin password vault from the plaintext just verified at login
-        # so Edit User can show the current credential for older accounts.
-        if raw_password and self.user:
-            try:
-                from .password_vault import reveal_password, store_password_vault
-                if reveal_password(self.user) != raw_password:
-                    store_password_vault(self.user, raw_password)
-            except Exception:
-                pass
         data['user'] = current_user_payload(self.user)
         return data

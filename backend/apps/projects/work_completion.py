@@ -50,23 +50,18 @@ def ensure_installation_checklist(project, user=None):
 
 
 def commissioning_complete(project):
-    """True when Liaison Commissioning is Completed, or stage moved past it."""
-    from apps.liaisoning.models import LIAISON_STAGE_COMPLETED, LIAISON_STAGES, LiaisonCommissioning
+    """True only when Commissioning is explicitly completed.
+
+    Requires a LiaisonCommissioning row with status Completed, or the project
+    liaison stage set to the terminal Completed stage. Later pipeline stages
+    (Inspection / Subsidy) alone must not imply commissioning was done.
+    """
+    from apps.liaisoning.models import LIAISON_STAGE_COMPLETED, LiaisonCommissioning
 
     if LiaisonCommissioning.objects.filter(project_id=project.id, status='Completed').exists():
         return True
     stage = getattr(getattr(project, 'liaison_stage', None), 'stage', None) or ''
-    if stage == LIAISON_STAGE_COMPLETED:
-        return True
-    # Inspection / Subsidy come after Commissioning in the 8-stage flow.
-    if stage in ('Inspection', 'Subsidy', 'Inspection Placed'):
-        return True
-    if stage in LIAISON_STAGES:
-        try:
-            return LIAISON_STAGES.index(stage) > LIAISON_STAGES.index('Commissioning')
-        except ValueError:
-            return False
-    return False
+    return stage == LIAISON_STAGE_COMPLETED
 
 
 def installation_weight_done(project, ensure=True):
@@ -106,18 +101,27 @@ def work_completion_percent(project, ensure=True):
 
 def projects_for_party(party):
     """Won-lead projects linked to this Customer party by normalized mobile."""
+    from django.db.models import Q
+
     from apps.accounts_module.services import normalize_phone
     from apps.leads.models import Lead
     from .models import Project
 
     key = normalize_phone(party.phone)
-    if not key:
+    if not key or len(key) < 10:
         return Project.objects.none()
 
-    lead_ids = []
-    for lead in Lead.objects.filter(is_deleted=False, status='Won').exclude(mobile_number='').only('id', 'mobile_number'):
-        if normalize_phone(lead.mobile_number) == key:
-            lead_ids.append(lead.id)
+    # DB-side match on last 10 digits (stored as plain / +91 / spaced variants).
+    lead_ids = list(
+        Lead.objects.filter(is_deleted=False, status='Won')
+        .exclude(mobile_number='')
+        .filter(
+            Q(mobile_number=key)
+            | Q(mobile_number__endswith=key)
+            | Q(mobile_number__endswith=f'91{key}')
+        )
+        .values_list('id', flat=True)
+    )
     if not lead_ids:
         return Project.objects.none()
     return (
@@ -141,12 +145,19 @@ def party_work_profile(party, received_payment=None):
     # Fallback 1: optional Lead.project_cost on matching Won leads (when Project.total_value empty).
     if project_cost <= 0:
         key = normalize_phone(party.phone)
-        if key:
-            for lead in Lead.objects.filter(is_deleted=False, status='Won').exclude(mobile_number='').only(
-                'id', 'mobile_number', 'project_cost',
-            ):
-                if normalize_phone(lead.mobile_number) == key:
-                    project_cost += _d(lead.project_cost)
+        if key and len(key) >= 10:
+            from django.db.models import Q, Sum as DjSum
+
+            project_cost = _d(
+                Lead.objects.filter(is_deleted=False, status='Won')
+                .exclude(mobile_number='')
+                .filter(
+                    Q(mobile_number=key)
+                    | Q(mobile_number__endswith=key)
+                    | Q(mobile_number__endswith=f'91{key}')
+                )
+                .aggregate(t=DjSum('project_cost'))['t']
+            )
 
     # Fallback 2: manual Customer Ledger "Sale (Debit)" rows (Add New Ledger amount).
     if project_cost <= 0:

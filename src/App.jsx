@@ -27447,8 +27447,6 @@ function mapApiUserToSettingsRow(apiUser) {
     roleId: apiUser.role,
     branchId: apiUser.branch,
     isDeleted,
-    // Super Admin API only — last password sealed in vault (for Edit User form).
-    loginPassword: isDeleted ? '' : (apiUser.login_password || ''),
   };
 }
 
@@ -27575,11 +27573,7 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
         if (payload.password) {
           await userApi.changePassword(payload.id, { new_password: payload.password });
         }
-        const mapped = {
-          ...mapApiUserToSettingsRow(updated),
-          // Keep / refresh visible password in local row after edit/reset.
-          loginPassword: payload.password || editingUser?.loginPassword || '',
-        };
+        const mapped = mapApiUserToSettingsRow(updated);
         setUsers((current) => current.map((item) => (item.id === mapped.id ? mapped : item)));
         setEditingUser(null);
         onNotify(`${mapped.name} updated`);
@@ -27595,10 +27589,7 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
       role: payload.roleId || undefined,
       branch: payload.branchId || undefined,
     }).then((created) => {
-      const mapped = {
-        ...mapApiUserToSettingsRow(created),
-        loginPassword: payload.password || created?.login_password || '',
-      };
+      const mapped = mapApiUserToSettingsRow(created);
       setUsers((current) => [mapped, ...current]);
       setAddUserOpen(false);
       onNotify(`${mapped.name} added`);
@@ -27818,14 +27809,6 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
           onEdit={() => { setEditingUser(selectedUser); setSelectedUser(null); }}
           onToggleStatus={toggleUserStatus}
           onNotify={onNotify}
-          onPasswordUpdated={(userId, password) => {
-            setUsers((current) => current.map((item) => (
-              item.id === userId ? { ...item, loginPassword: password } : item
-            )));
-            setSelectedUser((current) => (
-              current?.id === userId ? { ...current, loginPassword: password } : current
-            ));
-          }}
           canResetPassword={canManageUsers}
           canToggleStatus={canManageUsers}
         />
@@ -27847,8 +27830,6 @@ function normalizeSettingsPhone(phone) {
 function SettingsUserFormModal({ initialUser = null, onClose, onSave, onNotify }) {
   const [roles, setRoles] = useState([]);
   const [branches, setBranches] = useState([]);
-  const [savedPassword, setSavedPassword] = useState(() => initialUser?.loginPassword || '');
-  const existingPassword = savedPassword || '';
   const [form, setForm] = useState(() => ({
     id: initialUser?.id,
     name: initialUser?.name || '',
@@ -27857,8 +27838,8 @@ function SettingsUserFormModal({ initialUser = null, onClose, onSave, onNotify }
     roleId: initialUser?.roleId || '',
     branchId: initialUser?.branchId || '',
     status: initialUser?.status || 'Active',
-    password: initialUser?.loginPassword || '',
-    confirmPassword: initialUser?.loginPassword || '',
+    password: '',
+    confirmPassword: '',
   }));
 
   useEffect(() => {
@@ -27878,25 +27859,6 @@ function SettingsUserFormModal({ initialUser = null, onClose, onSave, onNotify }
       })
       .catch(() => onNotify?.('Could not load roles or branches', 'error'));
   }, [initialUser]);
-
-  // Fresh login_password from API (after user login backfill / password reset).
-  useEffect(() => {
-    if (!initialUser?.id) return undefined;
-    let cancelled = false;
-    userApi.get(initialUser.id)
-      .then((data) => {
-        if (cancelled) return;
-        const pwd = data?.login_password || '';
-        setSavedPassword(pwd);
-        setForm((current) => ({
-          ...current,
-          password: pwd,
-          confirmPassword: pwd,
-        }));
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [initialUser?.id]);
 
   const updateField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
 
@@ -27936,14 +27898,13 @@ function SettingsUserFormModal({ initialUser = null, onClose, onSave, onNotify }
       return;
     }
 
-    const passwordChanged = Boolean(initialUser) && form.password && form.password !== existingPassword;
     onSave({
       ...form,
       name,
       email: form.email.trim(),
       phone,
-      // Avoid re-hashing the same vault password on every profile save.
-      password: initialUser ? (passwordChanged ? form.password : '') : form.password,
+      // Edit: only send password when admin typed a new reset value.
+      password: initialUser ? (form.password || '') : form.password,
     });
   };
 
@@ -27965,20 +27926,17 @@ function SettingsUserFormModal({ initialUser = null, onClose, onSave, onNotify }
             <p className="mb-2 text-[12px] font-extrabold text-[#53647f]">Password</p>
             {initialUser ? (
               <p className="mb-3 text-[11px] font-semibold text-[#8a98af]">
-                {existingPassword
-                  ? 'Current password is pre-filled in both fields (eye icon to hide). Change both + Save to reset.'
-                  : 'Readable password not saved yet for this account. Set the same password in both fields and Save — next Edit will show it pre-filled. (User login once also saves it.)'}
+                Leave blank to keep the current password. Fill both fields only to reset (hashed — never recoverable).
               </p>
             ) : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <ModalTextInput
-                label="Password"
+                label={initialUser ? 'New Password (optional)' : 'Password'}
                 type="password"
                 value={form.password}
                 onChange={(value) => updateField('password', value)}
-                placeholder={initialUser ? 'Password (min 8)' : 'Min 8 characters'}
+                placeholder={initialUser ? 'Leave blank to keep current' : 'Min 8 characters'}
                 autoComplete="new-password"
-                defaultReveal={Boolean(existingPassword)}
               />
               <ModalTextInput
                 label="Confirm Password"
@@ -27987,7 +27945,6 @@ function SettingsUserFormModal({ initialUser = null, onClose, onSave, onNotify }
                 onChange={(value) => updateField('confirmPassword', value)}
                 placeholder="Re-enter password"
                 autoComplete="new-password"
-                defaultReveal={Boolean(existingPassword)}
               />
             </div>
           </div>
@@ -28001,7 +27958,7 @@ function SettingsUserFormModal({ initialUser = null, onClose, onSave, onNotify }
   );
 }
 
-function SettingsUserProfileModal({ user, onClose, onEdit, onToggleStatus, onNotify, onPasswordUpdated, canResetPassword = true, canToggleStatus = true }) {
+function SettingsUserProfileModal({ user, onClose, onEdit, onToggleStatus, onNotify, canResetPassword = true, canToggleStatus = true }) {
   const [resetOpen, setResetOpen] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -28019,7 +27976,6 @@ function SettingsUserProfileModal({ user, onClose, onEdit, onToggleStatus, onNot
     setResetting(true);
     try {
       await userApi.changePassword(user.id, { new_password: newPassword });
-      onPasswordUpdated?.(user.id, newPassword);
       onNotify(`Password reset for ${user.name}`, 'success');
       setResetOpen(false);
       setNewPassword('');

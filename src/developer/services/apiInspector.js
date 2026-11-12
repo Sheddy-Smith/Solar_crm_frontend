@@ -75,6 +75,8 @@ export function recordApiCall( partial ) {
 
 /** Apply network simulator delay before fetch when active. */
 export async function maybeSimulateNetwork(path, method) {
+  // Hard isolation: never affect production builds (even if sessionStorage was poisoned).
+  if (!import.meta.env.DEV) return { proceed: true };
   const sim = getNetworkSimulatorState();
   if (!sim.active) return { proceed: true };
   if (sim.offline) {
@@ -123,6 +125,10 @@ export function getNetworkSimulatorState() {
 }
 
 export function setNetworkSimulatorState(patch) {
+  if (!import.meta.env.DEV) {
+    resetNetworkSimulator();
+    return getNetworkSimulatorState();
+  }
   simState = { ...simState, ...patch };
   try {
     sessionStorage.setItem(SIM_KEY, JSON.stringify(simState));

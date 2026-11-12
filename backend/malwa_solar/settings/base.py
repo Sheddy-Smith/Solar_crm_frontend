@@ -90,6 +90,14 @@ ASGI_APPLICATION = 'malwa_solar.asgi.application'
 
 AUTH_USER_MODEL = 'accounts.User'
 
+# Only these REMOTE_ADDR values may supply X-Forwarded-For (IpAccessMiddleware).
+# Comma-separated IPs/CIDRs via env; defaults to loopback (nginx on same host).
+TRUSTED_PROXIES = tuple(
+    part.strip()
+    for part in env.list('TRUSTED_PROXIES', default=['127.0.0.1', '::1'])
+    if part and str(part).strip()
+)
+
 DATABASES = {
     'default': env.db('DATABASE_URL')
 }

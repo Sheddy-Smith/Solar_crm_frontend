@@ -14,10 +14,14 @@ Two defenses, both here:
    that alias is Redis (shared across workers/API instances). With Redis
    disabled it is LocMem (per-process — fine for single-instance).
 
-2. ``allow_request`` fails OPEN on any unexpected error (with a logged
-   traceback), because throttling is best-effort protection that must never
-   be the reason the API is down. Login additionally keeps its own bounded
-   in-memory fallback (see accounts.views).
+2. ``allow_request`` fails OPEN on unexpected errors for general API traffic
+   (logged), so a cache outage cannot take the whole CRM down.
+
+3. Auth endpoints (login scope) must NOT skip rate limiting: views that use
+   ``SafeScopedRateThrottle`` with ``throttle_scope='login'`` wrap
+   ``check_throttles`` with an in-memory fail-closed fallback (see
+   ``accounts.views.CustomTokenObtainPairView``). Use ``fail_closed=True`` on
+   a throttle instance/class when you need the mixin itself to deny on error.
 """
 import logging
 
@@ -28,6 +32,9 @@ logger = logging.getLogger(__name__)
 
 
 class SafeThrottleMixin:
+    # Subclasses / instances may set True for auth-sensitive scopes.
+    fail_closed = False
+
     @property
     def cache(self):
         return caches['throttling']
@@ -36,6 +43,12 @@ class SafeThrottleMixin:
         try:
             return super().allow_request(request, view)
         except Exception:
+            if self.fail_closed or getattr(view, 'throttle_fail_closed', False):
+                logger.warning(
+                    'Throttle check failed — failing closed (request denied)',
+                    exc_info=True,
+                )
+                return False
             logger.warning(
                 'Throttle check failed — failing open (request allowed)', exc_info=True,
             )
@@ -52,3 +65,20 @@ class SafeUserRateThrottle(SafeThrottleMixin, throttling.UserRateThrottle):
 
 class SafeScopedRateThrottle(SafeThrottleMixin, throttling.ScopedRateThrottle):
     pass
+
+
+class SafeLoginRateThrottle(SafeScopedRateThrottle):
+    """Login-scoped throttle.
+
+    Cache errors are *re-raised* (not fail-open) so
+    ``CustomTokenObtainPairView.check_throttles`` can apply its in-memory
+    fail-closed fallback. Returning False here would block *all* logins during
+    a Redis blip; re-raising keeps brute-force bounds without a total outage.
+    """
+
+    scope = 'login'
+
+    def allow_request(self, request, view):
+        # Skip SafeThrottleMixin's catch-all — auth must stay fail-closed via
+        # the view's in-memory limiter when the shared cache is unavailable.
+        return throttling.ScopedRateThrottle.allow_request(self, request, view)

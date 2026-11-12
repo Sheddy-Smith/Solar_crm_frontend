@@ -46,7 +46,7 @@ export function AnimationScaleProvider({ children }) {
 
   return (
     <AnimationScaleContext.Provider value={value}>
-      <MotionConfig reducedMotion="never" transition={{ duration: animatorDuration, ease: 'easeOut' }}>
+      <MotionConfig reducedMotion="user" transition={{ duration: animatorDuration, ease: 'easeOut' }}>
         {children}
       </MotionConfig>
     </AnimationScaleContext.Provider>

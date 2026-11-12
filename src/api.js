@@ -6,7 +6,12 @@ import { maybeSimulateNetwork, recordApiCall } from './developer/services/apiIns
 const PROD_API_FALLBACK = 'https://api.crm.ecomalwa.com/api/v1';
 const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api/v1' : PROD_API_FALLBACK);
 if (!import.meta.env.DEV && !import.meta.env.VITE_API_URL) {
-  console.error('VITE_API_URL is not set — using production API fallback.');
+  console.error(
+    'VITE_API_URL is not set — using production API fallback. Rebuild with VITE_API_URL for this environment.',
+  );
+  if (typeof window !== 'undefined') {
+    window.__MALWA_API_URL_MISCONFIGURED__ = true;
+  }
 }
 
 const TOKEN_KEY = 'malwa_access';
@@ -52,6 +57,8 @@ export function getMediaUrl(url) {
   if (!token) return resolved;
   // Drop a previous access= so nested/re-render calls don't stack tokens and
   // change the URL (browser would reload every <img> and freeze the UI).
+  // Note: <img>/<a> cannot send Authorization; query JWT is still required for
+  // those tags. Prefer fetchMediaBlob() for downloads to keep tokens out of URLs.
   const base = String(resolved)
     .replace(/([?&])access=[^&]*/g, '$1')
     .replace(/[?&]$/, '')
@@ -59,6 +66,18 @@ export function getMediaUrl(url) {
     .replace(/&&+/g, '&');
   const separator = base.includes('?') ? '&' : '?';
   return `${base}${separator}access=${encodeURIComponent(token)}`;
+}
+
+/** Fetch media with Authorization header (no JWT in the URL). */
+export async function fetchMediaBlob(url) {
+  const resolved = resolveMediaUrl(url);
+  if (!resolved) throw new Error('Missing media URL');
+  const headers = {};
+  const token = tokenStore.getAccess();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(resolved, { headers, credentials: 'omit' });
+  if (!res.ok) throw new Error(`Media fetch failed (${res.status})`);
+  return res.blob();
 }
 
 let refreshPromise = null;

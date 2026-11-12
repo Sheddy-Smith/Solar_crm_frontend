@@ -116,9 +116,6 @@ class User(AbstractBaseUser, PermissionsMixin):
     # Blank language = follow the system default from Settings → Language.
     language = models.CharField(max_length=12, blank=True, default='')
     typing_transliteration = models.BooleanField(default=True)
-    # Fernet ciphertext of the last password set via Users UI (Super Admin reveal only).
-    # Auth still uses hashed `password`; this vault is optional admin convenience.
-    password_vault = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -142,10 +139,9 @@ class User(AbstractBaseUser, PermissionsMixin):
         self.is_staff = False
         self.is_superuser = False
         self.set_unusable_password()
-        self.password_vault = ''
         self.save(update_fields=[
             'name', 'email', 'mobile', 'is_active', 'is_deleted',
-            'is_staff', 'is_superuser', 'password', 'password_vault', 'updated_at',
+            'is_staff', 'is_superuser', 'password', 'updated_at',
         ])
         return self
 

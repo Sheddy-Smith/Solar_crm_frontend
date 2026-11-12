@@ -1,13 +1,18 @@
-"""Serve /media/<path> only to authenticated users (BUG-047).
+"""Serve /media/<path> only to authenticated users with module view rights.
 
 Browsers can't attach an Authorization header to <img>/<video>/<a> requests, so
-the frontend appends the JWT as ?access=<token> (see getMediaUrl in src/api.js).
+the frontend may append the JWT as ?access=<token> (see getMediaUrl in src/api.js).
 A normal Authorization: Bearer header is also accepted for API/tooling use.
+
+Auth is not token-presence alone: the JWT is resolved to a User, then the media
+path prefix is mapped to a CRM module and checked against RolePermission.can_view
+(or full_access). Super Admin bypasses the module gate.
 
 Video playback on mobile needs:
   - a correct Content-Type (X-Content-Type-Options: nosniff is on in production)
   - HTTP Range / Accept-Ranges so <video> can seek and read duration
 """
+import logging
 import mimetypes
 import os
 import re
@@ -21,6 +26,8 @@ from django.utils._os import safe_join
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 
+logger = logging.getLogger(__name__)
+
 mimetypes.add_type('video/webm', '.webm')
 mimetypes.add_type('video/mp4', '.m4v')
 
@@ -30,6 +37,28 @@ _VIDEO_TYPES = {
     '.m4v': 'video/mp4',
     '.mov': 'video/quicktime',
 }
+
+# Path prefix (under MEDIA_ROOT) → permission module name(s).
+# First matching prefix wins. Unlisted prefixes require authenticated user only
+# (legacy/misc uploads) but still reject anonymous access.
+_MEDIA_MODULE_PREFIXES = (
+    ('lead_survey_photos', 'Lead'),
+    ('project_images', 'Project Management'),
+    ('project_documents', 'Project Management'),
+    ('site_survey_drawings', 'Project Management'),
+    ('site_survey_photos', 'Project Management'),
+    ('subsidy_docs', 'Project Management'),
+    ('approval_docs', 'Project Management'),
+    ('liaison_docs', 'Liaisoning & Commissioning'),
+    ('om_signatures', 'O&M'),
+    ('om_insurance', 'O&M'),
+    ('om_reports', 'O&M'),
+    ('om_docs', 'O&M'),
+    ('amc/', 'O&M'),
+    ('workforce/', 'User Management'),
+    ('bug_reports', 'Settings'),
+    ('backups', 'Settings'),
+)
 
 
 class _RangedFile:
@@ -81,25 +110,63 @@ def _content_type_for(path):
     return guessed or 'application/octet-stream'
 
 
-def _authenticate_media(request):
-    token = request.GET.get('access') or ''
-    if not token:
-        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-        if auth_header.startswith('Bearer '):
-            token = auth_header[len('Bearer '):]
-    if not token:
-        return HttpResponseForbidden('Authentication required to access this file.')
-    try:
-        JWTAuthentication().get_validated_token(token)
-    except (InvalidToken, TokenError):
-        return HttpResponseForbidden('Invalid or expired token.')
+def _module_for_media_path(path):
+    normalized = (path or '').replace('\\', '/').lstrip('/')
+    for prefix, module in _MEDIA_MODULE_PREFIXES:
+        if normalized.startswith(prefix):
+            return module
     return None
 
 
+def _user_can_view_module(user, module):
+    from apps.accounts.permissions import is_super_admin
+
+    if is_super_admin(user):
+        return True
+    if not module:
+        # Authenticated but unmapped path — allow signed-in staff only.
+        return True
+    role = getattr(user, 'role', None)
+    if not role:
+        return False
+    perm = role.permissions.filter(module=module).first()
+    if not perm:
+        return False
+    return bool(perm.full_access or perm.can_view)
+
+
+def _authenticate_media_user(request):
+    """Validate JWT and return (user, error_response). Prefer Bearer over query."""
+    token = ''
+    auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+    if auth_header.startswith('Bearer '):
+        token = auth_header[len('Bearer '):]
+    if not token:
+        token = request.GET.get('access') or ''
+    if not token:
+        return None, HttpResponseForbidden('Authentication required to access this file.')
+    authenticator = JWTAuthentication()
+    try:
+        validated = authenticator.get_validated_token(token)
+        user = authenticator.get_user(validated)
+    except (InvalidToken, TokenError):
+        return None, HttpResponseForbidden('Invalid or expired token.')
+    except Exception:
+        logger.exception('Media auth failed unexpectedly')
+        return None, HttpResponseForbidden('Invalid or expired token.')
+    if user is None or not getattr(user, 'is_active', False) or getattr(user, 'is_deleted', False):
+        return None, HttpResponseForbidden('Invalid or expired token.')
+    return user, None
+
+
 def secure_media_serve(request, path):
-    auth_error = _authenticate_media(request)
+    user, auth_error = _authenticate_media_user(request)
     if auth_error:
         return auth_error
+
+    module = _module_for_media_path(path)
+    if not _user_can_view_module(user, module):
+        return HttpResponseForbidden('You do not have permission to access this file.')
 
     try:
         fullpath = safe_join(str(settings.MEDIA_ROOT), path)
@@ -144,6 +211,9 @@ def secure_media_serve(request, path):
     response['Content-Length'] = str(length)
     response['Content-Type'] = content_type
     response['Content-Disposition'] = 'inline'
+    # Prevent JWT-in-query from leaking via Referer when the browser follows links.
+    response['Referrer-Policy'] = 'no-referrer'
+    response['Cache-Control'] = 'private, no-store'
     if status == 206:
         response['Content-Range'] = f'bytes {start}-{end}/{size}'
     return response
