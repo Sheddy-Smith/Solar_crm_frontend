@@ -682,20 +682,31 @@ class SellChallanLine(models.Model):
 class CustomerLedgerManualEntry(models.Model):
     """Manual Customer Ledger rows from the Add New Ledger modal (sale / payment / discount)."""
     TYPE_CHOICES = [
-        ('sale', 'Sale (Debit)'),
-        ('payment', 'Payment (Credit)'),
-        ('discount', 'Discount (Credit)'),
+        ('sale', 'Sale'),
+        ('payment', 'Payment Received'),
+        ('discount', 'Discount'),
     ]
     # Payment channel — separate from entry_type (debit/credit accounting classification).
+    # Shown as mandatory only when entry_type is Payment Received.
     PAYMENT_MODE_CHOICES = [
-        ('Cash', 'Cash'),
         ('UPI', 'UPI'),
-        ('Bank Transfer / NEFT / RTGS / IMPS', 'Bank Transfer / NEFT / RTGS / IMPS'),
+        ('PhonePe', 'PhonePe'),
+        ('Google Pay', 'Google Pay'),
+        ('Cash', 'Cash'),
+        ('Online Transfer', 'Online Transfer'),
+        ('NEFT', 'NEFT'),
+        ('RTGS', 'RTGS'),
         ('Cheque', 'Cheque'),
+        ('Other', 'Other'),
+    ]
+    # Older Client Ledger values kept valid so existing rows still load/save.
+    LEGACY_PAYMENT_MODE_CHOICES = [
+        ('Bank Transfer / NEFT / RTGS / IMPS', 'Bank Transfer / NEFT / RTGS / IMPS'),
         ('Loan / Finance', 'Loan / Finance'),
         ('Credit Card', 'Credit Card'),
         ('Debit Card', 'Debit Card'),
-        ('Other', 'Other'),
+        ('IMPS', 'IMPS'),
+        ('Transfer', 'Transfer'),
     ]
 
     party = models.ForeignKey(Account, on_delete=models.CASCADE, related_name='manual_ledger_entries')

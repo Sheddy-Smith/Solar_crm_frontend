@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, Download, Eye, FileText, IndianRupee, Pencil, Phone, Plus, RefreshCw, Search, Trash2, TrendingDown, TrendingUp, Wallet, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, CreditCard, Download, Eye, FileText, IndianRupee, Mail, Pencil, Phone, Plus, RefreshCw, Search, Trash2, TrendingDown, TrendingUp, Wallet, X } from 'lucide-react';
 import { accountsModuleApi } from './api.js';
 import { exportNotifyCsv, normalizeApiRows } from './lib/utils.js';
 import { moduleCaps } from './settingsHubPages.jsx';
@@ -64,6 +64,15 @@ function fmtDisplayDate(value) {
   return `${d}/${m}/${y}`;
 }
 
+const LEDGER_TYPE_LABELS = {
+  sale: 'Sale',
+  payment: 'Payment Received',
+  discount: 'Discount',
+  opening: 'Opening',
+  invoice: 'Sale',
+  receipt: 'Payment Received',
+};
+
 function TypeBadge({ value }) {
   const key = String(value || '').toLowerCase();
   const tone = {
@@ -74,7 +83,8 @@ function TypeBadge({ value }) {
     invoice: 'bg-[#dbeafe] text-[#1d4ed8]',
     receipt: 'bg-[#dcfce7] text-[#166534]',
   }[key] || 'bg-[#f1f5f9] text-[#475569]';
-  return <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide ${tone}`}>{key || '—'}</span>;
+  const label = LEDGER_TYPE_LABELS[key] || (key ? String(value) : '—');
+  return <span className={`inline-flex rounded-full border border-black/5 px-2.5 py-0.5 text-[11px] font-extrabold tracking-wide ${tone}`}>{label}</span>;
 }
 
 function todayIso() {
@@ -91,19 +101,25 @@ function RelationBadge({ value }) {
   return <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase ${tone}`}>{value || '—'}</span>;
 }
 
-function ModalShell({ title, titleIcon, onClose, children, footer, wide }) {
+function ModalShell({ title, titleIcon, onClose, children, footer, wide, headerTone = 'default' }) {
+  const headerClass = headerTone === 'blue'
+    ? 'border-b border-[#1d4ed8] bg-[#0b65e5] text-white'
+    : 'border-b border-[#edf2f8] bg-white text-[#111827]';
+  const closeClass = headerTone === 'blue'
+    ? 'text-white/80 hover:bg-white/15 hover:text-white'
+    : 'text-[#7585a2] hover:bg-[#f4f7fb]';
   return (
     <div className="fixed inset-0 z-[90] flex items-end justify-center bg-[#0f172a]/55 p-0 sm:items-center sm:p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className={`flex max-h-[96vh] w-full flex-col overflow-hidden rounded-t-[16px] bg-white shadow-2xl sm:max-h-[90vh] sm:rounded-[16px] ${wide ? 'max-w-[640px]' : 'max-w-[560px]'}`}>
-        <div className="flex items-center justify-between border-b border-[#edf2f8] px-5 py-3">
+      <div className={`flex max-h-[96vh] w-full flex-col overflow-hidden rounded-t-[16px] bg-white shadow-[0_24px_64px_rgba(15,23,42,0.28)] sm:max-h-[90vh] sm:rounded-[16px] ${wide ? 'max-w-[720px]' : 'max-w-[560px]'}`}>
+        <div className={`flex items-center justify-between px-5 py-3.5 ${headerClass}`}>
           <div className="flex items-center gap-2">
             {titleIcon}
-            <h3 className="text-[16px] font-extrabold text-[#111827]">{title}</h3>
+            <h3 className="text-[16px] font-extrabold tracking-wide">{title}</h3>
           </div>
-          <button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-full text-[#7585a2] hover:bg-[#f4f7fb]"><X className="size-5" /></button>
+          <button type="button" onClick={onClose} className={`grid size-9 place-items-center rounded-full ${closeClass}`}><X className="size-5" /></button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-5">{children}</div>
-        {footer ? <div className="flex justify-end gap-2 border-t border-[#edf2f8] px-5 py-3">{footer}</div> : null}
+        {footer ? <div className="flex justify-end gap-2 border-t border-[#edf2f8] bg-[#f8fbff] px-5 py-3">{footer}</div> : null}
       </div>
     </div>
   );
@@ -111,22 +127,58 @@ function ModalShell({ title, titleIcon, onClose, children, footer, wide }) {
 
 function Field({ label, required, children }) {
   return (
-    <label className="grid gap-1 text-[12px] font-bold text-[#53647f]">
-      {label}{required ? ' *' : ''}
+    <label className="grid gap-1.5 text-[12px] font-bold text-[#53647f]">
+      <span>{label}{required ? <span className="text-[#dc2626]"> *</span> : ''}</span>
       {children}
     </label>
   );
 }
 
-const inputClass = 'h-10 w-full rounded-[8px] border border-[#d9e4f2] px-3 text-[13px] font-semibold text-[#1e3261] outline-none';
+function LedgerSectionCard({ step, title, children, action, tone = 'blue' }) {
+  const bar = tone === 'green' ? 'bg-[#16a34a]' : tone === 'slate' ? 'bg-[#334155]' : 'bg-[#0b65e5]';
+  return (
+    <section className="overflow-hidden rounded-[14px] border border-[#e2e9f3] bg-white shadow-[0_8px_24px_rgba(24,48,87,0.06)]">
+      <div className={`flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-white ${bar}`}>
+        <h3 className="text-[14px] font-extrabold tracking-wide">
+          {step ? `${step}. ${title}` : title}
+        </h3>
+        {action ? <div className="flex flex-wrap items-center gap-2">{action}</div> : null}
+      </div>
+      <div className="p-4 md:p-5">{children}</div>
+    </section>
+  );
+}
 
+function LedgerStatCard({ label, value, Icon, tone = 'blue' }) {
+  const tones = {
+    blue: 'border-[#bfdbfe] bg-[#eff6ff] text-[#1d4ed8]',
+    green: 'border-[#bbf7d0] bg-[#ecfdf5] text-[#166534]',
+    red: 'border-[#fecaca] bg-[#fef2f2] text-[#dc2626]',
+    orange: 'border-[#fed7aa] bg-[#fff7ed] text-[#c2410c]',
+    purple: 'border-[#ddd6fe] bg-[#f5f3ff] text-[#6d28d9]',
+    slate: 'border-[#e2e8f0] bg-[#f8fafc] text-[#334155]',
+  };
+  return (
+    <article className={`rounded-[12px] border p-3.5 shadow-sm ${tones[tone] || tones.blue}`}>
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[11px] font-extrabold uppercase tracking-wide opacity-80">{label}</p>
+        {Icon ? <Icon className="size-4 opacity-70" /> : null}
+      </div>
+      <p className="mt-2 text-[20px] font-extrabold tracking-tight">{value}</p>
+    </article>
+  );
+}
+
+const inputClass = 'h-11 w-full rounded-[10px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-semibold text-[#1e3261] outline-none transition focus:border-[#0b65e5] focus:ring-4 focus:ring-[#dbeafe]';
+const softBtnClass = 'inline-flex h-10 items-center gap-1.5 rounded-[10px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-50';
+const primaryBtnClass = 'inline-flex h-10 items-center gap-1.5 rounded-[10px] bg-[#0b65e5] px-4 text-[12px] font-extrabold text-white shadow-[0_8px_18px_rgba(11,101,229,0.25)] transition hover:bg-[#0954c2] disabled:opacity-50';
 function customerOptionLabel(c) {
   if (!c) return '';
   return `${c.name || '—'}${c.phone ? ` (${c.phone})` : ''}`;
 }
 
 /** Searchable customer picker for ledger filters / Add New Ledger modal. */
-function CustomerSearchSelect({ customers, value, onChange, placeholder = 'Choose a customer' }) {
+function CustomerSearchSelect({ customers, value, onChange, placeholder = 'Choose a customer', disabled = false }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const rootRef = useRef(null);
@@ -166,15 +218,16 @@ function CustomerSearchSelect({ customers, value, onChange, placeholder = 'Choos
     <div ref={rootRef} className="relative">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
-        className={`${inputClass} flex items-center justify-between gap-2 text-left`}
+        disabled={disabled}
+        onClick={() => { if (!disabled) setOpen((v) => !v); }}
+        className={`${inputClass} flex items-center justify-between gap-2 text-left disabled:cursor-not-allowed disabled:bg-[#f8fafc] disabled:opacity-80`}
       >
         <span className={selected ? 'truncate text-[#1e3261]' : 'truncate text-[#8a98af]'}>
           {selected ? customerOptionLabel(selected) : placeholder}
         </span>
         <Search className="size-3.5 shrink-0 text-[#7585a2]" />
       </button>
-      {open ? (
+      {open && !disabled ? (
         <div className="absolute left-0 right-0 z-30 mt-1 overflow-hidden rounded-[10px] border border-[#d9e4f2] bg-white shadow-lg">
           <div className="border-b border-[#edf2f8] p-2">
             <div className="relative">
@@ -571,13 +624,14 @@ function CustomerDetailsTab({ caps, onNotify, onOpenSection }) {
 }
 
 const LEDGER_PAYMENT_MODE_OPTIONS = [
-  'Cash',
   'UPI',
-  'Bank Transfer / NEFT / RTGS / IMPS',
+  'PhonePe',
+  'Google Pay',
+  'Cash',
+  'Online Transfer',
+  'NEFT',
+  'RTGS',
   'Cheque',
-  'Loan / Finance',
-  'Credit Card',
-  'Debit Card',
   'Other',
 ];
 
@@ -591,6 +645,10 @@ const emptyLedgerForm = () => ({
   reference_no: '',
   work: '',
 });
+
+function ledgerTypeNeedsPaymentMode(entryType) {
+  return String(entryType || '') === 'payment';
+}
 
 function CustomerLedgerTab({ onNotify, onOpenSection }) {
   const [customers, setCustomers] = useState([]);
@@ -728,7 +786,17 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
       onNotify,
       `customer-ledger-${selected?.phone || selected?.name || partyId}`,
       ['Date', 'Vehicle No', 'Type', 'Payment Mode', 'Challan/Receipt No', 'Work', 'Debit', 'Credit', 'Balance'],
-      entries.map((e) => [e.date, e.vehicle_no, e.type_label || e.type, e.payment_mode || '', e.ref, e.work || e.particulars, e.debit, e.credit, e.balance]),
+      entries.map((e) => [
+        e.date,
+        e.vehicle_no,
+        LEDGER_TYPE_LABELS[String(e.type_label || e.type || '').toLowerCase()] || (e.type_label || e.type || ''),
+        e.payment_mode || '',
+        e.ref,
+        e.work || e.particulars,
+        e.debit,
+        e.credit,
+        e.balance,
+      ]),
     );
   };
 
@@ -743,7 +811,31 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
   const openAddLedger = () => {
     const form = emptyLedgerForm();
     if (partyId) form.party_id = String(partyId);
-    setLedgerModal({ form });
+    setLedgerModal({ mode: 'create', form });
+  };
+
+  const openEditLedger = (entry) => {
+    if (!partyId || entry?.source_kind !== 'manual_ledger' || !entry?.source_id) {
+      onNotify('Only manual ledger entries can be edited', 'error');
+      return;
+    }
+    const entryType = String(entry.type_label || entry.type || 'sale').toLowerCase();
+    const normalizedType = entryType === 'invoice' ? 'sale' : entryType === 'receipt' ? 'payment' : entryType;
+    setDetail(null);
+    setLedgerModal({
+      mode: 'edit',
+      entryId: entry.source_id,
+      form: {
+        party_id: String(partyId),
+        entry_date: String(entry.date || todayIso()).slice(0, 10),
+        entry_type: ['sale', 'payment', 'discount'].includes(normalizedType) ? normalizedType : 'sale',
+        payment_mode: entry.payment_mode || '',
+        amount: entry.debit || entry.credit || '',
+        vehicle_no: entry.vehicle_no || '',
+        reference_no: entry.ref || '',
+        work: entry.work || entry.particulars || '',
+      },
+    });
   };
 
   const saveLedgerEntry = async () => {
@@ -761,26 +853,36 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
       onNotify('Transaction Type is required', 'error');
       return;
     }
+    if (ledgerTypeNeedsPaymentMode(form.entry_type) && !String(form.payment_mode || '').trim()) {
+      onNotify('Payment Mode is required for Payment Received', 'error');
+      return;
+    }
     const amount = Number(form.amount);
     if (!(amount > 0)) {
       onNotify('Amount must be greater than zero', 'error');
       return;
     }
+    const payload = {
+      entry_date: form.entry_date,
+      entry_type: form.entry_type,
+      payment_mode: ledgerTypeNeedsPaymentMode(form.entry_type) ? form.payment_mode : '',
+      amount,
+      vehicle_no: form.vehicle_no || '',
+      reference_no: form.reference_no || '',
+      work: form.work || '',
+    };
     setSavingLedger(true);
     try {
-      await accountsModuleApi.addLedgerEntry(targetId, {
-        entry_date: form.entry_date,
-        entry_type: form.entry_type,
-        payment_mode: form.payment_mode,
-        amount,
-        vehicle_no: form.vehicle_no || '',
-        reference_no: form.reference_no || '',
-        work: form.work || '',
-      });
+      if (ledgerModal?.mode === 'edit' && ledgerModal?.entryId) {
+        await accountsModuleApi.updateLedgerEntry(targetId, ledgerModal.entryId, payload);
+        onNotify('Ledger entry updated', 'success');
+      } else {
+        await accountsModuleApi.addLedgerEntry(targetId, payload);
+        onNotify('Ledger entry saved', 'success');
+      }
       setLedgerModal(null);
       setPartyId(targetId);
       setReloadKey((k) => k + 1);
-      onNotify('Ledger entry saved', 'success');
     } catch (e) {
       onNotify(e.message || 'Failed to save ledger entry', 'error');
     } finally {
@@ -789,50 +891,58 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
   };
 
   const kpiCards = [
-    { label: 'Project Cost', value: summary.project_cost, tone: 'bg-[#eff6ff] border-[#bfdbfe] text-[#1d4ed8]', Icon: IndianRupee },
-    { label: 'Work Completion (%)', value: summary.work_completion_pct, tone: 'bg-[#ecfdf5] border-[#a7f3d0] text-[#047857]', Icon: TrendingUp, format: 'pct' },
-    { label: 'Work Done Value', value: summary.work_done_value, tone: 'bg-[#f5f3ff] border-[#ddd6fe] text-[#6d28d9]', Icon: Wallet },
-    { label: 'Received Payment', value: summary.received_payment ?? summary.total_credit, tone: 'bg-[#ecfdf5] border-[#a7f3d0] text-[#047857]', Icon: TrendingDown },
-    { label: 'Outstanding Amount', value: summary.outstanding_amount, tone: 'bg-[#fef2f2] border-[#fecaca] text-[#dc2626]', Icon: AlertCircle },
-    { label: 'Remaining Work Value', value: summary.remaining_work_value, tone: 'bg-[#fff7ed] border-[#fed7aa] text-[#c2410c]', Icon: Wallet },
+    { label: 'Project Cost', value: fmtCompact(summary.project_cost), tone: 'blue', Icon: IndianRupee },
+    { label: 'Received Payment', value: fmtCompact(summary.received_payment ?? summary.total_credit), tone: 'green', Icon: TrendingDown },
+    { label: 'Outstanding', value: fmtCompact(summary.outstanding_amount), tone: 'red', Icon: AlertCircle },
+    { label: 'Work Done', value: fmtCompact(summary.work_done_value), tone: 'purple', Icon: Wallet },
+    { label: 'Work Completion', value: `${Number(summary.work_completion_pct || 0).toFixed(1)}%`, tone: 'green', Icon: TrendingUp },
+    { label: 'Remaining Work', value: fmtCompact(summary.remaining_work_value), tone: 'orange', Icon: Wallet },
+  ];
+
+  const txnTypes = [
+    { value: 'sale', label: 'Sale', hint: 'Debit · increases due', tone: 'border-[#bfdbfe] bg-[#eff6ff] text-[#1d4ed8]' },
+    { value: 'payment', label: 'Payment Received', hint: 'Credit · reduces due', tone: 'border-[#bbf7d0] bg-[#ecfdf5] text-[#166534]' },
+    { value: 'discount', label: 'Discount', hint: 'Credit · goodwill', tone: 'border-[#fed7aa] bg-[#fff7ed] text-[#c2410c]' },
   ];
 
   return (
     <>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-[16px] font-extrabold text-[#111827]">Client Ledger</h2>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h2 className="text-[20px] font-extrabold tracking-tight text-[#0f172a]">Client Ledger</h2>
+          <p className="mt-1 text-[13px] font-semibold text-[#53647f]">
+            Customer-wise Sale, Payment Received aur Discount entries — Payment Mode ke saath clean accounting view.
+          </p>
+        </div>
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={refreshAll} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#284276]">
-            <RefreshCw className="size-3.5" /> Refresh
-          </button>
-          <button type="button" disabled={!entries.length} onClick={exportCsv} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#284276] disabled:opacity-50">
-            <Download className="size-3.5" /> CSV
-          </button>
-          <button type="button" disabled={!entries.length} onClick={savePdf} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#284276] disabled:opacity-50">
-            <FileText className="size-3.5" /> PDF
-          </button>
-          <button type="button" disabled={fixing} onClick={fixDuplicates} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#fecaca] bg-[#fef2f2] px-3 text-[12px] font-extrabold text-[#dc2626] disabled:opacity-50">
+          <button type="button" onClick={refreshAll} className={softBtnClass}><RefreshCw className="size-3.5" /> Refresh</button>
+          <button type="button" disabled={!entries.length} onClick={exportCsv} className={softBtnClass}><Download className="size-3.5" /> CSV</button>
+          <button type="button" disabled={!entries.length} onClick={savePdf} className={softBtnClass}><FileText className="size-3.5" /> PDF</button>
+          <button type="button" disabled={fixing} onClick={fixDuplicates} className={`${softBtnClass} border-[#fecaca] bg-[#fef2f2] text-[#dc2626]`}>
             {fixing ? 'Scanning...' : 'Detect Duplicates'}
           </button>
-          <button type="button" onClick={() => onOpenSection?.('Customer Details')} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#284276]">
-            <Plus className="size-3.5" /> Add Customer
-          </button>
-          <button type="button" onClick={openAddLedger} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-[#dc2626] px-3 text-[12px] font-extrabold text-white">
-            <Plus className="size-3.5" /> Add New Ledger
-          </button>
+          <button type="button" onClick={() => onOpenSection?.('Customer Details')} className={softBtnClass}><Plus className="size-3.5" /> Add Customer</button>
+          <button type="button" onClick={openAddLedger} className={primaryBtnClass}><Plus className="size-3.5" /> Add New Ledger</button>
         </div>
       </div>
 
-      <div className="rounded-[14px] border border-[#e2e9f3] bg-white p-4 shadow-sm">
+      <LedgerSectionCard
+        step="1"
+        title="Select Customer & Filters"
+        action={(
+          <button type="button" onClick={openAddLedger} className="inline-flex h-8 items-center gap-1 rounded-[8px] bg-white/15 px-3 text-[11px] font-extrabold text-white hover:bg-white/25">
+            <Plus className="size-3.5" /> New Entry
+          </button>
+        )}
+      >
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <Field label="Select Customer *">
+          <Field label="Select Customer" required>
             <CustomerSearchSelect
               customers={customers}
               value={partyId}
               onChange={setPartyId}
-              placeholder="Choose a customer"
+              placeholder="Search name or mobile"
             />
-            <p className="mt-1 text-[11px] font-semibold text-[#0b65e5]">Customer Master ledger — project filter scopes Project-wise vs Consolidated.</p>
           </Field>
           <Field label="Account Scope">
             <select className={inputClass} value={projectId} onChange={(e) => setProjectId(e.target.value)} disabled={!partyId}>
@@ -847,72 +957,103 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
           </Field>
           <Field label="Start Date"><input type="date" className={inputClass} value={start} onChange={(e) => setStart(e.target.value)} /></Field>
           <Field label="End Date"><input type="date" className={inputClass} value={end} onChange={(e) => setEnd(e.target.value)} /></Field>
-          <Field label="Search"><input className={inputClass} placeholder="Search entries..." value={q} onChange={(e) => setQ(e.target.value)} /></Field>
+          <Field label="Search Entries">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#8a98af]" />
+              <input className={`${inputClass} pl-9`} placeholder="Type, mode, work, ref..." value={q} onChange={(e) => setQ(e.target.value)} />
+            </div>
+          </Field>
         </div>
         {payload?.breakdown?.projects?.length ? (
-          <div className="mt-3 overflow-x-auto rounded-[10px] border border-[#eef2f8]">
+          <div className="mt-4 overflow-x-auto rounded-[12px] border border-[#e8eef7]">
             <table className="min-w-full text-left text-[12px]">
               <thead className="bg-[#f8fbff] text-[#53647f]">
                 <tr>
-                  <th className="px-3 py-2 font-extrabold">Project</th>
-                  <th className="px-3 py-2 font-extrabold">Invoiced</th>
-                  <th className="px-3 py-2 font-extrabold">Received</th>
-                  <th className="px-3 py-2 font-extrabold">Outstanding</th>
+                  <th className="px-3 py-2.5 font-extrabold">Project</th>
+                  <th className="px-3 py-2.5 font-extrabold">Invoiced</th>
+                  <th className="px-3 py-2.5 font-extrabold">Received</th>
+                  <th className="px-3 py-2.5 font-extrabold">Outstanding</th>
                 </tr>
               </thead>
               <tbody>
                 {payload.breakdown.projects.map((row) => (
                   <tr key={row.project_id} className="border-t border-[#eef2f8]">
-                    <td className="px-3 py-2 font-bold text-[#1e3261]">{row.project_name}</td>
-                    <td className="px-3 py-2">{fmtRs(row.invoiced)}</td>
-                    <td className="px-3 py-2">{fmtRs(row.received)}</td>
-                    <td className="px-3 py-2 font-extrabold">{fmtRs(row.outstanding)}</td>
+                    <td className="px-3 py-2.5 font-bold text-[#1e3261]">{row.project_name}</td>
+                    <td className="px-3 py-2.5">{fmtRs(row.invoiced)}</td>
+                    <td className="px-3 py-2.5">{fmtRs(row.received)}</td>
+                    <td className="px-3 py-2.5 font-extrabold">{fmtRs(row.outstanding)}</td>
                   </tr>
                 ))}
                 <tr className="border-t border-[#e2e9f3] bg-[#fff7ed]">
-                  <td className="px-3 py-2 font-extrabold text-[#9a3412]">Unallocated</td>
-                  <td className="px-3 py-2">{fmtRs(payload.breakdown.unallocated?.invoiced)}</td>
-                  <td className="px-3 py-2">{fmtRs(payload.breakdown.unallocated?.received)}</td>
-                  <td className="px-3 py-2 font-extrabold">{fmtRs(payload.breakdown.unallocated?.outstanding)}</td>
+                  <td className="px-3 py-2.5 font-extrabold text-[#9a3412]">Unallocated</td>
+                  <td className="px-3 py-2.5">{fmtRs(payload.breakdown.unallocated?.invoiced)}</td>
+                  <td className="px-3 py-2.5">{fmtRs(payload.breakdown.unallocated?.received)}</td>
+                  <td className="px-3 py-2.5 font-extrabold">{fmtRs(payload.breakdown.unallocated?.outstanding)}</td>
                 </tr>
               </tbody>
             </table>
           </div>
         ) : null}
-      </div>
+      </LedgerSectionCard>
 
       {!partyId ? (
-        <div className="rounded-[14px] border border-[#e2e9f3] bg-white p-4 shadow-sm">
-          <h3 className="text-[15px] font-extrabold text-[#111827]">Ledger Entries</h3>
-          <p className="py-12 text-center text-[13px] font-semibold text-[#7a8fa6]">Please select a customer to view ledger</p>
-        </div>
+        <LedgerSectionCard step="2" title="Ledger Workspace" tone="slate">
+          <div className="rounded-[12px] border border-dashed border-[#d9e4f2] bg-[#f8fbff] px-4 py-14 text-center">
+            <Wallet className="mx-auto size-10 text-[#bfdbfe]" />
+            <p className="mt-3 text-[15px] font-extrabold text-[#1e3261]">Customer select karein</p>
+            <p className="mt-1 text-[13px] font-semibold text-[#7a8fa6]">Ledger entries, payment mode aur outstanding yahin dikhenge.</p>
+          </div>
+        </LedgerSectionCard>
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {kpiCards.map(({ label, value, tone, Icon, suffix, format }) => (
-              <article key={label} className={`rounded-[14px] border p-4 ${tone}`}>
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-[11px] font-bold opacity-80">{label}</p>
-                  <Icon className="size-4 opacity-70" />
-                </div>
-                <p className="mt-2 text-[22px] font-extrabold tracking-tight">
-                  {format === 'pct' ? `${Number(value || 0).toFixed(1)}%` : `${fmtCompact(value)}${suffix || ''}`}
-                </p>
-              </article>
-            ))}
-          </div>
-
-          <div className="rounded-[14px] border border-[#bfdbfe] bg-[#eff6ff] px-4 py-3">
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-[13px]">
-              <p><span className="font-bold text-[#64748b]">Customer Name:</span> <span className="font-extrabold text-[#1e3261]">{selected?.name || '—'}</span></p>
-              <p><span className="font-bold text-[#64748b]">Phone:</span> <span className="font-extrabold text-[#1e3261]">{selected?.phone || '—'}</span></p>
-              <p><span className="font-bold text-[#64748b]">Email:</span> <span className="font-extrabold text-[#1e3261]">{selected?.email || 'N/A'}</span></p>
-              <p><span className="font-bold text-[#64748b]">Opening Balance:</span> <span className="font-extrabold text-[#1e3261]">{fmtRs(selected?.opening_balance || summary.opening || 0)}</span></p>
+          <LedgerSectionCard step="2" title="Account Summary">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {kpiCards.map((card) => (
+                <LedgerStatCard key={card.label} {...card} />
+              ))}
             </div>
-          </div>
+            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+              <div className="rounded-[12px] border border-[#bfdbfe] bg-[#f8fbff] p-4">
+                <p className="mb-3 text-[11px] font-extrabold uppercase tracking-wide text-[#1d4ed8]">Customer Snapshot</p>
+                <div className="space-y-2.5 text-[13px]">
+                  <p className="flex items-center gap-2 font-extrabold text-[#0f172a]"><CheckCircle2 className="size-4 text-[#0b65e5]" />{selected?.name || '—'}</p>
+                  <p className="flex items-center gap-2 font-semibold text-[#334155]"><Phone className="size-4 text-[#64748b]" />{selected?.phone || '—'}</p>
+                  <p className="flex items-center gap-2 font-semibold text-[#334155]"><Mail className="size-4 text-[#64748b]" />{selected?.email || 'N/A'}</p>
+                  <p className="flex items-center gap-2 font-semibold text-[#334155]"><IndianRupee className="size-4 text-[#64748b]" />Opening {fmtRs(selected?.opening_balance || summary.opening || 0)}</p>
+                </div>
+              </div>
+              <div className="rounded-[12px] border border-[#bbf7d0] bg-[#f0fdf4] p-4">
+                <p className="mb-3 text-[11px] font-extrabold uppercase tracking-wide text-[#166534]">Balance Impact</p>
+                <div className="grid grid-cols-2 gap-3 text-[13px]">
+                  <div>
+                    <p className="text-[11px] font-bold text-[#64748b]">Total Debit</p>
+                    <p className="mt-1 text-[18px] font-extrabold text-[#dc2626]">{fmtRs(summary.total_debit)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold text-[#64748b]">Total Credit</p>
+                    <p className="mt-1 text-[18px] font-extrabold text-[#166534]">{fmtRs(summary.total_credit)}</p>
+                  </div>
+                  <div className="col-span-2 rounded-[10px] border border-[#bbf7d0] bg-white px-3 py-2.5">
+                    <p className="text-[11px] font-bold text-[#64748b]">Final Balance</p>
+                    <p className={`mt-1 text-[18px] font-extrabold ${finalIsCredit ? 'text-[#166534]' : 'text-[#dc2626]'}`}>
+                      {fmtRs(Math.abs(finalBalance))} ({finalIsCredit ? 'Cr' : 'Dr'})
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </LedgerSectionCard>
 
-          <div className="rounded-[14px] border border-[#e2e9f3] bg-white p-4 shadow-sm print:shadow-none">
-            <h3 className="mb-3 text-[15px] font-extrabold text-[#111827]">Ledger Entries</h3>
+          <LedgerSectionCard
+            step="3"
+            title="Ledger Entries"
+            tone="green"
+            action={(
+              <span className="rounded-full bg-white/20 px-2.5 py-1 text-[11px] font-extrabold">
+                {entries.length} rows
+              </span>
+            )}
+          >
             {loading ? (
               <p className="py-10 text-center text-[13px] font-semibold text-[#7a8fa6]">Loading...</p>
             ) : (
@@ -928,154 +1069,277 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
                 fmtDate={fmtDisplayDate}
                 fmtMoney={fmtRs}
               />
-              <div className="hidden overflow-x-auto lg:block">
-                <table className="min-w-[1100px] w-full text-left text-[13px]">
-                  <thead className="bg-[#f1f5f9] text-[11px] font-extrabold uppercase tracking-wide text-[#64748b]">
-                    <tr>
-                      {['Date', 'Vehicle No', 'Type', 'Payment Mode', 'Challan/Receipt No.', 'Work', 'Debit (₹)', 'Credit (₹)', 'Balance (₹)', 'Action'].map((h) => (
-                        <th key={h} className="px-3 py-2.5">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {entries.length === 0 ? (
-                      <tr><td colSpan={10} className="px-3 py-10 text-center text-[#7a8fa6]">No ledger entries for this customer.</td></tr>
-                    ) : pageEntries.map((e, i) => {
-                      const bal = Number(e.balance || 0);
-                      return (
-                        <tr key={`${e.ref}-${i}`} className={`border-t border-[#edf2f8] ${i % 2 ? 'bg-[#f8fafc]' : 'bg-white'}`}>
-                          <td className="px-3 py-2.5 whitespace-nowrap">{fmtDisplayDate(e.date)}</td>
-                          <td className="px-3 py-2.5">{e.vehicle_no || '—'}</td>
-                          <td className="px-3 py-2.5"><TypeBadge value={e.type_label || e.type} /></td>
-                          <td className="px-3 py-2.5 whitespace-nowrap text-[#334155]">{e.payment_mode || '—'}</td>
-                          <td className="px-3 py-2.5 font-semibold text-[#334155]">{e.ref || '—'}</td>
-                          <td className="max-w-[260px] truncate px-3 py-2.5" title={e.work || e.particulars || ''}>{e.work || e.particulars || '—'}</td>
-                          <td className="px-3 py-2.5 whitespace-nowrap">{e.debit ? fmtRs(e.debit) : '—'}</td>
-                          <td className="px-3 py-2.5 whitespace-nowrap">{e.credit ? fmtRs(e.credit) : '—'}</td>
-                          <td className={`px-3 py-2.5 whitespace-nowrap font-extrabold ${bal > 0 ? 'text-[#dc2626]' : 'text-[#166534]'}`}>{fmtRs(bal)}</td>
-                          <td className="px-3 py-2.5">
-                            <button type="button" onClick={() => setDetail(e)} className="grid size-8 place-items-center rounded-[8px] text-[#0b65e5] hover:bg-[#eff6ff]" title="View entry">
-                              <Eye className="size-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                  {entries.length ? (
-                    <tfoot>
-                      <tr className="border-t-2 border-[#cbd5e1] bg-[#f8fafc] font-extrabold">
-                        <td className="px-3 py-3" colSpan={6}>Totals:</td>
-                        <td className="px-3 py-3 whitespace-nowrap">{fmtRs(summary.total_debit)}</td>
-                        <td className="px-3 py-3 whitespace-nowrap">{fmtRs(summary.total_credit)}</td>
-                        <td className={`px-3 py-3 whitespace-nowrap ${finalIsCredit ? 'text-[#166534]' : 'text-[#dc2626]'}`}>
-                          {fmtRs(Math.abs(finalBalance))} ({finalIsCredit ? 'Cr' : 'Dr'})
-                        </td>
-                        <td />
+              <div className="hidden overflow-hidden rounded-[12px] border border-[#e8eef7] lg:block">
+                <div className="overflow-x-auto">
+                  <table className="min-w-[1100px] w-full text-left text-[13px]">
+                    <thead className="bg-[#f8fbff] text-[11px] font-extrabold uppercase tracking-wide text-[#64748b]">
+                      <tr>
+                        {['Date', 'Vehicle No', 'Type', 'Payment Mode', 'Challan/Receipt No.', 'Work', 'Debit (₹)', 'Credit (₹)', 'Balance (₹)', 'Action'].map((h) => (
+                          <th key={h} className="px-3 py-3">{h}</th>
+                        ))}
                       </tr>
-                    </tfoot>
-                  ) : null}
-                </table>
+                    </thead>
+                    <tbody>
+                      {entries.length === 0 ? (
+                        <tr><td colSpan={10} className="px-3 py-10 text-center text-[#7a8fa6]">No ledger entries for this customer.</td></tr>
+                      ) : pageEntries.map((e, i) => {
+                        const bal = Number(e.balance || 0);
+                        return (
+                          <tr key={`${e.ref}-${i}`} className={`border-t border-[#edf2f8] ${i % 2 ? 'bg-[#fbfdff]' : 'bg-white'}`}>
+                            <td className="px-3 py-2.5 whitespace-nowrap">{fmtDisplayDate(e.date)}</td>
+                            <td className="px-3 py-2.5">{e.vehicle_no || '—'}</td>
+                            <td className="px-3 py-2.5"><TypeBadge value={e.type_label || e.type} /></td>
+                            <td className="px-3 py-2.5 whitespace-nowrap">
+                              {e.payment_mode ? (
+                                <span className="inline-flex rounded-full border border-[#bbf7d0] bg-[#ecfdf5] px-2.5 py-0.5 text-[11px] font-extrabold text-[#166534]">
+                                  {e.payment_mode}
+                                </span>
+                              ) : '—'}
+                            </td>
+                            <td className="px-3 py-2.5 font-semibold text-[#334155]">{e.ref || '—'}</td>
+                            <td className="max-w-[260px] truncate px-3 py-2.5" title={e.work || e.particulars || ''}>{e.work || e.particulars || '—'}</td>
+                            <td className="px-3 py-2.5 whitespace-nowrap">{e.debit ? fmtRs(e.debit) : '—'}</td>
+                            <td className="px-3 py-2.5 whitespace-nowrap">{e.credit ? fmtRs(e.credit) : '—'}</td>
+                            <td className={`px-3 py-2.5 whitespace-nowrap font-extrabold ${bal > 0 ? 'text-[#dc2626]' : 'text-[#166534]'}`}>{fmtRs(bal)}</td>
+                            <td className="px-3 py-2.5">
+                              <div className="flex items-center gap-1">
+                                <button type="button" onClick={() => setDetail(e)} className="grid size-8 place-items-center rounded-[8px] text-[#0b65e5] hover:bg-[#eff6ff]" title="View entry">
+                                  <Eye className="size-4" />
+                                </button>
+                                {e.source_kind === 'manual_ledger' ? (
+                                  <button type="button" onClick={() => openEditLedger(e)} className="grid size-8 place-items-center rounded-[8px] text-[#334155] hover:bg-[#f1f5f9]" title="Edit entry">
+                                    <Pencil className="size-4" />
+                                  </button>
+                                ) : null}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    {entries.length ? (
+                      <tfoot>
+                        <tr className="border-t-2 border-[#cbd5e1] bg-[#f8fafc] font-extrabold">
+                          <td className="px-3 py-3" colSpan={6}>Totals:</td>
+                          <td className="px-3 py-3 whitespace-nowrap">{fmtRs(summary.total_debit)}</td>
+                          <td className="px-3 py-3 whitespace-nowrap">{fmtRs(summary.total_credit)}</td>
+                          <td className={`px-3 py-3 whitespace-nowrap ${finalIsCredit ? 'text-[#166534]' : 'text-[#dc2626]'}`}>
+                            {fmtRs(Math.abs(finalBalance))} ({finalIsCredit ? 'Cr' : 'Dr'})
+                          </td>
+                          <td />
+                        </tr>
+                      </tfoot>
+                    ) : null}
+                  </table>
+                </div>
               </div>
               <TablePagination {...pagination} className="mt-3" />
               </>
             )}
-          </div>
+          </LedgerSectionCard>
         </>
       )}
 
+      <div className="rounded-[12px] border border-[#bbf7d0] bg-[#f0fdf4] px-4 py-3 text-[12px] font-semibold text-[#166534]">
+        <span className="font-extrabold">Key Benefits:</span> Clear Sale / Payment Received / Discount · Mandatory Payment Mode on receipts · Debit-Credit integrity preserved · Project + Consolidated scope
+      </div>
+
       {detail ? (
         <ModalShell
-          title="Ledger Entry"
+          title="Ledger Entry Details"
+          headerTone="blue"
           onClose={() => setDetail(null)}
-          footer={<button type="button" onClick={() => setDetail(null)} className="h-10 rounded-[8px] border px-4 text-[13px] font-semibold">Close</button>}
+          footer={(
+            <>
+              {detail.source_kind === 'manual_ledger' ? (
+                <button type="button" onClick={() => openEditLedger(detail)} className={softBtnClass}>Edit Entry</button>
+              ) : null}
+              <button type="button" onClick={() => setDetail(null)} className={primaryBtnClass}>Close</button>
+            </>
+          )}
         >
-          <div className="grid gap-2 text-[13px]">
-            <p><span className="font-bold text-[#64748b]">Date:</span> {fmtDisplayDate(detail.date)}</p>
-            <p><span className="font-bold text-[#64748b]">Type:</span> <TypeBadge value={detail.type_label || detail.type} /></p>
-            <p><span className="font-bold text-[#64748b]">Payment Mode:</span> {detail.payment_mode || '—'}</p>
-            <p><span className="font-bold text-[#64748b]">Ref:</span> {detail.ref || '—'}</p>
-            <p><span className="font-bold text-[#64748b]">Vehicle:</span> {detail.vehicle_no || '—'}</p>
-            <p><span className="font-bold text-[#64748b]">Work:</span> {detail.work || detail.particulars || '—'}</p>
-            <p><span className="font-bold text-[#64748b]">Debit:</span> {detail.debit ? fmtRs(detail.debit) : '—'}</p>
-            <p><span className="font-bold text-[#64748b]">Credit:</span> {detail.credit ? fmtRs(detail.credit) : '—'}</p>
-            <p><span className="font-bold text-[#64748b]">Balance:</span> {fmtRs(detail.balance)}</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-[12px] border border-[#e8eef7] bg-[#f8fbff] p-3">
+              <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#64748b]">Date</p>
+              <p className="mt-1 text-[14px] font-extrabold text-[#0f172a]">{fmtDisplayDate(detail.date)}</p>
+            </div>
+            <div className="rounded-[12px] border border-[#e8eef7] bg-[#f8fbff] p-3">
+              <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#64748b]">Type</p>
+              <div className="mt-1"><TypeBadge value={detail.type_label || detail.type} /></div>
+            </div>
+            <div className="rounded-[12px] border border-[#e8eef7] bg-[#f8fbff] p-3">
+              <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#64748b]">Payment Mode</p>
+              <p className="mt-1 text-[14px] font-extrabold text-[#0f172a]">{detail.payment_mode || '—'}</p>
+            </div>
+            <div className="rounded-[12px] border border-[#e8eef7] bg-[#f8fbff] p-3">
+              <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#64748b]">Reference</p>
+              <p className="mt-1 text-[14px] font-extrabold text-[#0f172a]">{detail.ref || '—'}</p>
+            </div>
+            <div className="sm:col-span-2 rounded-[12px] border border-[#e8eef7] bg-white p-3">
+              <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#64748b]">Work / Description</p>
+              <p className="mt-1 text-[14px] font-semibold text-[#334155]">{detail.work || detail.particulars || '—'}</p>
+            </div>
+            <div className="rounded-[12px] border border-[#fecaca] bg-[#fef2f2] p-3">
+              <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#dc2626]">Debit</p>
+              <p className="mt-1 text-[16px] font-extrabold text-[#dc2626]">{detail.debit ? fmtRs(detail.debit) : '—'}</p>
+            </div>
+            <div className="rounded-[12px] border border-[#bbf7d0] bg-[#ecfdf5] p-3">
+              <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#166534]">Credit</p>
+              <p className="mt-1 text-[16px] font-extrabold text-[#166534]">{detail.credit ? fmtRs(detail.credit) : '—'}</p>
+            </div>
           </div>
         </ModalShell>
       ) : null}
 
       {ledgerModal ? (
         <ModalShell
-          title="Add New Ledger"
+          title={ledgerModal.mode === 'edit' ? 'Edit Ledger Entry' : 'Add New Ledger'}
+          headerTone="blue"
+          wide
+          titleIcon={<CreditCard className="size-5 text-white/90" />}
           onClose={() => !savingLedger && setLedgerModal(null)}
           footer={(
             <>
-              <button type="button" disabled={savingLedger} onClick={() => setLedgerModal(null)} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-semibold text-[#334155] disabled:opacity-50">Cancel</button>
-              <button type="button" disabled={savingLedger} onClick={saveLedgerEntry} className="h-10 rounded-[8px] bg-[#dc2626] px-4 text-[13px] font-extrabold text-white disabled:opacity-50">
-                {savingLedger ? 'Saving...' : 'Save Entry'}
+              <button type="button" disabled={savingLedger} onClick={() => setLedgerModal(null)} className={softBtnClass}>Cancel</button>
+              <button
+                type="button"
+                disabled={savingLedger}
+                onClick={saveLedgerEntry}
+                className="inline-flex h-10 items-center gap-1.5 rounded-[10px] bg-[#16a34a] px-4 text-[12px] font-extrabold text-white shadow-[0_8px_18px_rgba(22,163,74,0.25)] transition hover:bg-[#15803d] disabled:opacity-50"
+              >
+                {savingLedger ? 'Saving...' : (ledgerModal.mode === 'edit' ? 'Update Entry' : 'Save Entry')}
               </button>
             </>
           )}
         >
-          <div className="grid gap-3">
-            <Field label="Customer" required>
-              <CustomerSearchSelect
-                customers={customers}
-                value={ledgerModal.form.party_id}
-                onChange={(next) => setLedgerModal((m) => ({ ...m, form: { ...m.form, party_id: next } }))}
-                placeholder="Select customer"
-              />
-            </Field>
-            <Field label="Date" required>
-              <input
-                type="date"
-                className={inputClass}
-                value={ledgerModal.form.entry_date}
-                onChange={(e) => setLedgerModal((m) => ({ ...m, form: { ...m.form, entry_date: e.target.value } }))}
-              />
-            </Field>
-            <Field label="Transaction Type" required>
-              <select
-                className={inputClass}
-                value={ledgerModal.form.entry_type}
-                onChange={(e) => setLedgerModal((m) => ({ ...m, form: { ...m.form, entry_type: e.target.value } }))}
-              >
-                <option value="sale">Sale (Debit)</option>
-                <option value="payment">Payment (Credit)</option>
-                <option value="discount">Discount (Credit)</option>
-              </select>
-            </Field>
-            <Field label="Payment Mode">
-              <select
-                className={inputClass}
-                value={ledgerModal.form.payment_mode}
-                onChange={(e) => setLedgerModal((m) => ({ ...m, form: { ...m.form, payment_mode: e.target.value } }))}
-              >
-                <option value="">Select payment mode</option>
-                {LEDGER_PAYMENT_MODE_OPTIONS.map((mode) => (
-                  <option key={mode} value={mode}>{mode}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Amount (₹)" required>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                className={inputClass}
-                placeholder="0.00"
-                value={ledgerModal.form.amount}
-                onChange={(e) => setLedgerModal((m) => ({ ...m, form: { ...m.form, amount: e.target.value } }))}
-              />
-            </Field>
-            <Field label="Work / Description">
-              <textarea
-                className={`${inputClass} h-24 py-2`}
-                placeholder="Work description"
-                value={ledgerModal.form.work}
-                onChange={(e) => setLedgerModal((m) => ({ ...m, form: { ...m.form, work: e.target.value } }))}
-              />
-            </Field>
+          <div className="grid gap-4">
+            <div className="overflow-hidden rounded-[12px] border border-[#e2e9f3]">
+              <div className="bg-[#0b65e5] px-3.5 py-2 text-[12px] font-extrabold text-white">1. Customer & Date</div>
+              <div className="grid gap-3 p-3.5 sm:grid-cols-2">
+                <Field label="Customer" required>
+                  <CustomerSearchSelect
+                    customers={customers}
+                    value={ledgerModal.form.party_id}
+                    onChange={(next) => setLedgerModal((m) => ({ ...m, form: { ...m.form, party_id: next } }))}
+                    placeholder="Search name or mobile"
+                    disabled={ledgerModal.mode === 'edit'}
+                  />
+                </Field>
+                <Field label="Date" required>
+                  <input
+                    type="date"
+                    className={inputClass}
+                    value={ledgerModal.form.entry_date}
+                    onChange={(e) => setLedgerModal((m) => ({ ...m, form: { ...m.form, entry_date: e.target.value } }))}
+                  />
+                </Field>
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-[12px] border border-[#e2e9f3]">
+              <div className="bg-[#0b65e5] px-3.5 py-2 text-[12px] font-extrabold text-white">2. Transaction Type</div>
+              <div className="p-3.5">
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {txnTypes.map((opt) => {
+                    const active = ledgerModal.form.entry_type === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setLedgerModal((m) => ({
+                          ...m,
+                          form: {
+                            ...m.form,
+                            entry_type: opt.value,
+                            payment_mode: ledgerTypeNeedsPaymentMode(opt.value) ? m.form.payment_mode : '',
+                          },
+                        }))}
+                        className={`rounded-[12px] border px-3 py-3 text-left transition ${
+                          active ? `${opt.tone} ring-2 ring-offset-1 ring-[#0b65e5]/30` : 'border-[#e2e9f3] bg-white hover:bg-[#f8fbff]'
+                        }`}
+                      >
+                        <p className="text-[13px] font-extrabold">{opt.label}</p>
+                        <p className="mt-0.5 text-[11px] font-semibold opacity-80">{opt.hint}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {ledgerTypeNeedsPaymentMode(ledgerModal.form.entry_type) ? (
+              <div className="overflow-hidden rounded-[12px] border border-[#bbf7d0]">
+                <div className="bg-[#16a34a] px-3.5 py-2 text-[12px] font-extrabold text-white">3. Payment Mode</div>
+                <div className="bg-[#f0fdf4] p-3.5">
+                  <Field label="Payment Mode" required>
+                    <select
+                      className={inputClass}
+                      value={ledgerModal.form.payment_mode}
+                      onChange={(e) => setLedgerModal((m) => ({ ...m, form: { ...m.form, payment_mode: e.target.value } }))}
+                    >
+                      <option value="">Select payment mode</option>
+                      {LEDGER_PAYMENT_MODE_OPTIONS.map((mode) => (
+                        <option key={mode} value={mode}>{mode}</option>
+                      ))}
+                      {ledgerModal.form.payment_mode
+                        && !LEDGER_PAYMENT_MODE_OPTIONS.includes(ledgerModal.form.payment_mode) ? (
+                          <option value={ledgerModal.form.payment_mode}>{ledgerModal.form.payment_mode}</option>
+                        ) : null}
+                    </select>
+                  </Field>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {LEDGER_PAYMENT_MODE_OPTIONS.map((mode) => {
+                      const active = ledgerModal.form.payment_mode === mode;
+                      return (
+                        <button
+                          key={mode}
+                          type="button"
+                          onClick={() => setLedgerModal((m) => ({ ...m, form: { ...m.form, payment_mode: mode } }))}
+                          className={`rounded-full border px-3 py-1.5 text-[11px] font-extrabold transition ${
+                            active
+                              ? 'border-[#16a34a] bg-[#16a34a] text-white'
+                              : 'border-[#bbf7d0] bg-white text-[#166534] hover:bg-[#ecfdf5]'
+                          }`}
+                        >
+                          {mode}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-3 flex items-center gap-2 rounded-[10px] border border-[#bbf7d0] bg-white px-3 py-2 text-[11px] font-semibold text-[#166534]">
+                    <CheckCircle2 className="size-4 shrink-0 text-[#16a34a]" />
+                    Payment Received entries require Payment Mode for audit integrity.
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="overflow-hidden rounded-[12px] border border-[#e2e9f3]">
+              <div className="bg-[#334155] px-3.5 py-2 text-[12px] font-extrabold text-white">
+                {ledgerTypeNeedsPaymentMode(ledgerModal.form.entry_type) ? '4' : '3'}. Amount & Description
+              </div>
+              <div className="grid gap-3 p-3.5">
+                <Field label="Amount (₹)" required>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className={inputClass}
+                    placeholder="0.00"
+                    value={ledgerModal.form.amount}
+                    onChange={(e) => setLedgerModal((m) => ({ ...m, form: { ...m.form, amount: e.target.value } }))}
+                  />
+                </Field>
+                <Field label="Work / Description">
+                  <textarea
+                    className={`${inputClass} h-24 py-2`}
+                    placeholder="Work description / remarks"
+                    value={ledgerModal.form.work}
+                    onChange={(e) => setLedgerModal((m) => ({ ...m, form: { ...m.form, work: e.target.value } }))}
+                  />
+                </Field>
+              </div>
+            </div>
           </div>
         </ModalShell>
       ) : null}

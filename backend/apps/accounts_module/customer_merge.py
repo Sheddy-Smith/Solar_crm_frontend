@@ -42,27 +42,25 @@ def preview_customer_merge(source_id: int, target_id: int) -> dict:
     target_counts = _count_party_links(target.id)
     source_totals = party_totals(source)
     target_totals = party_totals(target)
+    def _party_card(party, counts, totals):
+        return {
+            'id': party.id,
+            'name': party.name,
+            'phone': party.phone,
+            'alternate_phone': party.alternate_phone,
+            'email': party.email or '',
+            'address': party.address or '',
+            'city': party.city or '',
+            'state': party.state or '',
+            'status': party.status,
+            'counts': counts,
+            'totals': {k: float(v) if isinstance(v, Decimal) else v for k, v in totals.items() if k != 'last_date'},
+            'last_date': totals.get('last_date').isoformat() if totals.get('last_date') else None,
+        }
+
     return {
-        'source': {
-            'id': source.id,
-            'name': source.name,
-            'phone': source.phone,
-            'alternate_phone': source.alternate_phone,
-            'status': source.status,
-            'counts': source_counts,
-            'totals': {k: float(v) if isinstance(v, Decimal) else v for k, v in source_totals.items() if k != 'last_date'},
-            'last_date': source_totals.get('last_date').isoformat() if source_totals.get('last_date') else None,
-        },
-        'target': {
-            'id': target.id,
-            'name': target.name,
-            'phone': target.phone,
-            'alternate_phone': target.alternate_phone,
-            'status': target.status,
-            'counts': target_counts,
-            'totals': {k: float(v) if isinstance(v, Decimal) else v for k, v in target_totals.items() if k != 'last_date'},
-            'last_date': target_totals.get('last_date').isoformat() if target_totals.get('last_date') else None,
-        },
+        'source': _party_card(source, source_counts, source_totals),
+        'target': _party_card(target, target_counts, target_totals),
         'warnings': _merge_warnings(source, target),
     }
 
