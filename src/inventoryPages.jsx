@@ -1,15 +1,40 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertTriangle, Boxes, CheckCircle2, Download, IndianRupee, Pencil, Plus, RefreshCw,
-  SlidersHorizontal, Tags, Trash2, Upload, Zap,
+  AlertTriangle, Boxes, CheckCircle2, Download, FileText, Hash, IndianRupee, Info, LayoutGrid, List,
+  Minus, Package, Pencil, Plus, RefreshCw, Search, SlidersHorizontal, Tags, Trash2, Upload, Warehouse, Zap,
 } from 'lucide-react';
 import { inventoryApi } from './api.js';
 import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
-import { fetchEveryPage } from './lib/listQuery.js';
+import { fetchEveryPage, rowsOf } from './lib/listQuery.js';
 import { exportNotifyCsv } from './lib/utils.js';
 import { moduleCaps } from './settingsHubPages.jsx';
-import { InventoryItemsWorkbench } from './inventoryItemsWorkbench.jsx';
+import { InventoryProductsCatalog } from './inventoryProductsCatalog.jsx';
+import navBarImage from './assets/data/nav_bar_img.png';
+
+const CATEGORY_HINTS = {
+  'ACDB/DCDB': 'AC Distribution Box / DC Distribution Box',
+  Structure: 'Mounting structures, rails and poles',
+  Hardware: 'Fasteners, clamps, bolts and consumables',
+  'Cable & Wire': 'AC/DC cables and earthing wires',
+  Electrical: 'Lugs, connectors, PVC fittings and accessories',
+  'Solar Panel': 'PV modules (DCR / Non-DCR)',
+  Inverter: 'Grid-tie and hybrid solar inverters',
+  Invertor: 'Grid-tie and hybrid solar inverters',
+  Panel: 'PV modules and solar panels',
+  Battery: 'Storage batteries',
+  Other: 'Civil and miscellaneous materials',
+  Cable: 'Cables and wiring',
+};
+
+const ADJUST_REASONS = [
+  'Purchase',
+  'Stock Return',
+  'Site Issue',
+  'Damage',
+  'Manual Adjustment',
+  'Opening Correction',
+];
 
 const INV_UNITS = ['Nos', 'pcs', 'Meter', 'Kg', 'kg', 'Ltr', 'ltr', 'Roll', 'Set'];
 const STRUCTURE_PACK_TYPES = ['Unit', 'Packet', 'Bundels'];
@@ -455,7 +480,26 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
-  const [adjustItem, setAdjustItem] = useState(null);
+  const [addAnother, setAddAnother] = useState(false);
+  const [productFormTab, setProductFormTab] = useState('basic');
+  const basicSectionRef = useRef(null);
+  const stockSectionRef = useRef(null);
+  const extraSectionRef = useRef(null);
+  const scrollProductSection = (key) => {
+    setProductFormTab(key);
+    const map = { basic: basicSectionRef, stock: stockSectionRef, extra: extraSectionRef };
+    map[key]?.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  const [pageMode, setPageMode] = useState('list'); // list | adjust
+  const [adjustForm, setAdjustForm] = useState({
+    itemId: '',
+    direction: 'add',
+    quantity: '',
+    warehouse: '',
+    reason: '',
+    notes: '',
+  });
+  const [recentAdjustments, setRecentAdjustments] = useState([]);
   const [saving, setSaving] = useState(false);
   const onNotifyRef = useRef(onNotify);
   onNotifyRef.current = onNotify;
@@ -509,87 +553,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
 
   useEffect(() => { load(); }, [load]);
 
-  const filtered = rows;
-
   const patchForm = (patch) => setModal((m) => ({ ...m, form: { ...m.form, ...patch } }));
-
-  const saveProduct = async () => {
-    if (!modal?.form.name?.trim()) { onNotify('Product name is required', 'error'); return; }
-    const f = modal.form;
-    if (f.rate === '' || f.rate == null || Number(f.rate) < 0) {
-      onNotify('Unit Price required — Material Planning uses it to calculate amounts', 'error');
-      return;
-    }
-    if (!modal.editId && f.initial_stock !== '' && Number(f.initial_stock) > 0 && !f.warehouse) {
-      onNotify('Select a warehouse for opening stock.', 'error');
-      return;
-    }
-    setSaving(true);
-    try {
-      const cat = f.category || defaultCategoryName || 'Other';
-      const template = resolveFormTemplate(cat);
-      const body = {
-        item_code: f.item_code || undefined,
-        name: f.name,
-        category: cat,
-        unit: f.unit || 'Nos',
-        product_type: f.product_type || '',
-        capacity: f.capacity || '',
-        panel_wp: f.panel_wp === '' || f.panel_wp == null ? null : Number(f.panel_wp),
-        panel_count: f.panel_count === '' || f.panel_count == null ? null : Number(f.panel_count),
-        hsn_code: f.hsn_code || '',
-        rate: f.rate === '' || f.rate == null ? 0 : Number(f.rate),
-        selling_price: f.selling_price === '' || f.selling_price == null ? 0 : Number(f.selling_price),
-        minimum_stock: f.minimum_stock === '' ? 0 : Number(f.minimum_stock),
-        location: f.location || '',
-        warehouse: f.warehouse || null,
-        is_active: f.is_active !== false,
-      };
-      if ((template === 'Panel' || template === 'Battery') && !body.unit) body.unit = 'Nos';
-      if (!modal.editId && f.initial_stock !== '') body.initial_stock = Number(f.initial_stock) || 0;
-      if (modal.editId) await inventoryApi.items.update(modal.editId, body);
-      else await inventoryApi.items.create(body);
-      onNotify(modal.editId ? 'Product updated' : 'Product created — available in Material Planning', 'success');
-      setModal(null);
-      load();
-    } catch (e) {
-      onNotify(e.message || 'Save failed', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const saveAdjust = async () => {
-    if (!adjustItem?.quantity) { onNotify('Quantity required', 'error'); return; }
-    const row = rows.find((r) => r.id === adjustItem.id);
-    if (!row?.warehouse) {
-      onNotify('Assign a warehouse to this product first', 'error');
-      return;
-    }
-    setSaving(true);
-    try {
-      const qty = Number(adjustItem.quantity);
-      const isAdd = adjustItem.direction === 'add';
-      await inventoryApi.movements.create({
-        item: adjustItem.id,
-        movement_type: isAdd ? 'Inward' : 'Outward',
-        quantity: qty,
-        rate: row.rate || 0,
-        ...(isAdd
-          ? { to_warehouse: row.warehouse }
-          : { from_warehouse: row.warehouse }),
-        reference_type: 'Manual',
-        notes: adjustItem.notes || (isAdd ? 'Stock received / purchased' : 'Stock removed'),
-      });
-      onNotify(isAdd ? 'Stock added — product qty updated' : 'Stock Movement added — product qty updated', 'success');
-      setAdjustItem(null);
-      load();
-    } catch (e) {
-      onNotify(e.message || 'Adjust failed', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const activeCategoryNames = categories.filter((c) => c.is_active !== false).map((c) => c.name).filter(Boolean);
   const fallbackNames = FALLBACK_PRODUCT_CATEGORIES.map((c) => c.name);
@@ -600,355 +564,783 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
     return names;
   })();
 
+  const saveProduct = async () => {
+    if (!modal?.form.name?.trim()) { onNotify('Product name is required', 'error'); return; }
+    const f = modal.form;
+    if (f.rate !== '' && f.rate != null && Number(f.rate) < 0) {
+      onNotify('Unit Price cannot be negative', 'error');
+      return;
+    }
+    if (!modal.editId && f.initial_stock !== '' && Number(f.initial_stock) > 0 && !f.warehouse) {
+      onNotify('Select a warehouse for opening stock.', 'error');
+      return;
+    }
+    setSaving(true);
+    try {
+      const cat = f.category || defaultCategoryName || 'Other';
+      const template = resolveFormTemplate(cat, categories);
+      const body = {
+        item_code: f.item_code || undefined,
+        name: f.name.trim(),
+        category: cat,
+        unit: f.unit || 'Nos',
+        product_type: f.product_type || '',
+        capacity: f.capacity || '',
+        panel_wp: f.panel_wp === '' || f.panel_wp == null ? null : Number(f.panel_wp),
+        panel_count: f.panel_count === '' || f.panel_count == null ? null : Number(f.panel_count),
+        hsn_code: f.hsn_code || '',
+        rate: f.rate === '' || f.rate == null ? 0 : Number(f.rate),
+        selling_price: f.selling_price === '' || f.selling_price == null ? 0 : Number(f.selling_price),
+        minimum_stock: f.minimum_stock === '' || f.minimum_stock == null ? 0 : Number(f.minimum_stock),
+        location: String(f.location || '').slice(0, 200),
+        warehouse: f.warehouse || null,
+        is_active: f.is_active !== false,
+      };
+      if ((template === 'Panel' || template === 'Battery') && !body.unit) body.unit = 'Nos';
+      if (!modal.editId && f.initial_stock !== '') body.initial_stock = Number(f.initial_stock) || 0;
+      if (modal.editId) await inventoryApi.items.update(modal.editId, body);
+      else await inventoryApi.items.create(body);
+      onNotify(modal.editId ? 'Product updated' : 'Product created', 'success');
+      if (!modal.editId && addAnother) {
+        setModal({ form: { ...defaultsForCategory(cat, categories) } });
+        setProductFormTab('basic');
+      } else {
+        setModal(null);
+        setAddAnother(false);
+      }
+      load({ showSpinner: false });
+    } catch (e) {
+      onNotify(e.message || 'Save failed', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const loadRecentAdjustments = useCallback(() => {
+    inventoryApi.movements.list({ page_size: 8, ordering: '-created_at' })
+      .then((data) => setRecentAdjustments(rowsOf(data).slice(0, 4)))
+      .catch(() => setRecentAdjustments([]));
+  }, []);
+
+  const saveAdjust = async () => {
+    if (!adjustForm.itemId) { onNotify('Select a product', 'error'); return; }
+    if (!adjustForm.quantity || Number(adjustForm.quantity) <= 0) { onNotify('Quantity required', 'error'); return; }
+    if (!adjustForm.reason) { onNotify('Select adjustment reason', 'error'); return; }
+    const row = rows.find((r) => String(r.id) === String(adjustForm.itemId));
+    if (!row) { onNotify('Product not found', 'error'); return; }
+    const warehouseId = adjustForm.warehouse || row.warehouse;
+    if (!warehouseId) {
+      onNotify('Select a warehouse', 'error');
+      return;
+    }
+    setSaving(true);
+    try {
+      if (!row.warehouse && warehouseId) {
+        await inventoryApi.items.update(row.id, { warehouse: warehouseId }).catch(() => null);
+      }
+      const qty = Number(adjustForm.quantity);
+      const isAdd = adjustForm.direction === 'add';
+      await inventoryApi.movements.create({
+        item: row.id,
+        movement_type: isAdd ? 'Inward' : 'Outward',
+        quantity: qty,
+        rate: row.rate || 0,
+        ...(isAdd ? { to_warehouse: warehouseId } : { from_warehouse: warehouseId }),
+        reference_type: adjustForm.reason || 'Manual',
+        notes: adjustForm.notes || '',
+      });
+      onNotify(isAdd ? 'Stock added successfully' : 'Stock deducted successfully', 'success');
+      setAdjustForm((f) => ({ ...f, quantity: '', notes: '', reason: '' }));
+      load({ showSpinner: false });
+      loadRecentAdjustments();
+    } catch (e) {
+      onNotify(e.message || 'Adjust failed', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const openAddProduct = () => {
+    setProductFormTab('basic');
+    setAddAnother(false);
     setModal({ form: { ...defaultsForCategory(defaultCategoryName, categories) } });
   };
 
-  const openEditProduct = (r) => setModal({
-    editId: r.id,
-    form: {
-      ...defaultsForCategory(r.category || 'Structure'),
-      ...r,
-      warehouse: r.warehouse || '',
-      rate: r.rate ?? '',
-      selling_price: r.selling_price ?? '',
-      product_type: r.product_type || '',
-      capacity: r.capacity || '',
-      panel_wp: r.panel_wp ?? '',
-      panel_count: r.panel_count ?? '',
-      auto_sell: false,
-      is_active: r.is_active !== false,
-      initial_stock: '',
-    },
-  });
-
-  const openAdjust = (r) => {
-    if (!r.warehouse) {
-      onNotify('Assign a warehouse to this product first', 'error');
-      return;
-    }
-    setAdjustItem({ id: r.id, name: r.name, quantity: '', direction: 'add', notes: '' });
+  const openEditProduct = (r) => {
+    setProductFormTab('basic');
+    setAddAnother(false);
+    setModal({
+      editId: r.id,
+      viewOnly: false,
+      form: {
+        ...defaultsForCategory(r.category || 'Structure', categories),
+        ...r,
+        warehouse: r.warehouse || '',
+        rate: r.rate ?? '',
+        selling_price: r.selling_price ?? '',
+        product_type: r.product_type || '',
+        capacity: r.capacity || '',
+        panel_wp: r.panel_wp ?? '',
+        panel_count: r.panel_count ?? '',
+        location: r.location || '',
+        auto_sell: false,
+        is_active: r.is_active !== false,
+        initial_stock: '',
+      },
+    });
   };
 
-  const deleteProduct = (r) => inventoryApi.items.delete(r.id).then(load).catch((e) => onNotify(e.message, 'error'));
+  const openViewProduct = (r) => {
+    setProductFormTab('basic');
+    setAddAnother(false);
+    setModal({
+      editId: r.id,
+      viewOnly: true,
+      form: {
+        ...defaultsForCategory(r.category || 'Structure', categories),
+        ...r,
+        warehouse: r.warehouse || '',
+        rate: r.rate ?? '',
+        selling_price: r.selling_price ?? '',
+        product_type: r.product_type || '',
+        capacity: r.capacity || '',
+        panel_wp: r.panel_wp ?? '',
+        panel_count: r.panel_count ?? '',
+        location: r.location || '',
+        auto_sell: false,
+        is_active: r.is_active !== false,
+        initial_stock: '',
+      },
+    });
+  };
 
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2 px-0.5">
-        <div>
+  const openAdjust = (r = null) => {
+    const item = r || null;
+    setAdjustForm({
+      itemId: item?.id ? String(item.id) : '',
+      direction: 'add',
+      quantity: '',
+      warehouse: item?.warehouse ? String(item.warehouse) : (warehouses[0]?.id ? String(warehouses[0].id) : ''),
+      reason: '',
+      notes: '',
+    });
+    setPageMode('adjust');
+    loadRecentAdjustments();
+  };
+
+  const deleteProduct = (r) => {
+    if (!window.confirm(`Delete product "${r.name}"?`)) return;
+    inventoryApi.items.delete(r.id).then(load).catch((e) => onNotify(e.message, 'error'));
+  };
+
+  const selectedAdjustItem = useMemo(
+    () => rows.find((r) => String(r.id) === String(adjustForm.itemId)) || null,
+    [rows, adjustForm.itemId],
+  );
+
+  const adjustQty = Number(adjustForm.quantity || 0);
+  const currentStock = Number(selectedAdjustItem?.current_stock || 0);
+  const updatedStock = adjustForm.direction === 'add'
+    ? currentStock + (Number.isFinite(adjustQty) ? adjustQty : 0)
+    : currentStock - (Number.isFinite(adjustQty) ? adjustQty : 0);
+
+  const f = modal?.form || {};
+  const selectedCategory = f.category || defaultCategoryName || 'Other';
+  const categoryHint = CATEGORY_HINTS[selectedCategory] || categories.find((c) => c.name === selectedCategory)?.description || '';
+  const descLen = String(f.location || '').length;
+  const readOnly = Boolean(modal?.viewOnly);
+
+  const formTabBtn = (key, label, Icon) => (
+    <button
+      key={key}
+      type="button"
+      onClick={() => scrollProductSection(key)}
+      className={cx(
+        'flex w-full items-center gap-2 rounded-[10px] px-3 py-2.5 text-left text-[13px] font-bold transition',
+        productFormTab === key ? 'bg-[#16a34a] text-white shadow-[0_8px_18px_rgba(22,163,74,0.25)]' : 'text-[#475569] hover:bg-white',
+      )}
+    >
+      <Icon className="size-4 shrink-0" />
+      {label}
+    </button>
+  );
+
+  if (pageMode === 'adjust') {
+    const unit = selectedAdjustItem?.unit || 'Nos';
+    return (
+      <div className="space-y-3">
+        <div className="px-0.5">
           <p className="text-[12px] font-bold text-[#7a8fa6]">
             <button type="button" onClick={() => onOpenSection('Dashboard')} className="hover:text-[#0b65e5]">Dashboard</button>
             <span className="mx-1.5">/</span>
-            <button type="button" onClick={() => onOpenSection('Inventory Overview')} className="hover:text-[#0b65e5]">Inventory</button>
+            <button type="button" onClick={() => { setPageMode('list'); onOpenSection('Products'); }} className="hover:text-[#0b65e5]">Inventory</button>
             <span className="mx-1.5">/</span>
-            <span className="text-[#1e3261]">Products</span>
+            <span className="text-[#1e3261]">Adjust Item</span>
           </p>
+          <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h1 className="text-[22px] font-extrabold text-[#0f172a]">Adjust Item (Stock Adjustment)</h1>
+              <p className="mt-0.5 text-[13px] font-semibold text-[#64748b]">Increase or decrease product stock with proper reason and record.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPageMode('list')}
+              className="h-10 rounded-[10px] border border-[#dbe3ee] bg-white px-4 text-[13px] font-extrabold text-[#1e3261]"
+            >
+              Back to Products
+            </button>
+          </div>
         </div>
-        {caps.export ? (
-          <button
-            type="button"
-            onClick={() => exportNotifyCsv(onNotify, 'inventory-products', ['Code', 'Name', 'Category', 'Stock', 'Unit', 'Valuation'], filtered.map((r) => [r.item_code, r.name, r.category, r.current_stock, r.unit, r.valuation]))}
-            className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#d9e4f2] px-3 text-[12px] font-bold text-[#284276]"
-          >
-            <Download className="size-3.5" />
-            Export
-          </button>
-        ) : null}
+        <Subnav activeSection="Products" onOpenSection={(s) => { setPageMode('list'); onOpenSection(s); }} />
+
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="rounded-[16px] border border-[#e2e8f0] bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
+            <div className="mb-4 flex items-center gap-2">
+              <span className="grid size-9 place-items-center rounded-[10px] bg-[#dcfce7] text-[#16a34a]"><RefreshCw className="size-4" /></span>
+              <div>
+                <p className="text-[15px] font-extrabold text-[#0f172a]">Adjustment Details</p>
+                <p className="text-[12px] font-semibold text-[#64748b]">Choose movement type and product</p>
+              </div>
+            </div>
+
+            <p className="mb-2 text-[12px] font-extrabold text-[#334155]">Movement Type</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setAdjustForm((a) => ({ ...a, direction: 'add' }))}
+                className={cx(
+                  'rounded-[14px] border-2 p-4 text-left transition',
+                  adjustForm.direction === 'add' ? 'border-[#16a34a] bg-[#f0fdf4]' : 'border-[#e2e8f0] bg-white hover:bg-[#f8fafc]',
+                )}
+              >
+                <span className="inline-flex size-9 items-center justify-center rounded-full bg-[#dcfce7] text-[#16a34a]"><Plus className="size-4" /></span>
+                <p className="mt-2 text-[14px] font-extrabold text-[#0f172a]">Stock In (Add)</p>
+                <p className="text-[12px] font-semibold text-[#64748b]">Increase stock (e.g. purchase, return)</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAdjustForm((a) => ({ ...a, direction: 'remove' }))}
+                className={cx(
+                  'rounded-[14px] border-2 p-4 text-left transition',
+                  adjustForm.direction === 'remove' ? 'border-[#2563eb] bg-[#eff6ff]' : 'border-[#e2e8f0] bg-white hover:bg-[#f8fafc]',
+                )}
+              >
+                <span className="inline-flex size-9 items-center justify-center rounded-full bg-[#dbeafe] text-[#2563eb]"><Minus className="size-4" /></span>
+                <p className="mt-2 text-[14px] font-extrabold text-[#0f172a]">Stock Out (Deduct)</p>
+                <p className="text-[12px] font-semibold text-[#64748b]">Decrease stock (e.g. issue, damage)</p>
+              </button>
+            </div>
+
+            <label className="mt-4 block text-[12px] font-extrabold text-[#334155]">
+              Select Product
+              <select
+                className="mt-1 h-11 w-full rounded-[10px] border border-[#dbe3ee] bg-white px-3 text-[13px] font-semibold text-[#0f172a]"
+                value={adjustForm.itemId}
+                onChange={(e) => {
+                  const next = rows.find((r) => String(r.id) === e.target.value);
+                  setAdjustForm((a) => ({
+                    ...a,
+                    itemId: e.target.value,
+                    warehouse: next?.warehouse ? String(next.warehouse) : a.warehouse,
+                  }));
+                }}
+              >
+                <option value="">Select product…</option>
+                {rows.filter((r) => r.is_active !== false).map((r) => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </select>
+            </label>
+
+            {selectedAdjustItem ? (
+              <div className="mt-3 flex flex-wrap items-center gap-3 rounded-[12px] border border-[#e2e8f0] bg-[#f8fafc] p-3">
+                <span className="grid size-11 place-items-center rounded-[10px] bg-[#dcfce7] text-[14px] font-extrabold text-[#166534]">
+                  {String(selectedAdjustItem.name || 'P').charAt(0).toUpperCase()}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[14px] font-extrabold text-[#0f172a]">{selectedAdjustItem.name}</p>
+                  <p className="text-[12px] font-semibold text-[#64748b]">
+                    Category: {selectedAdjustItem.category || '—'} · Unit: {unit}
+                  </p>
+                </div>
+                <span className="rounded-[10px] bg-[#dcfce7] px-3 py-1.5 text-[12px] font-extrabold text-[#166534]">
+                  Current Stock: {currentStock}
+                </span>
+              </div>
+            ) : null}
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className="block text-[12px] font-extrabold text-[#334155]">
+                Quantity <span className="text-[#dc2626]">*</span>
+                <div className="mt-1 flex h-11 items-center gap-2 rounded-[10px] border border-[#dbe3ee] px-3">
+                  <Hash className="size-4 text-[#94a3b8]" />
+                  <input
+                    type="number"
+                    min="0"
+                    value={adjustForm.quantity}
+                    onChange={(e) => setAdjustForm((a) => ({ ...a, quantity: e.target.value }))}
+                    placeholder="Enter quantity"
+                    className="min-w-0 flex-1 bg-transparent text-[13px] font-semibold outline-none"
+                  />
+                </div>
+              </label>
+              <label className="block text-[12px] font-extrabold text-[#334155]">
+                Warehouse
+                <div className="mt-1 flex h-11 items-center gap-2 rounded-[10px] border border-[#dbe3ee] px-3">
+                  <Warehouse className="size-4 text-[#94a3b8]" />
+                  <select
+                    className="min-w-0 flex-1 bg-transparent text-[13px] font-semibold outline-none"
+                    value={adjustForm.warehouse}
+                    onChange={(e) => setAdjustForm((a) => ({ ...a, warehouse: e.target.value }))}
+                  >
+                    <option value="">Select warehouse</option>
+                    {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+                  </select>
+                </div>
+              </label>
+            </div>
+
+            <label className="mt-3 block text-[12px] font-extrabold text-[#334155]">
+              Adjustment Reason <span className="text-[#dc2626]">*</span>
+              <select
+                className="mt-1 h-11 w-full rounded-[10px] border border-[#dbe3ee] px-3 text-[13px] font-semibold"
+                value={adjustForm.reason}
+                onChange={(e) => setAdjustForm((a) => ({ ...a, reason: e.target.value }))}
+              >
+                <option value="">Select reason</option>
+                {ADJUST_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </label>
+
+            <label className="mt-3 block text-[12px] font-extrabold text-[#334155]">
+              Remarks (Optional)
+              <div className="relative mt-1">
+                <FileText className="pointer-events-none absolute left-3 top-3 size-4 text-[#94a3b8]" />
+                <textarea
+                  rows={3}
+                  maxLength={500}
+                  value={adjustForm.notes}
+                  onChange={(e) => setAdjustForm((a) => ({ ...a, notes: e.target.value }))}
+                  placeholder="Add remarks…"
+                  className="w-full rounded-[10px] border border-[#dbe3ee] py-2.5 pl-10 pr-3 text-[13px] font-semibold outline-none"
+                />
+                <span className="absolute bottom-2 right-3 text-[11px] font-bold text-[#94a3b8]">{String(adjustForm.notes || '').length} / 500</span>
+              </div>
+            </label>
+
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setAdjustForm((a) => ({ ...a, quantity: '', reason: '', notes: '', direction: 'add' }))}
+                className="inline-flex h-11 items-center gap-2 rounded-[10px] border border-[#dbe3ee] bg-white px-4 text-[13px] font-extrabold text-[#334155]"
+              >
+                <RefreshCw className="size-3.5" />
+                Reset
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={saveAdjust}
+                className="inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#16a34a] px-5 text-[13px] font-extrabold text-white shadow-[0_10px_22px_rgba(22,163,74,0.28)] disabled:opacity-50"
+              >
+                Adjust Stock
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="rounded-[16px] border border-[#e2e8f0] bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
+              <p className="text-[14px] font-extrabold text-[#0f172a]">Stock Summary</p>
+              <div className="mt-3 space-y-2 text-[13px] font-semibold text-[#334155]">
+                <div className="flex items-center justify-between rounded-[10px] bg-[#f8fafc] px-3 py-2">
+                  <span>Current Stock</span>
+                  <span className="font-extrabold">{currentStock} {unit}</span>
+                </div>
+                <div className="flex items-center justify-between rounded-[10px] bg-[#f8fafc] px-3 py-2">
+                  <span>Adjust Quantity</span>
+                  <span className={cx('font-extrabold', adjustForm.direction === 'add' ? 'text-[#16a34a]' : 'text-[#dc2626]')}>
+                    {adjustForm.direction === 'add' ? '+' : '-'} {Number.isFinite(adjustQty) ? adjustQty : 0} {unit}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between rounded-[10px] bg-[#ecfdf5] px-3 py-2">
+                  <span>Updated Stock</span>
+                  <span className="font-extrabold text-[#166534]">{updatedStock} {unit}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-[16px] border border-[#e2e8f0] bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
+              <div className="flex items-center justify-between">
+                <p className="text-[14px] font-extrabold text-[#0f172a]">Recent Adjustments</p>
+                <button type="button" onClick={() => onOpenSection('Stock Movement')} className="text-[12px] font-extrabold text-[#16a34a]">View All</button>
+              </div>
+              <div className="mt-3 overflow-x-auto">
+                <table className="min-w-full text-left text-[12px]">
+                  <thead className="text-[10px] font-extrabold uppercase tracking-wide text-[#94a3b8]">
+                    <tr>
+                      <th className="pb-2 pr-2">Date & Time</th>
+                      <th className="pb-2 pr-2">Type</th>
+                      <th className="pb-2 pr-2">Qty</th>
+                      <th className="pb-2">Reason</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentAdjustments.length === 0 ? (
+                      <tr><td colSpan={4} className="py-6 text-center font-bold text-[#94a3b8]">No recent movements</td></tr>
+                    ) : recentAdjustments.map((m) => {
+                      const isIn = m.movement_type === 'Inward';
+                      const dt = m.created_at ? new Date(m.created_at) : null;
+                      const dateLabel = dt && !Number.isNaN(dt.getTime())
+                        ? dt.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                        : '—';
+                      return (
+                        <tr key={m.id} className="border-t border-[#f1f5f9]">
+                          <td className="py-2.5 pr-2 font-semibold text-[#475569]">{dateLabel}</td>
+                          <td className="py-2.5 pr-2">
+                            <span className={cx('rounded-full px-2 py-0.5 text-[10px] font-extrabold', isIn ? 'bg-[#dcfce7] text-[#15803d]' : 'bg-[#fee2e2] text-[#b91c1c]')}>
+                              {isIn ? 'IN' : 'OUT'}
+                            </span>
+                          </td>
+                          <td className={cx('py-2.5 pr-2 font-extrabold', isIn ? 'text-[#16a34a]' : 'text-[#dc2626]')}>
+                            {isIn ? '+' : '-'} {m.quantity}
+                          </td>
+                          <td className="py-2.5 font-semibold text-[#334155]">{m.reference_type || m.notes || '—'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+        <DashboardFooter />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="px-0.5">
+        <p className="text-[12px] font-bold text-[#7a8fa6]">
+          <button type="button" onClick={() => onOpenSection('Dashboard')} className="hover:text-[#0b65e5]">Dashboard</button>
+          <span className="mx-1.5">/</span>
+          <button type="button" onClick={() => onOpenSection('Inventory Overview')} className="hover:text-[#0b65e5]">Inventory</button>
+          <span className="mx-1.5">/</span>
+          <span className="text-[#1e3261]">Products</span>
+        </p>
       </div>
       <Subnav activeSection={activeSection} onOpenSection={onOpenSection} />
-      <div className={cx(panelClass, 'space-y-0 overflow-hidden p-0')}>
-        <InventoryItemsWorkbench
-          items={rows}
-          categories={categories}
-          loading={loading}
-          caps={caps}
-          onReload={() => load({ showSpinner: false })}
-          onNotify={onNotify}
-          onAddItem={openAddProduct}
-          onEditItem={openEditProduct}
-          onAdjustItem={openAdjust}
-        />
-      </div>
+      <InventoryProductsCatalog
+        items={rows}
+        categories={categories}
+        loading={loading}
+        caps={caps}
+        onNotify={onNotify}
+        onAddItem={openAddProduct}
+        onEditItem={openEditProduct}
+        onViewItem={openViewProduct}
+        onDeleteItem={deleteProduct}
+        onAdjustStock={() => openAdjust(null)}
+      />
       <DashboardFooter />
 
       {modal ? (
-        <InvModal
-          title={modal.editId ? `Edit ${modal.form.category || 'Product'}` : `Add ${modal.form.category || 'Product'}`}
-          onClose={() => setModal(null)}
-          headerRight={(
-            <label className="inline-flex items-center gap-2 text-[12px] font-bold text-[#53647f]">
-              <span className="shrink-0">Category</span>
-              <select
-                className="h-9 min-w-[140px] rounded-[8px] border border-[#d9e2ec] bg-white px-2.5 text-[13px] font-semibold text-[#1e3261]"
-                value={modal.form.category || defaultCategoryName}
-                onChange={(e) => {
-                  const nextCategory = e.target.value;
-                  setModal((m) => {
-                    const next = defaultsForCategory(nextCategory, categories);
-                    return {
-                      ...m,
-                      form: {
-                        ...next,
-                        item_code: m.form.item_code,
-                        name: m.form.name,
-                        warehouse: m.form.warehouse,
-                        initial_stock: m.form.initial_stock,
-                        minimum_stock: m.form.minimum_stock,
-                        rate: m.form.rate,
-                      },
-                    };
-                  });
-                }}
-              >
-                {!modalCategoryOptions.length ? <option value="">Add category first</option> : null}
-                {modalCategoryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </label>
-          )}
-          footer={(
-            <>
-              <button type="button" onClick={() => setModal(null)} className="rounded-[8px] border px-4 py-2 text-[13px] font-bold">Cancel</button>
-              <button type="button" disabled={saving} onClick={saveProduct} className="rounded-[8px] bg-[#0b65e5] px-4 py-2 text-[13px] font-extrabold text-white">{saving ? 'Saving...' : 'Save'}</button>
-            </>
-          )}
-        >
-          {(() => {
-            const cat = modal.form.category || defaultCategoryName || 'Other';
-            const template = resolveFormTemplate(cat, categories);
-            const customFields = getCategoryFormFields(cat, categories);
-            const f = modal.form;
-            const priceField = (
-              <Field label="Unit Price (Rs) *" hint="Material Planning amount = qty × this price">
-                <input type="number" className={inputClass} value={f.rate ?? ''} onChange={(e) => patchForm({ rate: e.target.value })} />
-              </Field>
-            );
-            const warehouseField = (
-              <Field label="Warehouse">
-                <select className={selectClass} value={f.warehouse || ''} onChange={(e) => patchForm({ warehouse: e.target.value })}>
-                  <option value="">Select...</option>
-                  {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
-                </select>
-              </Field>
-            );
-            const openingField = !modal.editId ? (
-              <Field label="Opening Stock" hint="Creates Stock entry + updates product stock">
-                <input type="number" className={inputClass} value={f.initial_stock} onChange={(e) => patchForm({ initial_stock: e.target.value })} />
-              </Field>
-            ) : null;
-            const reorderField = (
-              <Field label={template === 'Panel' ? 'Reorder Stock' : 'Reorder Level'}>
-                <input type="number" className={inputClass} value={f.minimum_stock} onChange={(e) => patchForm({ minimum_stock: e.target.value })} />
-              </Field>
-            );
-            const codeName = (
-              <>
-                <Field label="Item Code">
-                  <input className={inputClass} placeholder="Auto-generated if empty" value={f.item_code || ''} onChange={(e) => patchForm({ item_code: e.target.value })} />
-                </Field>
-                <Field label="Name *">
-                  <input className={inputClass} value={f.name || ''} onChange={(e) => patchForm({ name: e.target.value })} />
-                </Field>
-              </>
-            );
-
-            if (template === 'Custom') {
-              const show = (key) => customFields.includes(key);
-              return (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {show('item_code') || show('name') ? codeName : null}
-                  {show('product_type') ? (
-                    <Field label="Type">
-                      <input className={inputClass} value={f.product_type || ''} onChange={(e) => patchForm({ product_type: e.target.value })} />
-                    </Field>
-                  ) : null}
-                  {show('capacity') ? (
-                    <Field label="Capacity">
-                      <input className={inputClass} value={f.capacity || ''} onChange={(e) => patchForm({ capacity: e.target.value })} />
-                    </Field>
-                  ) : null}
-                  {show('panel_wp') ? (
-                    <Field label="Panel Wp">
-                      <input type="number" className={inputClass} value={f.panel_wp ?? ''} onChange={(e) => patchForm({ panel_wp: e.target.value })} />
-                    </Field>
-                  ) : null}
-                  {show('panel_count') ? (
-                    <Field label="Number of Panels">
-                      <input type="number" className={inputClass} value={f.panel_count ?? ''} onChange={(e) => patchForm({ panel_count: e.target.value })} />
-                    </Field>
-                  ) : null}
-                  {show('unit') ? (
-                    <Field label="Unit">
-                      <select className={selectClass} value={f.unit || 'Nos'} onChange={(e) => patchForm({ unit: e.target.value })}>
-                        {unitsForCategory(cat, f.unit).map((u) => <option key={u} value={u}>{u}</option>)}
-                      </select>
-                    </Field>
-                  ) : null}
-                  {priceField}
-                  {show('selling_price') ? (
-                    <Field label="Selling Price">
-                      <input type="number" className={inputClass} value={f.selling_price ?? ''} onChange={(e) => patchForm({ selling_price: e.target.value })} />
-                    </Field>
-                  ) : null}
-                  {show('initial_stock') ? openingField : null}
-                  {show('minimum_stock') ? reorderField : null}
-                  {show('warehouse') ? warehouseField : null}
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 p-3 sm:p-6">
+          <div className="flex max-h-[92vh] w-full max-w-[920px] flex-col overflow-hidden rounded-[16px] bg-white shadow-[0_30px_80px_rgba(15,23,42,0.35)]">
+            <div className="flex items-start justify-between gap-3 bg-[#166534] px-5 py-4 text-white">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 grid size-10 place-items-center rounded-[12px] bg-white/15">
+                  <Package className="size-5" />
+                </span>
+                <div>
+                  <h3 className="text-[17px] font-extrabold">
+                    {modal.editId ? (readOnly ? 'View Product' : 'Edit Product') : 'Add New Product'}
+                  </h3>
+                  <p className="text-[12px] font-semibold text-white/80">
+                    Create a new inventory product with category and pricing details.
+                  </p>
                 </div>
-              );
-            }
-
-            if (template === 'Invertor') {
-              return (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {codeName}
-                  <Field label="Type">
-                    <select className={selectClass} value={f.product_type || 'On-Grid'} onChange={(e) => patchForm({ product_type: e.target.value })}>
-                      {INVERTOR_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="Invertor Capacity">
-                    <input className={inputClass} placeholder="e.g. 5 kW" value={f.capacity || ''} onChange={(e) => patchForm({ capacity: e.target.value })} />
-                  </Field>
-                  <Field label="Unit">
-                    <select className={selectClass} value={f.unit || 'Nos'} onChange={(e) => patchForm({ unit: e.target.value })}>
-                      {unitsForCategory(cat, f.unit).map((u) => <option key={u} value={u}>{u}</option>)}
-                    </select>
-                  </Field>
-                  {priceField}
-                  {openingField}
-                  {reorderField}
-                  {warehouseField}
-                </div>
-              );
-            }
-
-            if (template === 'Panel') {
-              return (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {codeName}
-                  <Field label="Type">
-                    <select className={selectClass} value={f.product_type || 'DCR Bifacial'} onChange={(e) => patchForm({ product_type: e.target.value })}>
-                      {PANEL_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="Panel Wp">
-                    <input type="number" className={inputClass} placeholder="e.g. 540" value={f.panel_wp ?? ''} onChange={(e) => patchForm({ panel_wp: e.target.value })} />
-                  </Field>
-                  <Field label="Number of Panels">
-                    <input type="number" className={inputClass} value={f.panel_count ?? ''} onChange={(e) => patchForm({ panel_count: e.target.value })} />
-                  </Field>
-                  {priceField}
-                  {openingField}
-                  {reorderField}
-                  {warehouseField}
-                </div>
-              );
-            }
-
-            if (template === 'Battery') {
-              return (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {codeName}
-                  <Field label="Type">
-                    <select className={selectClass} value={f.product_type || 'LFP'} onChange={(e) => patchForm({ product_type: e.target.value })}>
-                      {BATTERY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="Capacity">
-                    <input className={inputClass} placeholder="e.g. 100 Ah" value={f.capacity || ''} onChange={(e) => patchForm({ capacity: e.target.value })} />
-                  </Field>
-                  {priceField}
-                  {openingField}
-                  {reorderField}
-                  {warehouseField}
-                </div>
-              );
-            }
-
-            if (template === 'Structure' || template === 'Electrical') {
-              const packType = STRUCTURE_PACK_TYPES.includes(f.product_type) ? f.product_type : 'Unit';
-              return (
-                <div className="space-y-4">
-                  <div>
-                    <p className="mb-2 text-[12px] font-bold text-[#53647f]">Select option</p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {STRUCTURE_PACK_TYPES.map((t) => {
-                        const active = packType === t;
-                        return (
-                          <button
-                            key={t}
-                            type="button"
-                            onClick={() => patchForm({ product_type: t, unit: t })}
-                            className={`h-11 rounded-[10px] border text-[13px] font-extrabold transition ${
-                              active
-                                ? 'border-[#0b65e5] bg-[#eff6ff] text-[#0b65e5] shadow-[0_0_0_3px_rgba(11,101,229,0.12)]'
-                                : 'border-[#d9e2ec] bg-white text-[#314a79] hover:bg-[#f8fbff]'
-                            }`}
-                          >
-                            {t}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  <div className="rounded-[12px] border border-[#e7eef7] bg-[#fbfdff] p-3 sm:p-4">
-                    <p className="mb-3 text-[13px] font-extrabold text-[#1e3261]">{packType} details</p>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {codeName}
-                      {priceField}
-                      {openingField}
-                      {reorderField}
-                      {warehouseField}
-                    </div>
-                  </div>
-                </div>
-              );
-            }
-
-            return (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {codeName}
-                <Field label="Unit">
-                  <select className={selectClass} value={f.unit || 'Nos'} onChange={(e) => patchForm({ unit: e.target.value })}>
-                    {unitsForCategory(cat, f.unit).map((u) => <option key={u} value={u}>{u}</option>)}
-                  </select>
-                </Field>
-                {priceField}
-                <Field label="Selling Price">
-                  <input type="number" className={inputClass} value={f.selling_price ?? ''} onChange={(e) => patchForm({ selling_price: e.target.value })} />
-                </Field>
-                {openingField}
-                {reorderField}
-                {warehouseField}
               </div>
-            );
-          })()}
-        </InvModal>
-      ) : null}
+              <button type="button" onClick={() => setModal(null)} className="grid size-8 place-items-center rounded-full hover:bg-white/10" aria-label="Close">✕</button>
+            </div>
 
-      {adjustItem ? (
-        <InvModal title={`Adjust — ${adjustItem.name}`} onClose={() => setAdjustItem(null)} footer={(
-          <>
-            <button type="button" onClick={() => setAdjustItem(null)} className="rounded-[8px] border px-4 py-2 text-[13px] font-bold">Cancel</button>
-            <button type="button" disabled={saving} onClick={saveAdjust} className="rounded-[8px] bg-[#16a34a] px-4 py-2 text-[13px] font-extrabold text-white">Apply</button>
-          </>
-        )}>
-          <div className="grid gap-3">
-            <label className="text-[12px] font-bold">Direction<select className="mt-1 h-10 w-full rounded-[8px] border px-3" value={adjustItem.direction} onChange={(e) => setAdjustItem((a) => ({ ...a, direction: e.target.value }))}><option value="add">Add stock (Stock)</option><option value="remove">Remove stock (Stock Movement)</option></select></label>
-            <label className="text-[12px] font-bold">Quantity<input type="number" className="mt-1 h-10 w-full rounded-[8px] border px-3" value={adjustItem.quantity} onChange={(e) => setAdjustItem((a) => ({ ...a, quantity: e.target.value }))} /></label>
-            <label className="text-[12px] font-bold">Notes<textarea className="mt-1 w-full rounded-[8px] border p-3" rows={2} value={adjustItem.notes} onChange={(e) => setAdjustItem((a) => ({ ...a, notes: e.target.value }))} /></label>
+            <div className="grid min-h-0 flex-1 overflow-hidden md:grid-cols-[200px_minmax(0,1fr)]">
+              <aside className="space-y-1 border-b border-[#eef2f7] bg-[#f8fafc] p-3 md:border-b-0 md:border-r">
+                {formTabBtn('basic', 'Basic Details', Package)}
+                {formTabBtn('stock', 'Stock & Pricing', IndianRupee)}
+                {formTabBtn('extra', 'Additional Info', FileText)}
+              </aside>
+
+              <div className="min-h-0 space-y-6 overflow-y-auto p-5">
+                <section ref={basicSectionRef} className="space-y-4">
+                  <div className="flex items-start gap-2">
+                    <span className="grid size-8 place-items-center rounded-[8px] bg-[#dcfce7] text-[#16a34a]"><Package className="size-4" /></span>
+                    <div>
+                      <p className="text-[14px] font-extrabold text-[#0f172a]">Basic Details</p>
+                      <p className="text-[12px] font-semibold text-[#64748b]">Category, name and unit information</p>
+                    </div>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(180px,0.9fr)]">
+                    <label className="block text-[12px] font-extrabold text-[#334155]">
+                      Category
+                      <select
+                        disabled={readOnly}
+                        className="mt-1 h-11 w-full rounded-[10px] border border-[#dbe3ee] px-3 text-[13px] font-semibold"
+                        value={selectedCategory}
+                        onChange={(e) => {
+                          const nextCategory = e.target.value;
+                          setModal((m) => {
+                            const next = defaultsForCategory(nextCategory, categories);
+                            return {
+                              ...m,
+                              form: {
+                                ...next,
+                                item_code: m.form.item_code,
+                                name: m.form.name,
+                                warehouse: m.form.warehouse,
+                                initial_stock: m.form.initial_stock,
+                                minimum_stock: m.form.minimum_stock,
+                                rate: m.form.rate,
+                                selling_price: m.form.selling_price,
+                                location: m.form.location,
+                              },
+                            };
+                          });
+                        }}
+                      >
+                        {!modalCategoryOptions.length ? <option value="">Add category first</option> : null}
+                        {modalCategoryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </label>
+                    <div className="flex items-start gap-2 rounded-[10px] border border-[#e2e8f0] bg-[#f8fafc] p-3 text-[12px] font-semibold text-[#64748b]">
+                      <Info className="mt-0.5 size-4 shrink-0 text-[#94a3b8]" />
+                      <span>{selectedCategory}{categoryHint ? `: ${categoryHint}` : ''}</span>
+                    </div>
+                  </div>
+                  <label className="block text-[12px] font-extrabold text-[#334155]">
+                    Product Name
+                    <input
+                      disabled={readOnly}
+                      className="mt-1 h-11 w-full rounded-[10px] border border-[#dbe3ee] px-3 text-[13px] font-semibold"
+                      placeholder="Enter product name (e.g. ACDB Box 3 Phase)"
+                      value={f.name || ''}
+                      onChange={(e) => patchForm({ name: e.target.value })}
+                    />
+                  </label>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="block text-[12px] font-extrabold text-[#334155]">
+                      Item Code
+                      <input
+                        disabled={readOnly}
+                        className="mt-1 h-11 w-full rounded-[10px] border border-[#dbe3ee] px-3 text-[13px] font-semibold"
+                        placeholder="Auto-generated if empty"
+                        value={f.item_code || ''}
+                        onChange={(e) => patchForm({ item_code: e.target.value })}
+                      />
+                    </label>
+                    <label className="block text-[12px] font-extrabold text-[#334155]">
+                      Unit
+                      <select
+                        disabled={readOnly}
+                        className="mt-1 h-11 w-full rounded-[10px] border border-[#dbe3ee] px-3 text-[13px] font-semibold"
+                        value={f.unit || 'Nos'}
+                        onChange={(e) => patchForm({ unit: e.target.value })}
+                      >
+                        {unitsForCategory(selectedCategory, f.unit).map((u) => <option key={u} value={u}>{u}</option>)}
+                      </select>
+                    </label>
+                  </div>
+                  <label className="block text-[12px] font-extrabold text-[#334155] sm:max-w-[240px]">
+                    Reorder Level
+                    <input
+                      disabled={readOnly}
+                      type="number"
+                      className="mt-1 h-11 w-full rounded-[10px] border border-[#dbe3ee] px-3 text-[13px] font-semibold"
+                      placeholder="e.g. 10"
+                      value={f.minimum_stock ?? ''}
+                      onChange={(e) => patchForm({ minimum_stock: e.target.value })}
+                    />
+                  </label>
+                </section>
+
+                <div className="border-t border-dashed border-[#dbe3ee]" />
+
+                <section ref={stockSectionRef} className="space-y-4">
+                  <div className="flex items-start gap-2">
+                    <span className="grid size-8 place-items-center rounded-[8px] bg-[#dcfce7] text-[#16a34a]"><IndianRupee className="size-4" /></span>
+                    <div>
+                      <p className="text-[14px] font-extrabold text-[#0f172a]">Stock & Pricing</p>
+                      <p className="text-[12px] font-semibold text-[#64748b]">Unit price, selling price and opening stock</p>
+                    </div>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="block text-[12px] font-extrabold text-[#334155]">
+                      Unit Price (₹)
+                      <input
+                        disabled={readOnly}
+                        type="number"
+                        className="mt-1 h-11 w-full rounded-[10px] border border-[#dbe3ee] px-3 text-[13px] font-semibold"
+                        placeholder="Enter unit price"
+                        value={f.rate ?? ''}
+                        onChange={(e) => patchForm({ rate: e.target.value })}
+                      />
+                    </label>
+                    <label className="block text-[12px] font-extrabold text-[#334155]">
+                      Selling Price (₹)
+                      <input
+                        disabled={readOnly}
+                        type="number"
+                        className="mt-1 h-11 w-full rounded-[10px] border border-[#dbe3ee] px-3 text-[13px] font-semibold"
+                        placeholder="Enter selling price (optional)"
+                        value={f.selling_price ?? ''}
+                        onChange={(e) => patchForm({ selling_price: e.target.value })}
+                      />
+                    </label>
+                    {!modal.editId ? (
+                      <label className="block text-[12px] font-extrabold text-[#334155]">
+                        Opening Stock
+                        <input
+                          disabled={readOnly}
+                          type="number"
+                          className="mt-1 h-11 w-full rounded-[10px] border border-[#dbe3ee] px-3 text-[13px] font-semibold"
+                          placeholder="e.g. 0"
+                          value={f.initial_stock ?? ''}
+                          onChange={(e) => patchForm({ initial_stock: e.target.value })}
+                        />
+                      </label>
+                    ) : null}
+                    <label className="block text-[12px] font-extrabold text-[#334155]">
+                      Warehouse
+                      <select
+                        disabled={readOnly}
+                        className="mt-1 h-11 w-full rounded-[10px] border border-[#dbe3ee] px-3 text-[13px] font-semibold"
+                        value={f.warehouse || ''}
+                        onChange={(e) => patchForm({ warehouse: e.target.value })}
+                      >
+                        <option value="">Select warehouse</option>
+                        {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+                      </select>
+                    </label>
+                  </div>
+                </section>
+
+                <div className="border-t border-dashed border-[#dbe3ee]" />
+
+                <section ref={extraSectionRef} className="space-y-4">
+                  <div className="flex items-start gap-2">
+                    <span className="grid size-8 place-items-center rounded-[8px] bg-[#dcfce7] text-[#16a34a]"><FileText className="size-4" /></span>
+                    <div>
+                      <p className="text-[14px] font-extrabold text-[#0f172a]">Additional Info</p>
+                      <p className="text-[12px] font-semibold text-[#64748b]">Optional notes and specifications</p>
+                    </div>
+                  </div>
+                  <label className="block text-[12px] font-extrabold text-[#334155]">
+                    Description
+                    <div className="relative mt-1">
+                      <textarea
+                        disabled={readOnly}
+                        rows={5}
+                        maxLength={200}
+                        className="w-full rounded-[10px] border border-[#dbe3ee] p-3 text-[13px] font-semibold outline-none"
+                        placeholder="Add product description, specification or notes (optional)."
+                        value={f.location || ''}
+                        onChange={(e) => patchForm({ location: e.target.value })}
+                      />
+                      <span className="absolute bottom-2 right-3 text-[11px] font-bold text-[#94a3b8]">{descLen} / 200</span>
+                    </div>
+                  </label>
+                </section>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 border-t border-[#eef2f7] bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+              {!modal.editId ? (
+                <label className="inline-flex items-center gap-2 text-[13px] font-bold text-[#475569]">
+                  <input type="checkbox" checked={addAnother} onChange={(e) => setAddAnother(e.target.checked)} className="size-4 accent-[#16a34a]" />
+                  Add another product
+                </label>
+              ) : <span />}
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setModal(null)} className="h-11 rounded-[10px] border border-[#dbe3ee] px-5 text-[13px] font-extrabold text-[#334155]">Cancel</button>
+                {!readOnly ? (
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={saveProduct}
+                    className="h-11 rounded-[10px] bg-[#16a34a] px-5 text-[13px] font-extrabold text-white shadow-[0_10px_22px_rgba(22,163,74,0.28)] disabled:opacity-50"
+                  >
+                    {saving ? 'Saving…' : (modal.editId ? 'Save Changes' : 'Save Product')}
+                  </button>
+                ) : null}
+              </div>
+            </div>
           </div>
-        </InvModal>
+        </div>
       ) : null}
     </div>
+  );
+}
+
+function categoryThumbClass(name = '') {
+  const hues = [
+    'bg-[#dcfce7] text-[#166534]',
+    'bg-[#dbeafe] text-[#1d4ed8]',
+    'bg-[#fce7f3] text-[#be185d]',
+    'bg-[#ffedd5] text-[#c2410c]',
+    'bg-[#e0e7ff] text-[#4338ca]',
+    'bg-[#ccfbf1] text-[#0f766e]',
+    'bg-[#fef3c7] text-[#b45309]',
+    'bg-[#f3e8ff] text-[#7c3aed]',
+  ];
+  const letter = String(name).trim().charAt(0).toUpperCase() || 'C';
+  return { letter, className: hues[letter.charCodeAt(0) % hues.length] };
+}
+
+function formDesignBadge(template, label) {
+  if (template === 'Electrical' || template === 'Structure') {
+    return (
+      <span className="inline-flex rounded-full bg-[#f3e8ff] px-2.5 py-1 text-[11px] font-extrabold text-[#7c3aed]">
+        {label}
+      </span>
+    );
+  }
+  if (template === 'Panel') {
+    return (
+      <span className="inline-flex rounded-full bg-[#ffedd5] px-2.5 py-1 text-[11px] font-extrabold text-[#c2410c]">
+        {label}
+      </span>
+    );
+  }
+  if (template === 'Invertor' || template === 'Battery') {
+    return (
+      <span className="inline-flex rounded-full bg-[#e0f2fe] px-2.5 py-1 text-[11px] font-extrabold text-[#0369a1]">
+        {label}
+      </span>
+    );
+  }
+  if (template === 'Custom') {
+    return (
+      <span className="inline-flex rounded-full bg-[#f1f5f9] px-2.5 py-1 text-[11px] font-extrabold text-[#475569]">
+        {label}
+      </span>
+    );
+  }
+  return (
+    <span className="text-[12px] font-extrabold text-[#2563eb]">{label}</span>
   );
 }
 
 export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify, loggedInUser = null, Subnav, panelClass, cx, PageHeading, DashboardFooter }) {
   const caps = moduleCaps(loggedInUser, 'Inventory');
   const [rows, setRows] = useState([]);
+  const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState('');
+  const [formFilter, setFormFilter] = useState('');
+  const [viewMode, setViewMode] = useState('list');
   const onNotifyRef = useRef(onNotify);
   onNotifyRef.current = onNotify;
 
@@ -962,15 +1354,60 @@ export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify
 
   const load = useCallback(() => {
     setLoading(true);
-    inventoryApi.categories.list({ page_size: 25 })
-      .then((d) => setRows(normalizeRows(d).map(mergeCategoryFormConfig)))
+    Promise.all([
+      inventoryApi.categories.list({ page_size: 100 }).catch(() => ({ results: [] })),
+      fetchEveryPage((page, pageSize) => inventoryApi.items.list({ page, page_size: pageSize })).catch(() => []),
+    ])
+      .then(([cats, items]) => {
+        setRows(normalizeRows(cats).map(mergeCategoryFormConfig));
+        setProducts(Array.isArray(items) ? items : normalizeRows(items));
+      })
       .catch((e) => onNotifyRef.current?.(e.message, 'error'))
       .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  const { pageRows, startIndex, pagination } = usePagedRows(rows, 'inventory-categories');
+  const productCountByCategory = useMemo(() => {
+    const map = {};
+    products.forEach((item) => {
+      if (item?.is_active === false) return;
+      const key = item.category || '';
+      if (!key) return;
+      map[key] = (map[key] || 0) + 1;
+    });
+    return map;
+  }, [products]);
+
+  const templateLabel = (value) => FORM_TEMPLATE_OPTIONS.find((o) => o.value === value)?.label || value || 'Generic';
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return rows.filter((r) => {
+      if (formFilter && (r.form_template || 'Generic') !== formFilter) return false;
+      if (!q) return true;
+      return [r.name, r.description, templateLabel(r.form_template)]
+        .some((v) => String(v || '').toLowerCase().includes(q));
+    });
+  }, [rows, search, formFilter]);
+
+  const { pageRows, startIndex, pagination } = usePagedRows(filtered, 'inventory-categories', {
+    defaultSize: 100,
+    resetKey: `${search}|${formFilter}`,
+    pageSizeOptions: [10, 20, 50, 100],
+  });
+
+  const kpis = useMemo(() => {
+    const activeCats = rows.filter((r) => r.is_active !== false);
+    const withProducts = activeCats.filter((r) => (productCountByCategory[r.name] || 0) > 0).length;
+    const totalProducts = products.filter((p) => p.is_active !== false).length;
+    return {
+      totalCategories: rows.length,
+      withProducts,
+      totalProducts,
+      activeCategories: activeCats.length,
+    };
+  }, [rows, products, productCountByCategory]);
 
   const toggleField = (key) => {
     setModal((m) => {
@@ -1023,8 +1460,6 @@ export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify
     }
   };
 
-  const templateLabel = (value) => FORM_TEMPLATE_OPTIONS.find((o) => o.value === value)?.label || value || 'Generic';
-
   const openEditCategory = (r) => setModal({
     editId: r.id,
     form: {
@@ -1043,78 +1478,307 @@ export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify
       .catch((e) => onNotify(e.message || 'Delete failed', 'error'));
   };
 
+  const kpiCards = [
+    {
+      label: 'Total Categories',
+      value: kpis.totalCategories,
+      icon: Tags,
+      wrap: 'border-[#bbf7d0] bg-gradient-to-br from-[#f0fdf4] to-white',
+      iconWrap: 'bg-[#dcfce7] text-[#15803d]',
+      valueClass: 'text-[#166534]',
+    },
+    {
+      label: 'Categories with Products',
+      value: kpis.withProducts,
+      icon: Package,
+      wrap: 'border-[#bfdbfe] bg-gradient-to-br from-[#eff6ff] to-white',
+      iconWrap: 'bg-[#dbeafe] text-[#1d4ed8]',
+      valueClass: 'text-[#1e3a8a]',
+    },
+    {
+      label: 'Total Products',
+      value: kpis.totalProducts,
+      icon: Boxes,
+      wrap: 'border-[#e9d5ff] bg-gradient-to-br from-[#faf5ff] to-white',
+      iconWrap: 'bg-[#f3e8ff] text-[#7c3aed]',
+      valueClass: 'text-[#6b21a8]',
+    },
+    {
+      label: 'Active Categories',
+      value: kpis.activeCategories,
+      icon: CheckCircle2,
+      wrap: 'border-[#d9f99d] bg-gradient-to-br from-[#f7fee7] to-white',
+      iconWrap: 'bg-[#ecfccb] text-[#65a30d]',
+      valueClass: 'text-[#3f6212]',
+    },
+  ];
+
   return (
     <div className="space-y-4">
-      <PageHeading title="Inventory" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Inventory' }, { label: 'Categories' }]}
-        actions={caps.add ? (<button type="button" onClick={() => setModal({ form: { ...emptyCategoryForm } })} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white"><Plus className="size-4" />Add Category</button>) : null}
-      />
-      <Subnav activeSection={activeSection} onOpenSection={onOpenSection} />
-      <div className={cx(panelClass, 'p-4')}>
-        <p className="mb-3 text-[12px] font-semibold text-[#7386a3]">
-          Design a separate Add Product form for each category. The Unit Price field is always included — Material Planning calculates amount as qty × price.
+      <div className="px-0.5">
+        <p className="text-[12px] font-bold text-[#7a8fa6]">
+          <button type="button" onClick={() => onOpenSection('Dashboard')} className="hover:text-[#0b65e5]">Dashboard</button>
+          <span className="mx-1.5">/</span>
+          <button type="button" onClick={() => onOpenSection('Inventory Overview')} className="hover:text-[#0b65e5]">Inventory</button>
+          <span className="mx-1.5">/</span>
+          <span className="text-[#1e3261]">Categories</span>
         </p>
-        {loading ? <p className="py-10 text-center">Loading...</p> : (
-          <>
-          {rows.length === 0 ? (
-            <MobileCardEmpty icon={Tags} title="No categories yet" />
-          ) : (
-            <MobileCardList>
-              {pageRows.map((r) => (
-                <MobileRecordCard
-                  key={r.id}
-                  icon={Tags}
-                  title={r.name}
-                  badges={<span className="rounded-full bg-[#eef4ff] px-2 py-0.5 text-[11px] font-bold text-[#0b65e5]">{templateLabel(r.form_template)}</span>}
-                  details={[{ label: 'Description', value: r.description || '—', wide: true }]}
-                  actions={[caps.edit ? { label: 'Edit Form', icon: Pencil, tone: 'blue', onClick: () => openEditCategory(r) } : null]}
-                  menu={caps.delete ? [{ label: 'Delete', icon: Trash2, danger: true, onClick: () => deleteCategory(r) }] : []}
-                />
-              ))}
-            </MobileCardList>
-          )}
-          <div className="hidden overflow-auto lg:block">
-            <table className="w-full min-w-[720px] text-left text-[13px]">
-              <thead>
-                <tr className="border-b text-[11px] font-extrabold uppercase text-[#7a8fa6]">
-                  <th className="py-2">#</th>
-                  <th>Name</th>
-                  <th>Form Design</th>
-                  <th>Description</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pageRows.map((r, i) => (
-                  <tr key={r.id} className="border-b border-[#f1f5f9]">
-                    <td className="py-3">{startIndex + i + 1}</td>
-                    <td className="py-3 font-semibold">{r.name}</td>
-                    <td className="py-3 text-[#0b65e5] font-bold">{templateLabel(r.form_template)}</td>
-                    <td className="py-3 text-[#53647f]">{r.description || '—'}</td>
-                    <td className="py-3">
-                      {caps.edit ? (
-                        <button type="button" onClick={() => openEditCategory(r)} className="mr-2 text-[#0b65e5]">
-                          <Pencil className="size-4 inline" />
-                        </button>
-                      ) : null}
-                      {caps.delete ? (
-                        <button type="button" onClick={() => deleteCategory(r)} className="text-[#ef4444]"><Trash2 className="size-4 inline" /></button>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      </div>
+
+      <div className="relative overflow-hidden rounded-[16px] border border-[#d9e4f2] shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
+        <img src={navBarImage} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#0b3d2e]/92 via-[#0f5132]/78 to-[#166534]/35" />
+        <div className="relative px-5 py-6 sm:px-7 sm:py-8">
+          <h1 className="text-[24px] font-extrabold tracking-tight text-white sm:text-[28px]">Inventory Categories</h1>
+          <p className="mt-1 max-w-2xl text-[13px] font-semibold text-white/85">
+            Manage product categories and their form design for inventory.
+          </p>
+        </div>
+      </div>
+
+      <Subnav activeSection={activeSection} onOpenSection={onOpenSection} />
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {kpiCards.map((card) => {
+          const Icon = card.icon;
+          return (
+            <div key={card.label} className={cx('rounded-[14px] border p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]', card.wrap)}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[12px] font-bold text-[#64748b]">{card.label}</p>
+                  <p className={cx('mt-1 text-[22px] font-extrabold tabular-nums', card.valueClass)}>{card.value}</p>
+                </div>
+                <span className={cx('grid size-10 place-items-center rounded-[12px]', card.iconWrap)}>
+                  <Icon className="size-5" />
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="overflow-hidden rounded-[16px] border border-[#e2e8f0] bg-white shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
+        <div className="flex flex-col gap-3 border-b border-[#eef2f7] p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            {caps.add ? (
+              <button
+                type="button"
+                onClick={() => setModal({ form: { ...emptyCategoryForm } })}
+                className="inline-flex h-10 items-center gap-1.5 rounded-[10px] bg-[#16a34a] px-4 text-[13px] font-extrabold text-white shadow-[0_8px_18px_rgba(22,163,74,0.22)] hover:bg-[#15803d]"
+              >
+                <Plus className="size-4" />
+                Add Category
+              </button>
+            ) : null}
           </div>
-          <TablePagination {...pagination} className="mt-3" />
+          <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+            <label className="flex h-10 min-w-[220px] flex-1 items-center gap-2 rounded-[10px] border border-[#dbe3ee] bg-[#f8fafc] px-3 lg:max-w-[360px]">
+              <Search className="size-4 shrink-0 text-[#94a3b8]" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search categories by name or description..."
+                className="min-w-0 flex-1 bg-transparent text-[13px] font-semibold text-[#0f172a] outline-none placeholder:text-[#94a3b8]"
+              />
+            </label>
+            <select
+              value={formFilter}
+              onChange={(e) => setFormFilter(e.target.value)}
+              className="h-10 rounded-[10px] border border-[#dbe3ee] bg-white px-3 text-[12px] font-bold text-[#334155]"
+            >
+              <option value="">Form Design: All</option>
+              {FORM_TEMPLATE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            <div className="inline-flex overflow-hidden rounded-[10px] border border-[#dbe3ee]">
+              <button
+                type="button"
+                onClick={() => setViewMode('list')}
+                className={cx('grid size-10 place-items-center', viewMode === 'list' ? 'bg-[#16a34a] text-white' : 'bg-white text-[#64748b]')}
+                aria-label="List view"
+              >
+                <List className="size-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('grid')}
+                className={cx('grid size-10 place-items-center border-l border-[#dbe3ee]', viewMode === 'grid' ? 'bg-[#16a34a] text-white' : 'bg-white text-[#64748b]')}
+                aria-label="Grid view"
+              >
+                <LayoutGrid className="size-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {loading ? (
+          <p className="px-5 py-16 text-center text-[13px] font-bold text-[#94a3b8]">Loading categories…</p>
+        ) : filtered.length === 0 ? (
+          <div className="px-5 py-10">
+            <MobileCardEmpty icon={Tags} title="No categories yet" />
+          </div>
+        ) : viewMode === 'grid' ? (
+          <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
+            {pageRows.map((r) => {
+              const thumb = categoryThumbClass(r.name);
+              const count = productCountByCategory[r.name] || 0;
+              const active = r.is_active !== false;
+              return (
+                <div key={r.id} className="rounded-[14px] border border-[#e2e8f0] bg-white p-4 shadow-sm">
+                  <div className="flex items-start gap-3">
+                    <span className={cx('grid size-11 place-items-center rounded-[12px] text-[14px] font-extrabold', thumb.className)}>
+                      {thumb.letter}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[14px] font-extrabold text-[#0f172a]">{r.name}</p>
+                      <div className="mt-1">{formDesignBadge(r.form_template || 'Generic', templateLabel(r.form_template))}</div>
+                    </div>
+                  </div>
+                  <p className="mt-3 line-clamp-2 text-[12px] font-semibold text-[#64748b]">{r.description || '—'}</p>
+                  <div className="mt-3 flex items-center justify-between">
+                    <span className="inline-flex items-center gap-1.5 text-[12px] font-extrabold text-[#334155]">
+                      <Package className="size-3.5 text-[#94a3b8]" />
+                      {count} products
+                    </span>
+                    <span className={cx(
+                      'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-extrabold',
+                      active ? 'bg-[#ecfdf5] text-[#15803d]' : 'bg-[#f1f5f9] text-[#64748b]',
+                    )}>
+                      <span className={cx('size-1.5 rounded-full', active ? 'bg-[#22c55e]' : 'bg-[#94a3b8]')} />
+                      {active ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex justify-end gap-1">
+                    {caps.edit ? (
+                      <button type="button" onClick={() => openEditCategory(r)} className="grid size-8 place-items-center rounded-[8px] text-[#2563eb] hover:bg-[#eff6ff]" aria-label="Edit">
+                        <Pencil className="size-3.5" />
+                      </button>
+                    ) : null}
+                    {caps.delete ? (
+                      <button type="button" onClick={() => deleteCategory(r)} className="grid size-8 place-items-center rounded-[8px] text-[#dc2626] hover:bg-[#fef2f2]" aria-label="Delete">
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <>
+            <div className="space-y-3 p-4 lg:hidden">
+              <MobileCardList>
+                {pageRows.map((r) => (
+                  <MobileRecordCard
+                    key={r.id}
+                    icon={Tags}
+                    title={r.name}
+                    badges={formDesignBadge(r.form_template || 'Generic', templateLabel(r.form_template))}
+                    details={[
+                      { label: 'Description', value: r.description || '—', wide: true },
+                      { label: 'Products', value: String(productCountByCategory[r.name] || 0) },
+                      { label: 'Status', value: r.is_active !== false ? 'Active' : 'Inactive' },
+                    ]}
+                    actions={[caps.edit ? { label: 'Edit', icon: Pencil, tone: 'blue', onClick: () => openEditCategory(r) } : null]}
+                    menu={caps.delete ? [{ label: 'Delete', icon: Trash2, danger: true, onClick: () => deleteCategory(r) }] : []}
+                  />
+                ))}
+              </MobileCardList>
+            </div>
+            <div className="hidden overflow-x-auto lg:block">
+              <table className="min-w-full text-left">
+                <thead className="bg-[#f8fafc] text-[11px] font-extrabold uppercase tracking-[0.05em] text-[#64748b]">
+                  <tr>
+                    <th className="px-4 py-3">#</th>
+                    <th className="px-3 py-3">Category Name</th>
+                    <th className="px-3 py-3">Form Design</th>
+                    <th className="px-3 py-3">Description</th>
+                    <th className="px-3 py-3">Products</th>
+                    <th className="px-3 py-3">Status</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageRows.map((r, i) => {
+                    const thumb = categoryThumbClass(r.name);
+                    const count = productCountByCategory[r.name] || 0;
+                    const active = r.is_active !== false;
+                    return (
+                      <tr key={r.id} className="border-t border-[#eef2f7] hover:bg-[#fafbfc]">
+                        <td className="px-4 py-3 text-[13px] font-bold text-[#64748b]">{startIndex + i + 1}</td>
+                        <td className="px-3 py-3">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <span className={cx('grid size-9 shrink-0 place-items-center rounded-[10px] text-[12px] font-extrabold', thumb.className)}>
+                              {thumb.letter}
+                            </span>
+                            <p className="truncate text-[13px] font-extrabold text-[#0f172a]">{r.name}</p>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3">
+                          {formDesignBadge(r.form_template || 'Generic', templateLabel(r.form_template))}
+                        </td>
+                        <td className="px-3 py-3 text-[13px] font-semibold text-[#53647f]">{r.description || '—'}</td>
+                        <td className="px-3 py-3">
+                          <span className="inline-flex items-center gap-1.5 text-[13px] font-extrabold text-[#0f172a]">
+                            <Package className="size-3.5 text-[#94a3b8]" />
+                            {count}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3">
+                          <span className={cx(
+                            'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-extrabold',
+                            active ? 'bg-[#ecfdf5] text-[#15803d]' : 'bg-[#f1f5f9] text-[#64748b]',
+                          )}>
+                            <span className={cx('size-1.5 rounded-full', active ? 'bg-[#22c55e]' : 'bg-[#94a3b8]')} />
+                            {active ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-1">
+                            {caps.edit ? (
+                              <button
+                                type="button"
+                                onClick={() => openEditCategory(r)}
+                                className="grid size-8 place-items-center rounded-[8px] text-[#2563eb] hover:bg-[#eff6ff]"
+                                aria-label="Edit"
+                              >
+                                <Pencil className="size-3.5" />
+                              </button>
+                            ) : null}
+                            {caps.delete ? (
+                              <button
+                                type="button"
+                                onClick={() => deleteCategory(r)}
+                                className="grid size-8 place-items-center rounded-[8px] text-[#dc2626] hover:bg-[#fef2f2]"
+                                aria-label="Delete"
+                              >
+                                <Trash2 className="size-3.5" />
+                              </button>
+                            ) : null}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </>
         )}
+
+        <div className="border-t border-[#eef2f7] px-2 py-1">
+          <TablePagination {...pagination} noun="entries" pageSizeOptions={[10, 20, 50, 100]} />
+        </div>
       </div>
+
       <DashboardFooter />
+
       {modal ? (
         <InvModal title={modal.editId ? 'Edit Category + Form' : 'Add Category + Form Design'} onClose={() => setModal(null)} footer={(
           <>
             <button type="button" onClick={() => setModal(null)} className="rounded-[8px] border px-4 py-2">Cancel</button>
-            <button type="button" disabled={saving} onClick={save} className="rounded-[8px] bg-[#0b65e5] px-4 py-2 font-extrabold text-white">Save</button>
+            <button type="button" disabled={saving} onClick={save} className="rounded-[8px] bg-[#16a34a] px-4 py-2 font-extrabold text-white">Save</button>
           </>
         )}>
           <div className="space-y-4">
@@ -1166,7 +1830,7 @@ export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify
               </div>
             ) : (
               <div className="rounded-[10px] border border-[#d7f4ea] bg-[#f2fffb] px-3 py-2 text-[12px] font-semibold text-[#0f766e]">
-                This template's built-in fields + <b>Unit Price</b> will appear automatically on the Add Product form.
+                This template&apos;s built-in fields + <b>Unit Price</b> will appear automatically on the Add Product form.
               </div>
             )}
           </div>
