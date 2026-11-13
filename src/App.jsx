@@ -573,8 +573,8 @@ const leadRelatedPages = ['Lead List', 'Lead Details', 'Lead Edit', 'Follow-ups'
 const leadDetailPages = ['Lead Details', 'Lead Edit', 'Lead Follow-up Create', 'Lead Site Visit Schedule', 'Lead Note Create', 'Lead Status Update', 'Lead Assign'];
 const employeeSubItems = ['Employee Details', 'Employee Ledger'];
 const employeeRelatedPages = ['Employee', ...employeeSubItems];
-const customerSubItems = ['Customer Details', 'Customer Ledger', 'Customer Merge', 'Project Reconciliation'];
-const customerRelatedPages = ['Customer', ...customerSubItems, 'Overall Credit Ledger', 'Customer Leads'];
+const customerSubItems = ['Customer Details', 'Customer Ledger', 'Overall Credit Ledger'];
+const customerRelatedPages = ['Customer', ...customerSubItems, 'Customer Leads'];
 const vendorSubItems = ['Vendor Details', 'Vendor Ledger'];
 const vendorRelatedPages = ['Vendors', ...vendorSubItems];
 const supplierSubItems = ['Supplier Details', 'Supplier Ledger'];
@@ -1024,9 +1024,10 @@ const employeeSubRoutes = {
 const customerSubRoutes = {
   'Customer Details': '/customers/details',
   'Customer Ledger': '/customers/ledger',
-  'Customer Merge': '/customers/merge',
-  'Project Reconciliation': '/customers/reconciliation',
   'Overall Credit Ledger': '/customers/credit-ledger',
+  // Legacy deep-links → Overall Credit Ledger (Merge / Reconciliation removed)
+  'Customer Merge': '/customers/credit-ledger',
+  'Project Reconciliation': '/customers/credit-ledger',
 };
 
 const vendorSubRoutes = {
@@ -10568,11 +10569,19 @@ function getModuleSubnavLabel(item) {
   }
 
   if (item === 'Customer Details') {
-    return 'All Client Detail';
+    return 'Customer Details';
   }
 
   if (item === 'Customer Ledger') {
-    return 'Client Ledger';
+    return 'Customer Ledger';
+  }
+
+  if (item === 'Overall Credit Ledger') {
+    return 'Overall Credit Ledger';
+  }
+
+  if (item === 'Customer Merge' || item === 'Project Reconciliation') {
+    return 'Overall Credit Ledger';
   }
 
   if (item === 'Project Installation') {

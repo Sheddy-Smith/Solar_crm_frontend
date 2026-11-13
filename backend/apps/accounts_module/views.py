@@ -575,8 +575,14 @@ class AccountViewSet(AccountsBaseViewSet):
         keys = owned_customer_phone_keys(request.user)
         if keys is None:
             return Response(rows)
-        scoped = [row for row in rows if normalize_phone(row.get('phone')) in keys]
-        return Response(scoped)
+        scoped = [row for row in rows['results'] if normalize_phone(row.get('phone')) in keys]
+        return Response({
+            **rows,
+            'results': scoped,
+            'total_debit': sum(float(r.get('debit') or 0) for r in scoped),
+            'total_credit': sum(float(r.get('credit') or 0) for r in scoped),
+            'net_balance': sum(float(r.get('net') or 0) for r in scoped),
+        })
 
     @action(detail=True, methods=['post'])
     def settle(self, request, pk=None):
@@ -682,8 +688,23 @@ class AccountViewSet(AccountsBaseViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        project = None
+        raw_project = request.data.get('project_id') or request.data.get('project') or ''
+        if str(raw_project).strip() and str(raw_project).strip() not in ('__unallocated__', 'null', 'None'):
+            from .customer_ledger import resolve_project_for_customer
+            try:
+                project = resolve_project_for_customer(party, raw_project)
+            except (TypeError, ValueError):
+                project = None
+            if not project:
+                return Response(
+                    {'detail': 'Selected project does not belong to this customer (check primary / alternate number).'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         entry = CustomerLedgerManualEntry.objects.create(
             party=party,
+            project=project,
             entry_date=entry_date,
             entry_type=entry_type,
             payment_mode=payment_mode,
@@ -702,11 +723,14 @@ class AccountViewSet(AccountsBaseViewSet):
                 from apps.projects.work_completion import projects_for_party
                 from apps.accounts_module.services import normalize_phone
                 from apps.leads.models import Lead
-                for project in projects_for_party(party):
-                    if not project.total_value or project.total_value == 0:
-                        project.total_value = amount
-                        project.save(update_fields=['total_value', 'updated_at'])
-                    lead = getattr(project, 'lead', None)
+                targets = [project] if project else list(projects_for_party(party))
+                for proj in targets:
+                    if not proj:
+                        continue
+                    if not proj.total_value or proj.total_value == 0:
+                        proj.total_value = amount
+                        proj.save(update_fields=['total_value', 'updated_at'])
+                    lead = getattr(proj, 'lead', None)
                     if lead and (not lead.project_cost or lead.project_cost == 0):
                         lead.project_cost = amount
                         lead.save(update_fields=['project_cost', 'updated_at'])
@@ -732,9 +756,104 @@ class AccountViewSet(AccountsBaseViewSet):
                 'vehicle_no': entry.vehicle_no,
                 'reference_no': entry.reference_no,
                 'work': entry.work,
+                'project_id': entry.project_id,
+                'project_code': getattr(entry.project, 'project_id', None) if entry.project_id else '',
+                'project_name': getattr(entry.project, 'project_name', None) if entry.project_id else '',
             },
             'party': AccountSerializer(party).data,
         }, status=status.HTTP_201_CREATED)
+
+    def _parse_customer_manual_payload(self, request, party):
+        entry_type = str(request.data.get('entry_type') or request.data.get('type') or 'sale').strip().lower()
+        type_aliases = {
+            'sale': 'sale', 'sale (debit)': 'sale', 'debit': 'sale',
+            'payment': 'payment', 'payment (credit)': 'payment', 'credit': 'payment',
+            'discount': 'discount', 'discount (credit)': 'discount',
+        }
+        entry_type = type_aliases.get(entry_type, entry_type)
+        valid_types = {choice[0] for choice in CustomerLedgerManualEntry.TYPE_CHOICES}
+        if entry_type not in valid_types:
+            return None, Response(
+                {'detail': 'Type must be Sale (Debit), Payment (Credit), or Discount (Credit).'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            amount = Decimal(str(request.data.get('amount') or '0'))
+        except (InvalidOperation, TypeError, ValueError):
+            return None, Response({'detail': 'Invalid amount.'}, status=status.HTTP_400_BAD_REQUEST)
+        if amount <= 0:
+            return None, Response({'detail': 'Amount must be greater than zero.'}, status=status.HTTP_400_BAD_REQUEST)
+        raw_date = request.data.get('entry_date') or request.data.get('date') or ''
+        try:
+            entry_date = date.fromisoformat(str(raw_date)[:10]) if raw_date else date.today()
+        except ValueError:
+            return None, Response({'detail': 'Invalid date. Use YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
+        payment_mode = str(request.data.get('payment_mode') or '').strip()
+        valid_modes = {choice[0] for choice in CustomerLedgerManualEntry.PAYMENT_MODE_CHOICES}
+        if payment_mode and payment_mode not in valid_modes:
+            return None, Response({'detail': 'Invalid payment mode.'}, status=status.HTTP_400_BAD_REQUEST)
+        project = None
+        raw_project = request.data.get('project_id') or request.data.get('project') or ''
+        if str(raw_project).strip() and str(raw_project).strip() not in ('__unallocated__', 'null', 'None'):
+            from .customer_ledger import resolve_project_for_customer
+            try:
+                project = resolve_project_for_customer(party, raw_project)
+            except (TypeError, ValueError):
+                project = None
+            if not project:
+                return None, Response(
+                    {'detail': 'Selected project does not belong to this customer (check primary / alternate number).'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        return {
+            'entry_date': entry_date,
+            'entry_type': entry_type,
+            'payment_mode': payment_mode,
+            'amount': amount,
+            'vehicle_no': str(request.data.get('vehicle_no') or request.data.get('vehicle_number') or '').strip()[:40],
+            'reference_no': str(
+                request.data.get('reference_no')
+                or request.data.get('challan_no')
+                or request.data.get('receipt_no')
+                or ''
+            ).strip()[:100],
+            'work': str(request.data.get('work') or request.data.get('description') or '').strip(),
+            'project': project,
+        }, None
+
+    @action(detail=True, methods=['patch', 'put'], url_path=r'manual-ledger-entries/(?P<entry_id>[^/.]+)')
+    def update_manual_ledger_entry(self, request, pk=None, entry_id=None):
+        party = self.get_object()
+        if party.account_type != 'Customer':
+            return Response({'detail': 'Ledger entries can only be updated for customers.'}, status=status.HTTP_400_BAD_REQUEST)
+        entry = CustomerLedgerManualEntry.objects.filter(pk=entry_id, party_id=party.id).select_related('project').first()
+        if not entry:
+            return Response({'detail': 'Manual ledger entry not found.'}, status=status.HTTP_404_NOT_FOUND)
+        payload, error = self._parse_customer_manual_payload(request, party)
+        if error:
+            return error
+        for key, value in payload.items():
+            setattr(entry, key, value)
+        entry.save()
+        recalculate_party_balance(party.id)
+        party.refresh_from_db()
+        return Response({
+            'ok': True,
+            'entry': {
+                'id': entry.id,
+                'entry_date': entry.entry_date.isoformat(),
+                'entry_type': entry.entry_type,
+                'payment_mode': entry.payment_mode,
+                'amount': float(entry.amount),
+                'vehicle_no': entry.vehicle_no,
+                'reference_no': entry.reference_no,
+                'work': entry.work,
+                'project_id': entry.project_id,
+                'project_code': getattr(entry.project, 'project_id', None) if entry.project_id else '',
+                'project_name': getattr(entry.project, 'project_name', None) if entry.project_id else '',
+            },
+            'party': AccountSerializer(party).data,
+        })
 
     def _parse_vendor_manual_payload(self, request):
         raw_date = request.data.get('entry_date') or request.data.get('date') or ''

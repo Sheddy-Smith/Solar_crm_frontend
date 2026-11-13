@@ -301,6 +301,25 @@ export function registerServiceWorker() {
     return swRegistrationPromise;
   }
 
+  // Local Vite must never register a SW — it caches old JS and makes local look
+  // "stuck" on a previous UI while production already shows the new design.
+  if (import.meta.env.DEV) {
+    swRegistrationPromise = (async () => {
+      try {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((reg) => reg.unregister()));
+        if (typeof caches !== 'undefined') {
+          const keys = await caches.keys();
+          await Promise.all(keys.map((key) => caches.delete(key)));
+        }
+      } catch {
+        /* ignore */
+      }
+      return null;
+    })();
+    return swRegistrationPromise;
+  }
+
   swRegistrationPromise = new Promise((resolve) => {
     const start = async () => {
       const base = appBasePath();

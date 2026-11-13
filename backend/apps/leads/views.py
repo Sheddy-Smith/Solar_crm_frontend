@@ -4,6 +4,7 @@ from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
+from django_filters import rest_framework as df
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db import transaction
 from django.utils import timezone
@@ -23,18 +24,35 @@ from .followup_sync import sync_lead_next_follow_up
 from .recycle import soft_delete_follow_up, soft_delete_lead, soft_delete_quotation
 
 
+class LeadFilter(df.FilterSet):
+    """Explicit filters — avoid AutoFilterSet crashing if model/filter fields drift during local reload."""
+
+    status = df.CharFilter(field_name='status')
+    category = df.CharFilter(field_name='category')
+    assigned_to = df.NumberFilter(field_name='assigned_to_id')
+    # Accept both ?customer= and ?customer_id= via customer_id column (no FK Meta introspection).
+    customer = df.NumberFilter(field_name='customer_id')
+    customer_id = df.NumberFilter(field_name='customer_id')
+
+    class Meta:
+        model = Lead
+        fields = []
+
+
 class LeadViewSet(viewsets.ModelViewSet):
     permission_classes = [HasModulePermission]
     permission_module = 'Lead'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['status', 'category', 'assigned_to', 'customer']
+    filterset_class = LeadFilter
     search_fields = ['customer_name', 'mobile_number', 'ivrs_number', 'project_name']
     ordering_fields = ['created_at', 'next_follow_up', 'customer_name', 'last_activity_at']
     ordering = ['-last_activity_at', '-created_at']
 
     def get_queryset(self):
         user = self.request.user
-        qs = Lead.objects.select_related('assigned_to', 'created_by', 'site_survey').filter(is_deleted=False)
+        qs = Lead.objects.select_related(
+            'assigned_to', 'created_by', 'site_survey', 'customer',
+        ).filter(is_deleted=False)
         owner_q = lead_owner_q(user)
         if owner_q is not None:
             qs = qs.filter(owner_q)

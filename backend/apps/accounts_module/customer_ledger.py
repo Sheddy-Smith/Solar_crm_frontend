@@ -1,4 +1,5 @@
 """Customer ledger / credit-summary helpers for Account parties."""
+import re
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
@@ -51,6 +52,70 @@ def visit_count(party):
     return visits
 
 
+def customer_phone_keys(party):
+    """Primary + alternate + normalized phone keys for this Customer master."""
+    from .services import normalize_phone
+
+    keys = set()
+    for raw in (
+        getattr(party, 'normalized_phone', None),
+        getattr(party, 'phone', None),
+        getattr(party, 'alternate_phone', None),
+    ):
+        key = normalize_phone(raw)
+        if key and len(key) >= 10:
+            keys.add(key)
+    return keys
+
+
+def projects_queryset_for_customer(party):
+    """Projects linked via customer FK OR lead mobile matching primary/alternate number.
+
+    Used by Account Scope / Add-Edit Ledger project dropdown so "another number"
+    projects also appear for the same Customer master.
+    """
+    from django.db.models import Q
+
+    from apps.leads.models import Lead
+    from apps.projects.models import Project
+
+    q = Q(customer_id=party.id)
+    keys = customer_phone_keys(party)
+    if keys:
+        lead_q = Q(normalized_mobile__in=keys)
+        for key in keys:
+            lead_q |= Q(mobile_number__endswith=key)
+        lead_ids = (
+            Lead.objects.filter(is_deleted=False)
+            .filter(lead_q)
+            .values_list('id', flat=True)
+        )
+        # Also Lead.customer FK when backfilled.
+        lead_ids_via_customer = Lead.objects.filter(
+            is_deleted=False, customer_id=party.id,
+        ).values_list('id', flat=True)
+        all_lead_ids = set(lead_ids) | set(lead_ids_via_customer)
+        if all_lead_ids:
+            q |= Q(lead_id__in=all_lead_ids)
+    return Project.objects.filter(q, is_deleted=False).distinct()
+
+
+def resolve_project_for_customer(party, project_pk):
+    """Resolve a Project that belongs to this customer (FK or phone/alternate match)."""
+    try:
+        pk = int(project_pk)
+    except (TypeError, ValueError):
+        return None
+    project = projects_queryset_for_customer(party).filter(pk=pk).first()
+    if not project:
+        return None
+    # Soft-link orphan phone-matched project onto this Customer master.
+    if project.customer_id != party.id:
+        project.customer_id = party.id
+        project.save(update_fields=['customer', 'updated_at'])
+    return project
+
+
 def party_totals(party, year=None, project_id=None, unallocated_only=False):
     """Party financial totals.
 
@@ -68,6 +133,7 @@ def party_totals(party, year=None, project_id=None, unallocated_only=False):
         invoices = invoices.filter(project_id=project_id)
         received = received.filter(project_id=project_id)
         made = made.filter(project_id=project_id)
+        manual = manual.filter(project_id=project_id)
         # Allocations from unallocated advances count toward this project without double-counting
         # full unallocated payment in consolidated (those stay project_id null on Payment).
         # Only count allocations from payments that remain unstamped (project IS NULL).
@@ -80,13 +146,11 @@ def party_totals(party, year=None, project_id=None, unallocated_only=False):
                 payment__project__isnull=True,
             ).aggregate(t=Sum('amount'))['t']
         )
-        # Manual entries are party-level only (no project FK) — exclude from project views.
-        manual = manual.none()
     elif unallocated_only:
         invoices = invoices.filter(project__isnull=True)
         received = received.filter(project__isnull=True)
         made = made.filter(project__isnull=True)
-        manual = manual.none()
+        manual = manual.filter(project__isnull=True)
         alloc_credit = Decimal('0')
     else:
         alloc_credit = Decimal('0')
@@ -178,12 +242,12 @@ def build_ledger_entries(party, start=None, end=None, project_id=None, unallocat
         invoices = invoices.filter(project_id=project_id)
         received = received.filter(project_id=project_id)
         made = made.filter(project_id=project_id)
-        manual = manual.none()
+        manual = manual.filter(project_id=project_id)
     elif unallocated_only:
         invoices = invoices.filter(project__isnull=True)
         received = received.filter(project__isnull=True)
         made = made.filter(project__isnull=True)
-        manual = manual.none()
+        manual = manual.filter(project__isnull=True)
     if start:
         invoices = invoices.filter(invoice_date__gte=start)
         received = received.filter(payment_date__gte=start)
@@ -279,25 +343,24 @@ def build_ledger_entries(party, start=None, end=None, project_id=None, unallocat
                 'project_id': project_id,
             })
 
-    if project_id is None and not unallocated_only:
-        for row in manual.order_by('entry_date', 'id'):
-            is_debit = row.entry_type == 'sale'
-            work = (row.work or '').strip() or row.get_entry_type_display()
-            entries.append({
-                'date': _iso(row.entry_date),
-                'particulars': work,
-                'work': work,
-                'ref': (row.reference_no or '').strip() or f'MLE-{row.id}',
-                'vehicle_no': (row.vehicle_no or '').strip() or vehicle_fallback or '',
-                'debit': float(_d(row.amount)) if is_debit else 0,
-                'credit': float(_d(row.amount)) if not is_debit else 0,
-                'type': 'Invoice' if is_debit else 'Receipt',
-                'type_label': row.entry_type,
-                'payment_mode': (row.payment_mode or '').strip(),
-                'source_id': row.id,
-                'source_kind': 'manual_ledger',
-                'project_id': None,
-            })
+    for row in manual.select_related('project').order_by('entry_date', 'id'):
+        is_debit = row.entry_type == 'sale'
+        work = (row.work or '').strip() or row.get_entry_type_display()
+        entries.append({
+            'date': _iso(row.entry_date),
+            'particulars': work,
+            'work': work,
+            'ref': (row.reference_no or '').strip() or f'MLE-{row.id}',
+            'vehicle_no': (row.vehicle_no or '').strip() or vehicle_fallback or '',
+            'debit': float(_d(row.amount)) if is_debit else 0,
+            'credit': float(_d(row.amount)) if not is_debit else 0,
+            'type': 'Invoice' if is_debit else 'Receipt',
+            'type_label': row.entry_type,
+            'payment_mode': (row.payment_mode or '').strip(),
+            'source_id': row.id,
+            'source_kind': 'manual_ledger',
+            'project_id': row.project_id,
+        })
 
     dated = [e for e in entries if e['date']]
     undated = [e for e in entries if not e['date']]
@@ -307,15 +370,35 @@ def build_ledger_entries(party, start=None, end=None, project_id=None, unallocat
     for row in undated + dated:
         running += _d(row['debit']) - _d(row['credit'])
         out.append({**row, 'balance': float(running)})
+
+    # Attach Project Name + Project Code for UI (Vehicle No column replacement).
+    from apps.projects.models import Project
+    project_ids = {row.get('project_id') for row in out if row.get('project_id')}
+    project_map = {}
+    if project_ids:
+        for project in Project.objects.filter(id__in=project_ids).only('id', 'project_id', 'project_name'):
+            project_map[project.id] = {
+                'project_code': project.project_id or '',
+                'project_name': project.project_name or '',
+            }
+    for row in out:
+        info = project_map.get(row.get('project_id')) or {}
+        row['project_code'] = info.get('project_code') or ''
+        row['project_name'] = info.get('project_name') or ''
     return out
+
+
+def _project_code_sort_key(code):
+    """Trailing digits from codes like MLE-402 / PRJ-2026-0042 for numeric ordering."""
+    match = re.search(r'(\d+)\s*$', str(code or ''))
+    return int(match.group(1)) if match else 10**12
 
 
 def project_ledger_breakdown(party):
     """Per-project + unallocated financial summary for a Customer."""
-    from apps.projects.models import Project
-
-    projects = list(
-        Project.objects.filter(customer_id=party.id, is_deleted=False).order_by('project_name', 'id')
+    projects = list(projects_queryset_for_customer(party))
+    projects.sort(
+        key=lambda p: (_project_code_sort_key(p.project_id), str(p.project_name or ''), p.id or 0)
     )
     rows = []
     for project in projects:

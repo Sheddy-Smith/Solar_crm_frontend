@@ -104,23 +104,11 @@ def work_completion_percent(project, ensure=True):
 
 
 def projects_for_party(party):
-    """Won-lead projects linked to this Customer party by normalized mobile."""
-    from apps.accounts_module.services import normalize_phone
-    from apps.leads.models import Lead
-    from .models import Project
+    """Projects for Customer via customer FK + primary/alternate phone matched leads."""
+    from apps.accounts_module.customer_ledger import projects_queryset_for_customer
 
-    key = normalize_phone(party.phone)
-    if not key or len(key) < 10:
-        return Project.objects.none()
-
-    # Prefer indexed normalized_mobile; fall back to endswith for pre-backfill rows.
-    lead_qs = (
-        Lead.objects.filter(is_deleted=False, status='Won')
-        .filter(normalized_mobile=key)
-        .values('id')
-    )
     return (
-        Project.objects.filter(is_deleted=False, lead_id__in=lead_qs)
+        projects_queryset_for_customer(party)
         .select_related('liaison_stage', 'lead')
         .prefetch_related('checklist_items', 'lc_commissionings', 'payments')
     )

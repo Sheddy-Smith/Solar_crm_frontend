@@ -1,0 +1,21 @@
+---
+description: Never kill or replace the user's already-running Vite/Django terminals
+alwaysApply: true
+---
+
+# Keep Local Dev Servers Running
+
+The user runs Malwa Solar CRM locally in **existing Cursor terminals** (typically Vite on `:5173` and Django `runserver` on `:8000`). Do **not** disrupt those processes.
+
+## Hard rules
+- **Never** start a new `npm run dev`, `vite`, or `python manage.py runserver` if one is already active in a Cursor terminal.
+- **Never** kill ports (`5173`, `8000`) or stop/restart those terminals unless the user explicitly asks.
+- **Never** open a duplicate local server "to verify" — use the already-running taskbar/Cursor terminals.
+- Prefer **HMR / Django StatReloader** (file save → auto update). Do not require a full restart for normal FE/BE edits.
+- If the site briefly shows "can't be reached" right after a backend `.py` save, that is usually Django auto-reload (1–3s). Wait and refresh; do **not** spawn another server.
+- Do **not** run `migrate` / heavy backend commands in a way that fights the live `runserver` process unless the user asks; if migrate is required, run it without stopping their terminal.
+
+## Before any local run command
+1. Check Cursor terminals metadata (active commands for `npm run dev` / `runserver`).
+2. If already running → skip start; only edit code and verify via existing URLs.
+3. Only start a server when the user asks **and** no healthy process is listening on that port.

@@ -710,6 +710,14 @@ class CustomerLedgerManualEntry(models.Model):
     ]
 
     party = models.ForeignKey(Account, on_delete=models.CASCADE, related_name='manual_ledger_entries')
+    # Optional project link — when set, ledger table shows Project Name / Project ID.
+    project = models.ForeignKey(
+        'projects.Project',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='manual_ledger_entries',
+    )
     entry_date = models.DateField()
     entry_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='sale')
     payment_mode = models.CharField(max_length=60, blank=True, default='')

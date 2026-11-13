@@ -2,21 +2,21 @@ import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cx } from '../lib/utils.js';
 
-export const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50, 100];
+export const PAGE_SIZE_OPTIONS = [5, 10, 20, 30, 40, 50, 100];
 const STORAGE_PREFIX = 'crm-page-size:';
 
-function readPageSize(storageKey, fallback) {
+function readPageSize(storageKey, fallback, allowed = PAGE_SIZE_OPTIONS) {
   try {
     const saved = Number(window.localStorage.getItem(`${STORAGE_PREFIX}${storageKey}`));
-    return PAGE_SIZE_OPTIONS.includes(saved) ? saved : fallback;
+    return allowed.includes(saved) ? saved : fallback;
   } catch {
     return fallback;
   }
 }
 
 /** Rows-per-page choice for one table, remembered in localStorage under `storageKey`. */
-export function usePageSize(storageKey, defaultSize = 10) {
-  const [pageSize, setPageSizeState] = useState(() => readPageSize(storageKey, defaultSize));
+export function usePageSize(storageKey, defaultSize = 10, allowed = PAGE_SIZE_OPTIONS) {
+  const [pageSize, setPageSizeState] = useState(() => readPageSize(storageKey, defaultSize, allowed));
   const setPageSize = (next) => {
     setPageSizeState(next);
     try {
@@ -33,9 +33,9 @@ export function usePageSize(storageKey, defaultSize = 10) {
  * per table (`storageKey`). The page goes back to 1 whenever `resetKey` changes
  * (pass the search/filter values) and is clamped when rows shrink.
  */
-export function usePagedRows(rows, storageKey, { defaultSize = 10, resetKey = '' } = {}) {
+export function usePagedRows(rows, storageKey, { defaultSize = 10, resetKey = '', pageSizeOptions = PAGE_SIZE_OPTIONS } = {}) {
   const list = useMemo(() => (Array.isArray(rows) ? rows : []), [rows]);
-  const [pageSize, storePageSize] = usePageSize(storageKey, defaultSize);
+  const [pageSize, storePageSize] = usePageSize(storageKey, defaultSize, pageSizeOptions);
   const [page, setPage] = useState(1);
   const total = list.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -96,29 +96,48 @@ function pageList(page, totalPages) {
 }
 
 /** Lead-page style footer: "Showing a–b of N entries · Show [10] / page" + page buttons. */
-export function TablePagination({ total, page, pageSize, onPageChange, onPageSizeChange, className = '' }) {
+export function TablePagination({
+  total,
+  page,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
+  className = '',
+  noun = 'entries',
+  pageSizeOptions = PAGE_SIZE_OPTIONS,
+  rowsPerPageLabel = 'Show',
+  hideBorder = false,
+}) {
   if (!total) return null;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const from = (page - 1) * pageSize + 1;
   const to = Math.min(page * pageSize, total);
+  const sizeOptions = pageSizeOptions.includes(pageSize)
+    ? pageSizeOptions
+    : [...pageSizeOptions, pageSize].sort((a, b) => a - b);
 
   return (
-    <div className={cx('flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-[#eef2f8] bg-white px-3 py-2 text-[13px] font-bold text-[#53647f]', className)}>
+    <div className={cx(
+      'flex shrink-0 flex-wrap items-center justify-between gap-2 bg-white px-3 py-2 text-[13px] font-bold text-[#53647f]',
+      hideBorder ? '' : 'border-t border-[#eef2f8]',
+      className,
+    )}
+    >
       <div className="flex flex-wrap items-center gap-2">
-        <p>{`Showing ${from}–${to} of ${total} entries`}</p>
+        <p>{`Showing ${from}–${to} of ${total} ${noun}`}</p>
         <label className="inline-flex items-center gap-1.5 text-[12px] font-extrabold text-[#284276]">
-          <span>Show</span>
+          <span>{rowsPerPageLabel}</span>
           <select
             value={pageSize}
             onChange={(event) => onPageSizeChange(Number(event.target.value))}
             aria-label="Rows per page"
-            className="h-7 rounded-[7px] border border-[#d9e4f2] bg-white px-2 text-[12px] font-extrabold text-[#1e3261] outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            className="h-7 rounded-[7px] border border-[#d9e4f2] bg-white px-2 text-[12px] font-extrabold text-[#1e3261] outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-100"
           >
-            {PAGE_SIZE_OPTIONS.map((size) => (
+            {sizeOptions.map((size) => (
               <option key={size} value={size}>{size}</option>
             ))}
           </select>
-          <span>/ page</span>
+          {rowsPerPageLabel === 'Show' ? <span>/ page</span> : null}
         </label>
       </div>
       {totalPages > 1 ? (
