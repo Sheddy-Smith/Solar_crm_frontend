@@ -38,6 +38,10 @@ import {
   InventoryCategoriesPage,
 } from './inventoryPages.jsx';
 import {
+  InventoryMovementsPage,
+  InventoryWarehousesPage,
+} from './inventoryOpsPages.jsx';
+import {
   UnifiedDashboardPage,
   INSIGHTS_LEGACY_TAB_MAP,
   INSIGHTS_LEGACY_PATH_MAP,
@@ -14674,13 +14678,25 @@ function InventoryManagementPage({ activeSection, onOpenSection, onNotify, logge
     return <InventoryCategoriesPage {...invCommon} />;
   }
   if (activeSection === 'Stock') {
-    return <InventoryMovementPage key="stock-inward" movementType="Inward" activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+    return (
+      <InventoryMovementsPage
+        key="stock-inward"
+        movementType="Inward"
+        {...invCommon}
+      />
+    );
   }
   if (activeSection === 'Stock Movement') {
-    return <InventoryMovementPage key="stock-outward" movementType="Outward" activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+    return (
+      <InventoryMovementsPage
+        key="stock-outward"
+        movementType="Outward"
+        {...invCommon}
+      />
+    );
   }
   if (activeSection === 'Warehouses') {
-    return <InventoryWarehousesCrudPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+    return <InventoryWarehousesPage {...invCommon} />;
   }
   return (
     <InventoryOverviewPageEnhanced

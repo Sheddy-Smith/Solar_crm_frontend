@@ -223,11 +223,6 @@ export function InventoryProductsCatalog({
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-[22px] font-extrabold tracking-tight text-[#0f172a]">Inventory Products</h1>
-        <p className="mt-0.5 text-[13px] font-semibold text-[#64748b]">Manage product master, pricing and stock levels</p>
-      </div>
-
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {kpiCards.map((card) => {
           const Icon = card.icon;

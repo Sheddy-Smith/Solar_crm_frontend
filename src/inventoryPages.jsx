@@ -10,7 +10,12 @@ import { fetchEveryPage, rowsOf } from './lib/listQuery.js';
 import { exportNotifyCsv } from './lib/utils.js';
 import { moduleCaps } from './settingsHubPages.jsx';
 import { InventoryProductsCatalog } from './inventoryProductsCatalog.jsx';
-import navBarImage from './assets/data/nav_bar_img.png';
+import {
+  InventoryBreadcrumbs,
+  InventoryHeroBanner,
+  InventoryKpiCard,
+  INV_KPI_TONES,
+} from './inventoryShared.jsx';
 
 const CATEGORY_HINTS = {
   'ACDB/DCDB': 'AC Distribution Box / DC Distribution Box',
@@ -303,12 +308,12 @@ export function InventoryOverviewPageEnhanced({ activeSection, onOpenSection, on
   const stableCount = alerts.stable_count ?? stable.length;
 
   const cards = [
-    { label: 'Total Products', value: String(stats?.total_items ?? 0), caption: 'Active SKUs', tone: 'blue', icon: BoxesIcon, onClick: () => onOpenSection('Products') },
-    { label: 'High Alert', value: String(criticalCount), caption: 'Out of stock', tone: 'red', icon: AlertIcon, onClick: () => onOpenSection('Stock') },
-    { label: 'Alert', value: String(warningCount), caption: 'Below reorder level', tone: 'amber', icon: AlertIcon, onClick: () => onOpenSection('Products') },
-    { label: 'Stable', value: String(stableCount), caption: 'Healthy stock', tone: 'green', icon: BoxesIcon, onClick: () => onOpenSection('Products') },
-    { label: 'Stock Value', value: fmtInvRs(stats?.total_value), caption: 'At cost price', tone: 'green', icon: RupeeIcon, onClick: () => onOpenSection('Products') },
-    { label: 'Total Movements', value: String(stats?.total_movements ?? 0), caption: 'Stock + Movement', tone: 'purple', icon: RefreshIcon, onClick: () => onOpenSection('Stock Movement') },
+    { label: 'Total Products', value: String(stats?.total_items ?? 0), tone: 'blue', icon: BoxesIcon, onClick: () => onOpenSection('Products') },
+    { label: 'High Alert', value: String(criticalCount), tone: 'red', icon: AlertIcon, onClick: () => onOpenSection('Stock') },
+    { label: 'Low Stock', value: String(warningCount), tone: 'amber', icon: AlertIcon, onClick: () => onOpenSection('Products') },
+    { label: 'Stable', value: String(stableCount), tone: 'green', icon: BoxesIcon, onClick: () => onOpenSection('Products') },
+    { label: 'Stock Value', value: fmtInvRs(stats?.total_value), tone: 'lime', icon: RupeeIcon, onClick: () => onOpenSection('Products') },
+    { label: 'Total Movements', value: String(stats?.total_movements ?? 0), tone: 'purple', icon: RefreshIcon, onClick: () => onOpenSection('Stock Movement') },
   ];
 
   const StockAlertRow = ({ item, level }) => {
@@ -346,34 +351,34 @@ export function InventoryOverviewPageEnhanced({ activeSection, onOpenSection, on
 
   return (
     <div className="space-y-4">
-      <PageHeading title="Inventory" crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'Inventory' }, { label: 'Overview' }]} />
+      <div className="px-0.5">
+        <InventoryBreadcrumbs onOpenSection={onOpenSection} current="Overview" />
+      </div>
+      <InventoryHeroBanner
+        title="Inventory Overview"
+        subtitle="Monitor stock health, alerts and quick actions across products and warehouses."
+      />
       <Subnav activeSection={activeSection} onOpenSection={onOpenSection} />
       {loading ? (
         <div className={cx(panelClass, 'flex items-center justify-center py-16 text-[14px] text-[#7a8fa6]')}>Loading overview...</div>
       ) : (
         <>
-          <section className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-2 xl:grid-cols-3 md:gap-4">
-            {cards.map((card) => (
-              <button
-                key={card.label}
-                type="button"
-                onClick={card.onClick}
-                className={cx(
-                  panelClass,
-                  'flex min-w-0 flex-col items-start gap-1 p-3 text-left transition active:scale-[0.98]',
-                  'md:p-4 md:hover:-translate-y-0.5 md:hover:shadow-lg',
-                )}
-              >
-                <span className={cx('grid size-8 place-items-center rounded-[8px] md:size-10 md:rounded-[10px]', reportKpiToneClasses[card.tone] || reportKpiToneClasses.blue)}>
-                  <card.icon className="size-4 md:size-5" />
-                </span>
-                <div className="min-w-0 w-full">
-                  <p className="truncate text-[11px] font-bold text-[#7a8fa6] md:text-[12px]">{card.label}</p>
-                  <p className="mt-1 text-[18px] font-extrabold leading-none text-[#1e3261] md:mt-2 md:text-[22px]">{card.value}</p>
-                  <p className="mt-1 truncate text-[10px] font-bold text-[#53647f] md:text-[11px]">{card.caption}</p>
-                </div>
-              </button>
-            ))}
+          <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+            {cards.map((card) => {
+              const tone = INV_KPI_TONES[card.tone] || INV_KPI_TONES.blue;
+              return (
+                <button key={card.label} type="button" onClick={card.onClick} className="text-left transition hover:-translate-y-0.5">
+                  <InventoryKpiCard
+                    label={card.label}
+                    value={card.value}
+                    icon={card.icon}
+                    wrap={tone.wrap}
+                    iconWrap={tone.iconWrap}
+                    valueClass={tone.valueClass}
+                  />
+                </button>
+              );
+            })}
           </section>
 
           <div className="grid gap-4 xl:grid-cols-3">
@@ -454,17 +459,26 @@ export function InventoryOverviewPageEnhanced({ activeSection, onOpenSection, on
               </div>
             </div>
           </section>
-          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {[
               { label: 'Products', section: 'Products', icon: Boxes, tone: 'green' },
               { label: 'Categories', section: 'Categories', icon: Tags, tone: 'amber' },
-              { label: 'Add Product', section: 'Products', icon: PlusIcon, tone: 'purple' },
-            ].map((action) => (
-              <button key={action.label} type="button" onClick={() => onOpenSection(action.section)} className={cx(panelClass, 'flex items-center gap-3 p-4 text-left transition hover:bg-[#f8fbff]')}>
-                <span className={cx('grid size-10 place-items-center rounded-[10px]', reportKpiToneClasses[action.tone])}><action.icon className="size-5" /></span>
-                <span className="text-[14px] font-extrabold text-[#1e3261]">{action.label}</span>
-              </button>
-            ))}
+              { label: 'Stock In', section: 'Stock', icon: PlusIcon, tone: 'blue' },
+              { label: 'Stock Out', section: 'Stock Movement', icon: RefreshIcon, tone: 'purple' },
+            ].map((action) => {
+              const tone = INV_KPI_TONES[action.tone] || INV_KPI_TONES.green;
+              return (
+                <button
+                  key={action.label}
+                  type="button"
+                  onClick={() => onOpenSection(action.section)}
+                  className={cx('flex items-center gap-3 rounded-[14px] border p-4 text-left shadow-[0_8px_24px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5', tone.wrap)}
+                >
+                  <span className={cx('grid size-10 place-items-center rounded-[12px]', tone.iconWrap)}><action.icon className="size-5" /></span>
+                  <span className={cx('text-[14px] font-extrabold', tone.valueClass)}>{action.label}</span>
+                </button>
+              );
+            })}
           </section>
         </>
       )}
@@ -1022,14 +1036,12 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
   return (
     <div className="space-y-3">
       <div className="px-0.5">
-        <p className="text-[12px] font-bold text-[#7a8fa6]">
-          <button type="button" onClick={() => onOpenSection('Dashboard')} className="hover:text-[#0b65e5]">Dashboard</button>
-          <span className="mx-1.5">/</span>
-          <button type="button" onClick={() => onOpenSection('Inventory Overview')} className="hover:text-[#0b65e5]">Inventory</button>
-          <span className="mx-1.5">/</span>
-          <span className="text-[#1e3261]">Products</span>
-        </p>
+        <InventoryBreadcrumbs onOpenSection={onOpenSection} current="Products" />
       </div>
+      <InventoryHeroBanner
+        title="Inventory Products"
+        subtitle="Manage product master, pricing and stock levels across categories."
+      />
       <Subnav activeSection={activeSection} onOpenSection={onOpenSection} />
       <InventoryProductsCatalog
         items={rows}
@@ -1516,26 +1528,12 @@ export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify
   return (
     <div className="space-y-4">
       <div className="px-0.5">
-        <p className="text-[12px] font-bold text-[#7a8fa6]">
-          <button type="button" onClick={() => onOpenSection('Dashboard')} className="hover:text-[#0b65e5]">Dashboard</button>
-          <span className="mx-1.5">/</span>
-          <button type="button" onClick={() => onOpenSection('Inventory Overview')} className="hover:text-[#0b65e5]">Inventory</button>
-          <span className="mx-1.5">/</span>
-          <span className="text-[#1e3261]">Categories</span>
-        </p>
+        <InventoryBreadcrumbs onOpenSection={onOpenSection} current="Categories" />
       </div>
-
-      <div className="relative overflow-hidden rounded-[16px] border border-[#d9e4f2] shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
-        <img src={navBarImage} alt="" className="absolute inset-0 h-full w-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#0b3d2e]/92 via-[#0f5132]/78 to-[#166534]/35" />
-        <div className="relative px-5 py-6 sm:px-7 sm:py-8">
-          <h1 className="text-[24px] font-extrabold tracking-tight text-white sm:text-[28px]">Inventory Categories</h1>
-          <p className="mt-1 max-w-2xl text-[13px] font-semibold text-white/85">
-            Manage product categories and their form design for inventory.
-          </p>
-        </div>
-      </div>
-
+      <InventoryHeroBanner
+        title="Inventory Categories"
+        subtitle="Manage product categories and their form design for inventory."
+      />
       <Subnav activeSection={activeSection} onOpenSection={onOpenSection} />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
