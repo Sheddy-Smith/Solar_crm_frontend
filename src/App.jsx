@@ -155,8 +155,10 @@ import {
   IndianRupee,
   Leaf,
   LayoutDashboard,
+  Lock,
   LockKeyhole,
   LogIn,
+  Building2,
   Mail,
   MapPin,
   Menu,
@@ -33214,12 +33216,9 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
             </LeadFormSection>
 
             <LeadFormSection title="2. Project Information" icon={ClipboardPlus} tone="primary">
+              <LeadProjectNameField defaultValue={d.project_name} estimatedCapacity={d.estimated_capacity} />
               <div className="grid gap-4 lg:grid-cols-2">
-                <LeadInput label="Project Name" icon={FolderKanban} placeholder="Enter project name" name="project_name" defaultValue={d.project_name} />
                 <LeadSelect label="Project Type" placeholder="Select project type" options={['On-Grid', 'Off-Grid', 'Hybrid']} name="project_type" defaultValue={d.project_type} />
-              </div>
-              <LeadTextarea label="Requirement Details" icon={Users} placeholder="Enter requirement details..." name="requirement_details" defaultValue={d.requirement_details} />
-              <div className="grid gap-4 lg:grid-cols-2">
                 <LeadSelect label="Source" placeholder="Select source" options={LEAD_SOURCE_OPTIONS} name="source" defaultValue={(() => {
                   const src = String(d.source || '');
                   if (!src) return '';
@@ -33233,9 +33232,10 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
                   const normalized = aliases[src] || src;
                   return LEAD_SOURCE_OPTIONS.includes(normalized) ? normalized : src;
                 })()} />
-                <LeadInput label="Estimated Capacity (kW)" icon={Zap} type="number" placeholder="Enter capacity (e.g. 5, 10, 20)" name="estimated_capacity" defaultValue={d.estimated_capacity} />
               </div>
+              <LeadTextarea label="Requirement Details" icon={Users} placeholder="Enter requirement details..." name="requirement_details" defaultValue={d.requirement_details} />
               <div className="grid gap-4 lg:grid-cols-2">
+                <LeadInput label="Estimated Capacity (kW)" icon={Zap} type="number" placeholder="Enter capacity (e.g. 5, 10, 20)" name="estimated_capacity" defaultValue={d.estimated_capacity} />
                 <LeadInput
                   label="Project Cost (₹)"
                   icon={IndianRupee}
@@ -37031,6 +37031,241 @@ function QReadout({ label, value, accent = false }) {
     <div className="rounded-[8px] border border-[#e7eef7] bg-[#f8fbff] px-3 py-2.5">
       <p className="text-[11px] font-extrabold text-[#7386a3]">{label}</p>
       <p className={cx('mt-0.5 text-[14px] font-extrabold', accent ? 'text-[#0d9f4a]' : 'text-[#1e3261]')}>{value}</p>
+    </div>
+  );
+}
+
+const PROJECT_NAME_FORMATS = [
+  { id: 'kw_suffix', label: '(kW) [KW] (Suffix)', hasPrefix: false, hasKw: true, hasSuffix: true },
+  { id: 'prefix_kw_suffix', label: '(Prefix) (kW) [KW] (Suffix)', hasPrefix: true, hasKw: true, hasSuffix: true },
+  { id: 'kw_only', label: '(kW) [KW]', hasPrefix: false, hasKw: true, hasSuffix: false },
+  { id: 'prefix_kw', label: '(Prefix) (kW) [KW]', hasPrefix: true, hasKw: true, hasSuffix: false },
+  { id: 'custom', label: 'Other (Custom)', hasPrefix: false, hasKw: false, hasSuffix: false, isCustom: true },
+];
+
+const PROJECT_NAME_KW_OPTIONS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '12', '15', '20', '25', '30', '40', '50'];
+
+function buildProjectNameFromParts({ formatId, kw, prefix, suffix, customName }) {
+  const format = PROJECT_NAME_FORMATS.find((f) => f.id === formatId) || PROJECT_NAME_FORMATS[0];
+  if (format.isCustom) return String(customName || '').trim();
+  const parts = [];
+  if (format.hasPrefix) {
+    const p = String(prefix || '').trim();
+    if (p) parts.push(p);
+  }
+  if (format.hasKw) {
+    const k = String(kw || '').trim();
+    if (k) parts.push(k, 'KW');
+  }
+  if (format.hasSuffix) {
+    const s = String(suffix || '').trim();
+    if (s) parts.push(s);
+  }
+  return parts.join(' ');
+}
+
+function parseExistingProjectName(projectName) {
+  const raw = String(projectName || '').trim();
+  if (!raw) {
+    return { formatId: 'kw_suffix', kw: '5', prefix: '', suffix: '', customName: '' };
+  }
+  const kwSuffix = raw.match(/^(\d+(?:\.\d+)?)\s+KW(?:\s+(.+))?$/i);
+  if (kwSuffix) {
+    const suffix = (kwSuffix[2] || '').trim();
+    return {
+      formatId: suffix ? 'kw_suffix' : 'kw_only',
+      kw: kwSuffix[1],
+      prefix: '',
+      suffix,
+      customName: '',
+    };
+  }
+  const prefixKwSuffix = raw.match(/^(.+?)\s+(\d+(?:\.\d+)?)\s+KW(?:\s+(.+))?$/i);
+  if (prefixKwSuffix) {
+    const suffix = (prefixKwSuffix[3] || '').trim();
+    return {
+      formatId: suffix ? 'prefix_kw_suffix' : 'prefix_kw',
+      kw: prefixKwSuffix[2],
+      prefix: prefixKwSuffix[1].trim(),
+      suffix,
+      customName: '',
+    };
+  }
+  return { formatId: 'custom', kw: '5', prefix: '', suffix: '', customName: raw };
+}
+
+function LeadProjectNameField({ defaultValue = '', estimatedCapacity }) {
+  const initial = useMemo(() => parseExistingProjectName(defaultValue), [defaultValue]);
+  const [formatId, setFormatId] = useState(initial.formatId);
+  const [kw, setKw] = useState(() => {
+    if (initial.kw) return String(initial.kw);
+    const fromCapacity = String(estimatedCapacity ?? '').trim();
+    return fromCapacity || '5';
+  });
+  const [prefix, setPrefix] = useState(initial.prefix);
+  const [suffix, setSuffix] = useState(initial.suffix);
+  const [customName, setCustomName] = useState(initial.customName);
+  const [formatMenuOpen, setFormatMenuOpen] = useState(false);
+  const formatMenuRef = useRef(null);
+
+  const format = PROJECT_NAME_FORMATS.find((f) => f.id === formatId) || PROJECT_NAME_FORMATS[0];
+  const isCustom = Boolean(format.isCustom);
+
+  const kwOptions = useMemo(() => {
+    const set = new Set(PROJECT_NAME_KW_OPTIONS);
+    if (kw && !set.has(String(kw))) set.add(String(kw));
+    return Array.from(set);
+  }, [kw]);
+
+  const composedName = buildProjectNameFromParts({ formatId, kw, prefix, suffix, customName });
+
+  useEffect(() => {
+    if (!formatMenuOpen) return undefined;
+    const onDoc = (event) => {
+      if (formatMenuRef.current && !formatMenuRef.current.contains(event.target)) {
+        setFormatMenuOpen(false);
+      }
+    };
+    const onKey = (event) => {
+      if (event.key === 'Escape') setFormatMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [formatMenuOpen]);
+
+  const partShell = 'flex h-11 min-w-0 items-center gap-2 rounded-[8px] border border-black/20 bg-white px-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100';
+
+  return (
+    <div className="space-y-3">
+      <input type="hidden" name="project_name" value={composedName} />
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(220px,0.9fr)] lg:items-start">
+        <div className="min-w-0 space-y-2">
+          <LeadLabel label="Project Name" required={!isCustom} optional={isCustom} />
+          {isCustom ? (
+            <span className={partShell}>
+              <FolderKanban className="size-4 shrink-0 text-[#8391a8]" />
+              <input
+                type="text"
+                value={customName}
+                onChange={(e) => setCustomName(e.target.value)}
+                placeholder="Enter full project name"
+                className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a98af]"
+              />
+            </span>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+              {format.hasPrefix ? (
+                <>
+                  <span className={cx(partShell, 'min-w-[140px] flex-1')}>
+                    <Building2 className="size-4 shrink-0 text-[#8391a8]" />
+                    <input
+                      type="text"
+                      value={prefix}
+                      onChange={(e) => setPrefix(e.target.value)}
+                      placeholder="Enter prefix"
+                      className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a98af]"
+                    />
+                  </span>
+                  <span className="text-[15px] font-extrabold text-[#9aa8bd]">+</span>
+                </>
+              ) : null}
+              {format.hasKw ? (
+                <>
+                  <span className={cx(partShell, 'w-[88px] shrink-0')}>
+                    <select
+                      value={kw}
+                      onChange={(e) => setKw(e.target.value)}
+                      aria-label="kW Number"
+                      className="w-full bg-transparent text-[13px] font-extrabold text-[#30466d] outline-none"
+                    >
+                      {kwOptions.map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </span>
+                  <span className="text-[15px] font-extrabold text-[#9aa8bd]">+</span>
+                  <span
+                    className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-[8px] border border-[#bbf7d0] bg-[#dcfce7] px-3 text-[13px] font-extrabold text-[#166534]"
+                    title="KW is fixed"
+                  >
+                    <Lock className="size-3.5" />
+                    KW
+                  </span>
+                  {format.hasSuffix ? <span className="text-[15px] font-extrabold text-[#9aa8bd]">+</span> : null}
+                </>
+              ) : null}
+              {format.hasSuffix ? (
+                <span className={cx(partShell, 'min-w-[160px] flex-1')}>
+                  <Building2 className="size-4 shrink-0 text-[#8391a8]" />
+                  <input
+                    type="text"
+                    value={suffix}
+                    onChange={(e) => setSuffix(e.target.value)}
+                    placeholder="Enter suffix (e.g. INDIAN OIL)"
+                    className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a98af]"
+                  />
+                </span>
+              ) : null}
+            </div>
+          )}
+        </div>
+
+        <div className="min-w-0" ref={formatMenuRef}>
+          <LeadLabel label="Project Name Format" required />
+          <div className="relative mt-2">
+            <button
+              type="button"
+              onClick={() => setFormatMenuOpen((open) => !open)}
+              className="flex h-11 w-full items-center justify-between gap-2 rounded-[8px] border border-black/20 bg-white px-3 text-left transition hover:bg-[#f8fbff] focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+            >
+              <span className="truncate text-[13px] font-extrabold text-[#30466d]">{format.label}</span>
+              <ChevronDown className={cx('size-4 shrink-0 text-[#8391a8] transition', formatMenuOpen && 'rotate-180')} />
+            </button>
+            {formatMenuOpen ? (
+              <div className="absolute right-0 z-30 mt-1 w-full min-w-[240px] overflow-hidden rounded-[10px] border border-[#dbe5f2] bg-white py-1 shadow-[0_16px_40px_rgba(17,24,39,0.14)]">
+                {PROJECT_NAME_FORMATS.map((opt) => {
+                  const active = opt.id === formatId;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => {
+                        setFormatId(opt.id);
+                        setFormatMenuOpen(false);
+                      }}
+                      className={cx(
+                        'flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-bold transition',
+                        active ? 'bg-[#edf5ff] text-[#0b65e5]' : 'text-[#30466d] hover:bg-[#f5f8fc]',
+                        opt.isCustom && 'border-t border-[#edf2f8]',
+                      )}
+                    >
+                      {opt.isCustom ? <Pencil className="size-3.5 shrink-0 text-[#0b65e5]" /> : null}
+                      <span className="truncate">{opt.label}</span>
+                      {active ? <Check className="ml-auto size-3.5 shrink-0 text-[#0b65e5]" /> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      {!isCustom ? (
+        <div className="rounded-[10px] border border-[#bbf7d0] bg-[#f0fdf4] px-4 py-3">
+          <p className="mb-1 inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wide text-[#15803d]">
+            <Eye className="size-3.5" />
+            Preview (Project Name)
+          </p>
+          <p className="font-display text-[18px] font-extrabold text-[#14532d]">
+            {composedName || <span className="text-[14px] font-bold text-[#86a789]">Fill parts to preview name</span>}
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }
