@@ -13,8 +13,8 @@ import {
 } from './omUi.jsx';
 
 export const COMPLAINT_TYPES = [
-  'Inverter Error', 'Low Generation', 'No Generation', 'Panel Damage', 'Panel Cleaning', 'Wiring / Cable',
-  'Earthing', 'Meter / Net Meter', 'Structure', 'Monitoring / App', 'Other',
+  'Plant Not Working', 'Inverter Error', 'Low Generation', 'No Generation', 'Panel Damage', 'Panel Cleaning',
+  'Wiring / Cable', 'Earthing', 'Meter / Net Meter', 'Structure', 'Monitoring / App', 'Other',
 ];
 export const PRIORITIES = ['Low', 'Medium', 'High', 'Critical'];
 const TICKET_STATUSES = ['Open', 'Assigned', 'In Progress', 'Site Visit', 'Resolved', 'Closed'];
@@ -666,11 +666,11 @@ export function TicketFormModal({ ticket, plant, onClose, onSaved, onNotify }) {
     if (!ticket) delete body.status;
     setSaving(true);
     try {
-      const saved = ticket ? await omTicketApi.update(ticket.id, body) : await omTicketApi.create(body);
-      if (!ticket && createTask && body.assigned_to) {
-        await omTicketApi.createTask(saved.id, { assigned_engineer: body.assigned_to, visit_date: body.expected_visit_date });
+      if (!ticket) {
+        body.auto_task = Boolean(createTask && body.assigned_to);
       }
-      onNotify?.(ticket ? `${saved.record_no} updated.` : `${saved.record_no} created${createTask && body.assigned_to ? ' and task assigned' : ''}.`, 'success');
+      const saved = ticket ? await omTicketApi.update(ticket.id, body) : await omTicketApi.create(body);
+      onNotify?.(ticket ? `${saved.record_no} updated.` : `${saved.record_no} created${createTask && body.assigned_to ? ' · Daily Task generated' : ''}.`, 'success');
       onSaved?.(saved);
     } catch (e) {
       onNotify?.(errMsg(e, 'Could not save ticket.'), 'error');
@@ -681,12 +681,12 @@ export function TicketFormModal({ ticket, plant, onClose, onSaved, onNotify }) {
 
   return (
     <Modal
-      title={ticket ? `Edit ${ticket.record_no}` : 'New Complaint Ticket'}
+      title={ticket ? `Edit ${ticket.record_no}` : 'Raise Service Ticket'}
       subtitle={plant ? `${plant.plant_code} — ${plant.customer_name}` : undefined}
       onClose={onClose}
       footer={<>
         <button type="button" className={BTN_OUTLINE} onClick={onClose}>Cancel</button>
-        <button type="button" className={BTN_PRIMARY} disabled={saving} onClick={save}>{saving ? 'Saving...' : 'Save Ticket'}</button>
+        <button type="button" className={BTN_PRIMARY} disabled={saving} onClick={save}>{saving ? 'Saving...' : (ticket ? 'Update Ticket' : 'Create Ticket')}</button>
       </>}
     >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -707,7 +707,7 @@ export function TicketFormModal({ ticket, plant, onClose, onSaved, onNotify }) {
         {!ticket && form.assigned_to ? (
           <label className="flex items-center gap-2 text-[13px] font-bold text-[#1e3261] sm:col-span-2">
             <input type="checkbox" className="size-5 accent-[#0b65e5]" checked={createTask} onChange={(e) => setCreateTask(e.target.checked)} />
-            Create a task for this engineer now
+            Auto-generate Daily Task for assigned engineer
           </label>
         ) : null}
       </div>

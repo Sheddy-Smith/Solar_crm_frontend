@@ -122,6 +122,17 @@ class LiaisonCommissioning(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Scheduled')
     checklist = models.JSONField(default=list, blank=True)
     remarks = models.TextField(blank=True)
+    # Completion form (mandatory before Completed)
+    inverter_warranty_years = models.PositiveSmallIntegerField(null=True, blank=True)
+    panel_warranty_years = models.PositiveSmallIntegerField(null=True, blank=True)
+    service_warranty_years = models.PositiveSmallIntegerField(null=True, blank=True)
+    next_service_due = models.DateField(null=True, blank=True)
+    wifi_ssid = models.CharField(max_length=120, blank=True, default='')
+    wifi_password_encrypted = models.TextField(blank=True, default='')
+    solar_app_platform = models.CharField(max_length=80, blank=True, default='')
+    solar_app_username = models.CharField(max_length=120, blank=True, default='')
+    solar_app_password_encrypted = models.TextField(blank=True, default='')
+    completed_at = models.DateTimeField(null=True, blank=True)
     daily_task = models.ForeignKey(
         'daily_tasks.DailyTask',
         on_delete=models.SET_NULL,

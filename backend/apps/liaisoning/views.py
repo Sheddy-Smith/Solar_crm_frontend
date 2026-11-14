@@ -89,6 +89,10 @@ class LiaisonCommissioningViewSet(LiaisonBaseViewSet):
     serializer_class = LiaisonCommissioningSerializer
     filterset_fields = ['project', 'status', 'assigned_employee']
     search_fields = ['engineer', 'project__project_name', 'project__customer_name']
+    permission_action_map = {
+        'complete': 'can_edit',
+        'reveal_credentials': 'can_edit',
+    }
 
     def get_queryset(self):
         return self._scope(
@@ -101,6 +105,29 @@ class LiaisonCommissioningViewSet(LiaisonBaseViewSet):
         from .commissioning_tasks import delete_commissioning_tasks
         delete_commissioning_tasks(instance)
         instance.delete()
+
+    @action(detail=True, methods=['post'], url_path='complete')
+    def complete(self, request, pk=None):
+        from .commissioning_complete import complete_commissioning
+        commissioning = self.get_object()
+        commissioning, plant = complete_commissioning(commissioning, request.data, actor=request.user)
+        data = self.get_serializer(commissioning).data
+        data['om_plant_id'] = plant.id if plant else None
+        data['om_plant_code'] = plant.plant_code if plant else None
+        return Response(data)
+
+    @action(detail=True, methods=['post'], url_path='reveal-credentials')
+    def reveal_credentials(self, request, pk=None):
+        """Authorized editors only — passwords never appear in list/detail serializers or PDFs."""
+        from malwa_solar.encryption import decrypt_value
+        obj = self.get_object()
+        return Response({
+            'wifi_ssid': obj.wifi_ssid,
+            'wifi_password': decrypt_value(obj.wifi_password_encrypted),
+            'solar_app_platform': obj.solar_app_platform,
+            'solar_app_username': obj.solar_app_username,
+            'solar_app_password': decrypt_value(obj.solar_app_password_encrypted),
+        })
 
 
 class LiaisonComplianceViewSet(LiaisonBaseViewSet):

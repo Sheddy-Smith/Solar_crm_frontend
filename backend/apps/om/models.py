@@ -124,6 +124,19 @@ class OmPlant(models.Model):
     net_meter_details = models.TextField(blank=True)
     warranty_details = models.TextField(blank=True)
 
+    inverter_warranty_years = models.PositiveSmallIntegerField(null=True, blank=True)
+    panel_warranty_years = models.PositiveSmallIntegerField(null=True, blank=True)
+    service_warranty_years = models.PositiveSmallIntegerField(null=True, blank=True)
+    inverter_warranty_end = models.DateField(null=True, blank=True)
+    panel_warranty_end = models.DateField(null=True, blank=True)
+    service_warranty_end = models.DateField(null=True, blank=True)
+    next_service_due = models.DateField(null=True, blank=True)
+    wifi_ssid = models.CharField(max_length=120, blank=True, default='')
+    wifi_password_encrypted = models.TextField(blank=True, default='')
+    solar_app_platform = models.CharField(max_length=80, blank=True, default='')
+    solar_app_username = models.CharField(max_length=120, blank=True, default='')
+    solar_app_password_encrypted = models.TextField(blank=True, default='')
+
     free_service_start = models.DateField(null=True, blank=True)
     free_service_end = models.DateField(null=True, blank=True)
     om_status = models.CharField(max_length=30, choices=OM_STATUS_CHOICES, default='Free Service Active', db_index=True)
@@ -175,6 +188,7 @@ class OmBreakdownTicket(models.Model):
         ('Meter / Net Meter', 'Meter / Net Meter'),
         ('Structure', 'Structure'),
         ('Monitoring / App', 'Monitoring / App'),
+        ('Plant Not Working', 'Plant Not Working'),
         ('Other', 'Other'),
     ]
     OPEN_STATUSES = ('Open', 'Assigned', 'In Progress', 'Site Visit')

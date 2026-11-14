@@ -952,7 +952,11 @@ export const lcApprovalApi = {
   reject: (id, reason = '') => request(`/liaison/approvals/${id}/reject/`, { method: 'POST', body: { reason } }),
 };
 export const lcInspectionApi = lcCrud('inspections');
-export const lcCommissioningApi = lcCrud('commissionings');
+export const lcCommissioningApi = {
+  ...lcCrud('commissionings'),
+  complete: (id, data) => request(`/liaison/commissionings/${id}/complete/`, { method: 'POST', body: data }),
+  revealCredentials: (id) => request(`/liaison/commissionings/${id}/reveal-credentials/`, { method: 'POST', body: {} }),
+};
 export const lcComplianceApi = lcCrud('compliances');
 export const lcDocumentApi = lcCrud('documents');
 export const lcLoanProcessApi = lcCrud('loan-processes');
@@ -1020,6 +1024,7 @@ export const omPlantApi = {
   ...omCrud('plants'),
   history: (id) => request(`/om/plants/${id}/history/`),
   refresh: (id, commissioningDate) => omPost(`plants/${id}/refresh/`, commissioningDate ? { commissioning_date: commissioningDate } : {}),
+  revealCredentials: (id) => omPost(`plants/${id}/reveal-credentials/`),
 };
 export const omInsuranceApi = omCrud('insurance');
 export const omVisitPartApi = omCrud('visit-parts');

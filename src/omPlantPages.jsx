@@ -245,16 +245,41 @@ function PlantsPage({ caps, Subnav, activeSection, onOpenSection, onNotify, focu
   const setF = (k) => (v) => setFilters((f) => ({ ...f, [k]: v }));
   const activeCount = Object.values(filters).filter(Boolean).length;
 
+  const warrantyCell = (row) => {
+    if (!row?.end) return <span className="text-[#8a98af]">—</span>;
+    const tone = row.status === 'Expired' ? 'text-[#dc2626]' : row.status === 'Expiring Soon' ? 'text-[#b45309]' : 'text-[#15803d]';
+    return (
+      <div>
+        <p className={cx('font-bold', tone)}>{row.years ? `${row.years}Y` : '—'} · {fmtDate(row.end)}</p>
+        <p className="text-[11px] text-[#8a98af]">{row.days != null ? (row.days < 0 ? 'Expired' : `${row.days}d left`) : row.status}</p>
+      </div>
+    );
+  };
+
   const columns = [
     { label: 'Plant', render: (p) => <div><p className="font-extrabold text-[#0b65e5]">{p.plant_code}</p><p className="text-[11px] text-[#8a98af]">{p.project_code}</p></div> },
     { label: 'Customer', render: (p) => <div className="max-w-[220px]"><p className="font-bold">{p.customer_name}</p><p className="text-[11px] text-[#8a98af]">{[p.mobile_number, p.city].filter(Boolean).join(' · ')}</p></div> },
     { label: 'Capacity', render: (p) => <div><p>{p.capacity_kw ? `${Number(p.capacity_kw)} kW` : '—'}</p><p className="text-[11px] text-[#8a98af]">{p.system_type}</p></div> },
-    { label: 'Commissioned', render: (p) => fmtDate(p.commissioning_date) },
-    { label: 'Free Service', render: (p) => <FreeServiceText plant={p} /> },
-    { label: 'O&M Status', render: (p) => <Pill>{p.om_status}</Pill> },
+    { label: 'Inverter Wty', render: (p) => warrantyCell(p.warranty_alerts?.rows?.find((r) => r.label === 'Inverter')) },
+    { label: 'Panel Wty', render: (p) => warrantyCell(p.warranty_alerts?.rows?.find((r) => r.label === 'Panel')) },
+    { label: 'Service Wty', render: (p) => warrantyCell(p.warranty_alerts?.rows?.find((r) => r.label === 'Service')) },
     { label: 'Next Service', render: (p) => (p.next_service ? <div><p className={cx(p.next_service.overdue && 'font-extrabold text-[#dc2626]')}>{fmtDate(p.next_service.due_date)}</p><p className="text-[11px] text-[#8a98af]">{p.next_service.title.replace('Quarterly Service ', 'Q ')}</p></div> : '—') },
+    { label: 'Status', render: (p) => <Pill>{p.om_status}</Pill> },
+    {
+      label: 'Alerts',
+      render: (p) => {
+        const alerts = p.warranty_alerts?.alerts || [];
+        if (!alerts.length) return <span className="text-[#8a98af]">—</span>;
+        return (
+          <div className="flex max-w-[180px] flex-col gap-1">
+            {alerts.slice(0, 3).map((a) => (
+              <Pill key={a} tone={/expired|amc/i.test(a) ? 'red' : 'amber'}>{a}</Pill>
+            ))}
+          </div>
+        );
+      },
+    },
     { label: 'Complaints', render: (p) => (p.open_tickets ? <Pill tone="purple">{p.open_tickets} open</Pill> : <span className="text-[#8a98af]">None</span>) },
-    { label: 'Insurance', render: (p) => <InsuranceChip insurance={p.insurance} /> },
   ];
 
   return (

@@ -180,12 +180,53 @@ def _sync_tasks(today, counts):
             counts['alerts'] += int(created)
 
 
+def _sync_warranties(today, counts):
+    """30-day advance alerts for inverter / panel / service warranty + next service."""
+    for plant in OmPlant.objects.filter(is_active=True):
+        specs = (
+            ('Inverter', plant.inverter_warranty_end),
+            ('Panel', plant.panel_warranty_end),
+            ('Service', plant.service_warranty_end),
+        )
+        for label, end in specs:
+            if not end:
+                continue
+            days = (end - today).days
+            if days < 0:
+                _, created = notify(
+                    f'wty-expired-{label.lower()}-{plant.pk}-{end}',
+                    f'{label} warranty expired: {plant.plant_name}',
+                    message=f'{plant.plant_code} • {label} warranty ended {end:%d-%m-%Y}. Consider AMC.',
+                    category='Warranty', severity='critical', plant=plant, link=_plant_link(plant),
+                )
+                counts['alerts'] += int(created)
+            elif days <= 30:
+                _, created = notify(
+                    f'wty-30-{label.lower()}-{plant.pk}-{end}',
+                    f'{label} warranty in {days} days: {plant.plant_name}',
+                    message=f'{plant.plant_code} • {label} warranty ends {end:%d-%m-%Y}.',
+                    category='Warranty', severity='upcoming', plant=plant, link=_plant_link(plant),
+                )
+                counts['alerts'] += int(created)
+        if plant.next_service_due:
+            days = (plant.next_service_due - today).days
+            if 0 <= days <= 30:
+                _, created = notify(
+                    f'next-service-30-{plant.pk}-{plant.next_service_due}',
+                    f'Service in {days} days: {plant.plant_name}',
+                    message=f'{plant.plant_code} • next service due {plant.next_service_due:%d-%m-%Y}.',
+                    category='Service', severity='upcoming', plant=plant, link=_plant_link(plant),
+                )
+                counts['alerts'] += int(created)
+
+
 def run_daily_sync(today=None):
     today = today or date.today()
     counts = {'plants_updated': 0, 'tasks_activated': 0, 'alerts': 0}
     _sync_plants(today, counts)
     _sync_quarterly(today, counts)
     _sync_insurance(today, counts)
+    _sync_warranties(today, counts)
     _sync_tickets(today, counts)
     _sync_tasks(today, counts)
     cache.set(SYNC_CACHE_KEY, timezone.now().isoformat(), timeout=None)

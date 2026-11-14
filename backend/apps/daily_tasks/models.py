@@ -10,6 +10,7 @@ class DailyTask(models.Model):
         ('material_dispatch', 'Material Dispatch'),
         ('stock_check', 'Stock Check'),
         ('commissioning', 'Commissioning Task'),
+        ('om_service_ticket', 'O&M Service Ticket'),
     ]
     STATUS_CHOICES = [
         ('Pending', 'Pending'),

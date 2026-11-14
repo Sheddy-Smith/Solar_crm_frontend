@@ -53,6 +53,12 @@ class OmPlantSerializer(serializers.ModelSerializer):
     open_tickets = serializers.SerializerMethodField()
     insurance = serializers.SerializerMethodField()
     last_visit_date = serializers.SerializerMethodField()
+    warranty_alerts = serializers.SerializerMethodField()
+    has_site_credentials = serializers.SerializerMethodField()
+
+    SENSITIVE_FIELDS = (
+        'wifi_password_encrypted', 'solar_app_password_encrypted',
+    )
 
     def get_lead_code(self, obj):
         return f'LD-{obj.lead_id:04d}' if obj.lead_id else ''
@@ -66,6 +72,14 @@ class OmPlantSerializer(serializers.ModelSerializer):
         return (obj.free_service_end - date.today()).days
 
     def get_next_service(self, obj):
+        if obj.next_service_due:
+            return {
+                'id': None,
+                'title': 'Next Service',
+                'due_date': obj.next_service_due,
+                'status': 'Scheduled',
+                'overdue': obj.next_service_due < date.today(),
+            }
         open_quarterly = [
             t for t in obj.tasks.all()
             if t.source == 'Quarterly' and t.status not in OmMaintenanceTask.CLOSED_STATUSES and t.due_date
@@ -101,12 +115,58 @@ class OmPlantSerializer(serializers.ModelSerializer):
         dates = [v.date for v in obj.visits.all() if v.date and v.status == 'Completed']
         return max(dates) if dates else None
 
+    def get_has_site_credentials(self, obj):
+        return bool(obj.wifi_password_encrypted or obj.solar_app_password_encrypted)
+
+    def _warranty_row(self, label, end, years):
+        if not end:
+            return {'label': label, 'end': None, 'years': years, 'days': None, 'status': '—'}
+        days = (end - date.today()).days
+        if days < 0:
+            status = 'Expired'
+        elif days <= 30:
+            status = 'Expiring Soon'
+        else:
+            status = 'Active'
+        return {'label': label, 'end': end, 'years': years, 'days': days, 'status': status}
+
+    def get_warranty_alerts(self, obj):
+        rows = [
+            self._warranty_row('Inverter', obj.inverter_warranty_end, obj.inverter_warranty_years),
+            self._warranty_row('Panel', obj.panel_warranty_end, obj.panel_warranty_years),
+            self._warranty_row('Service', obj.service_warranty_end, obj.service_warranty_years),
+        ]
+        alerts = []
+        for row in rows:
+            if row['days'] is None:
+                continue
+            if row['days'] < 0:
+                alerts.append(f"{row['label']} Wty expired")
+            elif row['days'] <= 30:
+                alerts.append(f"{row['label']} Wty in {row['days']} days")
+        if obj.next_service_due:
+            d = (obj.next_service_due - date.today()).days
+            if 0 <= d <= 30:
+                alerts.append(f'Service in {d} days')
+            elif d < 0:
+                alerts.append('Service overdue')
+        if any(r['status'] == 'Expired' for r in rows):
+            alerts.append('Take AMC')
+        return {'rows': rows, 'alerts': alerts}
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        for field in self.SENSITIVE_FIELDS:
+            data.pop(field, None)
+        return data
+
     class Meta:
         model = OmPlant
         fields = '__all__'
         read_only_fields = [
             'project', 'lead', 'commissioning_date', 'free_service_start', 'free_service_end',
             'created_by', 'created_at', 'updated_at',
+            'wifi_password_encrypted', 'solar_app_password_encrypted',
         ]
 
 
@@ -161,6 +221,25 @@ class OmBreakdownTicketSerializer(serializers.ModelSerializer):
         if status == 'Closed' and not (self.instance and self.instance.closed_at):
             attrs['closed_at'] = timezone.now()
         return attrs
+
+    def create(self, validated_data):
+        ticket = super().create(validated_data)
+        request = self.context.get('request')
+        actor = getattr(request, 'user', None) if request else None
+        # Auto-generate O&M task + Daily Task when an engineer is assigned.
+        # Skip if the client will call create-task separately (flag auto_task=false).
+        auto_task = True
+        if request is not None:
+            raw = request.data.get('auto_task', True)
+            auto_task = str(raw).lower() not in ('0', 'false', 'no')
+        if ticket.assigned_to_id and auto_task:
+            from .workflow import create_task_from_ticket
+            create_task_from_ticket(ticket, {
+                'assigned_engineer': ticket.assigned_to_id,
+                'visit_date': ticket.expected_visit_date,
+                'priority': ticket.priority,
+            }, actor)
+        return ticket
 
     class Meta:
         model = OmBreakdownTicket

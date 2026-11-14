@@ -124,7 +124,24 @@ class OmPlantViewSet(OmBaseViewSet):
         activate_plant(plant.project, commissioning_date, user=request.user)
         return Response(self.get_serializer(self.get_queryset().get(pk=plant.pk)).data)
 
-    permission_action_map = {'history': 'can_view', 'refresh': 'can_edit'}
+    @action(detail=True, methods=['post'], url_path='reveal-credentials')
+    def reveal_credentials(self, request, pk=None):
+        """Editors only — encrypted Wi-Fi / Solar App passwords never listed in plant APIs or PDFs."""
+        from malwa_solar.encryption import decrypt_value
+        plant = self.get_object()
+        return Response({
+            'wifi_ssid': plant.wifi_ssid,
+            'wifi_password': decrypt_value(plant.wifi_password_encrypted),
+            'solar_app_platform': plant.solar_app_platform,
+            'solar_app_username': plant.solar_app_username,
+            'solar_app_password': decrypt_value(plant.solar_app_password_encrypted),
+        })
+
+    permission_action_map = {
+        'history': 'can_view',
+        'refresh': 'can_edit',
+        'reveal_credentials': 'can_edit',
+    }
 
 
 class OmMaintenanceTaskViewSet(OmBaseViewSet):

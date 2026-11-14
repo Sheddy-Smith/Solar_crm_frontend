@@ -57,6 +57,70 @@ def notify_task_assigned(task):
     )
 
 
+def _sync_ticket_daily_task(ticket, task, user):
+    """Auto Daily Task + Staff task for assigned engineer (Admin + employee can close via ticket)."""
+    from apps.daily_tasks.models import DailyTask, StaffDailyTask
+    from apps.workforce.models import Employee
+
+    due = task.due_date or task.visit_date or date.today()
+    title = f"O&M Ticket {ticket.record_no if hasattr(ticket, 'record_no') else f'BD-{ticket.pk:04d}'}: {ticket.subject}"
+    description = (
+        f"Service Ticket Assigned\n"
+        f"Ticket: BD-{ticket.pk:04d}\n"
+        f"Issue: {ticket.complaint_type or '—'}\n"
+        f"Priority: {ticket.priority}\n"
+        f"Plant: {ticket.plant.plant_name if ticket.plant_id else ticket.site}\n"
+        f"Due: {due.isoformat()}\n"
+        f"{(ticket.issue_description or '').strip()}"
+    )
+    employee = None
+    engineer = task.assigned_engineer
+    if engineer:
+        employee = Employee.objects.filter(user=engineer).first()
+
+    details = {
+        'ticket_id': ticket.pk,
+        'om_task_id': task.pk,
+        'plant_id': ticket.plant_id,
+        'complaint_type': ticket.complaint_type or '',
+        'priority': ticket.priority,
+        'work_done': description,
+        'project_label': ticket.plant.plant_name if ticket.plant_id else ticket.subject,
+    }
+    daily = DailyTask.objects.create(
+        category='om_service_ticket',
+        task_date=due,
+        status='Pending',
+        notes=description,
+        details=details,
+        assigned_to=employee,
+        created_by=user,
+    )
+    if engineer:
+        StaffDailyTask.objects.create(
+            title=title[:255],
+            description=description,
+            assigned_by=user,
+            assigned_to=engineer,
+            task_date=due,
+            due_date=due,
+            status=StaffDailyTask.STATUS_NOT_COMPLETED,
+        )
+        notify(
+            f'om-ticket-daily-{ticket.pk}-{engineer.id}',
+            'New O&M Service Ticket Assigned',
+            message=description,
+            category='Task',
+            severity='upcoming' if ticket.priority in ('High', 'Critical') else 'info',
+            user=engineer,
+            module='Daily Tasks',
+            plant=ticket.plant,
+            link='/daily-tasks',
+            channel='crm',
+        )
+    return daily
+
+
 @transaction.atomic
 def create_task_from_ticket(ticket, data, user):
     engineer_id = data.get('assigned_engineer') or ticket.assigned_to_id
@@ -88,6 +152,11 @@ def create_task_from_ticket(ticket, data, user):
     if changed:
         ticket.save(update_fields=changed + ['updated_at'])
     notify_task_assigned(task)
+    try:
+        _sync_ticket_daily_task(ticket, task, user)
+    except Exception:
+        # O&M task still valid even if Daily Task sync fails
+        pass
     return task
 
 

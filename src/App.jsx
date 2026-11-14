@@ -72,7 +72,8 @@ import {
   ProjectInstallationPanel,
 } from './projectOpsPages.jsx';
 import { ProjectJobSheetPage as OpsJobSheetPage } from './projectJobSheetPage.jsx';
-import { MaterialPlanningPoPage } from './materialPlanningPoPage.jsx';
+import { MaterialPlanningBomPage } from './materialPlanningBomPage.jsx';
+import { CommissioningCompleteModal } from './commissioningCompleteModal.jsx';
 import { OmPendingFlowPage, OM_PENDING_SECTIONS, OM_PENDING_STEPS } from './omPendingPages.jsx';
 import { OM_LEGACY_SECTIONS, OM_MODULE_SECTIONS, OM_SECTION_ROUTES } from './omPlantPages.jsx';
 import { OmHubPage } from './omHubPages.jsx';
@@ -10863,10 +10864,12 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
   const [rejectReason, setRejectReason] = useState('');
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(config.defaults);
+  const [completeItem, setCompleteItem] = useState(null);
 
   const needsUsers = config.fields.some((f) => f.type === 'user');
   const needsProjects = config.fields.some((f) => f.type === 'project');
   const needsEmployees = config.fields.some((f) => f.type === 'employee');
+  const isCommissioningCompleteFlow = Boolean(config.requiresCompleteForm);
 
   useEffect(() => {
     if (needsProjects) projectApi.list({ page_size: 25 }).then((r) => setProjects(normalizeApiRows(r))).catch(() => {});
@@ -11011,9 +11014,13 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
   }
 
   function handleComplete(item) {
+    if (isCommissioningCompleteFlow) {
+      setCompleteItem(item);
+      return;
+    }
     config.api.update(item.id, { status: 'Completed' })
       .then(() => { onNotify(`${item.record_no} marked completed.`, 'success'); if (viewItem?.id === item.id) setViewItem(null); loadRows(); })
-      .catch(() => onNotify('Action failed.', 'error'));
+      .catch((e) => onNotify(e.message || 'Action failed.', 'error'));
   }
 
   const renderField = ({ name, label, type, options, required, lookup }) => (
@@ -11290,7 +11297,9 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
                 </>
               )}
               {config.canComplete && viewItem.status !== 'Completed' && viewItem.status !== 'Cancelled' && (
-                <button type="button" onClick={() => handleComplete(viewItem)} className="h-9 rounded-[8px] bg-[#16a34a] px-4 text-[13px] font-extrabold text-white hover:bg-[#15803d]">Mark Completed</button>
+                <button type="button" onClick={() => handleComplete(viewItem)} className="h-9 rounded-[8px] bg-[#16a34a] px-4 text-[13px] font-extrabold text-white hover:bg-[#15803d]">
+                  {isCommissioningCompleteFlow ? 'Mark as Completed' : 'Mark Completed'}
+                </button>
               )}
               <button type="button" onClick={() => setViewItem(null)} className="h-9 rounded-[8px] border border-[#e5eaf2] px-4 text-[13px] font-bold text-[#53647f]">Close</button>
             </>
@@ -11328,6 +11337,12 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
                 onSaved={(checklist) => setViewItem((v) => ({ ...v, checklist }))}
               />
             )}
+
+            {isCommissioningCompleteFlow && viewItem.has_site_credentials ? (
+              <p className="rounded-[8px] border border-[#dcfce7] bg-[#f0fdf4] px-3 py-2 text-[12px] font-semibold text-[#166534]">
+                Site Wi-Fi / Solar App credentials are encrypted. Use authorized Reveal on O&amp;M plant — never printed on PDF reports.
+              </p>
+            ) : null}
 
             {config.canApprove && viewItem.approved_at && (
               <div>
@@ -11377,6 +11392,19 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
 
       {deleteConfirm ? (
         <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
+      ) : null}
+
+      {completeItem ? (
+        <CommissioningCompleteModal
+          commissioning={completeItem}
+          onClose={() => setCompleteItem(null)}
+          onNotify={onNotify}
+          onCompleted={() => {
+            setCompleteItem(null);
+            if (viewItem?.id === completeItem.id) setViewItem(null);
+            loadRows();
+          }}
+        />
       ) : null}
 
       {!config.embedded && <DashboardFooter />}
@@ -11618,6 +11646,7 @@ function getLiaisonStepBaseConfig(stepKey, project) {
       api: lcCommissioningApi,
       docModule: 'Commissioning',
       canComplete: true,
+      requiresCompleteForm: true,
       statuses,
       searchKeys: ['engineer', 'assigned_employee_name'],
       checklistItems: ['Inverter installed & configured', 'Panels connected & tested', 'Earthing verified', 'Net meter synchronized', 'Generation test completed', 'Handover documentation done'],
@@ -11628,15 +11657,23 @@ function getLiaisonStepBaseConfig(stepKey, project) {
         statusCol,
       ],
       fields: [
-        { name: 'assigned_employee', label: 'Engineer', type: 'employee', required: true },
-        { name: 'date', label: 'Commissioning Date', type: 'date', required: true },
-        { name: 'status', label: 'Status', type: 'select', options: statuses },
+        { name: 'assigned_employee', label: 'Assign To', type: 'employee', required: true },
+        { name: 'date', label: 'Due Date', type: 'date', required: true },
+        { name: 'status', label: 'Status', type: 'select', options: statuses.filter((s) => s !== 'Completed') },
         { name: 'remarks', label: 'Remarks', type: 'textarea' },
       ],
-      defaults: { assigned_employee: '', date: '', status: 'Scheduled', remarks: '' },
+      defaults: { assigned_employee: '', date: '', status: 'In Progress', remarks: '' },
       detailRows: [
         ['Engineer', (r) => r.assigned_employee_name || r.engineer || '—'],
         ['Commissioning Date', (r) => lcFormatDate(r.date)],
+        ['Inverter Wty', (r) => (r.inverter_warranty_years ? `${r.inverter_warranty_years} Years` : '—')],
+        ['Panel Wty', (r) => (r.panel_warranty_years ? `${r.panel_warranty_years} Years` : '—')],
+        ['Service Wty', (r) => (r.service_warranty_years ? `${r.service_warranty_years} Years` : '—')],
+        ['Next Service', (r) => lcFormatDate(r.next_service_due)],
+        ['Wi-Fi ID', (r) => r.wifi_ssid || '—'],
+        ['Solar App', (r) => r.solar_app_platform || '—'],
+        ['App User', (r) => r.solar_app_username || '—'],
+        ['Credentials', (r) => (r.has_site_credentials ? 'Encrypted (authorized reveal only)' : '—')],
         ['Remarks', (r) => r.remarks || '—'],
       ],
       onProjectSelect: lcCommissioningPrefill,
@@ -12831,7 +12868,20 @@ function ProjectPipelineHub({
   } else if (section === 'Quotation') {
     content = <ProjectQuotationsPanel key={selected.id} project={selected} loggedInUser={loggedInUser} onNotify={onNotify} onChanged={loadProjects} />;
   } else if (section === 'Project Material Planning') {
-    content = <MaterialPlanningBomModal key={selected.id} inline project={selected} onClose={() => {}} onNotify={onNotify} onPlansChanged={loadProjects} />;
+    content = (
+      <MaterialPlanningBomModal
+        key={selected.id}
+        inline
+        showBack
+        project={selected}
+        projects={projects}
+        onClose={() => closeProject()}
+        onNotify={onNotify}
+        onPlansChanged={loadProjects}
+        onOpenSection={openPipelineSection}
+        onChangeProject={(p) => openProject(p)}
+      />
+    );
   } else if (section === 'Project Job Sheet') {
     content = <OpsJobSheetPage key={selected.id} embedded lockedProjectId={selected.id} activeSection={section} onOpenSection={openPipelineSection} onNotify={onNotify} />;
   } else if (section === 'Project Dispatch') {
@@ -23997,15 +24047,29 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
     <div className="space-y-2.5">
       {embedded ? null : (
         <>
-          <PageHeading
-            title="Material Planning"
-            crumbs={[
-              { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-              { label: 'Project Management', onClick: () => onOpenSection('Project List') },
-              { label: 'Material Planning' },
-              ...(bomProject ? [{ label: bomProject.project_name || bomProject.project_id || 'BOM' }] : []),
-            ]}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            {bomProject ? (
+              <button
+                type="button"
+                onClick={closeBom}
+                className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#ef4444]/35 bg-white px-3 text-[12px] font-bold text-[#dc2626]"
+              >
+                <ChevronLeft className="size-4" />
+                Back
+              </button>
+            ) : null}
+            <div className="min-w-0 flex-1">
+              <PageHeading
+                title="Material Planning"
+                crumbs={[
+                  { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
+                  { label: 'Project Management', onClick: () => onOpenSection('Project List') },
+                  { label: 'Material Planning' },
+                  ...(bomProject ? [{ label: bomProject.project_name || bomProject.project_id || 'BOM' }] : []),
+                ]}
+              />
+            </div>
+          </div>
 
           <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
         </>
@@ -24016,9 +24080,12 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
           inline
           showBack
           project={bomProject}
+          projects={projects}
           onClose={closeBom}
           onNotify={onNotify}
           onPlansChanged={reloadPlans}
+          onOpenSection={onOpenSection}
+          onChangeProject={(p) => setBomProject(p)}
         />
       ) : (
         <>
@@ -24171,13 +24238,26 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
   );
 }
 
-function MaterialPlanningBomModal({ project, onClose, onNotify, onPlansChanged, inline = false, showBack = false }) {
+function MaterialPlanningBomModal({
+  project,
+  projects = [],
+  onClose,
+  onNotify,
+  onPlansChanged,
+  onOpenSection,
+  onChangeProject,
+  inline = false,
+  showBack = false,
+}) {
   return (
-    <MaterialPlanningPoPage
+    <MaterialPlanningBomPage
       project={project}
+      projects={projects}
       onClose={onClose}
       onNotify={onNotify}
       onPlansChanged={onPlansChanged}
+      onOpenSection={onOpenSection}
+      onChangeProject={onChangeProject}
       showBack={showBack}
       panelClass={panelClass}
     />

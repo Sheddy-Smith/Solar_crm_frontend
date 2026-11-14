@@ -97,12 +97,16 @@ class LiaisonCommissioningSerializer(serializers.ModelSerializer):
     record_no = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
     assigned_employee_name = serializers.CharField(source='assigned_employee.name', read_only=True)
+    has_site_credentials = serializers.SerializerMethodField()
 
     def get_record_no(self, obj):
         return f'LC-COM-{obj.id:04d}'
 
     def get_created_by_name(self, obj):
         return _user_name(obj.created_by)
+
+    def get_has_site_credentials(self, obj):
+        return bool(obj.wifi_password_encrypted or obj.solar_app_password_encrypted)
 
     def validate_assigned_employee(self, value):
         if value is None:
@@ -111,6 +115,27 @@ class LiaisonCommissioningSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Selected employee is On Leave.')
         return value
 
+    def validate(self, attrs):
+        new_status = attrs.get('status')
+        if new_status == 'Completed':
+            instance = self.instance
+            has_form = bool(
+                instance
+                and instance.inverter_warranty_years
+                and instance.panel_warranty_years
+                and instance.service_warranty_years
+                and instance.wifi_ssid
+                and instance.wifi_password_encrypted
+                and instance.solar_app_platform
+                and instance.solar_app_username
+                and instance.solar_app_password_encrypted
+            )
+            if not has_form:
+                raise serializers.ValidationError({
+                    'status': 'Use Complete Commissioning form (warranty + Wi-Fi / Solar App credentials) before marking Completed.',
+                })
+        return attrs
+
     def create(self, validated_data):
         from .commissioning_tasks import sync_commissioning_tasks
         request = self.context.get('request')
@@ -118,6 +143,8 @@ class LiaisonCommissioningSerializer(serializers.ModelSerializer):
         employee = validated_data.get('assigned_employee')
         if employee and not validated_data.get('engineer'):
             validated_data['engineer'] = employee.name
+        if validated_data.get('status') == 'Completed':
+            validated_data['status'] = 'In Progress'
         obj = super().create(validated_data)
         sync_commissioning_tasks(obj, actor=actor)
         return obj
@@ -139,10 +166,18 @@ class LiaisonCommissioningSerializer(serializers.ModelSerializer):
             'id', 'record_no', 'project', 'project_name', 'customer_name',
             'engineer', 'assigned_employee', 'assigned_employee_name',
             'date', 'status', 'checklist', 'remarks',
+            'inverter_warranty_years', 'panel_warranty_years', 'service_warranty_years',
+            'next_service_due', 'wifi_ssid', 'solar_app_platform', 'solar_app_username',
+            'has_site_credentials', 'completed_at',
             'daily_task', 'staff_task',
             'created_by', 'created_by_name', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['created_by', 'created_at', 'updated_at', 'daily_task', 'staff_task', 'engineer']
+        read_only_fields = [
+            'created_by', 'created_at', 'updated_at', 'daily_task', 'staff_task', 'engineer',
+            'inverter_warranty_years', 'panel_warranty_years', 'service_warranty_years',
+            'next_service_due', 'wifi_ssid', 'solar_app_platform', 'solar_app_username',
+            'has_site_credentials', 'completed_at',
+        ]
 
 
 class LiaisonComplianceSerializer(serializers.ModelSerializer):
