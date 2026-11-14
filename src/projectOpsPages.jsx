@@ -12,6 +12,10 @@ import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { rowDoubleOpenProps } from './lib/rowDoubleOpen.js';
+import {
+  ProjectWorkflowShell,
+  projectSummaryMeta,
+} from './components/ProjectWorkflowShell.jsx';
 
 const PANEL = 'rounded-[14px] border border-[#e7eef7] bg-white shadow-[0_10px_24px_rgba(17,39,84,0.05)]';
 const HEADER_SELECT = 'mt-1 h-7 w-full min-w-[88px] max-w-[120px] rounded-[6px] border border-[#d5e0ef] bg-white px-1.5 text-[11px] font-semibold text-[#314a79] outline-none';
@@ -400,16 +404,28 @@ export function ProjectMaterialDispatchPage({ activeSection, onOpenSection, onNo
       {active ? (
         <DispatchDetailModal
           project={active}
+          projects={filtered}
           onClose={() => { setActive(null); reload(); }}
           onNotify={onNotify}
           onOpenPlanning={() => { setActive(null); onOpenSection('Project Material Planning'); }}
+          onOpenSection={onOpenSection}
+          onChangeProject={(p) => setActive(p)}
         />
       ) : null}
     </>
   );
 }
 
-function DispatchDetailModal({ project, onClose, onNotify, onOpenPlanning, inline = false }) {
+function DispatchDetailModal({
+  project,
+  projects = [],
+  onClose,
+  onNotify,
+  onOpenPlanning,
+  onOpenSection,
+  onChangeProject,
+  inline = false,
+}) {
   const resolveStatus = resolveDispatchStatus;
 
   const [rows, setRows] = useState([]);
@@ -524,29 +540,38 @@ function DispatchDetailModal({ project, onClose, onNotify, onOpenPlanning, inlin
     }
   };
 
-  return (
+  const markDispatchDone = async () => {
+    if (!rows.length) {
+      onNotify?.('Add BOM items in Material Planning first', 'error');
+      return;
+    }
+    const unfinished = rows.filter((r) => resolveStatus(r) !== 'Dispatched');
+    if (unfinished.length) {
+      onNotify?.(`${unfinished.length} item(s) still not fully dispatched`, 'error');
+      return;
+    }
+    onNotify?.('Dispatch marked done', 'success');
+    onOpenSection?.('Project Installation');
+  };
+
+  const dispatchBody = (
     <>
-      <div className={inline ? undefined : MODAL_OVERLAY} onMouseDown={inline ? undefined : (e) => { if (e.target === e.currentTarget) onClose(); }}>
-        <div className={inline ? INLINE_PANEL : MODAL_BOX}>
-          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#edf2f8] px-4 py-3 sm:px-5">
-            <div className="min-w-0">
-              <h2 className="font-display text-[17px] font-extrabold text-[#111827]">Dispatch</h2>
-              <p className="truncate text-[13px] font-semibold text-[#7386a3]">
-                {project.project_name || project.project_id}
-                {project.project_id ? ` · ${project.project_id}` : ''}
+            <div className="border-b border-[#e8eef6] px-4 py-4 sm:px-5">
+              <h2 className="text-[20px] font-extrabold tracking-tight text-[#0f172a]">
+                {project.project_name || project.project_id || 'Dispatch'}
+              </h2>
+              <p className="mt-0.5 text-[13px] font-semibold text-[#64748b]">
+                {projectSummaryMeta(project) || 'Material dispatch checklist'}
               </p>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <button type="button" onClick={onOpenPlanning} className="hidden h-10 items-center gap-1.5 rounded-[8px] border border-[#dce6f3] px-3 text-[13px] font-semibold text-[#314a79] sm:inline-flex">
-                Material Planning
-              </button>
-              {inline ? null : <button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-full text-[#7585a2] hover:bg-[#f4f7fb]"><X className="size-5" /></button>}
-            </div>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <p className="text-[13px] font-semibold text-[#7386a3]">{filtered.length} item{filtered.length === 1 ? '' : 's'}</p>
-              {pendingCount > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={onOpenPlanning} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#dce6f3] px-3 text-[12px] font-semibold text-[#314a79]">
+                  Material Planning
+                </button>
+                {pendingCount > 0 ? (
                 <button
                   type="button"
                   disabled={packingKey !== ''}
@@ -557,7 +582,8 @@ function DispatchDetailModal({ project, onClose, onNotify, onOpenPlanning, inlin
                   <PackageCheck className="size-3.5" />
                   {packingKey === 'all' ? 'Saving...' : `Mark all Packed (${pendingCount})`}
                 </button>
-              ) : null}
+                ) : null}
+              </div>
             </div>
             {loading ? (
               <p className="py-10 text-center text-[13px] font-semibold text-[#8a98af]">Loading...</p>
@@ -640,13 +666,48 @@ function DispatchDetailModal({ project, onClose, onNotify, onOpenPlanning, inlin
               </div>
             )}
           </div>
-          {inline ? null : (
+    </>
+  );
+
+  return (
+    <>
+      {inline ? (
+        <ProjectWorkflowShell
+          activeSection="Project Dispatch"
+          stageLabel="Dispatch"
+          project={project}
+          projects={projects}
+          showBack
+          onBack={onClose}
+          onOpenSection={onOpenSection}
+          onChangeProject={onChangeProject}
+          onMarkDone={markDispatchDone}
+        >
+          {dispatchBody}
+        </ProjectWorkflowShell>
+      ) : (
+        <div className={MODAL_OVERLAY} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+          <div className={MODAL_BOX}>
+            <ProjectWorkflowShell
+              activeSection="Project Dispatch"
+              stageLabel="Dispatch"
+              project={project}
+              projects={projects}
+              showBack
+              onBack={onClose}
+              onOpenSection={onOpenSection || ((s) => { if (s === 'Project Material Planning') onOpenPlanning?.(); })}
+              onChangeProject={onChangeProject}
+              onMarkDone={markDispatchDone}
+              className="border-0 shadow-none"
+            >
+              {dispatchBody}
+            </ProjectWorkflowShell>
             <div className="flex shrink-0 justify-end border-t border-[#edf2f8] px-4 py-3">
               <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d5e0ef] px-5 text-[13px] font-semibold text-[#314a79]">Close</button>
             </div>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       {formOpen ? (
         <div className="fixed inset-0 z-[95] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setFormOpen(false); }}>
@@ -884,7 +945,17 @@ const INSTALL_PROGRESS_WEIGHTS = [
   { label: 'Inverter', weight: 15 },
 ];
 
-function InstallationDetailModal({ project, onClose, onNotify, statusToggle, inline = false }) {
+function InstallationDetailModal({
+  project,
+  projects = [],
+  onClose,
+  onNotify,
+  statusToggle,
+  onToggleInstall,
+  onOpenSection,
+  onChangeProject,
+  inline = false,
+}) {
   const TABS = ['Progress', 'Vendor', 'Tasks', 'Materials'];
   const [tab, setTab] = useState('Progress');
   const [tasks, setTasks] = useState([]);
@@ -991,32 +1062,33 @@ function InstallationDetailModal({ project, onClose, onNotify, statusToggle, inl
     }
   };
 
-  return (
+  const installInner = (
     <>
-      <div className={inline ? undefined : MODAL_OVERLAY} onMouseDown={inline ? undefined : (e) => { if (e.target === e.currentTarget) onClose(); }}>
-        <div className={inline ? INLINE_PANEL : MODAL_BOX}>
-          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#edf2f8] px-4 py-3 sm:px-5">
-            <div className="min-w-0">
-              <h2 className="font-display text-[17px] font-extrabold text-[#111827]">Installation</h2>
-              <p className="truncate text-[13px] font-semibold text-[#7386a3]">
-                {project.project_name || project.project_id}
-                {' · '}
-                {primaryAssignment
-                  ? `Install ${Math.round(stageProgressPct)}% / 100% · ${approvedStages}/${stageRows.length || 6} stages`
-                  : `Install ${installWeightDone}% / 90% · Work ${progressPct}% · ${doneTasks}/${tasks.length} tasks`}
-              </p>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              {primaryAssignment ? (
-                <div className="hidden items-center gap-3 sm:flex">
-                  <InstallProgressRing percent={stageProgressPct} size={64} stroke={6} />
-                  <Pill tone={stageProgressPct >= 100 ? 'green' : stageProgressPct > 0 ? 'amber' : 'red'}>
-                    {stageProgressPct >= 100 ? 'Completed' : stageProgressPct > 0 ? 'In Progress' : 'Not Done'}
-                  </Pill>
-                </div>
-              ) : null}
-              {statusToggle}
-              {inline ? null : <button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-full text-[#7585a2] hover:bg-[#f4f7fb]"><X className="size-5" /></button>}
+          <div className="border-b border-[#e8eef6] px-4 py-4 sm:px-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="text-[20px] font-extrabold tracking-tight text-[#0f172a]">
+                  {project.project_name || project.project_id || 'Installation'}
+                </h2>
+                <p className="mt-0.5 text-[13px] font-semibold text-[#64748b]">
+                  {projectSummaryMeta(project)}
+                  {projectSummaryMeta(project) ? ' · ' : ''}
+                  {primaryAssignment
+                    ? `Install ${Math.round(stageProgressPct)}% · ${approvedStages}/${stageRows.length || 6} stages`
+                    : `Install ${installWeightDone}% · Work ${progressPct}% · ${doneTasks}/${tasks.length} tasks`}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                {primaryAssignment ? (
+                  <div className="hidden items-center gap-3 sm:flex">
+                    <InstallProgressRing percent={stageProgressPct} size={64} stroke={6} />
+                    <Pill tone={stageProgressPct >= 100 ? 'green' : stageProgressPct > 0 ? 'amber' : 'red'}>
+                      {stageProgressPct >= 100 ? 'Completed' : stageProgressPct > 0 ? 'In Progress' : 'Not Done'}
+                    </Pill>
+                  </div>
+                ) : null}
+                {statusToggle}
+              </div>
             </div>
           </div>
 
@@ -1235,14 +1307,56 @@ function InstallationDetailModal({ project, onClose, onNotify, statusToggle, inl
               </div>
             ) : null}
           </div>
+    </>
+  );
 
-          {inline ? null : (
+  return (
+    <>
+      {inline ? (
+        <ProjectWorkflowShell
+          activeSection="Project Installation"
+          stageLabel="Installation"
+          project={project}
+          projects={projects}
+          showBack
+          onBack={onClose}
+          onOpenSection={onOpenSection}
+          onChangeProject={onChangeProject}
+          onMarkDone={() => {
+            if (isInstallDone(project)) {
+              onNotify?.('Installation already marked done');
+              return;
+            }
+            onToggleInstall?.();
+          }}
+          markDoneLabel={isInstallDone(project) ? 'Installation Done' : 'Mark Installation Done'}
+          markDoneDisabled={isInstallDone(project) || !onToggleInstall}
+        >
+          {installInner}
+        </ProjectWorkflowShell>
+      ) : (
+        <div className={MODAL_OVERLAY} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+          <div className={MODAL_BOX}>
+            <ProjectWorkflowShell
+              activeSection="Project Installation"
+              stageLabel="Installation"
+              project={project}
+              projects={projects}
+              showBack
+              onBack={onClose}
+              onOpenSection={onOpenSection}
+              onChangeProject={onChangeProject}
+              hideActions
+              className="border-0 shadow-none"
+            >
+              {installInner}
+            </ProjectWorkflowShell>
             <div className="flex shrink-0 justify-end border-t border-[#edf2f8] px-4 py-3">
               <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d5e0ef] px-5 text-[13px] font-semibold text-[#314a79]">Close</button>
             </div>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       {taskOpen ? (
         <div className="fixed inset-0 z-[95] flex items-center justify-center bg-[#111827]/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setTaskOpen(false); }}>
@@ -1335,13 +1449,42 @@ function InstallationDetailModal({ project, onClose, onNotify, statusToggle, inl
 
 /* ───────── Single-project panels (Project Management pipeline) ───────── */
 
-export function ProjectDispatchPanel({ project, onNotify, onOpenPlanning }) {
-  return <DispatchDetailModal inline project={project} onClose={() => {}} onNotify={onNotify} onOpenPlanning={onOpenPlanning} />;
+export function ProjectDispatchPanel({
+  project,
+  projects = [],
+  onNotify,
+  onOpenPlanning,
+  onOpenSection,
+  onChangeProject,
+  onClose,
+}) {
+  return (
+    <DispatchDetailModal
+      inline
+      project={project}
+      projects={projects}
+      onClose={onClose || (() => {})}
+      onNotify={onNotify}
+      onOpenPlanning={onOpenPlanning}
+      onOpenSection={onOpenSection}
+      onChangeProject={onChangeProject}
+    />
+  );
 }
 
-export function ProjectInstallationPanel({ project, onNotify, onChanged }) {
+export function ProjectInstallationPanel({
+  project,
+  projects = [],
+  onNotify,
+  onChanged,
+  onOpenSection,
+  onChangeProject,
+  onClose,
+}) {
   const [current, setCurrent] = useState(project);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => { setCurrent(project); }, [project?.id]);
 
   const toggle = async () => {
     const next = isInstallDone(current) ? 'Not Done' : 'Done';
@@ -1362,8 +1505,12 @@ export function ProjectInstallationPanel({ project, onNotify, onChanged }) {
     <InstallationDetailModal
       inline
       project={current}
-      onClose={() => {}}
+      projects={projects}
+      onClose={onClose || (() => {})}
       onNotify={onNotify}
+      onOpenSection={onOpenSection}
+      onChangeProject={onChangeProject}
+      onToggleInstall={toggle}
       statusToggle={<InstallStatusToggle project={current} busy={busy} onToggle={toggle} size="lg" />}
     />
   );

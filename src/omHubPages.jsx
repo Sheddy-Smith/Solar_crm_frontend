@@ -779,66 +779,144 @@ function OmHubDashboard({ Subnav, activeSection, onOpenSection, onNotify }) {
 
   const s = data?.summary || data || {};
   const activeAmc = s.active_amc ?? amcRows.filter((r) => r.status === 'Active' || r.status === 'Expiring Soon').length;
-  const expiringAmc = amcRows.filter((r) => r.status === 'Expiring Soon' || r.status === 'Expired');
-  const amcRevenue = s.amc_revenue ?? amcRows.reduce((sum, r) => sum + Number(r.annual_value || 0), 0);
+  const recentTickets = s.recent_tickets || [];
+  const upcomingAlerts = s.upcoming_alerts || [];
+  const expiringCount = s.expiring_30_days ?? s.warranty_expiring ?? 0;
 
   const kpis = [
-    { label: 'Active AMC', value: activeAmc, icon: Shield },
-    { label: "Today's Site Visits", value: s.today_visits ?? s.todays_tasks ?? 0, icon: Calendar },
-    { label: 'Open Complaints', value: s.open_tickets ?? 0, icon: Ticket },
-    { label: 'Pending Job Cards', value: s.pending_job_cards ?? 0, icon: ClipboardList },
-    { label: 'Completed Services', value: s.completed_services ?? 0, icon: CheckCircle2 },
-    { label: 'Warranty Expiring', value: s.warranty_expiring ?? 0, icon: AlertTriangle },
-    { label: 'AMC Revenue', value: fmtMoney(amcRevenue), icon: IndianRupee },
-    { label: 'Service Performance', value: `${s.service_due ?? 0} due / ${s.service_overdue ?? 0} overdue`, icon: CheckCircle2 },
+    { label: 'Total Plants', value: s.total_plants ?? 0, icon: Shield, tone: 'slate' },
+    { label: 'Active', value: s.active_plants ?? 0, icon: CheckCircle2, tone: 'green' },
+    { label: 'Under Service', value: s.under_service ?? 0, icon: ClipboardList, tone: 'blue' },
+    { label: 'AMC Active', value: activeAmc, icon: Shield, tone: 'green' },
+    { label: 'Warranty Active', value: s.warranty_active ?? 0, icon: Shield, tone: 'green' },
+    { label: 'Expiring (30 Days)', value: expiringCount, icon: AlertTriangle, tone: 'red' },
   ];
 
+  const ticketStatusTone = (status) => {
+    if (status === 'Closed' || status === 'Resolved') return 'green';
+    if (status === 'In Progress' || status === 'Assigned' || status === 'Site Visit') return 'blue';
+    return 'amber';
+  };
+
   return (
-    <HubShell title="O&M Dashboard" Subnav={Subnav} activeSection={activeSection} onOpenSection={onOpenSection} actions={(
-      <button type="button" onClick={load} className={BTN_OUTLINE}><RefreshCw className="size-4" /> Refresh</button>
-    )}>
+    <HubShell
+      title="Operation & Maintenance (O&M)"
+      Subnav={Subnav}
+      activeSection={activeSection}
+      onOpenSection={onOpenSection}
+      actions={(
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => onOpenSection?.('Service & Complaints')}
+            className={BTN_PRIMARY}
+          >
+            <Plus className="size-4" /> Raise Ticket
+          </button>
+          <button
+            type="button"
+            onClick={() => onOpenSection?.('Service & Complaints')}
+            className={BTN_OUTLINE}
+          >
+            View Tickets
+          </button>
+          <button type="button" onClick={load} className={BTN_OUTLINE}><RefreshCw className="size-4" /></button>
+        </div>
+      )}
+    >
       {loading ? <EmptyHint text="Loading dashboard…" /> : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
             {kpis.map((k) => (
-              <article key={k.label} className={`${PANEL} p-4`}>
+              <article
+                key={k.label}
+                className={`${PANEL} p-4 ${k.tone === 'red' ? 'border-[#fecaca] bg-[#fef2f2]' : ''}`}
+              >
                 <div className="flex items-start justify-between gap-2">
-                  <p className="text-[11px] font-bold text-[#64748b]">{k.label}</p>
-                  <k.icon className="size-4 text-[#0b8f43]" />
+                  <p className={`text-[11px] font-bold ${k.tone === 'red' ? 'text-[#b91c1c]' : 'text-[#64748b]'}`}>{k.label}</p>
+                  <k.icon className={`size-4 ${k.tone === 'red' ? 'text-[#dc2626]' : 'text-[#0b8f43]'}`} />
                 </div>
-                <p className="mt-2 text-[22px] font-extrabold text-[#1e3261]">{k.value}</p>
+                <p className={`mt-2 text-[22px] font-extrabold ${k.tone === 'red' ? 'text-[#b91c1c]' : 'text-[#1e3261]'}`}>{k.value}</p>
               </article>
             ))}
           </div>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <div>
-              <h3 className="mb-2 text-[14px] font-extrabold text-[#111827]">AMC Expiry Alerts</h3>
+
+          <div className="grid gap-4 lg:grid-cols-5">
+            <div className="lg:col-span-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <h3 className="text-[14px] font-extrabold text-[#111827]">Service Tickets (Recent)</h3>
+                <button
+                  type="button"
+                  className="text-[12px] font-bold text-[#0b65e5]"
+                  onClick={() => onOpenSection?.('Service & Complaints')}
+                >
+                  View All
+                </button>
+              </div>
               <SimpleTable
-                empty="No AMC expiry alerts."
+                empty="No service tickets yet. Use Raise Ticket to create one."
                 columns={[
-                  { key: 'id', label: 'AMC', render: (r) => `AMC-${String(r.id).padStart(4, '0')}` },
-                  { key: 'customer_name', label: 'Customer' },
-                  { key: 'end_date', label: 'End', render: (r) => fmtDate(r.end_date) },
-                  { key: 'status', label: 'Status', render: (r) => <Pill tone={r.status === 'Expired' ? 'red' : 'amber'}>{r.status}</Pill> },
+                  { key: 'record_no', label: 'Ticket #' },
+                  { key: 'project_or_customer', label: 'Project / Customer' },
+                  { key: 'subject', label: 'Issue', render: (r) => r.subject || '—' },
+                  { key: 'assigned_to_name', label: 'Assigned To' },
+                  {
+                    key: 'status',
+                    label: 'Status',
+                    render: (r) => <Pill tone={ticketStatusTone(r.status)}>{r.status}</Pill>,
+                  },
                 ]}
-                rows={expiringAmc.slice(0, 8)}
+                rows={recentTickets}
               />
             </div>
-            <div>
-              <h3 className="mb-2 text-[14px] font-extrabold text-[#111827]">Quick Links</h3>
-              <div className={`${PANEL} grid gap-2 p-4 sm:grid-cols-2`}>
-                {[
-                  ['AMC & Warranty', 'Contracts & warranty'],
-                  ['Service & Complaints', 'Requests & tickets'],
-                  ['Job Cards & Site Visits', 'Field work'],
-                  ['Plant Monitoring & Reports', 'Generation & reports'],
-                ].map(([sec, hint]) => (
-                  <button key={sec} type="button" onClick={() => onOpenSection?.(sec)} className="rounded-[10px] border border-[#e7eef7] bg-[#f8fbff] px-3 py-2.5 text-left hover:border-[#0b8f43]">
-                    <span className="block text-[13px] font-extrabold text-[#1e3261]">{sec}</span>
-                    <span className="text-[11px] font-semibold text-[#8a98af]">{hint}</span>
-                  </button>
-                ))}
+
+            <div className="lg:col-span-2">
+              <h3 className="mb-2 text-[14px] font-extrabold text-[#111827]">Upcoming & Alerts</h3>
+              <div className={`${PANEL} divide-y divide-[#edf2f8]`}>
+                {upcomingAlerts.length ? upcomingAlerts.slice(0, 8).map((a, i) => (
+                  <div key={`${a.label}-${a.plant_code || a.plant_name}-${i}`} className="flex items-start gap-3 px-3 py-3">
+                    <AlertTriangle className={`mt-0.5 size-4 shrink-0 ${a.days <= 7 ? 'text-[#dc2626]' : 'text-[#d97706]'}`} />
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-extrabold text-[#1e3261]">
+                        {a.label} — {a.days} Days
+                      </p>
+                      <p className="truncate text-[12px] font-semibold text-[#64748b]">
+                        {a.plant_name}
+                        {a.capacity_kwp != null ? ` · ${Number(a.capacity_kwp).toFixed(2)} kWp` : ''}
+                      </p>
+                    </div>
+                  </div>
+                )) : (
+                  <p className="px-3 py-6 text-center text-[13px] font-semibold text-[#8a98af]">
+                    No warranty / AMC / service alerts in the next 30 days.
+                  </p>
+                )}
               </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="mb-2 text-[14px] font-extrabold text-[#111827]">Quick Actions</h3>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              {[
+                ['Raise Service Ticket', 'Service & Complaints', Ticket],
+                ['Schedule Service', 'Service & Complaints', Calendar],
+                ['Ticket List', 'Service & Complaints', ClipboardList],
+                ['AMC & Warranty', 'AMC & Warranty', Shield],
+                ['Service Reports', 'Plant Monitoring & Reports', CheckCircle2],
+              ].map(([label, sec, Icon]) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => onOpenSection?.(sec)}
+                  className={`${PANEL} flex items-center gap-3 px-4 py-4 text-left transition hover:border-[#0b8f43]`}
+                >
+                  <span className="inline-flex size-10 items-center justify-center rounded-[10px] bg-[#ecfdf5] text-[#0b8f43]">
+                    <Icon className="size-5" />
+                  </span>
+                  <span className="text-[13px] font-extrabold text-[#1e3261]">{label}</span>
+                </button>
+              ))}
             </div>
           </div>
         </>

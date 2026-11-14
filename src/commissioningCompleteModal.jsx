@@ -1,12 +1,13 @@
-import { useMemo, useState } from 'react';
-import { Eye, EyeOff, X } from 'lucide-react';
-import { lcCommissioningApi } from './api.js';
+import { useEffect, useMemo, useState } from 'react';
+import { Eye, EyeOff, Pencil, X } from 'lucide-react';
+import { lcCommissioningApi, omSettingsApi } from './api.js';
 
-const WARRANTY_OPTIONS = ['1 Years', '2 Years', '3 Years', '5 Years', '10 Years', '12 Years', '15 Years', '25 Years'];
-const SOLAR_APPS = [
+export const DEFAULT_SOLAR_APPS = [
   'SolisCloud', 'SolarMan', 'ShinePhone', 'Fronius Solar.web', 'Growatt OSS',
-  'Sungrow iSolarCloud', 'GoodWe SEMS', 'Other',
+  'Sungrow iSolarCloud', 'GoodWe SEMS',
 ];
+
+const SOLAR_PLATFORMS_KEY = 'solar_monitoring_platforms';
 
 function cx(...parts) {
   return parts.filter(Boolean).join(' ');
@@ -14,26 +15,53 @@ function cx(...parts) {
 
 const inputCls = 'h-10 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-semibold text-[#0f172a] outline-none focus:border-[#2563eb]';
 
+function addMonths(isoDate, months) {
+  const d = new Date(`${isoDate}T00:00:00`);
+  const day = d.getDate();
+  d.setMonth(d.getMonth() + months);
+  // Clamp overflow (e.g. Jan 31 + 1 month)
+  if (d.getDate() < day) d.setDate(0);
+  return d.toISOString().slice(0, 10);
+}
+
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function platformsFromSettings(raw) {
+  const value = raw?.value ?? raw;
+  const list = Array.isArray(value)
+    ? value
+    : Array.isArray(value?.platforms)
+      ? value.platforms
+      : Array.isArray(value?.items)
+        ? value.items
+        : [];
+  return list.map((x) => (typeof x === 'string' ? x : x?.name)).filter(Boolean);
+}
+
 export function CommissioningCompleteModal({
   commissioning,
   onClose,
   onNotify,
   onCompleted,
 }) {
-  const defaultNext = useMemo(() => {
-    const base = commissioning?.date || new Date().toISOString().slice(0, 10);
-    const d = new Date(`${base}T00:00:00`);
-    d.setFullYear(d.getFullYear() + 5);
-    return d.toISOString().slice(0, 10);
-  }, [commissioning?.date]);
+  const entryDate = commissioning?.date || todayIso();
+  const defaultNext = useMemo(() => addMonths(entryDate, 3), [entryDate]);
 
   const [saving, setSaving] = useState(false);
   const [showWifi, setShowWifi] = useState(false);
   const [showApp, setShowApp] = useState(false);
+  const [platforms, setPlatforms] = useState(DEFAULT_SOLAR_APPS);
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customName, setCustomName] = useState('');
+  const [customDesc, setCustomDesc] = useState('');
+  const [savingCustom, setSavingCustom] = useState(false);
+
   const [form, setForm] = useState({
-    inverter_warranty: '5 Years',
-    panel_warranty: '25 Years',
-    service_warranty: '5 Years',
+    inverter_warranty: 10,
+    panel_warranty: 30,
+    service_warranty: 5,
     next_service_due: defaultNext,
     wifi_ssid: '',
     wifi_password: '',
@@ -42,7 +70,75 @@ export function CommissioningCompleteModal({
     solar_app_password: '',
   });
 
+  useEffect(() => {
+    let alive = true;
+    omSettingsApi.get(SOLAR_PLATFORMS_KEY)
+      .then((data) => {
+        if (!alive) return;
+        const saved = platformsFromSettings(data);
+        const merged = [...DEFAULT_SOLAR_APPS];
+        saved.forEach((name) => {
+          if (!merged.some((x) => x.toLowerCase() === String(name).toLowerCase())) merged.push(name);
+        });
+        setPlatforms(merged);
+      })
+      .catch(() => {
+        if (alive) setPlatforms(DEFAULT_SOLAR_APPS);
+      });
+    return () => { alive = false; };
+  }, []);
+
   const set = (key) => (e) => setForm((p) => ({ ...p, [key]: e.target.value }));
+  const setNumber = (key) => (e) => {
+    const raw = e.target.value;
+    setForm((p) => ({ ...p, [key]: raw === '' ? '' : Number(raw) }));
+  };
+
+  const onPlatformChange = (e) => {
+    const value = e.target.value;
+    if (value === '__other__') {
+      setCustomOpen(true);
+      return;
+    }
+    setForm((p) => ({ ...p, solar_app_platform: value }));
+  };
+
+  const saveCustomPlatform = async () => {
+    const name = customName.trim();
+    if (!name) {
+      onNotify?.('Application name is required', 'error');
+      return;
+    }
+    setSavingCustom(true);
+    try {
+      const nextList = [...platforms];
+      if (!nextList.some((x) => x.toLowerCase() === name.toLowerCase())) nextList.push(name);
+      try {
+        await omSettingsApi.update(SOLAR_PLATFORMS_KEY, {
+          value: { platforms: nextList },
+        });
+      } catch {
+        await omSettingsApi.create({
+          key: SOLAR_PLATFORMS_KEY,
+          value: { platforms: nextList },
+        });
+      }
+      setPlatforms(nextList);
+      setForm((p) => ({ ...p, solar_app_platform: name }));
+      setCustomOpen(false);
+      setCustomName('');
+      setCustomDesc('');
+      onNotify?.(`Saved “${name}” for CRM-wide reuse`, 'success');
+    } catch (e) {
+      // Still select locally even if settings write fails (offline / permission).
+      setPlatforms((prev) => (prev.includes(name) ? prev : [...prev, name]));
+      setForm((p) => ({ ...p, solar_app_platform: name }));
+      setCustomOpen(false);
+      onNotify?.(e.message || 'Saved locally — settings sync may need O&M access', 'error');
+    } finally {
+      setSavingCustom(false);
+    }
+  };
 
   const submit = async () => {
     const required = [
@@ -57,14 +153,20 @@ export function CommissioningCompleteModal({
       ['solar_app_password', 'Customer App Password'],
     ];
     for (const [key, label] of required) {
-      if (!String(form[key] || '').trim()) {
+      if (form[key] === '' || form[key] == null || !String(form[key]).trim()) {
         onNotify?.(`${label} is required`, 'error');
         return;
       }
     }
     setSaving(true);
     try {
-      const saved = await lcCommissioningApi.complete(commissioning.id, form);
+      const payload = {
+        ...form,
+        inverter_warranty: Number(form.inverter_warranty),
+        panel_warranty: Number(form.panel_warranty),
+        service_warranty: Number(form.service_warranty),
+      };
+      const saved = await lcCommissioningApi.complete(commissioning.id, payload);
       onNotify?.(
         `${saved.record_no || 'Commissioning'} completed · moved to O&M${saved.om_plant_code ? ` (${saved.om_plant_code})` : ''}`,
         'success',
@@ -80,8 +182,9 @@ export function CommissioningCompleteModal({
 
   const projectLabel = [
     commissioning?.project_name,
+    commissioning?.project_id || commissioning?.project_code,
     commissioning?.customer_name,
-  ].filter(Boolean).join(' · ') || 'Project';
+  ].filter(Boolean).join(' — ') || 'Project';
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4">
@@ -98,35 +201,44 @@ export function CommissioningCompleteModal({
 
         <div className="grid gap-5 px-5 py-4 md:grid-cols-2">
           <section>
-            <h3 className="mb-3 text-[12px] font-extrabold uppercase tracking-[0.04em] text-[#94a3b8]">Warranty Details</h3>
+            <h3 className="mb-3 text-[12px] font-extrabold uppercase tracking-[0.04em] text-[#94a3b8]">
+              Warranty &amp; Service Details
+            </h3>
             <div className="grid gap-3">
-              <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
-                Inverter Warranty *
-                <select className={inputCls} value={form.inverter_warranty} onChange={set('inverter_warranty')}>
-                  {WARRANTY_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
-              </label>
-              <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
-                Panel Warranty *
-                <select className={inputCls} value={form.panel_warranty} onChange={set('panel_warranty')}>
-                  {WARRANTY_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
-              </label>
-              <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
-                Service Warranty *
-                <select className={inputCls} value={form.service_warranty} onChange={set('service_warranty')}>
-                  {WARRANTY_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
-              </label>
+              {[
+                ['inverter_warranty', 'Inverter Warranty (Years) *'],
+                ['panel_warranty', 'Panel Warranty (Years) *'],
+                ['service_warranty', 'Service Warranty (Years) *'],
+              ].map(([key, label]) => (
+                <label key={key} className="grid gap-1 text-[11px] font-bold text-[#64748b]">
+                  {label}
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="1"
+                      max="50"
+                      className={cx(inputCls, 'pr-10')}
+                      value={form[key]}
+                      onChange={setNumber(key)}
+                    />
+                    <Pencil className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-[#94a3b8]" />
+                  </div>
+                </label>
+              ))}
               <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
                 Next Service Due *
                 <input type="date" className={inputCls} value={form.next_service_due} onChange={set('next_service_due')} />
               </label>
+              <div className="rounded-[10px] border border-[#bfdbfe] bg-[#eff6ff] px-3 py-2 text-[11px] font-semibold leading-relaxed text-[#1d4ed8]">
+                Default: Inverter 10 Years, Panel 30 Years, Service 5 Years, Next Service = Today + 3 Months (Editable).
+              </div>
             </div>
           </section>
 
           <section>
-            <h3 className="mb-3 text-[12px] font-extrabold uppercase tracking-[0.04em] text-[#94a3b8]">System Login Details</h3>
+            <h3 className="mb-3 text-[12px] font-extrabold uppercase tracking-[0.04em] text-[#94a3b8]">
+              System Login Details
+            </h3>
             <p className="mb-2 text-[11px] font-semibold text-[#b45309]">
               Passwords are encrypted at rest and never shown in reports/PDF.
             </p>
@@ -152,8 +264,9 @@ export function CommissioningCompleteModal({
               </label>
               <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
                 Solar App / Platform *
-                <select className={inputCls} value={form.solar_app_platform} onChange={set('solar_app_platform')}>
-                  {SOLAR_APPS.map((o) => <option key={o} value={o}>{o}</option>)}
+                <select className={inputCls} value={form.solar_app_platform} onChange={onPlatformChange}>
+                  {platforms.map((o) => <option key={o} value={o}>{o}</option>)}
+                  <option value="__other__">Other</option>
                 </select>
               </label>
               <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
@@ -189,10 +302,59 @@ export function CommissioningCompleteModal({
             onClick={submit}
             className="h-10 rounded-[8px] bg-[#16a34a] px-4 text-[13px] font-extrabold text-white disabled:opacity-60"
           >
-            {saving ? 'Saving…' : 'Complete & Move to O&M'}
+            {saving ? 'Saving…' : 'Complete & Move to O&M →'}
           </button>
         </div>
       </div>
+
+      {customOpen ? (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-[14px] bg-white p-5 shadow-2xl">
+            <h3 className="text-[16px] font-extrabold text-[#0f172a]">Add Custom Solar App / Platform</h3>
+            <p className="mt-1 text-[12px] font-semibold text-[#64748b]">
+              Saved names are reused across the CRM (commissioning + O&amp;M).
+            </p>
+            <div className="mt-4 grid gap-3">
+              <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
+                Application Name *
+                <input
+                  autoFocus
+                  className={inputCls}
+                  value={customName}
+                  onChange={(e) => setCustomName(e.target.value)}
+                  placeholder="e.g. Aadhar Solar Portal"
+                />
+              </label>
+              <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
+                Description (Optional)
+                <textarea
+                  className="min-h-[72px] w-full rounded-[8px] border border-[#d9e4f2] px-3 py-2 text-[13px] font-semibold outline-none focus:border-[#2563eb]"
+                  value={customDesc}
+                  onChange={(e) => setCustomDesc(e.target.value)}
+                  placeholder="Brief note for your team"
+                />
+              </label>
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => { setCustomOpen(false); setCustomName(''); setCustomDesc(''); }}
+                className="h-10 rounded-[8px] border border-[#d9e4f2] px-4 text-[13px] font-bold text-[#475569]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={savingCustom}
+                onClick={saveCustomPlatform}
+                className="h-10 rounded-[8px] bg-[#2563eb] px-4 text-[13px] font-extrabold text-white disabled:opacity-60"
+              >
+                {savingCustom ? 'Saving…' : 'Save & Select'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -138,12 +138,14 @@ def dashboard_summary(today=None):
 
     active_amc = 0
     warranty_expiring = 0
+    warranty_active = 0
     pending_amc_payments = None
     amc_revenue = None
     try:
         from apps.amc.models import AmcContract, AmcWarranty
         active_amc = AmcContract.objects.filter(status__in=('Active', 'Expiring Soon')).count()
         warranty_expiring = AmcWarranty.objects.filter(status='Expiring Soon').count()
+        warranty_active = AmcWarranty.objects.filter(status__in=('Active', 'Expiring Soon')).count()
         from django.db.models import Sum
         amc_revenue = AmcContract.objects.filter(
             status__in=('Active', 'Expiring Soon'),
@@ -151,9 +153,79 @@ def dashboard_summary(today=None):
     except Exception:
         pass
 
+    under_service = OmBreakdownTicket.objects.filter(
+        status__in=OmBreakdownTicket.OPEN_STATUSES, plant__isnull=False,
+    ).values('plant_id').distinct().count()
+    expiring_30_days = max(
+        warranty_expiring,
+        OmPlant.objects.filter(is_active=True).filter(
+            Q(inverter_warranty_end__gte=today, inverter_warranty_end__lte=today + timedelta(days=30))
+            | Q(panel_warranty_end__gte=today, panel_warranty_end__lte=today + timedelta(days=30))
+            | Q(service_warranty_end__gte=today, service_warranty_end__lte=today + timedelta(days=30))
+        ).count(),
+    )
+    ticket_rows = []
+    for t in OmBreakdownTicket.objects.select_related('plant', 'assigned_to').order_by('-created_at')[:8]:
+        plant = t.plant
+        assignee = getattr(t.assigned_to, 'name', None) if t.assigned_to_id else None
+        ticket_rows.append({
+            'id': t.id,
+            'record_no': t.record_no,
+            'subject': t.subject,
+            'status': t.status,
+            'priority': t.priority,
+            'created_at': t.created_at.isoformat() if t.created_at else None,
+            'plant_id': t.plant_id,
+            'assigned_to_id': t.assigned_to_id,
+            'project_or_customer': (plant.customer_name if plant else None) or (plant.plant_name if plant else '—'),
+            'plant_code': plant.plant_code if plant else None,
+            'assigned_to_name': assignee or 'Unassigned',
+        })
+
+    upcoming_alerts = []
+    for plant in OmPlant.objects.filter(is_active=True).order_by('next_service_due')[:40]:
+        specs = (
+            ('Panel Warranty Expiring', plant.panel_warranty_end),
+            ('Inverter Warranty Expiring', plant.inverter_warranty_end),
+            ('Service Warranty Expiring', plant.service_warranty_end),
+            ('Next Service Due', plant.next_service_due),
+        )
+        for label, end in specs:
+            if not end:
+                continue
+            days = (end - today).days
+            if 0 <= days <= 30:
+                upcoming_alerts.append({
+                    'label': label,
+                    'days': days,
+                    'plant_name': plant.plant_name or plant.customer_name,
+                    'plant_code': plant.plant_code,
+                    'capacity_kwp': float(plant.capacity_kw) if plant.capacity_kw is not None else None,
+                    'date': end.isoformat(),
+                })
+    try:
+        from apps.amc.models import AmcContract
+        for c in AmcContract.objects.filter(status__in=('Expiring Soon', 'Active')).order_by('end_date')[:20]:
+            if not c.end_date:
+                continue
+            days = (c.end_date - today).days
+            if 0 <= days <= 30:
+                upcoming_alerts.append({
+                    'label': 'AMC Expiring',
+                    'days': days,
+                    'plant_name': c.customer_name or c.site or f'AMC-{c.pk}',
+                    'plant_code': None,
+                    'capacity_kwp': None,
+                    'date': c.end_date.isoformat(),
+                })
+    except Exception:
+        pass
+    upcoming_alerts.sort(key=lambda x: x['days'])
+
     summary = {
         'total_plants': plants.count(),
         'active_plants': plants.filter(is_active=True).count(),
+        'under_service': under_service,
         'free_service_plants': count('free_service'),
         'expired_service_plants': count('free_expired'),
         'paid_plants': count('paid'),
@@ -173,9 +245,13 @@ def dashboard_summary(today=None):
         'pending_job_cards': pending_job_cards,
         'completed_services': completed_services,
         'active_amc': active_amc,
+        'warranty_active': warranty_active,
         'warranty_expiring': warranty_expiring,
+        'expiring_30_days': expiring_30_days,
         'amc_revenue': amc_revenue,
         'pending_amc_payments': pending_amc_payments,
+        'recent_tickets': ticket_rows,
+        'upcoming_alerts': upcoming_alerts[:12],
     }
     alerts = {
         'critical': [

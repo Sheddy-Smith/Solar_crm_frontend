@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
+  Check,
   CheckCircle2,
-  ChevronDown,
-  ChevronLeft,
+  Clock3,
   Eye,
   Pencil,
   Plus,
@@ -18,6 +18,14 @@ import {
   DISPATCH_CATEGORIES,
   suggestTemplateKey,
 } from './bomMaterialTemplates.js';
+import {
+  ProjectWorkflowShell,
+  projectSummaryMeta,
+} from './components/ProjectWorkflowShell.jsx';
+
+const C_CHANNEL_SIZES = ['41×41 mm', '40×40 mm', '52×52 mm', 'Other'];
+const POLE_SIZES = ['60×60 mm', '50×50 mm', '75×75 mm', 'Other'];
+const POLE_HEIGHTS = ['6', '7', '8', '9', '10', '12'];
 
 function cx(...parts) {
   return parts.filter(Boolean).join(' ');
@@ -127,8 +135,6 @@ export function MaterialPlanningBomPage({
   const [inventoryItems, setInventoryItems] = useState([]);
   const [templateKey, setTemplateKey] = useState(() => suggestTemplateKey(project?.capacity_kwp));
   const [search, setSearch] = useState('');
-  const [projectOpen, setProjectOpen] = useState(false);
-  const [projectQuery, setProjectQuery] = useState('');
   const [importOpen, setImportOpen] = useState(false);
   const [importQuery, setImportQuery] = useState('');
   const [editLine, setEditLine] = useState(null);
@@ -138,7 +144,6 @@ export function MaterialPlanningBomPage({
     pole_height: '7',
     pole_size: '60×60 mm',
   });
-  const projectRef = useRef(null);
 
   const load = async () => {
     if (!project?.id) {
@@ -172,28 +177,6 @@ export function MaterialPlanningBomPage({
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id]);
-
-  useEffect(() => {
-    const onDoc = (e) => {
-      if (projectRef.current && !projectRef.current.contains(e.target)) setProjectOpen(false);
-    };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, []);
-
-  const filteredProjects = useMemo(() => {
-    const q = projectQuery.trim().toLowerCase();
-    const list = Array.isArray(projects) ? projects : [];
-    if (!q) return list.slice(0, 40);
-    return list
-      .filter((p) =>
-        [p.project_name, p.project_id, p.customer_name, p.capacity_kwp]
-          .join(' ')
-          .toLowerCase()
-          .includes(q),
-      )
-      .slice(0, 40);
-  }, [projects, projectQuery]);
 
   const visibleLines = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -593,214 +576,179 @@ export function MaterialPlanningBomPage({
       .slice(0, 30);
   }, [inventoryItems, importQuery]);
 
-  const projectLabel = project?.project_name || project?.customer_name || 'Select project';
+  const projectTitle = project?.project_name || project?.customer_name || 'Select project';
+  const projectMeta = projectSummaryMeta(project);
+
+  const toggleSelectAll = (checked) => {
+    setLines((prev) => prev.map((l) => ({ ...l, selected: checked })));
+  };
+  const allSelected = visibleLines.length > 0 && visibleLines.every((l) => l.selected);
 
   return (
-    <div className={cx(panelClass, 'overflow-hidden print:shadow-none')}>
-      {showBack ? (
-        <div className="border-b border-[#edf2f8] px-4 py-3 sm:px-5">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#ef4444]/30 bg-white px-3 text-[12px] font-bold text-[#dc2626]"
-            >
-              <ChevronLeft className="size-4" />
-              Back
-            </button>
-            <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-semibold text-[#94a3b8]">
-                Dashboard &gt; Project Management &gt; Material Planning
-              </p>
-              <h1 className="text-[20px] font-extrabold text-[#0f172a]">Material Planning</h1>
-            </div>
-          </div>
+    <ProjectWorkflowShell
+      className={panelClass}
+      activeSection="Project Material Planning"
+      stageLabel="Material Planning"
+      project={project}
+      projects={projects}
+      showBack={showBack || Boolean(onClose)}
+      onBack={onClose}
+      onOpenSection={onOpenSection}
+      onChangeProject={onChangeProject}
+      onMarkDone={markPlanningDone}
+      markDoneDisabled={saving}
+    >
+      {/* Project summary + Template + Specs */}
+      <div className="border-b border-[#e8eef6] px-4 py-4 sm:px-5">
+        <div className="mb-4">
+          <h2 className="text-[20px] font-extrabold tracking-tight text-[#0f172a]">{projectTitle}</h2>
+          <p className="mt-0.5 text-[13px] font-semibold text-[#64748b]">
+            {projectMeta || 'Select a won project'}
+          </p>
         </div>
-      ) : null}
-
-      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#edf2f8] px-4 py-4 sm:px-5">
-        <div className="relative min-w-[280px] flex-1" ref={projectRef}>
-          <p className="mb-1 text-[11px] font-extrabold uppercase tracking-[0.04em] text-[#94a3b8]">Project</p>
-          <button
-            type="button"
-            onClick={() => setProjectOpen((v) => !v)}
-            className="flex w-full items-center justify-between gap-2 rounded-[10px] border border-[#d9e4f2] bg-white px-3 py-2.5 text-left"
-          >
-            <div className="min-w-0">
-              <p className="truncate text-[14px] font-extrabold text-[#0f172a]">{projectLabel}</p>
-              <p className="truncate text-[11px] font-semibold text-[#64748b]">
-                {[project?.project_id, project?.capacity_kwp != null ? `Capacity: ${Number(project.capacity_kwp).toFixed(2)} kW` : null, project?.system_type]
-                  .filter(Boolean)
-                  .join(' | ') || 'Select a won project'}
-              </p>
-            </div>
-            <ChevronDown className="size-4 shrink-0 text-[#94a3b8]" />
-          </button>
-          {projectOpen ? (
-            <div className="absolute z-40 mt-1 w-full overflow-hidden rounded-[10px] border border-[#d9e4f2] bg-white shadow-xl">
-              <div className="border-b border-[#edf2f8] p-2">
-                <div className="flex items-center gap-2 rounded-[8px] border border-[#e2e8f0] px-2">
-                  <Search className="size-3.5 text-[#94a3b8]" />
-                  <input
-                    autoFocus
-                    value={projectQuery}
-                    onChange={(e) => setProjectQuery(e.target.value)}
-                    placeholder="Search projects…"
-                    className="h-9 w-full text-[13px] font-semibold outline-none"
-                  />
-                </div>
-              </div>
-              <div className="max-h-56 overflow-y-auto">
-                {filteredProjects.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => {
-                      setProjectOpen(false);
-                      setProjectQuery('');
-                      if (String(p.id) !== String(project?.id)) onChangeProject?.(p);
-                    }}
-                    className={cx(
-                      'flex w-full flex-col items-start px-3 py-2 text-left hover:bg-[#f8fafc]',
-                      String(p.id) === String(project?.id) && 'bg-[#eff6ff]',
-                    )}
-                  >
-                    <span className="text-[13px] font-bold text-[#0f172a]">{p.project_name || p.customer_name}</span>
-                    <span className="text-[11px] font-semibold text-[#64748b]">
-                      {p.project_id} · {p.capacity_kwp ?? '—'} kW
-                    </span>
-                  </button>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="min-w-[240px] flex-1">
+            <p className="mb-1.5 text-[12px] font-bold text-[#334155]">Select BOM Template</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={templateKey}
+                onChange={(e) => applyTemplate(e.target.value)}
+                className="h-10 min-w-[200px] rounded-[9px] border border-[#d5e0ef] bg-white px-3 text-[13px] font-bold text-[#0f172a]"
+              >
+                {Object.values(BOM_TEMPLATES).map((t) => (
+                  <option key={t.key} value={t.key}>{t.label}</option>
                 ))}
-                {!filteredProjects.length ? (
-                  <p className="px-3 py-4 text-center text-[12px] font-semibold text-[#94a3b8]">No projects found</p>
-                ) : null}
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setProjectOpen(false);
-                  onClose?.();
-                }}
-                className="flex w-full items-center justify-center gap-1 border-t border-[#edf2f8] px-3 py-2.5 text-[12px] font-extrabold text-[#2563eb]"
-              >
-                Change Project / Move to Another Project ⇄
-              </button>
-            </div>
-          ) : null}
-        </div>
-
-        <WorkflowStepper
-          onGotoDispatch={() => onOpenSection?.('Project Dispatch')}
-        />
-      </div>
-
-      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#edf2f8] px-4 py-3 sm:px-5">
-        <div className="min-w-[220px] flex-1">
-          <p className="mb-1 text-[11px] font-extrabold uppercase tracking-[0.04em] text-[#94a3b8]">Select BOM Template</p>
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={templateKey}
-              onChange={(e) => applyTemplate(e.target.value)}
-              className="h-10 min-w-[200px] rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#0f172a]"
-            >
-              {Object.values(BOM_TEMPLATES).map((t) => (
-                <option key={t.key} value={t.key}>{t.label}</option>
+              </select>
+              {['3', '5', '10', 'other'].map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  disabled={saving}
+                  onClick={() => applyTemplate(k)}
+                  className={cx(
+                    'h-10 min-w-[64px] rounded-[9px] px-3 text-[13px] font-extrabold transition',
+                    templateKey === k
+                      ? 'bg-[#2563eb] text-white shadow-sm'
+                      : 'border border-[#d5e0ef] bg-white text-[#334155] hover:bg-[#f8fafc]',
+                  )}
+                >
+                  {k === 'other' ? 'Other' : `${k} kW`}
+                </button>
               ))}
-            </select>
-            {['3', '5', '10', 'other'].map((k) => (
-              <button
-                key={k}
-                type="button"
-                disabled={saving}
-                onClick={() => applyTemplate(k)}
-                className={cx(
-                  'h-9 rounded-[8px] px-3 text-[12px] font-extrabold',
-                  templateKey === k
-                    ? 'bg-[#2563eb] text-white'
-                    : 'border border-[#d9e4f2] bg-white text-[#314a79]',
-                )}
-              >
-                {k === 'other' ? 'Other' : `${k} kW`}
-              </button>
-            ))}
+            </div>
           </div>
-        </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {[
-            ['C-Channel Length (Ft)', 'c_channel_length'],
-            ['C-Channel Size', 'c_channel_size'],
-            ['Pole Height (Ft)', 'pole_height'],
-            ['Pole Size', 'pole_size'],
-          ].map(([label, key]) => (
-            <label key={key} className="grid gap-1 text-[10px] font-bold text-[#64748b]">
-              {label}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
+              C-Channel Length (Ft)
               <input
-                value={specs[key]}
-                onChange={(e) => setSpecs((p) => ({ ...p, [key]: e.target.value }))}
-                className="h-9 rounded-[8px] border border-[#d9e4f2] px-2 text-[12px] font-semibold text-[#0f172a] outline-none"
+                value={specs.c_channel_length}
+                onChange={(e) => setSpecs((p) => ({ ...p, c_channel_length: e.target.value }))}
+                className="h-10 w-full min-w-[110px] rounded-[9px] border border-[#d5e0ef] bg-white px-2.5 text-[13px] font-semibold text-[#0f172a] outline-none focus:border-[#2563eb]"
               />
             </label>
-          ))}
+            <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
+              C-Channel Size
+              <select
+                value={specs.c_channel_size}
+                onChange={(e) => setSpecs((p) => ({ ...p, c_channel_size: e.target.value }))}
+                className="h-10 w-full min-w-[110px] rounded-[9px] border border-[#d5e0ef] bg-white px-2.5 text-[13px] font-semibold text-[#0f172a] outline-none focus:border-[#2563eb]"
+              >
+                {C_CHANNEL_SIZES.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+              </select>
+            </label>
+            <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
+              Pole Height (Ft)
+              <select
+                value={specs.pole_height}
+                onChange={(e) => setSpecs((p) => ({ ...p, pole_height: e.target.value }))}
+                className="h-10 w-full min-w-[110px] rounded-[9px] border border-[#d5e0ef] bg-white px-2.5 text-[13px] font-semibold text-[#0f172a] outline-none focus:border-[#2563eb]"
+              >
+                {POLE_HEIGHTS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+              </select>
+            </label>
+            <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
+              Pole Size
+              <select
+                value={specs.pole_size}
+                onChange={(e) => setSpecs((p) => ({ ...p, pole_size: e.target.value }))}
+                className="h-10 w-full min-w-[110px] rounded-[9px] border border-[#d5e0ef] bg-white px-2.5 text-[13px] font-semibold text-[#0f172a] outline-none focus:border-[#2563eb]"
+              >
+                {POLE_SIZES.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+              </select>
+            </label>
+          </div>
         </div>
       </div>
 
+      {/* 4. Table toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-5">
-        <div className="flex min-w-[200px] flex-1 items-center gap-2 rounded-[8px] border border-[#e2e8f0] px-2">
-          <Search className="size-3.5 text-[#94a3b8]" />
+        <div className="flex h-10 min-w-[220px] flex-1 items-center gap-2 rounded-[9px] border border-[#d5e0ef] bg-white px-3">
+          <Search className="size-4 text-[#94a3b8]" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search item…"
-            className="h-9 w-full text-[13px] font-semibold outline-none"
+            placeholder="Search item..."
+            className="w-full text-[13px] font-semibold outline-none placeholder:text-[#94a3b8]"
           />
         </div>
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={addManualItem} className="inline-flex h-9 items-center gap-1 rounded-[8px] bg-[#2563eb] px-3 text-[12px] font-extrabold text-white">
-            <Plus className="size-3.5" /> Add Item
+          <button type="button" onClick={addManualItem} className="inline-flex h-10 items-center gap-1.5 rounded-[9px] bg-[#2563eb] px-3.5 text-[13px] font-extrabold text-white shadow-sm">
+            <Plus className="size-4" /> Add Item
           </button>
-          <button type="button" onClick={() => setImportOpen(true)} className="inline-flex h-9 items-center rounded-[8px] border border-[#2563eb] px-3 text-[12px] font-extrabold text-[#2563eb]">
+          <button type="button" onClick={() => setImportOpen(true)} className="inline-flex h-10 items-center rounded-[9px] border border-[#2563eb] bg-white px-3.5 text-[13px] font-extrabold text-[#2563eb]">
             Import from Inventory
           </button>
-          <button type="button" onClick={clearBom} className="inline-flex h-9 items-center rounded-[8px] border border-[#ef4444] px-3 text-[12px] font-extrabold text-[#dc2626]">
+          <button type="button" onClick={clearBom} className="inline-flex h-10 items-center rounded-[9px] border border-[#f1a8a8] bg-white px-3.5 text-[13px] font-extrabold text-[#e11d48]">
             Clear BOM
-          </button>
-          <button type="button" disabled={saving} onClick={markPlanningDone} className="inline-flex h-9 items-center rounded-[8px] bg-[#16a34a] px-3 text-[12px] font-extrabold text-white">
-            Mark Material Planning Done
-          </button>
-          <button type="button" onClick={() => onOpenSection?.('Project Dispatch')} className="inline-flex h-9 items-center rounded-[8px] bg-[#2563eb] px-3 text-[12px] font-extrabold text-white">
-            Next: Dispatch →
           </button>
         </div>
       </div>
 
+      {/* 5. BOM table */}
       <div className="px-4 pb-3 sm:px-5">
         {loading ? (
           <p className="py-16 text-center text-[13px] font-bold text-[#94a3b8]">Loading material planning…</p>
         ) : (
-          <div className="overflow-x-auto rounded-[10px] border border-[#dbe3ee]">
-            <table className="min-w-full text-left text-[12px]">
-              <thead className="bg-[#f8fafc] text-[11px] font-extrabold uppercase tracking-wide text-[#64748b]">
+          <div className="overflow-x-auto rounded-[12px] border border-[#dbe3ee] shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+            <table className="min-w-full text-left text-[13px]">
+              <thead className="bg-[#f8fafc] text-[11px] font-extrabold uppercase tracking-[0.03em] text-[#64748b]">
                 <tr>
-                  <th className="px-3 py-2.5">#</th>
-                  <th className="px-3 py-2.5">Material Name</th>
-                  <th className="px-3 py-2.5">Specification</th>
-                  <th className="px-3 py-2.5">Unit</th>
-                  <th className="px-3 py-2.5">Qty (Planned)</th>
-                  <th className="px-3 py-2.5">Qty (Dispatched)</th>
-                  <th className="px-3 py-2.5">Qty (Balance)</th>
-                  <th className="px-3 py-2.5">Action</th>
+                  <th className="px-3 py-3">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={(e) => toggleSelectAll(e.target.checked)}
+                      className="size-4 rounded border-[#cbd5e1] accent-[#2563eb]"
+                    />
+                  </th>
+                  <th className="px-2 py-3">#</th>
+                  <th className="px-3 py-3">Material Name</th>
+                  <th className="px-3 py-3">Specification</th>
+                  <th className="px-3 py-3">Unit</th>
+                  <th className="px-3 py-3">Qty (Planned)</th>
+                  <th className="px-3 py-3">Qty (Dispatched)</th>
+                  <th className="px-3 py-3">Qty (Balance)</th>
+                  <th className="px-3 py-3">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {visibleLines.map((line, idx) => {
                   const bal = balanceOf(line);
                   return (
-                    <tr key={line._key} className="border-t border-[#edf2f8]">
-                      <td className="px-3 py-2 font-bold text-[#64748b]">{idx + 1}</td>
-                      <td className="px-3 py-2 font-bold text-[#0f172a]">{line.material_name || '—'}</td>
-                      <td className="px-3 py-2 text-[#475569]">{line.specification || '—'}</td>
-                      <td className="px-3 py-2 font-semibold">{line.unit}</td>
-                      <td className="px-3 py-2">
+                    <tr key={line._key} className="border-t border-[#edf2f8] hover:bg-[#fbfdff]">
+                      <td className="px-3 py-2.5">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(line.selected)}
+                          onChange={(e) => patchLine(line._key, { selected: e.target.checked })}
+                          className="size-4 rounded border-[#cbd5e1] accent-[#2563eb]"
+                        />
+                      </td>
+                      <td className="px-2 py-2.5 font-bold text-[#64748b]">{idx + 1}</td>
+                      <td className="px-3 py-2.5 font-bold text-[#0f172a]">{line.material_name || '—'}</td>
+                      <td className="px-3 py-2.5 text-[#475569]">{line.specification || '—'}</td>
+                      <td className="px-3 py-2.5 font-semibold text-[#334155]">{line.unit}</td>
+                      <td className="px-3 py-2.5">
                         <input
                           type="number"
                           min="0"
@@ -808,10 +756,10 @@ export function MaterialPlanningBomPage({
                           value={line.planned_qty}
                           onChange={(e) => patchLine(line._key, { planned_qty: e.target.value })}
                           onBlur={() => line.id && saveOne({ ...line }, { includeDispatch: false }).then(() => onPlansChanged?.())}
-                          className="h-8 w-20 rounded border border-[#e2e8f0] px-2 font-bold outline-none"
+                          className="h-9 w-[72px] rounded-[8px] border border-[#e2e8f0] bg-white px-2 text-center font-bold outline-none focus:border-[#2563eb]"
                         />
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-2.5">
                         <input
                           type="number"
                           min="0"
@@ -819,26 +767,28 @@ export function MaterialPlanningBomPage({
                           value={line.dispatched_qty}
                           onChange={(e) => patchLine(line._key, { dispatched_qty: e.target.value })}
                           onBlur={(e) => updateDispatched(line, e.target.value)}
-                          className="h-8 w-20 rounded border border-[#e2e8f0] px-2 font-bold outline-none"
+                          className="h-9 w-[72px] rounded-[8px] border border-[#e2e8f0] bg-white px-2 text-center font-bold outline-none focus:border-[#2563eb]"
                         />
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-2.5">
                         <span
                           className={cx(
-                            'inline-flex min-w-[2.5rem] justify-center rounded-md px-2 py-1 text-[12px] font-extrabold',
-                            bal <= 0 ? 'bg-[#dcfce7] text-[#15803d]' : 'bg-[#ffedd5] text-[#c2410c]',
+                            'inline-flex min-w-[2.75rem] justify-center rounded-[8px] px-2.5 py-1.5 text-[13px] font-extrabold',
+                            bal <= 0
+                              ? 'bg-[#dcfce7] text-[#15803d]'
+                              : 'bg-[#ffedd5] text-[#c2410c]',
                           )}
                         >
                           {bal}
                         </span>
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-2.5">
                         <div className="flex gap-1">
-                          <button type="button" onClick={() => setEditLine({ ...line })} className="rounded p-1.5 text-[#2563eb] hover:bg-[#eff6ff]" title="Edit">
-                            <Pencil className="size-3.5" />
+                          <button type="button" onClick={() => setEditLine({ ...line })} className="rounded-[8px] p-1.5 text-[#2563eb] hover:bg-[#eff6ff]" title="Edit">
+                            <Pencil className="size-4" />
                           </button>
-                          <button type="button" onClick={() => deleteLine(line)} className="rounded p-1.5 text-[#dc2626] hover:bg-[#fef2f2]" title="Delete">
-                            <Trash2 className="size-3.5" />
+                          <button type="button" onClick={() => deleteLine(line)} className="rounded-[8px] p-1.5 text-[#e11d48] hover:bg-[#fef2f2]" title="Delete">
+                            <Trash2 className="size-4" />
                           </button>
                         </div>
                       </td>
@@ -847,28 +797,36 @@ export function MaterialPlanningBomPage({
                 })}
                 {!visibleLines.length ? (
                   <tr>
-                    <td colSpan={8} className="px-3 py-12 text-center text-[13px] font-semibold text-[#94a3b8]">
+                    <td colSpan={9} className="px-3 py-14 text-center text-[13px] font-semibold text-[#94a3b8]">
                       No BOM items — pick a template, add manually, or import from inventory
                     </td>
                   </tr>
                 ) : null}
               </tbody>
             </table>
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#edf2f8] bg-[#f8fafc] px-3 py-2.5 text-[12px] font-bold text-[#475569]">
-              <span>Total Items: {totals.items}</span>
-              <span className="flex flex-wrap gap-4">
-                <span>Total Planned: {totals.planned}</span>
-                <span>Dispatched: {totals.dispatched}</span>
-                <span>Balance: {totals.balance}</span>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#edf2f8] bg-[#f8fafc] px-4 py-3 text-[13px] font-bold text-[#475569]">
+              <span>Total Items: <span className="text-[#0f172a]">{totals.items}</span></span>
+              <span className="flex flex-wrap gap-5">
+                <span>Total Planned: <span className="text-[#0f172a]">{totals.planned}</span></span>
+                <span>Dispatched: <span className="text-[#16a34a]">{totals.dispatched}</span></span>
+                <span>Balance: <span className="text-[#ea580c]">{totals.balance}</span></span>
               </span>
             </div>
           </div>
         )}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#edf2f8] px-4 py-3 sm:px-5">
-        <div>
-          <p className="mb-1.5 text-[11px] font-extrabold uppercase tracking-[0.04em] text-[#94a3b8]">Item-wise Dispatch Status</p>
+      {/* 6. Dispatch status + footer actions */}
+      <div className="flex flex-wrap items-end justify-between gap-4 border-t border-[#e8eef6] px-4 py-4 sm:px-5">
+        <div className="min-w-[240px] flex-1">
+          <div className="mb-2 flex flex-wrap items-center gap-3">
+            <p className="text-[12px] font-extrabold uppercase tracking-[0.04em] text-[#94a3b8]">Item-wise Dispatch Status</p>
+            <div className="flex flex-wrap gap-3 text-[11px] font-bold text-[#64748b]">
+              <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-[#16a34a]" /> Dispatched</span>
+              <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-[#f59e0b]" /> Partially Dispatched</span>
+              <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-[#94a3b8]" /> Not Dispatched</span>
+            </div>
+          </div>
           <div className="flex flex-wrap gap-2">
             {DISPATCH_CATEGORIES.map((cat) => {
               const st = categoryDispatchStatus(lines, cat);
@@ -876,32 +834,32 @@ export function MaterialPlanningBomPage({
                 <span
                   key={cat}
                   className={cx(
-                    'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold',
-                    st === 'done' && 'bg-[#dcfce7] text-[#15803d]',
-                    st === 'partial' && 'bg-[#fef9c3] text-[#a16207]',
-                    st === 'pending' && 'bg-[#f1f5f9] text-[#64748b]',
-                    st === 'empty' && 'bg-[#f8fafc] text-[#94a3b8]',
+                    'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-bold',
+                    st === 'done' && 'border-[#bbf7d0] bg-[#dcfce7] text-[#15803d]',
+                    st === 'partial' && 'border-[#fde68a] bg-[#fffbeb] text-[#b45309]',
+                    (st === 'pending' || st === 'empty') && 'border-[#e2e8f0] bg-[#f8fafc] text-[#64748b]',
                   )}
                 >
-                  {st === 'done' ? <CheckCircle2 className="size-3" /> : null}
+                  {st === 'done' ? <CheckCircle2 className="size-3.5" /> : null}
+                  {st === 'partial' ? <Clock3 className="size-3.5" /> : null}
+                  {(st === 'pending' || st === 'empty') ? <Check className="size-3.5 opacity-40" /> : null}
                   {cat}
-                  {st === 'done' ? ' ✓' : st === 'partial' ? ' ◐' : st === 'pending' ? ' ○' : ''}
                 </span>
               );
             })}
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={previewSummary} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#d9e4f2] px-3 text-[12px] font-bold text-[#314a79]">
-            <Eye className="size-3.5" /> Preview
+          <button type="button" onClick={previewSummary} className="inline-flex h-10 items-center gap-1.5 rounded-[9px] border border-[#d5e0ef] bg-white px-3.5 text-[13px] font-bold text-[#334155]">
+            <Eye className="size-4" /> Preview
           </button>
-          <button type="button" onClick={printChecklist} className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#d9e4f2] px-3 text-[12px] font-bold text-[#314a79]">
-            <Printer className="size-3.5" /> Print
+          <button type="button" onClick={printChecklist} className="inline-flex h-10 items-center gap-1.5 rounded-[9px] border border-[#d5e0ef] bg-white px-3.5 text-[13px] font-bold text-[#334155]">
+            <Printer className="size-4" /> Print
           </button>
-          <button type="button" disabled={saving} onClick={saveAll} className="inline-flex h-9 items-center rounded-[8px] border border-[#2563eb] px-3 text-[12px] font-extrabold text-[#2563eb]">
+          <button type="button" disabled={saving} onClick={saveAll} className="inline-flex h-10 items-center rounded-[9px] border border-[#2563eb] bg-white px-3.5 text-[13px] font-extrabold text-[#2563eb] disabled:opacity-60">
             Save Draft
           </button>
-          <button type="button" disabled={saving} onClick={saveAll} className="inline-flex h-9 items-center rounded-[8px] bg-[#16a34a] px-3 text-[12px] font-extrabold text-white">
+          <button type="button" disabled={saving} onClick={saveAll} className="inline-flex h-10 items-center rounded-[9px] bg-[#16a34a] px-4 text-[13px] font-extrabold text-white shadow-sm hover:bg-[#15803d] disabled:opacity-60">
             Save & Update
           </button>
         </div>
@@ -1033,50 +991,7 @@ export function MaterialPlanningBomPage({
           </div>
         </ModalShell>
       ) : null}
-    </div>
-  );
-}
-
-function WorkflowStepper({ onGotoDispatch }) {
-  const steps = [
-    { key: 'survey', label: 'Site Survey', state: 'done' },
-    { key: 'mp', label: 'Material Planning', state: 'active' },
-    { key: 'dispatch', label: 'Dispatch', state: 'pending' },
-    { key: 'install', label: 'Installation', state: 'pending' },
-  ];
-  return (
-    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-      {steps.map((s, i) => (
-        <button
-          key={s.key}
-          type="button"
-          onClick={() => {
-            if (s.key === 'dispatch') onGotoDispatch?.();
-          }}
-          className="flex items-center gap-2"
-        >
-          <span
-            className={cx(
-              'flex size-7 items-center justify-center rounded-full text-[11px] font-extrabold',
-              s.state === 'done' && 'bg-[#16a34a] text-white',
-              s.state === 'active' && 'bg-[#2563eb] text-white',
-              s.state === 'pending' && 'bg-[#e2e8f0] text-[#64748b]',
-            )}
-          >
-            {s.state === 'done' ? '✓' : i + 1}
-          </span>
-          <span
-            className={cx(
-              'text-[11px] font-bold',
-              s.state === 'active' ? 'text-[#2563eb]' : 'text-[#64748b]',
-            )}
-          >
-            {s.label}
-          </span>
-          {i < steps.length - 1 ? <span className="hidden text-[#cbd5e1] sm:inline">—</span> : null}
-        </button>
-      ))}
-    </div>
+    </ProjectWorkflowShell>
   );
 }
 

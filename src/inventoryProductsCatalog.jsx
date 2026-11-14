@@ -16,7 +16,14 @@ import {
   Trash2,
   IndianRupee,
 } from 'lucide-react';
-import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
+import { TablePagination } from './components/TablePagination.jsx';
+import {
+  RecentAllPageHeading,
+  RecentRecordsSectionHeader,
+  ViewAllRecordsButton,
+} from './components/RecentAllListShell.jsx';
+import { useRecentAllRows } from './hooks/useRecentAllRows.js';
+import { RECENT_LIST_LIMIT } from './lib/recentAllList.js';
 import { exportNotifyCsv } from './lib/utils.js';
 
 function cx(...classes) {
@@ -145,9 +152,18 @@ export function InventoryProductsCatalog({
   }, [activeItems, search, categoryFilter, statusFilter]);
 
   const resetKey = `${search}|${categoryFilter}|${statusFilter}`;
-  const { pageRows, pagination } = usePagedRows(filtered, 'inventory-products-catalog', {
-    defaultSize: 10,
+  const {
+    isAll: isAllProductsView,
+    openAll: openAllProducts,
+    openRecent: openRecentProducts,
+    displayRows: pageRows,
+    pagination,
+    totalCount: productTotalCount,
+    recentCount: productRecentCount,
+  } = useRecentAllRows(filtered, {
+    storageKey: 'inventory-products-catalog',
     resetKey,
+    activityFields: ['updated_at', 'created_at', 'last_activity_at'],
   });
 
   const kpis = useMemo(() => {
@@ -243,6 +259,23 @@ export function InventoryProductsCatalog({
       </div>
 
       <div className="overflow-hidden rounded-[16px] border border-[#e2e8f0] bg-white shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
+        <div className="space-y-2 border-b border-[#eef2f7] p-4">
+          <RecentAllPageHeading
+            isAll={isAllProductsView}
+            moduleLabel="Products"
+            recentTitle="Inventory Products (Recent)"
+            allTitle="All Products"
+            recentSubtitle={`Showing the latest ${RECENT_LIST_LIMIT} products you recently worked on.`}
+            onBackToRecent={openRecentProducts}
+          />
+          {!isAllProductsView ? (
+            <RecentRecordsSectionHeader
+              moduleLabel="Products"
+              showing={productRecentCount}
+              total={productTotalCount}
+            />
+          ) : null}
+        </div>
         <div className="flex flex-col gap-3 border-b border-[#eef2f7] p-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center gap-2">
             {caps.add ? (
@@ -346,7 +379,7 @@ export function InventoryProductsCatalog({
                 <LayoutGrid className="size-4" />
               </button>
             </div>
-            {caps.export ? (
+            {caps.export && isAllProductsView ? (
               <button
                 type="button"
                 onClick={() => exportNotifyCsv(
@@ -512,13 +545,18 @@ export function InventoryProductsCatalog({
           </div>
         )}
 
-        <div className="border-t border-[#eef2f7] px-2 py-1">
-          <TablePagination
-            {...pagination}
-            noun="products"
-            pageSizeOptions={[10, 20, 30, 50, 100]}
-          />
-        </div>
+        {!loading && !isAllProductsView ? (
+          <ViewAllRecordsButton label="View All Products →" onClick={openAllProducts} />
+        ) : null}
+        {!loading && isAllProductsView && pagination ? (
+          <div className="border-t border-[#eef2f7] px-2 py-1">
+            <TablePagination
+              {...pagination}
+              noun="products"
+              pageSizeOptions={[10, 20, 30, 50, 100]}
+            />
+          </div>
+        ) : null}
       </div>
     </div>
   );

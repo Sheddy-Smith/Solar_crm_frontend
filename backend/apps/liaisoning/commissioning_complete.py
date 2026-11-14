@@ -16,6 +16,8 @@ SOLAR_APP_CHOICES = (
     'SolisCloud', 'SolarMan', 'ShinePhone', 'Fronius Solar.web', 'Growatt OSS',
     'Sungrow iSolarCloud', 'GoodWe SEMS', 'Other',
 )
+SOLAR_PLATFORMS_KEY = 'solar_monitoring_platforms'
+WARRANTY_ALERT_DAYS = 30
 
 
 def add_years(start: date, years: int) -> date:
@@ -48,6 +50,39 @@ def _require(data, key, label):
     return value
 
 
+def warranty_status_for(end: date, today: date | None = None) -> str:
+    today = today or timezone.localdate()
+    if end < today:
+        return 'Expired'
+    if (end - today).days <= WARRANTY_ALERT_DAYS:
+        return 'Expiring Soon'
+    return 'Active'
+
+
+def remember_solar_platform(name: str, *, actor=None) -> None:
+    """Persist custom Solar App / Platform names in OmSettings for CRM-wide reuse."""
+    name = (name or '').strip()
+    if not name or name.lower() == 'other':
+        return
+    try:
+        from apps.om.models import OmSettings
+    except Exception:
+        return
+    row, _ = OmSettings.objects.get_or_create(
+        key=SOLAR_PLATFORMS_KEY,
+        defaults={'value': {'platforms': []}, 'updated_by': actor},
+    )
+    value = row.value if isinstance(row.value, dict) else {}
+    platforms = list(value.get('platforms') or [])
+    if any(str(p).lower() == name.lower() for p in platforms):
+        return
+    platforms.append(name)
+    row.value = {**value, 'platforms': platforms}
+    if actor is not None:
+        row.updated_by = actor
+    row.save(update_fields=['value', 'updated_by', 'updated_at'] if actor is not None else ['value', 'updated_at'])
+
+
 @transaction.atomic
 def complete_commissioning(commissioning, data, *, actor=None):
     """Mandatory completion form → Completed → O&M plant + warranties + encrypted logins."""
@@ -63,7 +98,21 @@ def complete_commissioning(commissioning, data, *, actor=None):
 
     next_service = data.get('next_service_due')
     if not next_service:
-        next_service = add_years(commissioning_date, service_years)
+        # Default: entry/commissioning date + 3 months (editable on the form).
+        try:
+            next_service = commissioning_date.replace(month=commissioning_date.month + 3)
+        except ValueError:
+            # Month overflow (e.g. Nov→Feb) or day clamp (Jan 31 + 3 months).
+            month = commissioning_date.month + 3
+            year = commissioning_date.year + (month - 1) // 12
+            month = ((month - 1) % 12) + 1
+            day = commissioning_date.day
+            while True:
+                try:
+                    next_service = date(year, month, day)
+                    break
+                except ValueError:
+                    day -= 1
     elif isinstance(next_service, str):
         next_service = date.fromisoformat(next_service)
 
@@ -130,6 +179,7 @@ def complete_commissioning(commissioning, data, *, actor=None):
         ('Panel', panel_years, panel_end),
         ('Service', service_years, service_end),
     )
+    today = timezone.localdate()
     for asset_type, years, end in warranty_specs:
         existing = AmcWarranty.objects.filter(project=project, asset_type=asset_type).order_by('-id').first()
         payload = {
@@ -138,7 +188,7 @@ def complete_commissioning(commissioning, data, *, actor=None):
             'serial_number': '',
             'warranty_start': commissioning_date,
             'warranty_end': end,
-            'status': 'Active',
+            'status': warranty_status_for(end, today),
             'coverage_details': f'{years} Years from commissioning',
             'created_by': actor or commissioning.created_by,
         }
@@ -150,6 +200,8 @@ def complete_commissioning(commissioning, data, *, actor=None):
             existing.save()
         else:
             AmcWarranty.objects.create(project=project, **payload)
+
+    remember_solar_platform(solar_app, actor=actor or commissioning.created_by)
 
     notify(
         f'commissioning-completed-om-{commissioning.pk}',

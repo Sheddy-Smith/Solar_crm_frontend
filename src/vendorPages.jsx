@@ -9,6 +9,12 @@ import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/
 import { LedgerMobileCards } from './components/mobile/LedgerMobileCards.jsx';
 import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
 import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
+import {
+  RecentAllPageHeading,
+  RecentRecordsSectionHeader,
+  ViewAllRecordsButton,
+} from './components/RecentAllListShell.jsx';
+import { useRecentAllRows } from './hooks/useRecentAllRows.js';
 
 const TABS = [
   { key: 'Vendor Details', label: 'Vendor Details' },
@@ -256,7 +262,19 @@ function VendorDetailsTab({ caps, onNotify, addRequested = false, onAddRequestCo
     const hay = `${r.name} ${r.company} ${r.phone} ${r.vendor_type} ${r.address}`.toLowerCase();
     return hay.includes(q.trim().toLowerCase());
   });
-  const { pageRows, pagination } = usePagedRows(filtered, 'vendor-list', { resetKey: q });
+  const {
+    isAll: isAllVendorsView,
+    openAll: openAllVendors,
+    openRecent: openRecentVendors,
+    displayRows: pageRows,
+    pagination,
+    totalCount: vendorTotalCount,
+    recentCount: vendorRecentCount,
+  } = useRecentAllRows(filtered, {
+    storageKey: 'vendor-list',
+    resetKey: q,
+    activityFields: ['updated_at', 'created_at', 'last_activity_at'],
+  });
 
   const save = async () => {
     if (!modal?.form?.name?.trim() || !modal.form.phone?.trim()) {
@@ -300,17 +318,27 @@ function VendorDetailsTab({ caps, onNotify, addRequested = false, onAddRequestCo
 
   return (
     <>
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-        <input className={`${inputClass} w-full sm:max-w-xs`} placeholder="Search vendors..." value={q} onChange={(e) => setQ(e.target.value)} />
-        {caps.export ? (
+      <RecentAllPageHeading
+        isAll={isAllVendorsView}
+        moduleLabel="Vendors"
+        recentTitle="Vendors (Recent)"
+        allTitle="All Vendors"
+        onBackToRecent={openRecentVendors}
+        actions={caps.export && isAllVendorsView ? (
           <button
             type="button"
             onClick={() => exportNotifyCsv(onNotify, 'vendors', ['Name', 'Phone', 'Company', 'Type', 'Net Balance'], filtered.map((r) => [r.name, r.phone, r.company, r.vendor_type, r.balance]))}
-            className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] border border-[#d9e4f2] px-4 text-[13px] font-extrabold text-[#284276] sm:w-auto"
+            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[8px] border border-[#d9e4f2] px-3 text-[12px] font-extrabold text-[#284276]"
           >
-            <Download className="size-4" /> Export CSV
+            <Download className="size-3.5" /> Export
           </button>
         ) : null}
+      />
+      {!isAllVendorsView ? (
+        <RecentRecordsSectionHeader moduleLabel="Vendors" showing={vendorRecentCount} total={vendorTotalCount} />
+      ) : null}
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <input className={`${inputClass} w-full sm:max-w-xs`} placeholder="Search vendors..." value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       {loading ? (
         <p className="py-8 text-center text-[13px] font-semibold text-[#7a8fa6] lg:hidden">Loading...</p>
@@ -382,7 +410,12 @@ function VendorDetailsTab({ caps, onNotify, addRequested = false, onAddRequestCo
           </tbody>
         </table>
       </div>
-      {!loading ? <TablePagination {...pagination} className="rounded-[12px] border border-[#e2e9f3]" /> : null}
+      {!loading && !isAllVendorsView ? (
+        <ViewAllRecordsButton label="View All Vendors →" onClick={openAllVendors} />
+      ) : null}
+      {!loading && isAllVendorsView && pagination ? (
+        <TablePagination {...pagination} className="rounded-[12px] border border-[#e2e9f3]" />
+      ) : null}
       {modal ? (
         <ModalShell
           title={modal.id ? 'Edit Vendor' : 'Add New Vendor'}

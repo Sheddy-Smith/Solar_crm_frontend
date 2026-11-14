@@ -111,6 +111,18 @@ import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/
 import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
 import { UnderlineTabs } from './components/UnderlineTabs.jsx';
 import { usePagedRows, usePageSize, TablePagination } from './components/TablePagination.jsx';
+import {
+  RecentAllPageHeading,
+  RecentRecordsSectionHeader,
+  ViewAllRecordsButton,
+} from './components/RecentAllListShell.jsx';
+import { useRecentAllView } from './hooks/useRecentAllView.js';
+import { useRecentAllRows } from './hooks/useRecentAllRows.js';
+import {
+  RECENT_LIST_LIMIT,
+  RECENT_ACTIVITY_ORDERING,
+  formatRelativeActivity,
+} from './lib/recentAllList.js';
 import { LIST_PAGE_SIZE, LOOKUP_PAGE_SIZE, rowsOf, parseListPage, listParams, fetchEveryPage } from './lib/listQuery.js';
 import { downloadSurveyPhoto, downloadSurveyPhotosPdf } from './lib/surveyPhotoExport.js';
 import { MobileDashboardPage, MobileBottomNav } from './mobileDashboard.jsx';
@@ -5318,6 +5330,7 @@ function SignInPage({ onLogin, onBack, onNotify }) {
 function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initialSearch = '', searchNonce, onOpenSection, onCreateLead, onOpenLead, autoOpenFollowUps = false, onConsumeAutoOpenFollowUps, onNotify }) {
   // Assign / Delete from Settings → Roles & Permissions → Lead (refreshed from /me on open).
   const [permUser, setPermUser] = useState(loggedInUser);
+  const { isAll: isAllLeadsView, openAll: openAllLeads, openRecent: openRecentLeads } = useRecentAllView({ storageKey: 'lead-list' });
   useEffect(() => { setPermUser(loggedInUser); }, [loggedInUser]);
   useEffect(() => {
     authApi.me()
@@ -5330,6 +5343,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
   const canExportLeads = hasModuleAccess(permUser, 'Lead', 'Export');
   const canShowLeadDelete = (lead) => canDeleteLeads && (lead.status !== 'Won' || isLeadManager);
   const [searchQuery, setSearchQuery] = useState(initialSearch);
+  const [sortOrdering, setSortOrdering] = useState(RECENT_ACTIVITY_ORDERING);
 
   useEffect(() => {
     if (searchNonce) setSearchQuery(initialSearch);
@@ -5445,15 +5459,18 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
     return map[label];
   }, [activeLeadCategory]);
 
+  const effectiveLeadPageSize = isAllLeadsView ? (pageSize || LIST_PAGE_SIZE) : RECENT_LIST_LIMIT;
+  const effectiveLeadPage = isAllLeadsView ? activePage : 1;
+
   useEffect(() => {
     setLeadsLoading(true);
     const params = listParams({
-      page: activePage,
-      page_size: pageSize || LIST_PAGE_SIZE,
+      page: effectiveLeadPage,
+      page_size: effectiveLeadPageSize,
       search: debouncedSearch || undefined,
       status: statusFilter !== 'All' ? statusFilter : undefined,
       category_bucket: categoryBucketParam,
-      ordering: '-last_activity_at,-created_at',
+      ordering: sortOrdering || RECENT_ACTIVITY_ORDERING,
       assigned_to: (
         assignedToFilter !== 'All' && assignedToFilter !== '__unassigned__'
           ? assignedToFilter
@@ -5462,7 +5479,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
     });
     leadApi.list(params).then((data) => {
       if (!data) return;
-      const pageData = parseListPage(data, { page: activePage, pageSize: pageSize || LIST_PAGE_SIZE });
+      const pageData = parseListPage(data, { page: effectiveLeadPage, pageSize: effectiveLeadPageSize });
       setLeadsTotal(pageData.count);
       setApiLeads(pageData.results.map((lead, i) => ({
         id: lead.id ?? i,
@@ -5481,11 +5498,13 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         nextFollowUp: lead.next_follow_up ? new Date(lead.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
         nextFollowUpRaw: lead.next_follow_up || null,
         surveyStatus: lead.survey_status || 'Pending',
+        lastActivityAt: lead.last_activity_at || lead.updated_at || lead.created_at || null,
+        lastActivityLabel: formatRelativeActivity(lead.last_activity_at || lead.updated_at || lead.created_at),
       })));
     }).catch((err) => {
       onNotify?.((err && err.message) ? `Failed to load leads: ${err.message}` : 'Failed to load leads. Please try again.');
     }).finally(() => setLeadsLoading(false));
-  }, [debouncedSearch, refreshKey, activePage, pageSize, statusFilter, assignedToFilter, categoryBucketParam]);
+  }, [debouncedSearch, refreshKey, effectiveLeadPage, effectiveLeadPageSize, statusFilter, assignedToFilter, categoryBucketParam, sortOrdering, isAllLeadsView]);
 
   useEffect(() => {
     leadApi.stats().then((data) => {
@@ -5504,10 +5523,10 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
     }).catch(() => setCategoryLeadCount(null));
   }, [refreshKey]);
 
-  // Search / filter change → page 1. Assign/delete refresh keeps the current page.
+  // Search / filter / view change → page 1. Assign/delete refresh keeps the current page.
   useEffect(() => {
     setActivePage(1);
-  }, [debouncedSearch, statusFilter, assignedToFilter, pageSize, categoryBucketParam]);
+  }, [debouncedSearch, statusFilter, assignedToFilter, pageSize, categoryBucketParam, isAllLeadsView, sortOrdering]);
   const followUpDateInputRef = useRef(null);
   const leadTableSectionRef = useRef(null);
 
@@ -5614,9 +5633,11 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
     });
   }, [apiLeads, projectTypeFilter, assignedToFilter, addByFilter, followUpDate]);
 
-  const LEAD_PAGE_SIZE = pageSize;
-  const totalLeadPages = Math.max(1, Math.ceil((leadsTotal || visibleLeadRows.length) / LEAD_PAGE_SIZE));
-  const safePage = Math.min(activePage, totalLeadPages);
+  const LEAD_PAGE_SIZE = effectiveLeadPageSize;
+  const totalLeadPages = isAllLeadsView
+    ? Math.max(1, Math.ceil((leadsTotal || visibleLeadRows.length) / LEAD_PAGE_SIZE))
+    : 1;
+  const safePage = isAllLeadsView ? Math.min(activePage, totalLeadPages) : 1;
   const pagedLeadRows = visibleLeadRows;
 
   useEffect(() => {
@@ -5631,46 +5652,56 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
     leadTableSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [activeLeadCategory]);
 
+  const leadHeaderActions = (
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        onClick={() => onOpenSection('Follow-ups', 'Follow-ups opened', null, 'today')}
+        data-action="lead-view-followups"
+        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[9px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#284276] shadow-sm transition hover:bg-[#f8fbff]"
+      >
+        <CalendarDays className="size-3.5" />
+        Follow-ups
+      </button>
+      {canExportLeads ? (
+        <button
+          type="button"
+          onClick={exportVisibleLeads}
+          data-action="lead-export"
+          aria-label="Export"
+          title="Export"
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[9px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#284276] shadow-sm transition hover:bg-[#f8fbff]"
+        >
+          <Download className="size-3.5" />
+          <span className="hidden sm:inline">Export</span>
+        </button>
+      ) : null}
+      {canAddLeads ? (
+        <button
+          type="button"
+          onClick={() => setCreateModalOpen(true)}
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[9px] bg-[#12a54f] px-3 text-[12px] font-extrabold text-white shadow-[0_10px_18px_rgba(18,165,79,0.22)] transition hover:bg-[#0f9446]"
+        >
+          <Plus className="size-3.5" />
+          Create Lead
+        </button>
+      ) : null}
+    </div>
+  );
+
   return (
     <div className="lead-list-page -mx-1 flex min-h-0 flex-1 flex-col gap-2 overflow-visible pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0 lg:overflow-hidden md:mx-0 xl:-mx-1">
       <section className={`${panelClass} shrink-0 overflow-hidden p-3 sm:p-2.5`}>
-        {/* Mobile action bar — full-width primary CTA + secondary actions */}
-        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-end">
-          {canAddLeads ? (
-            <button
-              type="button"
-              onClick={() => setCreateModalOpen(true)}
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[12px] bg-[#12a54f] px-4 text-[14px] font-extrabold text-white shadow-[0_12px_22px_rgba(18,165,79,0.22)] transition active:scale-[0.98] md:h-8 md:w-auto md:rounded-[7px] md:px-2.5 md:text-[12px] md:order-3"
-            >
-              <Plus className="size-4 md:size-3.5" />
-              Create Lead
-            </button>
-          ) : null}
-          <div className="grid grid-cols-2 gap-2 md:flex md:shrink-0 md:items-center md:order-1">
-            <button
-              type="button"
-              onClick={() => onOpenSection('Follow-ups', 'Follow-ups opened', null, 'today')}
-              data-action="lead-view-followups"
-              className="inline-flex h-11 items-center justify-center gap-1.5 rounded-[12px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-extrabold text-[#284276] shadow-sm transition active:bg-[#f8fbff] md:h-8 md:rounded-[7px] md:px-2.5 md:text-[12px]"
-            >
-              <CalendarDays className="size-4 md:size-3.5" />
-              <span className="truncate">Follow-ups</span>
-            </button>
-            {canExportLeads ? (
-              <button
-                type="button"
-                onClick={exportVisibleLeads}
-                data-action="lead-export"
-                aria-label="Export"
-                title="Export"
-                className="inline-flex h-11 items-center justify-center gap-1.5 rounded-[12px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-extrabold text-[#284276] shadow-sm transition active:bg-[#f8fbff] md:h-8 md:size-8 md:rounded-[7px] md:px-0 md:text-[0px]"
-              >
-                <Download className="size-4 md:size-3.5" />
-                <span className="md:hidden">Export</span>
-              </button>
-            ) : null}
-          </div>
-        </div>
+        <RecentAllPageHeading
+          isAll={isAllLeadsView}
+          moduleLabel="Leads"
+          recentTitle="Lead List (Recent Leads)"
+          allTitle="All Leads"
+          recentSubtitle={`Showing the latest ${RECENT_LIST_LIMIT} leads you recently worked on (view, edit or update).`}
+          allSubtitle="Complete list of leads (Recent + Older)."
+          onBackToRecent={openRecentLeads}
+          actions={leadHeaderActions}
+        />
 
         {/* Category filter — dropdown on phone, chips on desktop */}
         <div className="mt-3 md:mt-1.5">
@@ -5762,6 +5793,22 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
             />
           </label>
 
+          <label className="relative inline-flex h-11 min-w-[200px] items-center gap-2 rounded-[12px] border border-black/15 bg-white px-3 text-[12px] font-extrabold text-[#284276] md:rounded-[8px] md:border-black/20">
+            <span className="hidden whitespace-nowrap text-[#7386a3] sm:inline">Sort By:</span>
+            <select
+              value={sortOrdering}
+              onChange={(e) => setSortOrdering(e.target.value)}
+              aria-label="Sort leads"
+              className="min-w-0 flex-1 cursor-pointer appearance-none bg-transparent pr-5 text-[12px] font-extrabold text-[#1e3261] outline-none"
+            >
+              <option value={RECENT_ACTIVITY_ORDERING}>Last Activity (Recent First)</option>
+              <option value="-created_at">Created (Newest First)</option>
+              <option value="customer_name">Customer Name (A–Z)</option>
+              <option value="-next_follow_up">Next Follow-up</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2.5 size-3.5 text-[#7b88a2]" />
+          </label>
+
           <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
             <button
               type="button"
@@ -5849,6 +5896,13 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
       </section>
 
       <section ref={leadTableSectionRef} className={`${panelClass} lead-list-table-panel relative z-10 flex min-h-0 flex-1 flex-col overflow-visible lg:overflow-hidden p-2 sm:p-2`}>
+        {!isAllLeadsView ? (
+          <RecentRecordsSectionHeader
+            moduleLabel="Leads"
+            showing={Math.min(RECENT_LIST_LIMIT, visibleLeadRows.length || RECENT_LIST_LIMIT)}
+            total={totalLeadCount || null}
+          />
+        ) : null}
 
         {leadsLoading ? (
           <PageLoadingState message="Loading leads..." />
@@ -5914,6 +5968,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                       onChange={(v) => { setAssignedToFilter(v); setActivePage(1); }}
                     />
                   </th>
+                  <th title="Last Activity"><span className="block truncate">Last Activity</span></th>
                   <th title="Added By">
                     <TableHeaderFilter
                       label="Added By"
@@ -5955,7 +6010,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
               <tbody>
                 {pagedLeadRows.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="!p-0">
+                    <td colSpan={13} className="!p-0">
                       <LeadListEmptyState
                         hasFilters={hasLeadFilters}
                         filterLabels={activeFilterLabels}
@@ -5981,6 +6036,11 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                     <td title={lead.assignedTo?.name || 'Unassigned'}>
                       <span className="block truncate text-[12px] font-bold text-[#314a79]">
                         {lead.assignedTo?.name || 'Unassigned'}
+                      </span>
+                    </td>
+                    <td title={lead.lastActivityLabel || '—'}>
+                      <span className="block truncate text-[12px] font-extrabold text-[#16a34a]">
+                        {lead.lastActivityLabel || '—'}
                       </span>
                     </td>
                     <td title={lead.createdByName}><span className="block truncate">{lead.createdByName}</span></td>
@@ -6014,6 +6074,16 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                             <Users className="size-3.5" />
                           </button>
                         ) : null}
+                        <button
+                          type="button"
+                          onClick={() => setEditLeadId(lead.id)}
+                          data-action="lead-edit"
+                          className="inline-flex size-7 items-center justify-center rounded-[7px] border border-[#dbe4ff] bg-white text-[#0b65e5] transition hover:bg-[#f2f4ff]"
+                          aria-label={`Edit ${lead.customer}`}
+                          title="Edit"
+                        >
+                          <Pencil className="size-3.5" />
+                        </button>
                         {canShowLeadDelete(lead) ? (
                           <button
                             type="button"
@@ -6036,7 +6106,11 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
           </>
         )}
 
-        {!leadsLoading ? (
+        {!leadsLoading && !isAllLeadsView ? (
+          <ViewAllRecordsButton label="View All Leads →" onClick={openAllLeads} />
+        ) : null}
+
+        {!leadsLoading && isAllLeadsView ? (
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-[#eef2f8] bg-white px-3 py-2 text-[13px] font-bold text-[#53647f]">
           <div className="flex flex-wrap items-center gap-2">
             <p>
@@ -10817,29 +10891,141 @@ function LcDocumentsSection({ moduleName, relatedId, projectId, onNotify, docApi
 
 function LcChecklistSection({ record, api, onNotify, onSaved }) {
   const [items, setItems] = useState(record.checklist || []);
+  const [remarks, setRemarks] = useState(record.remarks || '');
+  const [saving, setSaving] = useState(false);
+  const [openModal, setOpenModal] = useState(false);
+
+  const isPlantOnline = (it) => it?.type === 'plant_online' || /plant online/i.test(it?.label || '');
 
   function toggle(index) {
-    const next = items.map((it, i) => (i === index ? { ...it, done: !it.done } : it));
-    setItems(next);
-    api.update(record.id, { checklist: next })
-      .then(() => { if (onSaved) onSaved(next); })
-      .catch(() => onNotify('Failed to save checklist.', 'error'));
+    setItems((prev) => prev.map((it, i) => {
+      if (i !== index || isPlantOnline(it)) return it;
+      return { ...it, done: !it.done };
+    }));
+  }
+
+  function setPlantOnline(index, value) {
+    setItems((prev) => prev.map((it, i) => {
+      if (i !== index) return it;
+      return {
+        ...it,
+        type: 'plant_online',
+        value,
+        done: value === 'done',
+      };
+    }));
+  }
+
+  async function saveChecklist() {
+    setSaving(true);
+    try {
+      const payload = { checklist: items, remarks };
+      await api.update(record.id, payload);
+      onSaved?.(items);
+      onNotify?.('Checklist saved.', 'success');
+      setOpenModal(false);
+    } catch {
+      onNotify?.('Failed to save checklist.', 'error');
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (!items.length) return null;
-  const doneCount = items.filter((it) => it.done).length;
+  const doneCount = items.filter((it) => (isPlantOnline(it) ? it.value === 'done' || it.value === 'later' : it.done)).length;
+
+  const listBody = (
+    <div className="space-y-1.5">
+      {items.map((it, i) => (
+        isPlantOnline(it) ? (
+          <div key={i} className="rounded-[8px] border border-[#e5eaf2] px-3 py-2.5">
+            <p className="mb-2 text-[13px] font-bold text-[#1e2a38]">{it.label || 'Plant Online Status'}</p>
+            <div className="flex flex-col gap-1.5 text-[12px] font-semibold text-[#334155]">
+              {[
+                ['done', 'Plant Online Done'],
+                ['later', 'Will Online Later (Wi-Fi Not Available)'],
+                ['not_done', 'Not Done'],
+              ].map(([val, label]) => (
+                <label key={val} className="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="radio"
+                    name={`plant-online-${record.id}-${i}`}
+                    checked={(it.value || 'not_done') === val}
+                    onChange={() => setPlantOnline(i, val)}
+                    className="accent-[#0b65e5]"
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <label key={i} className="flex cursor-pointer items-center gap-2 rounded-[8px] border border-[#e5eaf2] px-3 py-2 text-[13px] hover:bg-[#f8fafc]">
+            <input type="checkbox" checked={!!it.done} onChange={() => toggle(i)} className="size-4 accent-[#16a34a]" />
+            <span className={it.done ? 'font-semibold text-[#16a34a]' : 'text-[#1e2a38]'}>{it.label}</span>
+          </label>
+        )
+      ))}
+      <label className="mt-2 grid gap-1 text-[11px] font-bold text-[#7a8fa6]">
+        Remarks (Optional)
+        <textarea
+          className="min-h-[64px] w-full rounded-[8px] border border-[#e5eaf2] px-3 py-2 text-[13px] font-semibold text-[#1e2a38] outline-none focus:border-[#0b65e5]"
+          value={remarks}
+          onChange={(e) => setRemarks(e.target.value)}
+          placeholder="Any notes for handover / O&M team"
+        />
+      </label>
+    </div>
+  );
 
   return (
     <div>
-      <h3 className="text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6] mb-2">Checklist ({doneCount}/{items.length})</h3>
-      <div className="space-y-1.5">
-        {items.map((it, i) => (
-          <label key={i} className="flex cursor-pointer items-center gap-2 rounded-[8px] border border-[#e5eaf2] px-3 py-2 text-[13px] hover:bg-[#f8fafc]">
-            <input type="checkbox" checked={!!it.done} onChange={() => toggle(i)} className="size-4 accent-[#0b65e5]" />
-            <span className={it.done ? 'text-[#7a8fa6] line-through' : 'text-[#1e2a38]'}>{it.label}</span>
-          </label>
-        ))}
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h3 className="text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6]">
+          Checklist ({doneCount}/{items.length})
+        </h3>
+        <button
+          type="button"
+          onClick={() => setOpenModal(true)}
+          className="rounded-[8px] border border-[#d9e4f2] px-2.5 py-1 text-[11px] font-bold text-[#0b65e5]"
+        >
+          Open Checklist
+        </button>
       </div>
+      {listBody}
+      <div className="mt-3 flex justify-end">
+        <button
+          type="button"
+          disabled={saving}
+          onClick={saveChecklist}
+          className="h-9 rounded-[8px] bg-[#0b65e5] px-3 text-[12px] font-extrabold text-white disabled:opacity-60"
+        >
+          {saving ? 'Saving…' : 'Save Checklist'}
+        </button>
+      </div>
+
+      {openModal ? (
+        <div className="fixed inset-0 z-[85] flex items-center justify-center bg-black/40 p-4">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[14px] bg-white shadow-2xl">
+            <div className="flex items-start justify-between border-b border-[#edf2f8] px-5 py-4">
+              <div>
+                <h2 className="text-[16px] font-extrabold text-[#0f172a]">
+                  {record.record_no || 'Commissioning'} — Commissioning Checklist
+                </h2>
+                <p className="text-[12px] font-semibold text-[#64748b]">{record.project_name || record.customer_name || ''}</p>
+              </div>
+              <button type="button" onClick={() => setOpenModal(false)} className="rounded p-1 hover:bg-[#f1f5f9]">✕</button>
+            </div>
+            <div className="px-5 py-4">{listBody}</div>
+            <div className="flex justify-end gap-2 border-t border-[#edf2f8] px-5 py-4">
+              <button type="button" onClick={() => setOpenModal(false)} className="h-10 rounded-[8px] border border-[#d9e4f2] px-4 text-[13px] font-bold text-[#475569]">Cancel</button>
+              <button type="button" disabled={saving} onClick={saveChecklist} className="h-10 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">
+                {saving ? 'Saving…' : 'Save Checklist'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -10934,7 +11120,11 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
       body[name] = v;
     });
     if (config.checklistItems && !f.id) {
-      body.checklist = config.checklistItems.map((label) => ({ label, done: false }));
+      body.checklist = config.checklistItems.map((item) => (
+        typeof item === 'string'
+          ? { label: item, done: false }
+          : { done: false, ...item }
+      ));
     }
     if (config.fixedFields) {
       Object.entries(config.fixedFields).forEach(([k, v]) => { body[k] = v; });
@@ -11649,7 +11839,16 @@ function getLiaisonStepBaseConfig(stepKey, project) {
       requiresCompleteForm: true,
       statuses,
       searchKeys: ['engineer', 'assigned_employee_name'],
-      checklistItems: ['Inverter installed & configured', 'Panels connected & tested', 'Earthing verified', 'Net meter synchronized', 'Generation test completed', 'Handover documentation done'],
+      checklistItems: [
+        'Inverter Configure & Start',
+        'Panel Connected & Tested',
+        'Earthing Verified (OK)',
+        'Net Meter Check & Confirm',
+        'Plant Check – All Connections & All Parameters Verified',
+        'Generation Test Completed',
+        { label: 'Plant Online Status', type: 'plant_online', value: 'not_done', done: false },
+        'Handover Document Done',
+      ],
       columns: [
         noCol('Commission No'),
         { label: 'Engineer', render: (r) => r.assigned_employee_name || r.engineer || '—' },
@@ -12591,9 +12790,18 @@ function ProjectPipelineHub({
   const [hubLeadEditId, setHubLeadEditId] = useState(null);
   const [hubViewProjectRow, setHubViewProjectRow] = useState(null);
   const [hubEditProject, setHubEditProject] = useState(null);
+  const [mpBomOpen, setMpBomOpen] = useState(false);
   const projectCaps = moduleCaps(loggedInUser, 'Project Management');
   const projectTabItems = projectSidebarSubItems;
   const pipelineForBar = pipeline;
+  const hidePipelineChrome = mpBomOpen || (
+    Boolean(selected) && (
+      section === 'Project Material Planning'
+      || section === 'Project Dispatch'
+      || section === 'Project Installation'
+      || section === 'Project Job Sheet'
+    )
+  );
 
   const step = pipeline.steps.find((s) => s.key === section) || null;
   const sectionLabel = getModuleSubnavLabel(section);
@@ -12828,6 +13036,7 @@ function ProjectPipelineHub({
           onSelectProject={onSelectProject}
           onNotify={onNotify}
           initialBomProject={carriedProject}
+          onBomOpenChange={setMpBomOpen}
         />
       );
     } else if (section === 'Project Job Sheet') {
@@ -12853,7 +13062,14 @@ function ProjectPipelineHub({
     }
     content = (
       <>
-        <section className={cx(panelClass, 'flex flex-wrap items-center justify-between gap-2 px-4 py-3')}>
+        {/* Keep hub mounted when BOM opens — only hide the All-records banner (avoids remount wipe). */}
+        <section
+          className={cx(
+            panelClass,
+            'flex flex-wrap items-center justify-between gap-2 px-4 py-3',
+            hidePipelineChrome && section === 'Project Material Planning' && 'hidden',
+          )}
+        >
           <p className="text-[13px] font-extrabold text-[#1e3261]">
             {step ? `All ${sectionLabel} records` : 'Full Project List'}
             <span className="ml-2 hidden text-[12px] font-bold text-[#7a8fa6] sm:inline">Switch to “{toggleLabels[0]}” to work project by project.</span>
@@ -12885,9 +13101,31 @@ function ProjectPipelineHub({
   } else if (section === 'Project Job Sheet') {
     content = <OpsJobSheetPage key={selected.id} embedded lockedProjectId={selected.id} activeSection={section} onOpenSection={openPipelineSection} onNotify={onNotify} />;
   } else if (section === 'Project Dispatch') {
-    content = <ProjectDispatchPanel key={selected.id} project={selected} onNotify={onNotify} onOpenPlanning={() => openPipelineSection('Project Material Planning')} />;
+    content = (
+      <ProjectDispatchPanel
+        key={selected.id}
+        project={selected}
+        projects={projects}
+        onNotify={onNotify}
+        onOpenPlanning={() => openPipelineSection('Project Material Planning')}
+        onOpenSection={openPipelineSection}
+        onChangeProject={(p) => openProject(p)}
+        onClose={() => closeProject()}
+      />
+    );
   } else if (section === 'Project Installation') {
-    content = <ProjectInstallationPanel key={selected.id} project={selected} onNotify={onNotify} onChanged={loadProjects} />;
+    content = (
+      <ProjectInstallationPanel
+        key={selected.id}
+        project={selected}
+        projects={projects}
+        onNotify={onNotify}
+        onChanged={loadProjects}
+        onOpenSection={openPipelineSection}
+        onChangeProject={(p) => openProject(p)}
+        onClose={() => closeProject()}
+      />
+    );
     } else {
       // Site Survey selected workspace intentionally removed — never render a full page here.
       content = (
@@ -12909,68 +13147,72 @@ function ProjectPipelineHub({
 
   return (
     <div className="space-y-4">
-      <PageHeading
-        title={pipeline.title}
-        crumbs={[
-          { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-          { label: pipeline.title, onClick: selected && !isSiteSurveySection ? closeProject : () => onOpenSection(pipeline.listItem) },
-          { label: selected && !isSiteSurveySection ? `${sectionLabel} · ${selected.project_name}` : sectionLabel },
-        ]}
-      />
+      {hidePipelineChrome ? null : (
+        <>
+          <PageHeading
+            title={pipeline.title}
+            crumbs={[
+              { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
+              { label: pipeline.title, onClick: selected && !isSiteSurveySection ? closeProject : () => onOpenSection(pipeline.listItem) },
+              { label: selected && !isSiteSurveySection ? `${sectionLabel} · ${selected.project_name}` : sectionLabel },
+            ]}
+          />
 
-      <ProjectSubnavTabs activeSection={section} onOpenSection={openPipelineSection} items={projectTabItems} />
+          <ProjectSubnavTabs activeSection={section} onOpenSection={openPipelineSection} items={projectTabItems} />
 
-      {carriedProject ? (
-        <PipelineProjectBar
-          pipeline={pipelineForBar}
-          project={carriedProject}
-          section={section}
-          busy={busy}
-          onNext={navigatePipeline}
-          onClose={closeProject}
-          onMarkDone={selected ? markDone : undefined}
-          onUnmarkDone={selected ? unmarkDone : undefined}
-          extraActions={selected ? (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  const leadId = selected.lead ?? selected.lead_id ?? null;
-                  if (leadId) {
-                    if (onOpenLeadDetail) onOpenLeadDetail(leadId);
-                    else setHubLeadId(leadId);
-                    return;
-                  }
-                  if (onSelectProject) {
-                    onSelectProject({ id: selected.id, project_name: selected.project_name, lead: selected.lead }, 'Project Details');
-                    return;
-                  }
-                  projectApi.get(selected.id)
-                    .then((data) => {
-                      if (data?.lead) {
-                        if (onOpenLeadDetail) onOpenLeadDetail(data.lead);
-                        else setHubLeadId(data.lead);
-                      } else {
-                        onNotify?.('Is project pe linked lead nahi mila.', 'error');
+          {carriedProject ? (
+            <PipelineProjectBar
+              pipeline={pipelineForBar}
+              project={carriedProject}
+              section={section}
+              busy={busy}
+              onNext={navigatePipeline}
+              onClose={closeProject}
+              onMarkDone={selected ? markDone : undefined}
+              onUnmarkDone={selected ? unmarkDone : undefined}
+              extraActions={selected ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const leadId = selected.lead ?? selected.lead_id ?? null;
+                      if (leadId) {
+                        if (onOpenLeadDetail) onOpenLeadDetail(leadId);
+                        else setHubLeadId(leadId);
+                        return;
                       }
-                    })
-                    .catch((err) => onNotify?.(err?.message || 'Lead Details open nahi ho paya.', 'error'));
-                }}
-                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] border border-[#cfe0ff] bg-[#eef4ff] px-3 text-[12px] font-extrabold text-[#0b65e5] hover:bg-[#e0ebff]"
-              >
-                <Eye className="size-4" /><span className="hidden sm:inline">Lead Details</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => openSurveyView(selected)}
-                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] border border-[#bbf7d0] bg-[#f0fdf4] px-3 text-[12px] font-extrabold text-[#0d9f4a] hover:bg-[#e7f9ee]"
-              >
-                <ClipboardPlus className="size-4" /><span className="hidden sm:inline">Site Survey</span>
-              </button>
-            </>
+                      if (onSelectProject) {
+                        onSelectProject({ id: selected.id, project_name: selected.project_name, lead: selected.lead }, 'Project Details');
+                        return;
+                      }
+                      projectApi.get(selected.id)
+                        .then((data) => {
+                          if (data?.lead) {
+                            if (onOpenLeadDetail) onOpenLeadDetail(data.lead);
+                            else setHubLeadId(data.lead);
+                          } else {
+                            onNotify?.('Is project pe linked lead nahi mila.', 'error');
+                          }
+                        })
+                        .catch((err) => onNotify?.(err?.message || 'Lead Details open nahi ho paya.', 'error'));
+                    }}
+                    className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] border border-[#cfe0ff] bg-[#eef4ff] px-3 text-[12px] font-extrabold text-[#0b65e5] hover:bg-[#e0ebff]"
+                  >
+                    <Eye className="size-4" /><span className="hidden sm:inline">Lead Details</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openSurveyView(selected)}
+                    className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] border border-[#bbf7d0] bg-[#f0fdf4] px-3 text-[12px] font-extrabold text-[#0d9f4a] hover:bg-[#e7f9ee]"
+                  >
+                    <ClipboardPlus className="size-4" /><span className="hidden sm:inline">Site Survey</span>
+                  </button>
+                </>
+              ) : null}
+            />
           ) : null}
-        />
-      ) : null}
+        </>
+      )}
 
       {content}
 
@@ -15975,6 +16217,14 @@ function openProjectAddressInMaps(parts, onNotify) {
 
 function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNotify, loggedInUser = null, onOpenPipeline = null, embedded = false }) {
   const projectCaps = moduleCaps(loggedInUser, 'Project Management');
+  const isSiteSurveyPickerEarly = activeSection === 'Project Site Survey';
+  const projectViewApi = useRecentAllView({
+    storageKey: isSiteSurveyPickerEarly ? 'project-survey-list' : 'project-list',
+    syncUrl: !embedded,
+  });
+  const isAllProjectsView = embedded || projectViewApi.isAll;
+  const openAllProjects = projectViewApi.openAll;
+  const openRecentProjects = projectViewApi.openRecent;
   const [dateRangeOpen, setDateRangeOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -16010,24 +16260,28 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
 
   useEffect(() => {
     setActivePage(1);
-  }, [deferredQuery, deferredStatus, deferredStage, projectTypeFilter, managerFilter, surveyedByFilter, feasibilityFilter, dateFrom, dateTo, projectPageSize]);
+  }, [deferredQuery, deferredStatus, deferredStage, projectTypeFilter, managerFilter, surveyedByFilter, feasibilityFilter, dateFrom, dateTo, projectPageSize, isAllProjectsView]);
+
+  const effectiveProjectPageSize = isAllProjectsView ? (projectPageSize || LIST_PAGE_SIZE) : RECENT_LIST_LIMIT;
+  const effectiveProjectPage = isAllProjectsView ? activePage : 1;
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     const params = listParams({
-      page: activePage,
-      page_size: projectPageSize || LIST_PAGE_SIZE,
+      page: effectiveProjectPage,
+      page_size: effectiveProjectPageSize,
       won_only: 1,
       search: deferredQuery || undefined,
       status: (!isSiteSurveyPicker && deferredStatus !== 'All') ? deferredStatus : undefined,
       pm_stage: (!isSiteSurveyPicker && deferredStage !== 'All') ? deferredStage : undefined,
       project_type: projectTypeFilter !== 'All' ? projectTypeFilter : undefined,
+      ordering: RECENT_ACTIVITY_ORDERING,
     });
     projectApi.list(params)
       .then((data) => {
         if (cancelled) return;
-        const pageData = parseListPage(data, { page: activePage, pageSize: projectPageSize || LIST_PAGE_SIZE });
+        const pageData = parseListPage(data, { page: effectiveProjectPage, pageSize: effectiveProjectPageSize });
         // Prefer server won_only=1; keep client guard if older API ignores the param.
         const wonRows = pageData.results.filter((p) => !p.lead_status || p.lead_status === 'Won');
         setProjectRows(wonRows.map(projectRowFromApi));
@@ -16042,8 +16296,8 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [
-    refreshKey, activePage, projectPageSize, deferredQuery, deferredStatus, deferredStage,
-    projectTypeFilter, isSiteSurveyPicker,
+    refreshKey, effectiveProjectPage, effectiveProjectPageSize, deferredQuery, deferredStatus, deferredStage,
+    projectTypeFilter, isSiteSurveyPicker, isAllProjectsView,
   ]);
 
 
@@ -16189,9 +16443,16 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
     });
   }, [projectRows, managerFilter, statusFilter, surveyedByFilter, feasibilityFilter, dateFrom, dateTo, isSiteSurveyPicker]);
 
-  const safeProjectPage = Math.max(1, activePage);
+  const totalProjectPages = isAllProjectsView
+    ? Math.max(1, Math.ceil((projectTotal || filteredRows.length) / effectiveProjectPageSize))
+    : 1;
+  const safeProjectPage = isAllProjectsView ? Math.min(activePage, totalProjectPages) : 1;
   const pagedProjectRows = filteredRows;
   const pmStageOptions = ['All', ...PM_STAGE_NAMES, PIPELINE_COMPLETED_STAGE];
+
+  useEffect(() => {
+    if (activePage > totalProjectPages) setActivePage(totalProjectPages);
+  }, [activePage, totalProjectPages]);
 
   const exportProjects = () => {
     if (loading) {
@@ -16233,7 +16494,9 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
       <div className="w-full sm:w-[280px]">
         <ReportDateRangePicker open={dateRangeOpen} onToggle={() => setDateRangeOpen((current) => !current)} onClose={() => setDateRangeOpen(false)} dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} formattedRange={formattedRange} hideLabel />
       </div>
-      {projectCaps.export ? (<button type="button" data-custom-export="true" disabled={loading} onClick={exportProjects} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-60"><Download className="size-4 text-[#0b65e5]" />Export</button>) : null}
+      {projectCaps.export && isAllProjectsView ? (
+        <button type="button" data-custom-export="true" disabled={loading} onClick={exportProjects} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-60"><Download className="size-4 text-[#0b65e5]" />Export</button>
+      ) : null}
     </>
   );
 
@@ -16243,7 +16506,16 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">{headingActions}</div>
       ) : (
         <>
-          <PageHeading title={pageTitle} crumbs={pageCrumbs} actions={headingActions} />
+          <RecentAllPageHeading
+            isAll={isAllProjectsView}
+            moduleLabel="Projects"
+            recentTitle={isSiteSurveyPicker ? 'Site Survey (Recent)' : 'Project List (Recent)'}
+            allTitle={isSiteSurveyPicker ? 'All Site Surveys' : 'All Projects'}
+            recentSubtitle={`Showing the latest ${RECENT_LIST_LIMIT} projects you recently worked on (view, edit or update).`}
+            allSubtitle="Complete list of projects (Recent + Older)."
+            onBackToRecent={openRecentProjects}
+            actions={headingActions}
+          />
           <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
         </>
       )}
@@ -16345,6 +16617,13 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
       </section>
 
       <article className={`${panelClass} overflow-hidden p-2 sm:p-2.5`}>
+        {!isAllProjectsView ? (
+          <RecentRecordsSectionHeader
+            moduleLabel="Projects"
+            showing={Math.min(RECENT_LIST_LIMIT, pagedProjectRows.length || RECENT_LIST_LIMIT)}
+            total={projectTotal || null}
+          />
+        ) : null}
         {loading ? (
           <PageLoadingState message="Loading projects..." />
         ) : (
@@ -16464,7 +16743,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
             <tbody>
               {pagedProjectRows.map((row, index) => (
                 <tr key={row.id} {...rowDoubleOpenProps(() => handleOpenRow(row), { title: openRowTitle })}>
-                  <td>{(safeProjectPage - 1) * projectPageSize + index + 1}</td>
+                  <td>{(safeProjectPage - 1) * effectiveProjectPageSize + index + 1}</td>
                   <td className="font-extrabold text-[#1e3261]">{row.projectName}</td>
                   <td>
                     <div className="space-y-1">
@@ -16644,14 +16923,23 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
           ) : null}
         </div>
 
-        <TablePagination
-          total={projectTotal || filteredRows.length}
-          page={safeProjectPage}
-          pageSize={projectPageSize}
-          onPageChange={setActivePage}
-          onPageSizeChange={(next) => { setProjectPageSize(next); setActivePage(1); }}
-          className="mt-3 rounded-b-[10px]"
-        />
+        {!isAllProjectsView ? (
+          <ViewAllRecordsButton
+            label={isSiteSurveyPicker ? 'View All Site Surveys →' : 'View All Projects →'}
+            onClick={openAllProjects}
+          />
+        ) : null}
+
+        {!loading && isAllProjectsView ? (
+          <TablePagination
+            total={projectTotal || filteredRows.length}
+            page={safeProjectPage}
+            pageSize={projectPageSize}
+            onPageChange={setActivePage}
+            onPageSizeChange={(next) => { setProjectPageSize(next); setActivePage(1); }}
+            className="mt-3 rounded-b-[10px]"
+          />
+        ) : null}
         </>
         )}
       </article>
@@ -23923,7 +24211,7 @@ function ProjectSiteSurveyPage({ activeSection, onOpenSection, project: projectP
   );
 }
 
-function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomProject, onClearBomProject, onSelectProject, onNotify, embedded = false }) {
+function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomProject, onClearBomProject, onSelectProject, onNotify, embedded = false, onBomOpenChange = null }) {
   const [projects, setProjects] = useState([]);
   const [planByProject, setPlanByProject] = useState({});
   const [loading, setLoading] = useState(true);
@@ -23932,6 +24220,11 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
   const [planStatusFilter, setPlanStatusFilter] = useState('All');
   const [bomProject, setBomProject] = useState(null);
   const deferredQuery = useDeferredValue(query);
+
+  useEffect(() => {
+    onBomOpenChange?.(Boolean(bomProject));
+    return () => onBomOpenChange?.(false);
+  }, [bomProject, onBomOpenChange]);
 
   const reloadPlans = useCallback(async () => {
     try {
@@ -23952,12 +24245,13 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    // Load projects first so a material-plan API failure never blanks the Won list.
-    projectApi.list({ page_size: 25 })
-      .then((projData) => {
+    // Load all won projects so BOM picker + hub table are complete (not first page only).
+    fetchEveryPage((page, pageSize) => projectApi.list({ page, page_size: pageSize }))
+      .then((rows) => {
         if (cancelled) return;
-        const list = normalizeApiRows(projData).filter((p) => p.lead_status === 'Won');
-        setProjects(list);
+        const list = Array.isArray(rows) ? rows : normalizeApiRows(rows);
+        const won = list.filter((p) => String(p.lead_status || '').toLowerCase() === 'won');
+        setProjects(won.length ? won : list);
       })
       .catch(() => {
         if (!cancelled) {
@@ -23969,11 +24263,11 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
         if (!cancelled) setLoading(false);
       });
 
-    materialPlanApi.list({ page_size: 25 })
-      .then((planData) => {
+    fetchEveryPage((page, pageSize) => materialPlanApi.list({ page, page_size: pageSize }))
+      .then((rows) => {
         if (cancelled) return;
         const map = {};
-        normalizeApiRows(planData).forEach((row) => {
+        (Array.isArray(rows) ? rows : normalizeApiRows(rows)).forEach((row) => {
           const key = row.project;
           if (!map[key]) map[key] = { total: 0, completed: 0, delayed: 0, inProgress: 0 };
           map[key].total += 1;
@@ -24027,10 +24321,12 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
 
   const openPlan = (project) => {
     setBomProject(project);
+    onBomOpenChange?.(true);
   };
 
   const closeBom = () => {
     setBomProject(null);
+    onBomOpenChange?.(false);
     onClearBomProject?.();
     reloadPlans();
   };
@@ -24045,32 +24341,16 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
 
   return (
     <div className="space-y-2.5">
-      {embedded ? null : (
+      {embedded || bomProject ? null : (
         <>
-          <div className="flex flex-wrap items-center gap-2">
-            {bomProject ? (
-              <button
-                type="button"
-                onClick={closeBom}
-                className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#ef4444]/35 bg-white px-3 text-[12px] font-bold text-[#dc2626]"
-              >
-                <ChevronLeft className="size-4" />
-                Back
-              </button>
-            ) : null}
-            <div className="min-w-0 flex-1">
-              <PageHeading
-                title="Material Planning"
-                crumbs={[
-                  { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
-                  { label: 'Project Management', onClick: () => onOpenSection('Project List') },
-                  { label: 'Material Planning' },
-                  ...(bomProject ? [{ label: bomProject.project_name || bomProject.project_id || 'BOM' }] : []),
-                ]}
-              />
-            </div>
-          </div>
-
+          <PageHeading
+            title="Material Planning"
+            crumbs={[
+              { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
+              { label: 'Project Management', onClick: () => onOpenSection('Project List') },
+              { label: 'Material Planning' },
+            ]}
+          />
           <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
         </>
       )}
@@ -29455,8 +29735,8 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify, logged
   const loadEmployees = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     try {
-      const data = await workforceApi.listEmployees({ page_size: 25 });
-      setEmployees(normalizeApiRows(data));
+      const data = await fetchEveryPage((page, pageSize) => workforceApi.listEmployees({ page, page_size: pageSize }));
+      setEmployees(Array.isArray(data) ? data : normalizeApiRows(data));
     } catch {
       onNotify('Failed to load employees');
     } finally {
@@ -29579,7 +29859,20 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify, logged
     if (statusFilter !== 'All Status' && (row.status || 'Available') !== statusFilter) return false;
     return true;
   });
-  const { pageRows: pagedEmployees, startIndex: employeesStartIndex, pagination: employeesPagination } = usePagedRows(filteredEmployees, 'employees', { resetKey: `${search}|${skillFilter}|${statusFilter}` });
+  const {
+    isAll: isAllEmployeesView,
+    openAll: openAllEmployees,
+    openRecent: openRecentEmployees,
+    displayRows: pagedEmployees,
+    startIndex: employeesStartIndex,
+    pagination: employeesPagination,
+    totalCount: employeeTotalCount,
+    recentCount: employeeRecentCount,
+  } = useRecentAllRows(filteredEmployees, {
+    storageKey: 'employees',
+    resetKey: `${search}|${skillFilter}|${statusFilter}`,
+    activityFields: ['updated_at', 'created_at', 'last_activity_at'],
+  });
 
   const selectedEmployee = employees.find((row) => String(row.id) === String(selectedEmployeeId)) ?? null;
   const periodCardLabel = rangeMode === 'weekly' ? 'Weekly' : rangeMode === 'monthly' ? 'Monthly' : 'Period';
@@ -29963,6 +30256,20 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify, logged
 
       {!isAttendanceView ? (
         <section className={`${panelClass} overflow-hidden p-2.5 sm:p-3`}>
+          <RecentAllPageHeading
+            isAll={isAllEmployeesView}
+            moduleLabel="Employees"
+            recentTitle="Employee Details (Recent)"
+            allTitle="All Employees"
+            onBackToRecent={openRecentEmployees}
+          />
+          {!isAllEmployeesView ? (
+            <RecentRecordsSectionHeader
+              moduleLabel="Employees"
+              showing={employeeRecentCount}
+              total={employeeTotalCount}
+            />
+          ) : null}
           <div className="mb-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
             {[
               { label: 'Total Employees', value: employeeStats.total, note: 'All Registered', tone: 'text-[#0d9f4a]', icon: UsersRound },
@@ -30010,14 +30317,16 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify, logged
                 {statusOptions.map((option) => <option key={option} value={option}>{option}</option>)}
               </select>
             </label>
-            {employeeCaps.export ? (<button
-              type="button"
-              onClick={() => { exportEmployeesCsv(filteredEmployees); onNotify('Employee list exported'); }}
-              className="col-span-2 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border sm:h-10 border-[#dce6f3] bg-white px-4 text-[15px] font-semibold text-[#284276] transition hover:bg-[#f8fbff]"
-            >
-              <Download className="size-4" />
-              Export CSV
-            </button>) : null}
+            {employeeCaps.export && isAllEmployeesView ? (
+              <button
+                type="button"
+                onClick={() => { exportEmployeesCsv(filteredEmployees); onNotify('Employee list exported'); }}
+                className="col-span-2 inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border sm:h-10 border-[#dce6f3] bg-white px-4 text-[15px] font-semibold text-[#284276] transition hover:bg-[#f8fbff]"
+              >
+                <Download className="size-4" />
+                Export CSV
+              </button>
+            ) : null}
           </div>
 
           {loading ? (
@@ -30148,7 +30457,12 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify, logged
                 </tbody>
               </table>
             </div>
-            <TablePagination {...employeesPagination} />
+            {!loading && !isAllEmployeesView ? (
+              <ViewAllRecordsButton label="View All Employees →" onClick={openAllEmployees} />
+            ) : null}
+            {!loading && isAllEmployeesView && employeesPagination ? (
+              <TablePagination {...employeesPagination} />
+            ) : null}
             </>
           )}
         </section>
@@ -36476,8 +36790,6 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [templateFilter, setTemplateFilter] = useState('All');
-  const [activePage, setActivePage] = useState(1);
-  const [quotationPageSize, setQuotationPageSize] = usePageSize('quotation-list');
   const quotationTableRef = useRef(null);
   const [viewQuotationId, setViewQuotationId] = useState(null);
   const [editQuotationId, setEditQuotationId] = useState(null);
@@ -36523,8 +36835,8 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
 
   const loadQuotations = useCallback(() => {
     setLoading(true);
-    return quotationApi.listAll({ page_size: 25 })
-      .then((data) => setQuotations(normalizeApiRows(data)))
+    return fetchEveryPage((page, pageSize) => quotationApi.listAll({ page, page_size: pageSize }))
+      .then((data) => setQuotations(Array.isArray(data) ? data : normalizeApiRows(data)))
       .catch(() => {
         setQuotations([]);
         onNotify?.('Failed to load quotations');
@@ -36615,23 +36927,19 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
     return statusMatch && templateMatch && searchMatch && dateMatch;
   });
 
-  const totalQuotationPages = Math.max(1, Math.ceil(filteredQuotations.length / quotationPageSize));
-  const safeQuotationPage = Math.min(activePage, totalQuotationPages);
-  const pagedQuotations = filteredQuotations.slice((safeQuotationPage - 1) * quotationPageSize, safeQuotationPage * quotationPageSize);
-
-  // Reset to first page whenever the filters/search change the result set.
-  useEffect(() => {
-    setActivePage(1);
-  }, [searchQuery, statusFilter, templateFilter, expiredFilter, dateFrom, dateTo]);
-
-  useEffect(() => {
-    if (activePage > totalQuotationPages) setActivePage(totalQuotationPages);
-  }, [activePage, totalQuotationPages]);
-
-  const selectQuotationPage = (page) => {
-    setActivePage(page);
-    quotationTableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
+  const {
+    isAll: isAllQuotationsView,
+    openAll: openAllQuotations,
+    openRecent: openRecentQuotations,
+    displayRows: pagedQuotations,
+    pagination: quotationsPagination,
+    totalCount: quotationTotalCount,
+    recentCount: quotationRecentCount,
+  } = useRecentAllRows(filteredQuotations, {
+    storageKey: 'quotation-list',
+    resetKey: `${searchQuery}|${statusFilter}|${templateFilter}|${expiredFilter}|${dateFrom}|${dateTo}`,
+    activityFields: ['updated_at', 'created_at', 'quotation_date', 'last_activity_at'],
+  });
 
   const applyStatusCardFilter = (filter) => {
     setExpiredFilter(false);
@@ -36657,32 +36965,35 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
 
   return (
     <div className="flex min-h-0 flex-1 flex-col space-y-3 overflow-visible pb-2 lg:overflow-hidden">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
+      <RecentAllPageHeading
+        isAll={isAllQuotationsView}
+        moduleLabel="Quotations"
+        recentTitle="Quotation Module (Recent)"
+        allTitle="All Quotations"
+        recentSubtitle={`Showing the latest ${RECENT_LIST_LIMIT} quotations you recently worked on.`}
+        allSubtitle="Complete list of quotations (Recent + Older)."
+        onBackToRecent={openRecentQuotations}
+        actions={(
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-display text-[22px] font-extrabold text-[#111827]">Quotation Module</h1>
             <ModuleIndependentBadge />
+            <ModuleSyncDropdown
+              module="quotation"
+              onNotify={onNotify}
+              onSynced={() => setRefreshKey((k) => k + 1)}
+            />
+            {quoteCaps.add ? (
+              <button
+                type="button"
+                onClick={startNewQuotation}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]"
+              >
+                <Plus className="size-4" />
+                Create Quotation
+              </button>
+            ) : null}
           </div>
-          <p className="mt-0.5 text-[13px] font-bold text-[#7386a3]">Independent quotations — sync Material Planning only when you choose.</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <ModuleSyncDropdown
-            module="quotation"
-            onNotify={onNotify}
-            onSynced={() => setRefreshKey((k) => k + 1)}
-          />
-          {quoteCaps.add ? (
-            <button
-              type="button"
-              onClick={startNewQuotation}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]"
-            >
-              <Plus className="size-4" />
-              Create Quotation
-            </button>
-          ) : null}
-        </div>
-      </div>
+        )}
+      />
 
       <section className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 lg:gap-3">
         <LiaisonApprovalStatCard label="Total Quotations" value={String(quotationStats.total)} caption="All Time" icon={FileText} tone="green" onClick={() => applyStatusCardFilter('All')} />
@@ -36752,6 +37063,13 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
       </article>
 
       <section ref={quotationTableRef} className={`${panelClass} flex min-h-0 flex-1 flex-col overflow-hidden p-3 sm:p-4`}>
+        {!isAllQuotationsView ? (
+          <RecentRecordsSectionHeader
+            moduleLabel="Quotations"
+            showing={quotationRecentCount}
+            total={quotationTotalCount}
+          />
+        ) : null}
         {loading ? (
           <PageLoadingState message="Loading quotations..." />
         ) : filteredQuotations.length === 0 ? (
@@ -36802,7 +37120,7 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
                       value={templateFilter}
                       active={templateFilter !== 'All'}
                       options={['All', ...QUOTATION_TEMPLATE_OPTIONS]}
-                      onChange={(v) => { setTemplateFilter(v); setActivePage(1); }}
+                      onChange={(v) => { setTemplateFilter(v); }}
                     />
                   </th>
                   <th title="Status">
@@ -36816,7 +37134,6 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
                         if (value === 'All') setStatusFilter('All');
                         else if (value === 'Expired') setExpiredFilter(true);
                         else setStatusFilter(value);
-                        setActivePage(1);
                       }}
                     />
                   </th>
@@ -36857,13 +37174,17 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
           </>
         )}
 
-        {!loading ? (
+        {!loading && !isAllQuotationsView ? (
+          <ViewAllRecordsButton label="View All Quotations →" onClick={openAllQuotations} />
+        ) : null}
+
+        {!loading && isAllQuotationsView && quotationsPagination ? (
           <TablePagination
-            total={filteredQuotations.length}
-            page={safeQuotationPage}
-            pageSize={quotationPageSize}
-            onPageChange={selectQuotationPage}
-            onPageSizeChange={(next) => { setQuotationPageSize(next); setActivePage(1); }}
+            {...quotationsPagination}
+            onPageChange={(page) => {
+              quotationsPagination.onPageChange?.(page);
+              quotationTableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}
           />
         ) : null}
       </section>

@@ -288,7 +288,12 @@ class LeadViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def recent(self, request):
-        qs = self.get_queryset().order_by('-created_at')[:5]
+        # Align with Lead List Recent preview: last activity first, default 10 rows.
+        try:
+            limit = min(max(int(request.query_params.get('limit', 10)), 1), 50)
+        except (TypeError, ValueError):
+            limit = 10
+        qs = self.get_queryset().order_by('-last_activity_at', '-created_at')[:limit]
         serializer = LeadListSerializer(qs, many=True)
         return Response(serializer.data)
 

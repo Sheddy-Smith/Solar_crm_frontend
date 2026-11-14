@@ -4,7 +4,15 @@ import {
 } from 'lucide-react';
 import { dailyTasksApi, inventoryApi, leadApi, projectApi, workforceApi } from './api.js';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
-import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
+import { TablePagination } from './components/TablePagination.jsx';
+import {
+  RecentAllPageHeading,
+  RecentRecordsSectionHeader,
+  ViewAllRecordsButton,
+} from './components/RecentAllListShell.jsx';
+import { useRecentAllRows } from './hooks/useRecentAllRows.js';
+import { RECENT_LIST_LIMIT } from './lib/recentAllList.js';
+import { fetchEveryPage } from './lib/listQuery.js';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { TeleDailyTasksPage } from './teleDailyTasks.jsx';
 
@@ -359,12 +367,15 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
 
   const load = useCallback(() => {
     setLoading(true);
-    const params = { date_from: dateFrom, date_to: dateTo, page_size: 25 };
-    if (categoryFilter !== 'All Categories') params.category = categoryFilter;
-    if (deferredSearch.trim()) params.search = deferredSearch.trim();
-    Promise.all([dailyTasksApi.list(params), dailyTasksApi.summary()])
+    const baseParams = { date_from: dateFrom, date_to: dateTo };
+    if (categoryFilter !== 'All Categories') baseParams.category = categoryFilter;
+    if (deferredSearch.trim()) baseParams.search = deferredSearch.trim();
+    Promise.all([
+      fetchEveryPage((page, pageSize) => dailyTasksApi.list({ ...baseParams, page, page_size: pageSize })),
+      dailyTasksApi.summary(),
+    ])
       .then(([listRes, summaryRes]) => {
-        setTasks(normalizeRows(listRes));
+        setTasks(Array.isArray(listRes) ? listRes : normalizeRows(listRes));
         setSummary(summaryRes || {});
       })
       .catch((e) => onNotify?.(e.message || 'Could not load daily tasks', 'error'))
@@ -382,8 +393,18 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
     if (statusFilter === 'All') return tasks;
     return tasks.filter((task) => task.status === statusFilter);
   }, [tasks, statusFilter]);
-  const { pageRows, pagination } = usePagedRows(visibleTasks, 'daily-tasks', {
+  const {
+    isAll: isAllTasksView,
+    openAll: openAllTasks,
+    openRecent: openRecentTasks,
+    displayRows: pageRows,
+    pagination,
+    totalCount: tasksTotalCount,
+    recentCount: tasksRecentCount,
+  } = useRecentAllRows(visibleTasks, {
+    storageKey: 'daily-tasks',
     resetKey: `${deferredSearch}|${categoryFilter}|${statusFilter}|${dateFrom}|${dateTo}`,
+    activityFields: ['updated_at', 'created_at', 'task_date'],
   });
 
   const openCreate = (categoryId) => setModal({ open: true, mode: 'create', categoryId, task: null });
@@ -523,8 +544,22 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
       </section>
 
       <section className={`${CARD} overflow-hidden`}>
-        <div className="border-b border-[#e7eef7] px-4 py-3 sm:px-5">
-          <h2 className="text-[15px] font-extrabold text-[#1e3261]">All Tasks</h2>
+        <div className="border-b border-[#e7eef7] px-4 py-3 sm:px-5 space-y-2">
+          <RecentAllPageHeading
+            isAll={isAllTasksView}
+            moduleLabel="Daily Tasks"
+            recentTitle="Daily Tasks (Recent)"
+            allTitle="All Daily Tasks"
+            recentSubtitle={`Showing the latest ${RECENT_LIST_LIMIT} field tasks you recently worked on.`}
+            onBackToRecent={openRecentTasks}
+          />
+          {!isAllTasksView ? (
+            <RecentRecordsSectionHeader
+              moduleLabel="Tasks"
+              showing={tasksRecentCount}
+              total={tasksTotalCount}
+            />
+          ) : null}
         </div>
         <div className="p-3 lg:hidden">
           {loading ? (
@@ -633,7 +668,10 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
             </tbody>
           </table>
         </div>
-        {!loading ? <TablePagination {...pagination} /> : null}
+        {!loading && !isAllTasksView ? (
+          <ViewAllRecordsButton label="View All Daily Tasks →" onClick={openAllTasks} />
+        ) : null}
+        {!loading && isAllTasksView && pagination ? <TablePagination {...pagination} /> : null}
       </section>
 
       <TaskModal

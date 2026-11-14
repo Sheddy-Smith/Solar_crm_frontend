@@ -265,12 +265,19 @@ class OmBreakdownTicketViewSet(OmBaseViewSet):
         'subject', 'site', 'project__project_name', 'asset__name', 'plant__plant_name',
         'plant__customer_name', 'contact_number',
     ]
+    # Assigned engineers (O&M Field Work) can update / resolve / close their own tickets.
+    field_work_actions = (
+        'list', 'retrieve', 'partial_update', 'update',
+        'create_task', 'resolve', 'close',
+    )
     permission_action_map = {'create_task': 'can_edit', 'resolve': 'can_edit', 'close': 'can_edit'}
 
     def get_queryset(self):
         qs = self._scope(
             OmBreakdownTicket.objects.select_related('project', 'plant', 'asset', 'assigned_to', 'created_by')
         )
+        if self._field_only():
+            qs = qs.filter(assigned_to=self.request.user)
         params = self.request.query_params
         if params.get('open') in ('1', 'true'):
             qs = qs.filter(status__in=OmBreakdownTicket.OPEN_STATUSES)

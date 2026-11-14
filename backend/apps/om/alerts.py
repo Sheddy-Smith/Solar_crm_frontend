@@ -180,8 +180,28 @@ def _sync_tasks(today, counts):
             counts['alerts'] += int(created)
 
 
+def _sync_amc_warranty_statuses(today):
+    """Keep AmcWarranty.status in sync with warranty_end (30-day Expiring Soon window)."""
+    try:
+        from apps.amc.models import AmcWarranty
+    except Exception:
+        return
+    for row in AmcWarranty.objects.exclude(status='Claimed').exclude(warranty_end__isnull=True):
+        end = row.warranty_end
+        if end < today:
+            new_status = 'Expired'
+        elif (end - today).days <= 30:
+            new_status = 'Expiring Soon'
+        else:
+            new_status = 'Active'
+        if row.status != new_status:
+            row.status = new_status
+            row.save(update_fields=['status', 'updated_at'])
+
+
 def _sync_warranties(today, counts):
     """30-day advance alerts for inverter / panel / service warranty + next service."""
+    _sync_amc_warranty_statuses(today)
     for plant in OmPlant.objects.filter(is_active=True):
         specs = (
             ('Inverter', plant.inverter_warranty_end),
