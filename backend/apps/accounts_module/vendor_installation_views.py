@@ -19,6 +19,7 @@ from apps.accounts_module.vendor_installation import (
     approve_stage,
     assign_installation_vendor,
     ensure_default_stage_templates,
+    realign_assignment_stages,
     record_installation_payment,
     serialize_assignment,
     serialize_stage,
@@ -94,6 +95,7 @@ class VendorInstallationAssignmentViewSet(viewsets.ViewSet):
     permission_module = 'Vendors'
 
     def list(self, request):
+        ensure_default_stage_templates()
         qs = VendorInstallationAssignment.objects.select_related(
             'project', 'vendor',
         ).prefetch_related('stages', 'payments').filter(is_cancelled=False)
@@ -103,14 +105,22 @@ class VendorInstallationAssignmentViewSet(viewsets.ViewSet):
             qs = qs.filter(vendor_id=vendor_id)
         if project_id:
             qs = qs.filter(project_id=project_id)
-        return Response([serialize_assignment(a) for a in qs[:200]])
+        rows = []
+        for assignment in qs[:200]:
+            realign_assignment_stages(assignment)
+            assignment.refresh_from_db()
+            rows.append(serialize_assignment(assignment))
+        return Response(rows)
 
     def retrieve(self, request, pk=None):
+        ensure_default_stage_templates()
         assignment = VendorInstallationAssignment.objects.select_related(
             'project', 'vendor',
         ).prefetch_related('stages', 'payments').filter(pk=pk).first()
         if not assignment:
             return Response({'detail': 'Not found'}, status=404)
+        realign_assignment_stages(assignment)
+        assignment.refresh_from_db()
         return Response(serialize_assignment(assignment))
 
     def create(self, request):

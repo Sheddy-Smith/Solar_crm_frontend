@@ -87,7 +87,8 @@ def filter_customer_parties_for_user(qs, user):
     others = qs.exclude(account_type='Customer')
     if not keys:
         return others
-    phone_q = Q()
+    # Prefer indexed normalized_phone; keep legacy endswith for sparse un-normalized rows.
+    phone_q = Q(normalized_phone__in=keys)
     for key in keys:
         phone_q |= Q(phone=key) | Q(phone__endswith=key)
     return (others | customers.filter(phone_q)).distinct()

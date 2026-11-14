@@ -1086,27 +1086,64 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
               <p className="text-[12px] font-semibold text-[#7386a3]">{stageView.completed_stages}/{stageView.total_stages} stages approved · {stageView.pending_percent}% remaining</p>
             </div>
           </div>
-          <div className="space-y-2">
-            {(stageView.stages || []).map((s) => (
-              <div key={s.id} className="rounded-[10px] border border-[#e7eef7] bg-[#f8fbff] px-3 py-2.5">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="text-[13px] font-extrabold text-[#1e3261]">{s.stage_name}</p>
-                    <p className="text-[11px] font-semibold text-[#8a98af]">Weight {s.allocated_percent}% · {s.status}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="h-2 w-24 overflow-hidden rounded-full bg-[#e2e8f0]">
-                      <div className={`h-full ${s.status === 'Approved' ? 'bg-[#16a34a]' : 'bg-[#94a3b8]'}`} style={{ width: s.status === 'Approved' ? '100%' : '0%' }} />
-                    </div>
-                    {s.status !== 'Approved' ? (
-                      <button type="button" onClick={() => approveStage(stageView.id, s.id)} className="h-8 rounded-[8px] bg-[#0b8f43] px-3 text-[11px] font-extrabold text-white">Approve</button>
-                    ) : (
-                      <span className="text-[11px] font-extrabold text-[#16a34a]">Approved</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div className="overflow-hidden rounded-[12px] border border-[#e7eef7]">
+            <table className="min-w-full text-left text-[13px]">
+              <thead className="bg-[#f8fbff] text-[11px] font-extrabold uppercase tracking-wide text-[#64748b]">
+                <tr>
+                  {['#', 'Installation Work Stage', 'Percentage', 'Progress', 'Status', 'Action'].map((h) => (
+                    <th key={h} className="px-3 py-2.5">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {(stageView.stages || []).map((s, idx) => {
+                  const approved = s.status === 'Approved';
+                  const tones = ['blue', 'green', 'amber', 'purple', 'blue', 'orange'];
+                  const tone = tones[idx % tones.length];
+                  const toneClass = {
+                    blue: 'bg-[#e8f2ff] text-[#0b65e5]',
+                    green: 'bg-[#e8f8eb] text-[#0d9f4a]',
+                    amber: 'bg-[#fff0dc] text-[#f59e0b]',
+                    purple: 'bg-[#f2eafe] text-[#7c3aed]',
+                    orange: 'bg-[#ffedd5] text-[#c2410c]',
+                  }[tone];
+                  return (
+                    <tr key={s.id} className="border-t border-[#edf2f8]">
+                      <td className="px-3 py-2.5 font-semibold text-[#64748b]">{idx + 1}</td>
+                      <td className="px-3 py-2.5 font-extrabold text-[#1e3261]">{s.stage_name}</td>
+                      <td className="px-3 py-2.5">
+                        <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-bold ${toneClass}`}>{Number(s.allocated_percent || 0)}%</span>
+                      </td>
+                      <td className="px-3 py-2.5 min-w-[120px]">
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#e2e8f0]">
+                            <div className={`h-full rounded-full ${approved ? 'bg-[#16a34a]' : 'bg-[#cbd5e1]'}`} style={{ width: approved ? '100%' : '0%' }} />
+                          </div>
+                          <span className="w-8 text-right text-[11px] font-bold text-[#64748b]">{approved ? 100 : 0}%</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 text-[12px] font-extrabold text-[#64748b]">{s.status || 'Not Started'}</td>
+                      <td className="px-3 py-2.5">
+                        {approved ? (
+                          <span className="text-[11px] font-extrabold text-[#16a34a]">Approved</span>
+                        ) : (
+                          <button type="button" onClick={() => approveStage(stageView.id, s.id)} className="h-8 rounded-[8px] bg-[#0b8f43] px-3 text-[11px] font-extrabold text-white">Approve</button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-[#bbf7d0] bg-[#16a34a] text-white">
+                  <td className="px-3 py-2.5 font-extrabold" colSpan={2}>Total</td>
+                  <td className="px-3 py-2.5 font-extrabold">
+                    {Math.round((stageView.stages || []).reduce((sum, s) => sum + Number(s.allocated_percent || 0), 0))}%
+                  </td>
+                  <td className="px-3 py-2.5" colSpan={3} />
+                </tr>
+              </tfoot>
+            </table>
           </div>
         </ModalShell>
       ) : null}

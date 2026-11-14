@@ -408,6 +408,9 @@ def project_ledger_breakdown(party):
             'project_code': project.project_id,
             'project_name': project.project_name,
             'status': project.status,
+            'project_type': getattr(project, 'project_type', '') or '',
+            'capacity_kwp': float(project.capacity_kwp) if getattr(project, 'capacity_kwp', None) is not None else None,
+            'site': getattr(project, 'site', '') or getattr(project, 'site_address', '') or '',
             'invoiced': float(totals['invoiced']),
             'received': float(totals['received']),
             'outstanding': float(totals['outstanding']),
@@ -518,31 +521,168 @@ def merge_duplicate_customers_by_phone():
 
 
 def credit_ledger_rows():
-    from .models import Account
+    """Overall Credit Ledger rows via bulk aggregates (no per-party N+1 loops)."""
+    from django.db.models import DecimalField, Max, Sum, Value
+    from django.db.models.functions import Coalesce
 
+    from .models import Account, CustomerLedgerManualEntry, Payment, SellInvoice
+
+    zero = Value(0, output_field=DecimalField(max_digits=14, decimal_places=2))
     year = date.today().year
+    parties = list(
+        Account.objects.filter(account_type='Customer')
+        .exclude(status='Merged')
+        .order_by('name')
+        .only('id', 'name', 'company', 'contact_person', 'phone', 'opening_balance', 'relation', 'credit_limit')
+    )
+    if not parties:
+        return {
+            'opening_balance': 0.0,
+            'total_debit': 0.0,
+            'total_credit': 0.0,
+            'net_balance': 0.0,
+            'results': [],
+        }
+    party_ids = [p.id for p in parties]
+
+    inv = (
+        SellInvoice.objects.filter(party_id__in=party_ids)
+        .exclude(status='Cancelled')
+        .values('party_id')
+        .annotate(t=Coalesce(Sum('total_amount'), zero), last=Max('invoice_date'))
+    )
+    inv_map = {r['party_id']: r for r in inv}
+    inv_year = {
+        r['party_id']: _d(r['t'])
+        for r in (
+            SellInvoice.objects.filter(party_id__in=party_ids, invoice_date__year=year)
+            .exclude(status='Cancelled')
+            .values('party_id')
+            .annotate(t=Coalesce(Sum('total_amount'), zero))
+        )
+    }
+
+    recv = (
+        Payment.objects.filter(party_id__in=party_ids, direction='Received', status='Completed')
+        .values('party_id')
+        .annotate(t=Coalesce(Sum('amount'), zero), last=Max('payment_date'))
+    )
+    recv_map = {r['party_id']: r for r in recv}
+    recv_year = {
+        r['party_id']: _d(r['t'])
+        for r in (
+            Payment.objects.filter(
+                party_id__in=party_ids, direction='Received', status='Completed', payment_date__year=year,
+            )
+            .values('party_id')
+            .annotate(t=Coalesce(Sum('amount'), zero))
+        )
+    }
+
+    made = {
+        r['party_id']: _d(r['t'])
+        for r in (
+            Payment.objects.filter(party_id__in=party_ids, direction='Made', status='Completed')
+            .values('party_id')
+            .annotate(t=Coalesce(Sum('amount'), zero))
+        )
+    }
+    made_year = {
+        r['party_id']: _d(r['t'])
+        for r in (
+            Payment.objects.filter(
+                party_id__in=party_ids, direction='Made', status='Completed', payment_date__year=year,
+            )
+            .values('party_id')
+            .annotate(t=Coalesce(Sum('amount'), zero))
+        )
+    }
+
+    manual_sale = {
+        r['party_id']: _d(r['t'])
+        for r in (
+            CustomerLedgerManualEntry.objects.filter(party_id__in=party_ids, entry_type='sale')
+            .values('party_id')
+            .annotate(t=Coalesce(Sum('amount'), zero))
+        )
+    }
+    manual_pay = {
+        r['party_id']: _d(r['t'])
+        for r in (
+            CustomerLedgerManualEntry.objects.filter(party_id__in=party_ids)
+            .exclude(entry_type='sale')
+            .values('party_id')
+            .annotate(t=Coalesce(Sum('amount'), zero))
+        )
+    }
+    manual_sale_year = {
+        r['party_id']: _d(r['t'])
+        for r in (
+            CustomerLedgerManualEntry.objects.filter(
+                party_id__in=party_ids, entry_type='sale', entry_date__year=year,
+            )
+            .values('party_id')
+            .annotate(t=Coalesce(Sum('amount'), zero))
+        )
+    }
+    manual_pay_year = {
+        r['party_id']: _d(r['t'])
+        for r in (
+            CustomerLedgerManualEntry.objects.filter(party_id__in=party_ids, entry_date__year=year)
+            .exclude(entry_type='sale')
+            .values('party_id')
+            .annotate(t=Coalesce(Sum('amount'), zero))
+        )
+    }
+    manual_last = {
+        r['party_id']: r['last']
+        for r in (
+            CustomerLedgerManualEntry.objects.filter(party_id__in=party_ids)
+            .values('party_id')
+            .annotate(last=Max('entry_date'))
+        )
+    }
+
     rows = []
     opening_sum = debit_sum = credit_sum = Decimal('0')
-    for party in Account.objects.filter(account_type='Customer').order_by('name'):
-        totals = party_totals(party, year=year)
-        all_totals = party_totals(party)
-        net = all_totals['net']
-        relation = infer_relation(party, net, totals['yearly'])
-        opening_sum += all_totals['opening']
-        debit_sum += all_totals['debit']
-        credit_sum += all_totals['credit']
+    for party in parties:
+        pid = party.id
+        opening = _d(party.opening_balance)
+        debit = _d(inv_map.get(pid, {}).get('t')) + made.get(pid, Decimal('0')) + manual_sale.get(pid, Decimal('0'))
+        credit = _d(recv_map.get(pid, {}).get('t')) + manual_pay.get(pid, Decimal('0'))
+        if opening > 0:
+            debit += opening
+        elif opening < 0:
+            credit += abs(opening)
+        yearly = (
+            inv_year.get(pid, Decimal('0'))
+            + recv_year.get(pid, Decimal('0'))
+            + made_year.get(pid, Decimal('0'))
+            + manual_sale_year.get(pid, Decimal('0'))
+            + manual_pay_year.get(pid, Decimal('0'))
+        )
+        net = debit - credit
+        dates = [
+            inv_map.get(pid, {}).get('last'),
+            recv_map.get(pid, {}).get('last'),
+            manual_last.get(pid),
+        ]
+        last_date = max([d for d in dates if d] or [None])
+        opening_sum += opening
+        debit_sum += debit
+        credit_sum += credit
         rows.append({
             'id': party.id,
             'name': party.name,
             'company': party.company or party.contact_person or '',
             'phone': party.phone or '',
-            'yearly_transaction': float(totals['yearly']),
-            'relation': relation,
-            'debit': float(all_totals['debit']),
-            'credit': float(all_totals['credit']),
+            'yearly_transaction': float(yearly),
+            'relation': infer_relation(party, net, yearly),
+            'debit': float(debit),
+            'credit': float(credit),
             'net': float(net),
-            'last_date': _iso(all_totals['last_date']),
-            'visits': visit_count(party),
+            'last_date': _iso(last_date),
+            'visits': 0,
         })
     return {
         'opening_balance': float(opening_sum),

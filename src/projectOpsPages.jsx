@@ -1,6 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import {
-  CheckCircle2, ChevronRight, CircleDashed, ClipboardList, FolderKanban, Package, PackageCheck, Pencil, Plus,
+  CheckCircle2, ChevronRight, CircleDashed, ClipboardList, Clock3, FolderKanban, Package, PackageCheck, Pencil, Plus,
   Search, Trash2, Truck, Undo2, Wrench, X,
 } from 'lucide-react';
 import {
@@ -110,9 +110,45 @@ function Pill({ children, tone = 'slate' }) {
     blue: 'bg-[#e8f2ff] text-[#0b65e5]',
     red: 'bg-[#fee2e2] text-[#dc2626]',
     purple: 'bg-[#f2eafe] text-[#7c3aed]',
+    orange: 'bg-[#ffedd5] text-[#c2410c]',
     slate: 'bg-[#eef2f7] text-[#7585a2]',
   };
   return <span className={cx('inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-bold', map[tone] || map.slate)}>{children}</span>;
+}
+
+/** Design-locked Installation Work Stage weightages (must total 100%). */
+const INSTALL_STAGE_PERCENT_TONES = ['blue', 'green', 'amber', 'purple', 'blue', 'orange'];
+
+function stagePercentTone(index) {
+  return INSTALL_STAGE_PERCENT_TONES[index % INSTALL_STAGE_PERCENT_TONES.length];
+}
+
+function InstallProgressRing({ percent = 0, size = 88, stroke = 8 }) {
+  const p = Math.max(0, Math.min(100, Number(percent) || 0));
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const offset = c - (p / 100) * c;
+  return (
+    <div className="relative grid place-items-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#e2e8f0" strokeWidth={stroke} />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke={p >= 100 ? '#16a34a' : p > 0 ? '#0b65e5' : '#94a3b8'}
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={offset}
+        />
+      </svg>
+      <div className="absolute inset-0 grid place-items-center text-center">
+        <p className="text-[18px] font-extrabold leading-none text-[#0f172a]">{Math.round(p)}%</p>
+      </div>
+    </div>
+  );
 }
 
 const MODAL_OVERLAY = 'fixed inset-0 z-[90] flex items-end justify-center bg-[#0f172a]/55 p-0 sm:items-center sm:p-4';
@@ -901,6 +937,11 @@ function InstallationDetailModal({ project, onClose, onNotify, statusToggle, inl
     const hit = INSTALL_PROGRESS_WEIGHTS.find((w) => w.label.toLowerCase() === String(item.label || '').toLowerCase());
     return sum + (hit?.weight || 0);
   }, 0);
+  const primaryAssignment = vendorAssignments[0] || null;
+  const stageRows = primaryAssignment?.stages || [];
+  const approvedStages = stageRows.filter((s) => s.status === 'Approved').length;
+  const stageProgressPct = Number(primaryAssignment?.approved_percent ?? progressPct) || 0;
+  const stageTotalPct = stageRows.reduce((sum, s) => sum + Number(s.allocated_percent || 0), 0);
 
   const saveTask = async () => {
     if (!taskForm.title.trim()) { onNotify('Task name required'); return; }
@@ -960,14 +1001,20 @@ function InstallationDetailModal({ project, onClose, onNotify, statusToggle, inl
               <p className="truncate text-[13px] font-semibold text-[#7386a3]">
                 {project.project_name || project.project_id}
                 {' · '}
-                Install {installWeightDone}% / 90%
-                {' · '}
-                Work {progressPct}%
-                {' · '}
-                {doneTasks}/{tasks.length} tasks
+                {primaryAssignment
+                  ? `Install ${Math.round(stageProgressPct)}% / 100% · ${approvedStages}/${stageRows.length || 6} stages`
+                  : `Install ${installWeightDone}% / 90% · Work ${progressPct}% · ${doneTasks}/${tasks.length} tasks`}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
+              {primaryAssignment ? (
+                <div className="hidden items-center gap-3 sm:flex">
+                  <InstallProgressRing percent={stageProgressPct} size={64} stroke={6} />
+                  <Pill tone={stageProgressPct >= 100 ? 'green' : stageProgressPct > 0 ? 'amber' : 'red'}>
+                    {stageProgressPct >= 100 ? 'Completed' : stageProgressPct > 0 ? 'In Progress' : 'Not Done'}
+                  </Pill>
+                </div>
+              ) : null}
               {statusToggle}
               {inline ? null : <button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-full text-[#7585a2] hover:bg-[#f4f7fb]"><X className="size-5" /></button>}
             </div>
@@ -993,8 +1040,8 @@ function InstallationDetailModal({ project, onClose, onNotify, statusToggle, inl
             {loading ? (
               <p className="py-10 text-center text-[13px] font-semibold text-[#8a98af]">Loading...</p>
             ) : tab === 'Vendor' ? (
-              <div>
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-[13px] font-extrabold text-[#1e3261]">Installation Vendor Assignment</p>
                   <button
                     type="button"
@@ -1009,35 +1056,87 @@ function InstallationDetailModal({ project, onClose, onNotify, statusToggle, inl
                     No vendor assigned yet. Assign an installation vendor to auto-create Daily Task + Vendor Ledger entry.
                   </p>
                 ) : (
-                  <div className="space-y-3">
-                    {vendorAssignments.map((a) => (
-                      <div key={a.id} className="rounded-[12px] border border-[#e7eef7] bg-white p-3">
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div>
-                            <p className="text-[14px] font-extrabold text-[#1e3261]">{a.vendor_name}</p>
-                            <p className="text-[12px] font-semibold text-[#7386a3]">
+                  vendorAssignments.map((a) => {
+                    const stages = a.stages || [];
+                    const done = stages.filter((s) => s.status === 'Approved').length;
+                    const pct = Number(a.approved_percent || 0);
+                    const totalWeight = stages.reduce((sum, s) => sum + Number(s.allocated_percent || 0), 0);
+                    return (
+                      <div key={a.id} className="overflow-hidden rounded-[14px] border border-[#e7eef7] bg-white">
+                        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#edf2f8] bg-[#f8fbff] p-3.5">
+                          <div className="min-w-0">
+                            <p className="text-[15px] font-extrabold text-[#1e3261]">{a.vendor_name}</p>
+                            <p className="mt-0.5 text-[12px] font-semibold text-[#7386a3]">
                               {a.capacity_kw} kW · ₹{a.rate}/{a.rate_unit === 'per_kw' ? 'kW' : 'W'} · Contract ₹{Number(a.contract_amount || 0).toLocaleString('en-IN')}
                             </p>
                             <p className="mt-1 text-[12px] font-semibold text-[#53647f]">
                               Earned ₹{Number(a.earned_amount || 0).toLocaleString('en-IN')} · Paid ₹{Number(a.total_paid || 0).toLocaleString('en-IN')} · Payable ₹{Number(a.remaining_earned_payable || 0).toLocaleString('en-IN')}
                             </p>
+                            <p className="mt-1 text-[11px] font-bold text-[#8a98af]">{done}/{stages.length} stages · {Math.round(pct)}% Assigned</p>
                           </div>
-                          <div className="text-right">
-                            <p className="text-[20px] font-extrabold text-[#0b65e5]">{Number(a.approved_percent || 0).toFixed(0)}%</p>
-                            <p className="text-[11px] font-bold text-[#8a98af]">{a.status}</p>
+                          <div className="flex items-center gap-3">
+                            <InstallProgressRing percent={pct} size={76} stroke={7} />
+                            <Pill tone={pct >= 100 ? 'green' : pct > 0 ? 'amber' : 'red'}>
+                              {pct >= 100 ? 'Completed' : pct > 0 ? 'In Progress' : 'Not Done'}
+                            </Pill>
                           </div>
                         </div>
-                        <div className="mt-3 space-y-1.5">
-                          {(a.stages || []).map((s) => (
-                            <div key={s.id} className="flex items-center justify-between gap-2 rounded-[8px] bg-[#f8fbff] px-2.5 py-1.5 text-[12px]">
-                              <span className="font-semibold text-[#1e3261]">{s.stage_name} ({s.allocated_percent}%)</span>
-                              <span className={`font-extrabold ${s.status === 'Approved' ? 'text-[#16a34a]' : 'text-[#94a3b8]'}`}>{s.status}</span>
-                            </div>
-                          ))}
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full text-left text-[13px]">
+                            <thead className="bg-[#f8fbff] text-[11px] font-extrabold uppercase tracking-wide text-[#64748b]">
+                              <tr>
+                                {['#', 'Installation Work Stage', 'Percentage', 'Progress', 'Status'].map((h) => (
+                                  <th key={h} className="px-3 py-2.5">{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {stages.map((s, idx) => {
+                                const approved = s.status === 'Approved';
+                                const rowPct = approved ? 100 : 0;
+                                return (
+                                  <tr key={s.id} className="border-t border-[#edf2f8]">
+                                    <td className="px-3 py-2.5 font-semibold text-[#64748b]">{idx + 1}</td>
+                                    <td className="px-3 py-2.5 font-extrabold text-[#1e3261]">{s.stage_name}</td>
+                                    <td className="px-3 py-2.5">
+                                      <Pill tone={stagePercentTone(idx)}>{Number(s.allocated_percent || 0)}%</Pill>
+                                    </td>
+                                    <td className="px-3 py-2.5 min-w-[140px]">
+                                      <div className="flex items-center gap-2">
+                                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#e2e8f0]">
+                                          <div
+                                            className={cx('h-full rounded-full', approved ? 'bg-[#16a34a]' : 'bg-[#cbd5e1]')}
+                                            style={{ width: `${rowPct}%` }}
+                                          />
+                                        </div>
+                                        <span className="w-8 text-right text-[11px] font-bold text-[#64748b]">{rowPct}%</span>
+                                      </div>
+                                    </td>
+                                    <td className="px-3 py-2.5">
+                                      <span className={cx(
+                                        'inline-flex items-center gap-1 text-[12px] font-extrabold',
+                                        approved ? 'text-[#16a34a]' : 'text-[#94a3b8]',
+                                      )}>
+                                        {approved ? <CheckCircle2 className="size-3.5" /> : <Clock3 className="size-3.5" />}
+                                        {approved ? 'Approved' : (s.status || 'Not Started')}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                            <tfoot>
+                              <tr className="border-t border-[#bbf7d0] bg-[#16a34a] text-white">
+                                <td className="px-3 py-2.5 font-extrabold" colSpan={2}>Total</td>
+                                <td className="px-3 py-2.5 font-extrabold">{Math.round(totalWeight)}%</td>
+                                <td className="px-3 py-2.5" colSpan={2} />
+                              </tr>
+                            </tfoot>
+                          </table>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })
                 )}
               </div>
             ) : tab === 'Progress' ? (

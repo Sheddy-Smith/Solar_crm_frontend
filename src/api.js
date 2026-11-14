@@ -509,8 +509,14 @@ export const accountsModuleApi = {
   seedCategoryMaps: () => request('/accounts/category-maps/seed-defaults/', { method: 'POST', body: {} }),
   seedRecommendedCoa: () => request('/accounts/chart-of-accounts/seed-recommended/', { method: 'POST', body: {} }),
   parties: accountsCrud('parties'),
-  syncCustomersFromLeads: () => request('/accounts/parties/sync-from-leads/', { method: 'POST', body: {} }),
-  customerDirectory: () => request('/accounts/parties/customer-directory/'),
+  syncCustomersFromLeads: (data = {}) => request('/accounts/parties/sync-from-leads/', { method: 'POST', body: data }),
+  customerDirectory: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null && v !== false))
+    ).toString();
+    return request(`/accounts/parties/customer-directory/${qs ? '?' + qs : ''}`);
+  },
+  wonClients: () => request('/accounts/parties/won-clients/'),
   fixCustomerDuplicates: () => request('/accounts/parties/fix-duplicates/', { method: 'POST', body: {} }),
   detectCustomerDuplicates: () => request('/accounts/parties/detect-duplicates/'),
   mergeCustomersPreview: (data) => request('/accounts/parties/merge-preview/', { method: 'POST', body: data }),
@@ -543,6 +549,7 @@ export const accountsModuleApi = {
   settleParty: (id, data) => request(`/accounts/parties/${id}/settle/`, { method: 'POST', body: data }),
   addLedgerEntry: (id, data) => request(`/accounts/parties/${id}/add-ledger-entry/`, { method: 'POST', body: data }),
   updateLedgerEntry: (id, entryId, data) => request(`/accounts/parties/${id}/manual-ledger-entries/${entryId}/`, { method: 'PATCH', body: data }),
+  deleteLedgerEntry: (id, entryId) => request(`/accounts/parties/${id}/manual-ledger-entries/${entryId}/`, { method: 'DELETE' }),
   addVendorManualEntry: (id, data) => request(`/accounts/parties/${id}/add-vendor-manual-entry/`, { method: 'POST', body: data }),
   updateVendorManualEntry: (id, entryId, data) => request(`/accounts/parties/${id}/vendor-manual-entries/${entryId}/`, { method: 'PATCH', body: data }),
   deleteVendorManualEntry: (id, entryId) => request(`/accounts/parties/${id}/vendor-manual-entries/${entryId}/delete/`, { method: 'DELETE' }),

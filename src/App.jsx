@@ -631,8 +631,9 @@ const insightsRelatedPages = [
 const summaryRelatedPages = [...summarySubItems];
 // Pages jinhe ek selected project chahiye — refresh/restore pe selectedProject null hota hai, isliye inhe Project List se replace karo
 const projectDetailPages = ['Project Details', 'Project Timeline', 'Project Report View'];
-// Sidebar/subnav se in sections par jane par selectedProject clear karo (project action menu / preserveProject ke alawa)
-const projectSubnavSectionsThatClearProject = new Set([...projectSubItems, 'Project List']);
+// Intra-PM category hops (Next / subnav) must KEEP the selected project.
+// Clear App selectedProject only when leaving Project Management entirely (handled in sidebar/module switch).
+const projectSubnavSectionsThatClearProject = new Set();
 const accountsLegacyPages = ['Accounts List', 'Payment Received', 'Payment Made', 'Bank Accounts', 'Cheques List', 'Chart of Accounts'];
 const accountsSubItems = [
   'Accounts Overview',
@@ -745,7 +746,7 @@ const liaisonActionPages = ['Liaison Application Create', 'Liaison Application D
 const liaisonRelatedPages = [...liaisonActionPages, ...liaisonSubItems, ...liaisonLegacyPages];
 const omSubItems = [...OM_MODULE_SECTIONS];
 const omRelatedPages = ['O&M', 'Energy Performance', ...Object.keys(OM_LEGACY_SECTIONS), ...omSubItems];
-const OM_FIELD_WORK_SECTION = 'Service Requests';
+const OM_FIELD_WORK_SECTION = 'Job Cards & Site Visits';
 const OM_FOCUS_KEYS = ['plant', 'ticket', 'task', 'policy', 'filter', 'alert'];
 
 function omFocusFromSearch(search) {
@@ -3550,7 +3551,8 @@ function App() {
                                   type="button"
                                   data-route={projectSubRoutes[subItem] || sectionRoutes[subItem]}
                                   onClick={() => {
-                                    setSelectedProject(null);
+                                    // Project List pe jaane par selection clear; baaki stages pe project carry-forward.
+                                    if (subItem === 'Project List') setSelectedProject(null);
                                     setActiveSidebarItem(subItem);
                                     setMobileSidebarOpen(false);
                                     notify(`${subItem} opened`);
@@ -4242,6 +4244,10 @@ function App() {
                 loggedInUser={loggedInUser}
                 initialTab={followUpsPageTab}
                 onNotify={notify}
+                onOpenSection={(section, message) => {
+                  setActiveSidebarItem(section);
+                  notify(message || `${section} opened`);
+                }}
                 onViewLead={(item) => {
                   if (!item?.lead) return;
                   setPopupLeadId(item.lead);
@@ -12075,12 +12081,12 @@ function PipelineProjectBar({ pipeline = LIAISON_PIPELINE, project, section, bus
 
       <div className="flex shrink-0 flex-wrap items-center gap-2">
         <span className="sm:hidden"><PipelineStageBadge stage={stage} pipeline={pipeline} /></span>
-        {canMarkDone && (
+        {canMarkDone && onMarkDone ? (
           <button type="button" disabled={busy} onClick={onMarkDone} className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-[10px] border border-[#bbf7d0] bg-[#f0fdf4] px-3 text-[12px] font-extrabold text-[#15803d] transition hover:bg-[#dcfce7] disabled:opacity-60 sm:flex-none">
             <CheckCircle2 className="size-4" />{busy ? 'Saving...' : `Mark ${markLabel} Done`}
           </button>
-        )}
-        {canUnmark && (
+        ) : null}
+        {canUnmark && onUnmarkDone ? (
           <button
             type="button"
             disabled={busy}
@@ -12093,7 +12099,7 @@ function PipelineProjectBar({ pipeline = LIAISON_PIPELINE, project, section, bus
           >
             <Undo2 className="size-4" />{busy ? 'Saving...' : `Unmark ${markLabel}`}
           </button>
-        )}
+        ) : null}
         {extraActions}
         <button type="button" onClick={onClose} title="Back to project list" className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] border border-[#dce6f3] bg-white px-3 text-[12px] font-extrabold text-[#284276] hover:bg-[#f8fbff]">
           <X className="size-4" /><span className="hidden sm:inline">Close</span>
@@ -12427,13 +12433,19 @@ function usePipelineHub(pipeline, section, onNotify, { disableSelection = false 
     setListSearch(value || '');
   }, []);
 
-  // Site Survey = list + popup only — drop in-memory selection before paint.
-  // sessionStorage clear + popup open are handled by ProjectPipelineHub so the stored id can be consumed first.
+  // Site Survey = list + popup only — hide in-memory selection for the bar UI,
+  // but keep sessionStorage so Next / other categories can restore the same project.
   useLayoutEffect(() => {
-    if (!disableSelection) return;
-    setSelectedId(null);
-    setSelectedCache(null);
-  }, [disableSelection, section]);
+    if (disableSelection) {
+      setSelectedId(null);
+      setSelectedCache(null);
+      return;
+    }
+    const stored = readStoredPipelineProject(storageKey);
+    if (stored) {
+      setSelectedId((prev) => (prev ? prev : String(stored)));
+    }
+  }, [disableSelection, section, storageKey]);
 
   const selectedFromList = (!disableSelection && selectedId)
     ? (projects.find((p) => String(p.id) === String(selectedId)) || null)
@@ -12689,13 +12701,12 @@ function ProjectPipelineHub({
     setSurveyEditRow(toSurveyRow(project));
   }, [toSurveyRow]);
 
-  // Entering Site Survey with a previously selected project → popup only (no workspace page).
+  // Entering Site Survey with a previously selected project → popup; keep storage for Next/carry-forward.
   useLayoutEffect(() => {
     if (!isSiteSurveySection) return;
     const storedId = readStoredPipelineProject(pipeline.storageKey);
     if (!storedId) return;
     openSurveyView({ id: Number(storedId) || storedId });
-    storePipelineProject(pipeline.storageKey, null);
   }, [isSiteSurveySection, pipeline.storageKey, openSurveyView]);
 
   // A project chosen elsewhere opens inside the hub — Site Survey uses the popup, not a full page.
@@ -12703,7 +12714,7 @@ function ProjectPipelineHub({
   useEffect(() => {
     if (!externalId) return;
     if (isSiteSurveySection) {
-      closeProject();
+      storePipelineProject(pipeline.storageKey, externalId);
       openSurveyView({
         id: externalId,
         project_name: externalProject.project_name,
@@ -12715,7 +12726,7 @@ function ProjectPipelineHub({
     }
     openProject({ id: externalId });
     onConsumeExternalProject?.();
-  }, [externalId, externalProject, isSiteSurveySection, openProject, closeProject, openSurveyView, onConsumeExternalProject]);
+  }, [externalId, externalProject, isSiteSurveySection, openProject, openSurveyView, onConsumeExternalProject, pipeline.storageKey]);
 
   useEffect(() => {
     if (!autoOpenQuotation) return;
@@ -12723,20 +12734,36 @@ function ProjectPipelineHub({
     setViewBySection((prev) => ({ ...prev, Quotation: 'all' }));
   }, [autoOpenQuotation, closeProject]);
 
-  // From Project List / pipeline bar: Site Survey opens popup in-place (no full-page navigate).
+  // Next / subnav: always preserve the selected project across PM categories.
+  const openPipelineSection = useCallback((target) => {
+    onOpenSection(target, { preserveProject: true });
+  }, [onOpenSection]);
+
+  // From Project List / pipeline bar: Site Survey opens popup + navigates; selection stays in sessionStorage.
   const navigatePipeline = useCallback((target) => {
     if (target === 'Project Site Survey') {
-      if (selected) {
-        openSurveyView(selected);
+      const storedId = selected?.id || readStoredPipelineProject(pipeline.storageKey);
+      if (storedId) {
+        openSurveyView(selected || { id: Number(storedId) || storedId });
+        storePipelineProject(pipeline.storageKey, storedId);
+        openPipelineSection(target);
         onNotify?.('Site Survey opened');
         return;
       }
     }
-    onOpenSection(target);
-  }, [selected, openSurveyView, onOpenSection, onNotify]);
+    openPipelineSection(target);
+  }, [selected, openSurveyView, openPipelineSection, onNotify, pipeline.storageKey]);
 
   const openFromRow = (row) => openProject({ id: row.id });
   const toggleLabels = step ? ['At this stage', 'All records'] : ['Project Status', 'Full Project List'];
+
+  // Carry-forward: in-memory selection OR sessionStorage (survives Site Survey disableSelection).
+  const carriedProjectId = selected?.id || readStoredPipelineProject(pipeline.storageKey);
+  const carriedProject = selected
+    || (carriedProjectId
+      ? (projects.find((p) => String(p.id) === String(carriedProjectId))
+        || { id: Number(carriedProjectId) || carriedProjectId, project_name: 'Selected project' })
+      : null);
   const viewToggle = <PipelineViewToggle value={stageView} onChange={setStageView} labels={toggleLabels} />;
 
   const handleSurveyDelete = async () => {
@@ -12875,13 +12902,22 @@ function ProjectPipelineHub({
         />
       );
     } else if (section === 'Project Material Planning') {
-      legacy = <MaterialPlanningProjectHub embedded activeSection={section} onOpenSection={onOpenSection} onSelectProject={onSelectProject} onNotify={onNotify} />;
+      legacy = (
+        <MaterialPlanningProjectHub
+          embedded
+          activeSection={section}
+          onOpenSection={openPipelineSection}
+          onSelectProject={onSelectProject}
+          onNotify={onNotify}
+          initialBomProject={carriedProject}
+        />
+      );
     } else if (section === 'Project Job Sheet') {
-      legacy = <OpsJobSheetPage embedded activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
+      legacy = <OpsJobSheetPage embedded activeSection={section} onOpenSection={openPipelineSection} onNotify={onNotify} initialProjectId={carriedProjectId} />;
     } else if (section === 'Project Dispatch') {
-      legacy = <OpsDispatchPage embedded activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
+      legacy = <OpsDispatchPage embedded activeSection={section} onOpenSection={openPipelineSection} onNotify={onNotify} initialProjectId={carriedProjectId} />;
     } else if (section === 'Project Installation') {
-      legacy = <OpsInstallationPage embedded activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
+      legacy = <OpsInstallationPage embedded activeSection={section} onOpenSection={openPipelineSection} onNotify={onNotify} initialProjectId={carriedProjectId} />;
     } else {
       legacy = (
         <PipelineProjectTable
@@ -12916,9 +12952,9 @@ function ProjectPipelineHub({
   } else if (section === 'Project Material Planning') {
     content = <MaterialPlanningBomModal key={selected.id} inline project={selected} onClose={() => {}} onNotify={onNotify} onPlansChanged={loadProjects} />;
   } else if (section === 'Project Job Sheet') {
-    content = <OpsJobSheetPage key={selected.id} embedded lockedProjectId={selected.id} activeSection={section} onOpenSection={onOpenSection} onNotify={onNotify} />;
+    content = <OpsJobSheetPage key={selected.id} embedded lockedProjectId={selected.id} activeSection={section} onOpenSection={openPipelineSection} onNotify={onNotify} />;
   } else if (section === 'Project Dispatch') {
-    content = <ProjectDispatchPanel key={selected.id} project={selected} onNotify={onNotify} onOpenPlanning={() => onOpenSection('Project Material Planning')} />;
+    content = <ProjectDispatchPanel key={selected.id} project={selected} onNotify={onNotify} onOpenPlanning={() => openPipelineSection('Project Material Planning')} />;
   } else if (section === 'Project Installation') {
     content = <ProjectInstallationPanel key={selected.id} project={selected} onNotify={onNotify} onChanged={loadProjects} />;
     } else {
@@ -12951,19 +12987,19 @@ function ProjectPipelineHub({
         ]}
       />
 
-      <ProjectSubnavTabs activeSection={section} onOpenSection={onOpenSection} items={projectTabItems} />
+      <ProjectSubnavTabs activeSection={section} onOpenSection={openPipelineSection} items={projectTabItems} />
 
-      {selected && !isSiteSurveySection ? (
+      {carriedProject ? (
         <PipelineProjectBar
           pipeline={pipelineForBar}
-          project={selected}
+          project={carriedProject}
           section={section}
           busy={busy}
           onNext={navigatePipeline}
           onClose={closeProject}
-          onMarkDone={markDone}
-          onUnmarkDone={unmarkDone}
-          extraActions={(
+          onMarkDone={selected ? markDone : undefined}
+          onUnmarkDone={selected ? unmarkDone : undefined}
+          extraActions={selected ? (
             <>
               <button
                 type="button"
@@ -13001,7 +13037,7 @@ function ProjectPipelineHub({
                 <ClipboardPlus className="size-4" /><span className="hidden sm:inline">Site Survey</span>
               </button>
             </>
-          )}
+          ) : null}
         />
       ) : null}
 
@@ -32955,6 +32991,65 @@ function useMobileExistingCheck(excludeId) {
   return { checking, matches, check: checkNow, checkDebounced, reset };
 }
 
+function deriveLeadBucket(d = {}) {
+  if (d.status === 'Lost') return 'lost';
+  if (d.status === 'Won') return 'won';
+  if (d.priority === 'High' || d.category === 'Hot') return 'hot';
+  if (d.priority === 'Low' || d.category === 'Cool') return 'cool';
+  if (d.status === 'Quotation' || d.category === 'Warm' || d.status === 'Follow-up') return 'warm';
+  return 'new';
+}
+
+const LEAD_BUCKET_OPTIONS = [
+  { value: 'new', label: 'New leads', short: 'New', tone: 'green', dot: '#12a54f' },
+  { value: 'hot', label: 'Hot leads', short: 'Hot', tone: 'red', dot: '#f04438' },
+  { value: 'warm', label: 'Warm leads', short: 'Warm', tone: 'amber', dot: '#f59e0b' },
+  { value: 'cool', label: 'Cool leads', short: 'Cool', tone: 'blue', dot: '#0b65e5' },
+  { value: 'lost', label: 'Lost leads', short: 'Lost', tone: 'slate', dot: '#64748b' },
+  { value: 'won', label: 'Won leads', short: 'Won', tone: 'teal', dot: '#0f9d7c' },
+];
+
+function LeadStatusHeaderSelect({ value, onChange, locked = false, lockedLabel = 'Won leads' }) {
+  const selected = LEAD_BUCKET_OPTIONS.find((o) => o.value === value) || LEAD_BUCKET_OPTIONS[0];
+  const tone = leadCategoryToneClasses[selected.tone] || leadCategoryToneClasses.green;
+  if (locked) {
+    return (
+      <div className={cx('inline-flex h-11 min-w-[200px] items-center gap-2 rounded-full border px-3.5 shadow-sm', tone.button)}>
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wide opacity-80">
+          <Crosshair className="size-3.5" />
+          Lead Status
+        </span>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-2.5 py-1 text-[13px] font-extrabold">
+          <span className="size-2.5 rounded-full" style={{ background: selected.dot }} />
+          {lockedLabel}
+        </span>
+      </div>
+    );
+  }
+  return (
+    <label className={cx('inline-flex h-11 min-w-[220px] max-w-full cursor-pointer items-center gap-2 rounded-full border px-3 shadow-[0_8px_18px_rgba(15,23,42,0.06)] transition hover:-translate-y-0.5', tone.button)}>
+      <span className="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wide opacity-80">
+        <Crosshair className="size-3.5" />
+        Lead Status
+      </span>
+      <span className="relative flex min-w-0 flex-1 items-center gap-2 rounded-full bg-white/75 px-2.5 py-1">
+        <span className="size-2.5 shrink-0 rounded-full" style={{ background: selected.dot }} />
+        <select
+          aria-label="Lead Status"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="min-w-0 flex-1 cursor-pointer appearance-none bg-transparent pr-5 text-[13px] font-extrabold outline-none"
+        >
+          {LEAD_BUCKET_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+        <ChevronDown className="pointer-events-none absolute right-1.5 size-3.5 opacity-70" />
+      </span>
+    </label>
+  );
+}
+
 function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCreate = false, onClose, onSaved, onRequestApproval, onNotify }) {
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
   const [duplicateIvrs, setDuplicateIvrs] = useState('');
@@ -32975,6 +33070,7 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
   const [existingMobileOpen, setExistingMobileOpen] = useState(false);
   const [basicPrefill, setBasicPrefill] = useState(null);
   const [formSeed, setFormSeed] = useState(0);
+  const [leadBucket, setLeadBucket] = useState('new');
   const ivrsCheck = useIvrsCheck(lead?.id);
   const mobileCheck = useMobileExistingCheck(mode === 'edit' ? lead?.id : null);
   // "Project Details Update" (edit) aur "New Project" (create) dono project popups —
@@ -32991,6 +33087,15 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
     setLoadingDetail(true);
     leadApi.get(lead.id).then((data) => setDetail(data || {})).catch(() => setDetail({})).finally(() => setLoadingDetail(false));
   }, [mode, lead?.id]);
+
+  useEffect(() => {
+    if (projectMode) {
+      setLeadBucket('won');
+      return;
+    }
+    if (loadingDetail) return;
+    setLeadBucket(deriveLeadBucket({ ...(detail || {}), ...(basicPrefill || {}) }));
+  }, [projectMode, loadingDetail, detail, basicPrefill, formSeed]);
 
   // Project already has a site survey by this point (Won lead) — pull it in
   // so a quotation started from here doesn't need roof/capacity re-typed.
@@ -33047,7 +33152,7 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
           lost: { status: 'Lost', priority: '', category: '' },
           won: { status: 'Won', priority: '', category: '' },
         };
-        const bucket = fd.get('lead_bucket') || 'new';
+        const bucket = leadBucket || fd.get('lead_bucket') || 'new';
         return bucketStatusMap[bucket] || { status: 'New', priority: '' };
       })()),
       ...(projectMode && { status: 'Won', priority: '' }),
@@ -33177,11 +33282,58 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
       onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
     >
       <div className="modal-pop-in flex max-h-[92vh] w-full max-w-[860px] flex-col overflow-hidden rounded-[16px] bg-white shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
-        <div className="flex items-center justify-between border-b border-[#edf2f8] px-6 py-4">
-          <h2 className="font-display text-[18px] font-extrabold text-[#111827]">
-            {projectContext ? 'Project Details Update' : projectCreate ? 'New Project' : mode === 'edit' ? 'Edit Lead' : 'Create Lead'}
-          </h2>
-          <button type="button" onClick={onClose} aria-label="Close" title="Close" className="text-[#7585a2]"><X className="size-5" /></button>
+        <div className="border-b border-[#edf2f8] px-6 py-4">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-display text-[18px] font-extrabold text-[#111827]">
+              {projectContext ? 'Project Details Update' : projectCreate ? 'New Project' : mode === 'edit' ? 'Edit Lead' : 'Create Lead'}
+            </h2>
+            <button type="button" onClick={onClose} aria-label="Close" title="Close" className="text-[#7585a2]"><X className="size-5" /></button>
+          </div>
+          {!projectMode ? (
+            <div className="mt-3 flex flex-col gap-3 rounded-[14px] border border-[#e8eef7] bg-gradient-to-r from-[#f8fbff] via-white to-[#f3fbf6] p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="grid size-11 shrink-0 place-items-center rounded-full bg-[#e8f1ff] text-[#0b65e5]">
+                  <UserRound className="size-5" />
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate font-display text-[15px] font-extrabold text-[#0f172a]">
+                    {(detail || {}).customer_name || lead?.customer || lead?.customer_name || (mode === 'create' ? 'New Lead' : 'Lead')}
+                  </p>
+                  <p className="truncate text-[12px] font-semibold text-[#64748b]">
+                    {[
+                      (detail || {}).project_name || lead?.project || lead?.project_name,
+                      (detail || {}).project_type || lead?.type || lead?.project_type,
+                      (detail || {}).estimated_capacity ? `${(detail || {}).estimated_capacity} kW` : null,
+                    ].filter(Boolean).join(' · ') || 'Project details will appear here'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                <LeadStatusHeaderSelect
+                  value={leadBucket}
+                  onChange={setLeadBucket}
+                  locked={false}
+                />
+                {mode === 'edit' ? (
+                  <span className={cx(
+                    'inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-[12px] font-extrabold',
+                    (detail || {}).site_survey?.status === 'Completed'
+                      ? 'border-[#ddd6fe] bg-[#f5f3ff] text-[#6d28d9]'
+                      : (detail || {}).site_survey?.status === 'In Progress'
+                        ? 'border-[#fde68a] bg-[#fffbeb] text-[#b45309]'
+                        : 'border-[#e2e8f0] bg-[#f8fafc] text-[#64748b]',
+                  )}>
+                    {(detail || {}).site_survey?.status === 'Completed' ? <CheckCircle2 className="size-3.5" /> : <MapPin className="size-3.5" />}
+                    Survey: {(detail || {}).site_survey?.status || 'Pending'}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          ) : (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <LeadStatusHeaderSelect value="won" onChange={() => {}} locked lockedLabel="Won leads" />
+            </div>
+          )}
         </div>
 
         <div className="scroll-soft flex-1 overflow-y-auto p-6">
@@ -33195,6 +33347,7 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
             <PageLoadingState message="Loading lead..." />
           ) : (
           <form id="lead-form-modal" key={`lead-form-${formSeed}`} ref={formRef} className="space-y-4" onSubmit={handleSubmit}>
+            {!projectMode ? <input type="hidden" name="lead_bucket" value={leadBucket} /> : null}
             {projectMode ? (
               <LeadFormSection title="Project Status" icon={FolderKanban} tone="primary">
                 <div className="grid gap-4 lg:grid-cols-3">
@@ -33285,31 +33438,6 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
             <LeadFormSection title="3. Assignment & Follow-up" icon={UserRound} tone="purple">
               <div className="grid gap-4 lg:grid-cols-2">
                 <LeadDateInput label="Follow-up Date" required={!projectMode} name="next_follow_up" defaultValue={followUpDateValue} />
-                {projectMode ? (
-                  <LeadLockedField label="Lead Status" value="Won leads" />
-                ) : (
-                  <LeadSelect
-                    label="Lead Status"
-                    placeholder="Select status"
-                    options={[
-                      { value: 'new', label: 'New leads' },
-                      { value: 'hot', label: 'Hot leads' },
-                      { value: 'warm', label: 'Warm leads' },
-                      { value: 'cool', label: 'Cool leads' },
-                      { value: 'lost', label: 'Lost leads' },
-                      { value: 'won', label: 'Won leads' },
-                    ]}
-                    name="lead_bucket"
-                    defaultValue={mode === 'edit' ? (() => {
-                      if (d.status === 'Lost') return 'lost';
-                      if (d.status === 'Won') return 'won';
-                      if (d.priority === 'High') return 'hot';
-                      if (d.priority === 'Low') return 'cool';
-                      if (d.status === 'Quotation' || d.category === 'Warm' || d.status === 'Follow-up') return 'warm';
-                      return 'new';
-                    })() : 'new'}
-                  />
-                )}
               </div>
               <LeadTextarea label="Remarks" icon={MapPin} placeholder="Enter remarks (optional)" compact name="remarks" defaultValue={d.remarks} />
             </LeadFormSection>

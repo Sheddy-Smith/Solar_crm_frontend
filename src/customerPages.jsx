@@ -240,7 +240,9 @@ const softBtnClass = 'inline-flex h-10 items-center gap-1.5 rounded-[10px] borde
 const primaryBtnClass = 'inline-flex h-10 items-center gap-1.5 rounded-[10px] bg-[#0b65e5] px-4 text-[12px] font-extrabold text-white shadow-[0_8px_18px_rgba(11,101,229,0.25)] transition hover:bg-[#0954c2] disabled:opacity-50';
 function customerOptionLabel(c) {
   if (!c) return '';
-  return `${c.name || '—'}${c.phone ? ` (${c.phone})` : ''}`;
+  const won = Number(c.won_count || 0);
+  const wonTag = won > 0 ? ` · ${won} Won` : '';
+  return `${c.name || '—'}${c.phone ? ` (${c.phone})` : ''}${wonTag}`;
 }
 
 /** Fixed portal menu anchored to a trigger — avoids parent overflow/clipping bugs. */
@@ -375,6 +377,9 @@ function CustomerSearchSelect({ customers, value, onChange, placeholder = 'Choos
               >
                 <span className={`whitespace-normal break-words text-[13px] font-extrabold leading-snug ${active ? 'text-[#0b65e5]' : 'text-[#1e3261]'}`}>
                   {c.name || '—'}
+                  {Number(c.won_count || 0) > 0 ? (
+                    <span className="ml-1 text-[11px] font-bold text-[#166534]">({c.won_count} Won)</span>
+                  ) : null}
                 </span>
                 <span className="text-[11px] font-semibold text-[#64748b]">
                   {[c.phone, c.company].filter(Boolean).join(' · ') || 'No phone'}
@@ -675,10 +680,25 @@ function CustomerDetailsTab({ caps, onNotify, onOpenSection }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      // Fast path: no full lead sync on every open (use ?sync=1 only on explicit refresh).
       const data = await accountsModuleApi.customerDirectory();
       setRows(Array.isArray(data?.results) ? data.results : normalizeApiRows(data));
     } catch (e) {
       onNotify(e.message || 'Failed to load customers', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [onNotify]);
+
+  const refreshFromLeads = useCallback(async () => {
+    setLoading(true);
+    try {
+      await accountsModuleApi.syncCustomersFromLeads().catch(() => null);
+      const data = await accountsModuleApi.customerDirectory({ sync: 1 });
+      setRows(Array.isArray(data?.results) ? data.results : normalizeApiRows(data));
+      onNotify('Customers refreshed from leads', 'success');
+    } catch (e) {
+      onNotify(e.message || 'Failed to refresh customers', 'error');
     } finally {
       setLoading(false);
     }
@@ -735,6 +755,9 @@ function CustomerDetailsTab({ caps, onNotify, onOpenSection }) {
       </div>
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <input className={`${inputClass} w-full sm:max-w-xs`} placeholder="Search name, mobile, project..." value={q} onChange={(e) => setQ(e.target.value)} />
+        <button type="button" onClick={refreshFromLeads} className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] border border-[#d9e4f2] px-4 text-[13px] font-extrabold text-[#284276] sm:w-auto">
+          <RefreshCw className="size-4" /> Refresh from Leads
+        </button>
         {caps.add ? (
         <button type="button" onClick={() => setModal({ form: { ...emptyForm } })} className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#dc2626] px-4 text-[13px] font-extrabold text-white sm:w-auto">
           <Plus className="size-4" /> Add Customer
@@ -990,15 +1013,16 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
 
   const loadCustomers = useCallback(async () => {
     try {
-      await accountsModuleApi.syncCustomersFromLeads().catch(() => null);
-      // Client Ledger: Won leads + leads that already have a quotation
-      // (quotation materials/pricing land on that customer account).
-      const data = await accountsModuleApi.parties.list({
-        account_type: 'Customer',
-        won_only: true,
-        page_size: 500,
-      });
+      // Dedicated unpaginated Won/quoted picker — avoids page_size truncation.
+      const data = await accountsModuleApi.wonClients();
       setCustomers(normalizeApiRows(data));
+      // Won-only sync in background, then refresh picker so new Won leads appear.
+      accountsModuleApi.syncCustomersFromLeads({ won_only: 1 })
+        .then(async () => {
+          const again = await accountsModuleApi.wonClients();
+          setCustomers(normalizeApiRows(again));
+        })
+        .catch(() => null);
     } catch (e) {
       onNotify(e.message || 'Failed to load customers', 'error');
     }
@@ -1072,11 +1096,12 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
     }
     setLoading(true);
     try {
-      const params = {};
+      const params = { lite: '1' };
       if (start) params.start = start;
       if (end) params.end = end;
       if (projectId === '__unallocated__') params.unallocated = 'true';
       else if (projectId) params.project_id = projectId;
+      // First paint: lite ledger (skip work_profile + full breakdown). Full KPIs load on demand if needed.
       const qs = new URLSearchParams(params).toString();
       setPayload(await accountsModuleApi.partyLedger(partyId, qs));
     } catch (e) {
@@ -1265,6 +1290,22 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
       onNotify(e.message || 'Failed to add project', 'error');
     } finally {
       setSavingProject(false);
+    }
+  };
+
+  const deleteLedgerEntry = async (entry) => {
+    if (!partyId || entry?.source_kind !== 'manual_ledger' || !entry?.source_id) {
+      onNotify('Only manual ledger entries can be deleted', 'error');
+      return;
+    }
+    if (!window.confirm('Delete this ledger entry? This cannot be undone.')) return;
+    try {
+      await accountsModuleApi.deleteLedgerEntry(partyId, entry.source_id);
+      setDetail(null);
+      setReloadKey((k) => k + 1);
+      onNotify('Ledger entry deleted', 'success');
+    } catch (e) {
+      onNotify(e.message || 'Delete failed', 'error');
     }
   };
 
@@ -1602,9 +1643,14 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
                                   <Eye className="size-4" />
                                 </button>
                                 {e.source_kind === 'manual_ledger' ? (
-                                  <button type="button" onClick={() => openEditLedger(e)} className="grid size-8 place-items-center rounded-[8px] text-[#334155] hover:bg-[#f1f5f9]" title="Edit entry">
-                                    <Pencil className="size-4" />
-                                  </button>
+                                  <>
+                                    <button type="button" onClick={() => openEditLedger(e)} className="grid size-8 place-items-center rounded-[8px] text-[#334155] hover:bg-[#f1f5f9]" title="Edit entry">
+                                      <Pencil className="size-4" />
+                                    </button>
+                                    <button type="button" onClick={() => deleteLedgerEntry(e)} className="grid size-8 place-items-center rounded-[8px] text-[#dc2626] hover:bg-[#fef2f2]" title="Delete entry">
+                                      <Trash2 className="size-4" />
+                                    </button>
+                                  </>
                                 ) : null}
                               </div>
                             </td>
@@ -1647,7 +1693,10 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
           footer={(
             <>
               {detail.source_kind === 'manual_ledger' ? (
-                <button type="button" onClick={() => openEditLedger(detail)} className={softBtnClass}>Edit Entry</button>
+                <>
+                  <button type="button" onClick={() => openEditLedger(detail)} className={softBtnClass}>Edit Entry</button>
+                  <button type="button" onClick={() => deleteLedgerEntry(detail)} className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[8px] border border-[#fecaca] bg-[#fef2f2] px-4 text-[13px] font-extrabold text-[#dc2626]">Delete</button>
+                </>
               ) : null}
               <button type="button" onClick={() => setDetail(null)} className={primaryBtnClass}>Close</button>
             </>
@@ -1718,12 +1767,62 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
               {selected?.phone ? <span className="ml-2 text-[#64748b]">({selected.phone})</span> : null}
             </div>
             <Field label="Project Name" required>
-              <input
-                className={inputClass}
-                value={addProjectForm.project_name}
-                onChange={(e) => setAddProjectForm((f) => ({ ...f, project_name: e.target.value }))}
-                placeholder="e.g. 5 kW Rooftop Extension"
-              />
+              <div className="relative">
+                <input
+                  className={inputClass}
+                  list="customer-existing-projects"
+                  value={addProjectForm.project_name}
+                  onChange={(e) => {
+                    const nextName = e.target.value;
+                    const match = projectRows.find((p) => String(p.project_name || '') === nextName);
+                    setAddProjectForm((f) => ({
+                      ...f,
+                      project_name: nextName,
+                      capacity_kwp: match?.capacity_kwp != null && match.capacity_kwp !== ''
+                        ? String(match.capacity_kwp)
+                        : f.capacity_kwp,
+                      project_type: match?.project_type || f.project_type,
+                      site: match?.site || match?.address || f.site,
+                    }));
+                  }}
+                  placeholder="Click to pick existing project or type a new name"
+                  autoComplete="off"
+                />
+                <datalist id="customer-existing-projects">
+                  {projectRows.map((p) => (
+                    <option
+                      key={`existing-${p.project_id}`}
+                      value={p.project_name || ''}
+                      label={[p.project_code, p.project_type].filter(Boolean).join(' · ')}
+                    />
+                  ))}
+                </datalist>
+              </div>
+              {projectRows.length ? (
+                <div className="mt-2 max-h-40 overflow-y-auto rounded-[10px] border border-[#e8eef7] bg-white">
+                  {projectRows.map((p) => (
+                    <button
+                      key={`pick-${p.project_id}`}
+                      type="button"
+                      onClick={() => setAddProjectForm((f) => ({
+                        ...f,
+                        project_name: p.project_name || '',
+                        capacity_kwp: p.capacity_kwp != null && p.capacity_kwp !== '' ? String(p.capacity_kwp) : f.capacity_kwp,
+                        project_type: p.project_type || f.project_type,
+                        site: p.site || p.address || f.site,
+                      }))}
+                      className="flex w-full flex-col items-start gap-0.5 border-b border-[#edf2f8] px-3 py-2 text-left last:border-b-0 hover:bg-[#f5f9ff]"
+                    >
+                      <span className="text-[13px] font-extrabold text-[#1e3261]">{p.project_name || '—'}</span>
+                      <span className="text-[11px] font-semibold text-[#64748b]">
+                        {[p.project_code, p.project_type, p.capacity_kwp ? `${p.capacity_kwp} kWp` : null].filter(Boolean).join(' · ') || 'Existing project'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-1.5 text-[11px] font-semibold text-[#94a3b8]">Is customer pe abhi koi project nahi hai — naya name type karein.</p>
+              )}
             </Field>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Capacity (kWp)" required>
@@ -2223,38 +2322,39 @@ function OverallCreditTab({ onNotify, onOpenSection }) {
         setDetailTab(projects.length > 1 ? 'combined' : (projects[0]?.key || 'combined'));
         return;
       }
-      const payload = await accountsModuleApi.partyLedger(row.id);
+      // Single lite+breakdown request — group entries by project client-side (no N+1).
+      const payload = await accountsModuleApi.partyLedger(row.id, 'lite=1&breakdown=1');
       const projectRows = payload?.breakdown?.projects || [];
-      const projects = [];
-      for (const p of projectRows) {
-        const scoped = await accountsModuleApi.partyLedger(row.id, `project_id=${p.project_id}`);
-        const entries = (scoped?.results || []).map((e) => ({
-          date: e.date,
-          particulars: e.work || e.particulars || e.ref || e.type_label || '—',
-          debit: Number(e.debit || 0),
-          credit: Number(e.credit || 0),
-        }));
-        projects.push({
+      const allEntries = (payload?.results || []).map((e) => ({
+        date: e.date,
+        particulars: e.work || e.particulars || e.ref || e.type_label || '—',
+        debit: Number(e.debit || 0),
+        credit: Number(e.credit || 0),
+        project_id: e.project_id || null,
+      }));
+      const byProject = new Map();
+      allEntries.forEach((e) => {
+        const key = e.project_id ? String(e.project_id) : '__none__';
+        if (!byProject.has(key)) byProject.set(key, []);
+        byProject.get(key).push(e);
+      });
+      const projects = projectRows.map((p) => {
+        const entries = byProject.get(String(p.project_id)) || [];
+        return {
           key: `p-${p.project_id}`,
           label: p.project_name || `Project ${p.project_id}`,
           project_id: p.project_id,
           entries,
           ...projectTotals(entries),
-        });
-      }
+        };
+      });
       if (!projects.length) {
-        const entries = (payload?.results || []).map((e) => ({
-          date: e.date,
-          particulars: e.work || e.particulars || e.ref || e.type_label || '—',
-          debit: Number(e.debit || 0),
-          credit: Number(e.credit || 0),
-        }));
         projects.push({
           key: 'consolidated',
           label: 'Consolidated Ledger',
           project_id: null,
-          entries,
-          ...projectTotals(entries),
+          entries: allEntries,
+          ...projectTotals(allEntries),
         });
       }
       const combinedRows = projects.length > 1

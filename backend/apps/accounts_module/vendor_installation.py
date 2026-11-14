@@ -19,14 +19,15 @@ from .models import (
 )
 from .services import recalculate_party_balance
 
+# Canonical Installation Work Stages (must total 100%).
+# Order + percentages match Project Management → Installation design.
 DEFAULT_STAGES = [
+    ('Structure Installation', Decimal('30')),
     ('Civil Foundation Work', Decimal('10')),
-    ('Structure Installation Work', Decimal('30')),
-    ('Inverter & Electrical Work', Decimal('20')),
-    ('Solar Panel Installation', Decimal('10')),
-    ('Cabling & Earthing', Decimal('10')),
-    ('Testing & Commissioning Support', Decimal('10')),
-    ('Final Handover / Punch List', Decimal('10')),
+    ('Electrical - Cable & Conduiting', Decimal('15')),
+    ('Earthing Work', Decimal('15')),
+    ('Solar Panel Installation', Decimal('20')),
+    ('Inverter Installation', Decimal('10')),
 ]
 
 
@@ -37,15 +38,103 @@ def _d(value) -> Decimal:
         return Decimal('0')
 
 
-def ensure_default_stage_templates():
-    if VendorInstallStageTemplate.objects.filter(is_active=True).exists():
-        return list(VendorInstallStageTemplate.objects.filter(is_active=True).order_by('sort_order', 'id'))
+def ensure_default_stage_templates(force_sync=True):
+    """Ensure active stage templates match DEFAULT_STAGES (name, %, order).
+
+    When force_sync is True (default), stale templates from older builds are
+    deactivated and replaced so new assignments always get the design stages.
+    """
+    desired = list(DEFAULT_STAGES)
+    existing = list(
+        VendorInstallStageTemplate.objects.filter(is_active=True).order_by('sort_order', 'id')
+    )
+    matches = (
+        len(existing) == len(desired)
+        and all(
+            e.name == name and _d(e.percentage) == pct and int(e.sort_order or 0) == idx
+            for idx, ((name, pct), e) in enumerate(zip(desired, existing))
+        )
+    )
+    if matches:
+        return existing
+    if not force_sync and existing:
+        return existing
+
+    VendorInstallStageTemplate.objects.filter(is_active=True).update(is_active=False)
     rows = []
-    for idx, (name, pct) in enumerate(DEFAULT_STAGES):
+    for idx, (name, pct) in enumerate(desired):
         rows.append(VendorInstallStageTemplate.objects.create(
             name=name, percentage=pct, sort_order=idx, is_active=True,
         ))
     return rows
+
+
+def _stage_match_key(name: str) -> str:
+    """Normalize stage labels so old/new names rematch (e.g. Structure Installation Work)."""
+    n = str(name or '').lower()
+    if 'structure' in n:
+        return 'structure'
+    if 'civil' in n or 'foundation' in n:
+        return 'civil'
+    if 'earthing' in n:
+        return 'earthing'
+    if 'panel' in n or ('solar' in n and 'inverter' not in n):
+        return 'panel'
+    if 'inverter' in n and 'electrical' not in n:
+        return 'inverter'
+    if 'electrical' in n or 'cable' in n or 'conduiting' in n:
+        return 'electrical'
+    return n.strip()
+
+
+def realign_assignment_stages(assignment: VendorInstallationAssignment) -> VendorInstallationAssignment:
+    """Rebuild assignment stages to match DEFAULT_STAGES while preserving Approved progress.
+
+    Matching is keyword-based so renamed stages (e.g. Structure Installation Work →
+    Structure Installation) keep approval. Payment earned % recalculates from the
+    new allocated weights automatically.
+    """
+    templates = ensure_default_stage_templates()
+    stages = list(assignment.stages.all().order_by('sort_order', 'id'))
+    current = [(s.stage_name, _d(s.allocated_percent), int(s.sort_order or 0)) for s in stages]
+    desired = [(t.name, _d(t.percentage), int(t.sort_order or 0)) for t in templates]
+    if current == desired:
+        return assignment
+
+    approved_by_key = {}
+    for stage in stages:
+        if stage.status != VendorInstallationStage.STATUS_APPROVED:
+            continue
+        key = _stage_match_key(stage.stage_name)
+        # Prefer first approved match per key.
+        approved_by_key.setdefault(key, stage)
+
+    assignment.stages.all().delete()
+    for idx, tmpl in enumerate(templates):
+        prev = approved_by_key.get(_stage_match_key(tmpl.name))
+        VendorInstallationStage.objects.create(
+            assignment=assignment,
+            stage_name=tmpl.name,
+            allocated_percent=tmpl.percentage,
+            sort_order=tmpl.sort_order if tmpl.sort_order is not None else idx,
+            status=(
+                VendorInstallationStage.STATUS_APPROVED
+                if prev is not None
+                else VendorInstallationStage.STATUS_NOT_STARTED
+            ),
+            start_date=getattr(prev, 'start_date', None) if prev else None,
+            completion_date=getattr(prev, 'completion_date', None) if prev else None,
+            approved_by_id=getattr(prev, 'approved_by_id', None) if prev else None,
+            approval_date=getattr(prev, 'approval_date', None) if prev else None,
+            work_remarks=(getattr(prev, 'work_remarks', '') or '') if prev else '',
+            proof_url=(getattr(prev, 'proof_url', '') or '') if prev else '',
+        )
+    cache = getattr(assignment, '_prefetched_objects_cache', None)
+    if cache is not None:
+        cache.pop('stages', None)
+        cache.pop('payments', None)
+    recalculate_assignment_amounts(assignment)
+    return assignment
 
 
 def validate_stage_templates_total(templates=None) -> Decimal:

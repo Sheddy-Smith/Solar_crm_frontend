@@ -53,22 +53,16 @@ Customer Master + Project Management
 
 ---
 
-## 3. Target Sidebar (Section 3)
+## 3. Target Sidebar (exactly 6 categories)
 
 1. O&M Dashboard  
-2. AMC Management → `/amc/contracts` APIs  
-3. Service Requests  
-4. Complaint Management → `om/tickets`  
-5. Preventive Maintenance → `om/maintenance-tasks`  
-6. Job Cards → **new**  
-7. Site Visits → `om/site-visits`  
-8. Warranty Management → `/amc/warranties`  
-9. Equipment & Replacement → `om/assets` + history  
-10. Service Inventory → parts request + inventory issue refs  
-11. Plant Performance → generation entries on plant/asset  
-12. Service Reports → `om/reports`  
-13. Customer Feedback → new  
-14. O&M Settings → configurable masters  
+2. AMC & Warranty — tabs: Contracts, Renewals, Expiry, Warranty, Claims, Equipment Replacement  
+3. Service & Complaints — tabs: Service Requests, Complaints, Breakdown, Preventive, Scheduling, Follow-ups  
+4. Job Cards & Site Visits — tabs: Job Cards, Assignment, Visits, Checklist, Materials, Completion, History  
+5. Plant Monitoring & Reports — tabs: Generation, Performance, Maintenance/Service Reports, Feedback, Export  
+6. O&M Settings — tabs: Categories, AMC Plans, Schedules, Checklists, Notifications, Configuration  
+
+Legacy deep-links map into these 6 via `OM_NAV_RESOLVE` (no feature removal).
 
 ---
 

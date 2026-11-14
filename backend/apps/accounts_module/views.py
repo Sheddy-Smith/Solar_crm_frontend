@@ -81,32 +81,83 @@ class AccountViewSet(AccountsBaseViewSet):
         # (quotation materials/pricing post to that customer account).
         won_only = str(self.request.query_params.get('won_only') or '').lower() in ('1', 'true', 'yes')
         if won_only:
-            from apps.leads.models import Lead, Quotation
-            from django.db.models import Q
-
-            phones = set()
-            lead_qs = Lead.objects.filter(is_deleted=False).exclude(mobile_number='')
-            for mobile in lead_qs.filter(status='Won').values_list('mobile_number', flat=True):
-                key = normalize_phone(mobile)
-                if key:
-                    phones.add(key)
-            quoted_lead_ids = (
-                Quotation.objects.filter(is_deleted=False)
-                .exclude(status='Rejected')
-                .values_list('lead_id', flat=True)
-                .distinct()
-            )
-            for mobile in lead_qs.filter(id__in=quoted_lead_ids).values_list('mobile_number', flat=True):
-                key = normalize_phone(mobile)
-                if key:
-                    phones.add(key)
-            if not phones:
-                return qs.none()
-            phone_q = Q()
-            for key in phones:
-                phone_q |= Q(phone=key) | Q(phone__endswith=key)
-            qs = qs.filter(account_type='Customer').filter(phone_q).distinct()
+            qs = self._won_customer_queryset(qs)
         return qs
+
+    def _won_customer_queryset(self, qs=None):
+        """Customers linked to Won leads OR non-rejected quotations (indexed phone + customer FK)."""
+        from django.db.models import Q
+        from apps.leads.models import Lead, Quotation
+
+        if qs is None:
+            qs = Account.objects.select_related('created_by').all()
+            qs = filter_customer_parties_for_user(qs, self.request.user)
+
+        lead_qs = Lead.objects.filter(is_deleted=False)
+        owner_q = lead_owner_q(self.request.user)
+        if owner_q is not None:
+            lead_qs = lead_qs.filter(owner_q)
+
+        phones = set(
+            lead_qs.filter(status='Won')
+            .exclude(normalized_mobile='')
+            .values_list('normalized_mobile', flat=True)
+        )
+        # Backfill sparse rows where normalized_mobile is empty but mobile exists.
+        for mobile in (
+            lead_qs.filter(status='Won', normalized_mobile='')
+            .exclude(mobile_number='')
+            .values_list('mobile_number', flat=True)[:2000]
+        ):
+            key = normalize_phone(mobile)
+            if key:
+                phones.add(key)
+
+        quoted_lead_ids = (
+            Quotation.objects.filter(is_deleted=False)
+            .exclude(status='Rejected')
+            .values_list('lead_id', flat=True)
+            .distinct()
+        )
+        phones.update(
+            lead_qs.filter(id__in=quoted_lead_ids)
+            .exclude(normalized_mobile='')
+            .values_list('normalized_mobile', flat=True)
+        )
+        for mobile in (
+            lead_qs.filter(id__in=quoted_lead_ids, normalized_mobile='')
+            .exclude(mobile_number='')
+            .values_list('mobile_number', flat=True)[:2000]
+        ):
+            key = normalize_phone(mobile)
+            if key:
+                phones.add(key)
+
+        phones = {p for p in phones if p and len(str(p)) >= 10}
+        customer_ids = set(
+            lead_qs.filter(status='Won', customer_id__isnull=False)
+            .values_list('customer_id', flat=True)
+        )
+        customer_ids.update(
+            lead_qs.filter(id__in=quoted_lead_ids, customer_id__isnull=False)
+            .values_list('customer_id', flat=True)
+        )
+
+        if not phones and not customer_ids:
+            return qs.none()
+
+        match = Q(pk__in=customer_ids) if customer_ids else Q()
+        if phones:
+            match |= Q(normalized_phone__in=phones) | Q(phone__in=phones)
+            # Legacy un-normalized Account.phone (+91 / spaces) still match via endswith.
+            for key in phones:
+                match |= Q(phone__endswith=key) | Q(alternate_phone__endswith=key)
+        return (
+            qs.filter(account_type='Customer')
+            .exclude(status='Merged')
+            .filter(match)
+            .distinct()
+        )
 
     def _normalize_customer_phone(self, validated_data, instance=None):
         account_type = validated_data.get('account_type') or (instance.account_type if instance else 'Customer')
@@ -153,20 +204,75 @@ class AccountViewSet(AccountsBaseViewSet):
     def sync_from_leads(self, request):
         """Create/update Customer parties from leads, keyed by mobile.
 
-        Lead-scoped roles only sync their own assigned/created leads."""
+        Lead-scoped roles only sync their own assigned/created leads.
+        Pass won_only=1 to sync only Won leads (fast path for Customer Ledger picker)."""
         from apps.leads.models import Lead
 
         lead_qs = Lead.objects.filter(is_deleted=False)
         owner_q = lead_owner_q(request.user)
         if owner_q is not None:
             lead_qs = lead_qs.filter(owner_q)
+        won_only = str(
+            request.data.get('won_only') or request.query_params.get('won_only') or ''
+        ).lower() in ('1', 'true', 'yes')
+        if won_only:
+            lead_qs = lead_qs.filter(status='Won')
         result = ensure_customers_from_all_leads(created_by=request.user, lead_qs=lead_qs)
         return Response({'ok': True, **result})
 
+    @action(detail=False, methods=['get'], url_path='won-clients')
+    def won_clients(self, request):
+        """Fast Customer Ledger picker: all Won/quoted customers (no page_size cap)."""
+        from django.db.models import Count
+        from apps.leads.models import Lead
+
+        qs = self._won_customer_queryset()
+        lead_qs = Lead.objects.filter(is_deleted=False, status='Won')
+        owner_q = lead_owner_q(request.user)
+        if owner_q is not None:
+            lead_qs = lead_qs.filter(owner_q)
+
+        won_by_customer = dict(
+            lead_qs.filter(customer_id__isnull=False)
+            .values('customer_id')
+            .annotate(c=Count('id'))
+            .values_list('customer_id', 'c')
+        )
+        won_by_phone = dict(
+            lead_qs.exclude(normalized_mobile='')
+            .values('normalized_mobile')
+            .annotate(c=Count('id'))
+            .values_list('normalized_mobile', 'c')
+        )
+
+        results = []
+        slim = (
+            qs.order_by('name')
+            .select_related(None)
+            .only('id', 'name', 'phone', 'alternate_phone', 'normalized_phone', 'company', 'city', 'status')
+        )
+        for party in slim:
+            phone = party.normalized_phone or normalize_phone(party.phone) or ''
+            won_count = won_by_customer.get(party.id, 0) or won_by_phone.get(phone, 0)
+            results.append({
+                'id': party.id,
+                'record_no': f'ACC-{party.id:04d}',
+                'name': party.name,
+                'phone': party.phone or '',
+                'alternate_phone': party.alternate_phone or '',
+                'normalized_phone': phone,
+                'company': party.company or '',
+                'city': party.city or '',
+                'status': party.status,
+                'account_type': 'Customer',
+                'won_count': won_count,
+            })
+        return Response({'results': results, 'count': len(results)})
+
     @action(detail=False, methods=['get'], url_path='customer-directory')
     def customer_directory(self, request):
-        """Customer Details feed: sync from leads, then return customers + lead/project counts."""
-        from django.db.models import Q
+        """Customer Details feed: customers + lead/project counts (sync optional via ?sync=1)."""
+        from django.db.models import Count, Q
         from apps.leads.models import Lead
         from apps.projects.models import Project
 
@@ -175,17 +281,30 @@ class AccountViewSet(AccountsBaseViewSet):
         if owner_q is not None:
             lead_qs = lead_qs.filter(owner_q)
 
-        sync = ensure_customers_from_all_leads(created_by=request.user, lead_qs=lead_qs)
-        parties_qs = Account.objects.filter(account_type='Customer').select_related('created_by').order_by('-updated_at')
+        do_sync = str(request.query_params.get('sync') or '').lower() in ('1', 'true', 'yes')
+        if do_sync:
+            sync = ensure_customers_from_all_leads(created_by=request.user, lead_qs=lead_qs)
+        else:
+            sync = {'created': 0, 'updated': 0, 'linked': 0, 'skipped_sync': True}
+
+        parties_qs = (
+            Account.objects.filter(account_type='Customer')
+            .select_related('created_by')
+            .annotate(projects_count_db=Count('projects', filter=Q(projects__is_deleted=False)))
+            .order_by('-updated_at')
+        )
         parties = list(filter_customer_parties_for_user(parties_qs, request.user))
 
         leads = list(
             lead_qs.exclude(mobile_number='')
-            .values('id', 'customer_name', 'mobile_number', 'project_name', 'status', 'category', 'priority', 'address', 'city')
+            .values(
+                'id', 'customer_name', 'mobile_number', 'normalized_mobile',
+                'project_name', 'status', 'category', 'priority', 'address', 'city',
+            )
         )
         leads_by_phone = {}
         for lead in leads:
-            key = normalize_phone(lead['mobile_number'])
+            key = lead.get('normalized_mobile') or normalize_phone(lead['mobile_number'])
             if not key:
                 continue
             leads_by_phone.setdefault(key, []).append(lead)
@@ -246,12 +365,34 @@ class AccountViewSet(AccountsBaseViewSet):
                 })
 
             project_labels = [p['label'] for p in projects]
-            data = AccountSerializer(party).data
-            data['leads_count'] = len(party_leads)
-            data['projects_count'] = max(len(party_projects), len(projects))
-            data['project_labels'] = project_labels
-            data['projects'] = projects
-            data['lead_statuses'] = sorted({(lead.get('status') or 'New') for lead in party_leads})
+            # Slim payload — avoid AccountSerializer N+1 projects_count queries.
+            data = {
+                'id': party.id,
+                'record_no': f'ACC-{party.id:04d}',
+                'name': party.name,
+                'account_type': party.account_type,
+                'contact_person': party.contact_person or '',
+                'company': party.company or '',
+                'phone': party.phone or '',
+                'alternate_phone': party.alternate_phone or '',
+                'email': party.email or '',
+                'city': party.city or '',
+                'state': party.state or '',
+                'address': party.address or '',
+                'gstin': party.gstin or '',
+                'status': party.status,
+                'opening_balance': float(party.opening_balance or 0),
+                'balance': float(party.balance or 0),
+                'leads_count': len(party_leads),
+                'projects_count': max(
+                    getattr(party, 'projects_count_db', 0) or 0,
+                    len(party_projects),
+                    len(projects),
+                ),
+                'project_labels': project_labels,
+                'projects': projects,
+                'lead_statuses': sorted({(lead.get('status') or 'New') for lead in party_leads}),
+            }
             results.append(data)
 
         return Response({'ok': True, 'sync': sync, 'results': results, 'count': len(results)})
@@ -326,31 +467,58 @@ class AccountViewSet(AccountsBaseViewSet):
             except (TypeError, ValueError):
                 return Response({'detail': 'Invalid project_id.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        lite = str(request.query_params.get('lite') or '').lower() in ('1', 'true', 'yes')
         entries = build_ledger_entries(
             party, start=start, end=end, project_id=project_id, unallocated_only=unallocated_only,
         )
         totals = party_totals(party, project_id=project_id, unallocated_only=unallocated_only)
         summary = ledger_summary(party, entries, start=start)
-        # Prefer ledger credits (payments) as Received Payment; fall back to project payments inside helper.
-        work = party_work_profile(party, received_payment=summary.get('total_credit'))
-        summary = {
-            **summary,
-            'project_cost': work['project_cost'],
-            'work_completion_pct': work['work_completion_pct'],
-            'work_done_value': work['work_done_value'],
-            'received_payment': work['received_payment'],
-            'outstanding_amount': work['outstanding_amount'],
-            'remaining_work_value': work['remaining_work_value'],
-            'projects_count': work['projects_count'],
-            'scope': (
-                'project' if project_id else ('unallocated' if unallocated_only else 'consolidated')
-            ),
-            'project_id': project_id,
-        }
-        breakdown = None if project_id or unallocated_only else project_ledger_breakdown(party)
+        work = None
+        if not lite:
+            # Prefer ledger credits (payments) as Received Payment; fall back to project payments inside helper.
+            work = party_work_profile(party, received_payment=summary.get('total_credit'))
+            summary = {
+                **summary,
+                'project_cost': work['project_cost'],
+                'work_completion_pct': work['work_completion_pct'],
+                'work_done_value': work['work_done_value'],
+                'received_payment': work['received_payment'],
+                'outstanding_amount': work['outstanding_amount'],
+                'remaining_work_value': work['remaining_work_value'],
+                'projects_count': work['projects_count'],
+                'scope': (
+                    'project' if project_id else ('unallocated' if unallocated_only else 'consolidated')
+                ),
+                'project_id': project_id,
+            }
+            party_payload = AccountSerializer(party).data
+        else:
+            summary = {
+                **summary,
+                'scope': (
+                    'project' if project_id else ('unallocated' if unallocated_only else 'consolidated')
+                ),
+                'project_id': project_id,
+            }
+            # Skip AccountSerializer N+1 projects_count on fast path.
+            party_payload = {
+                'id': party.id,
+                'record_no': f'ACC-{party.id:04d}',
+                'name': party.name,
+                'account_type': party.account_type,
+                'company': party.company or '',
+                'phone': party.phone or '',
+                'alternate_phone': party.alternate_phone or '',
+                'opening_balance': float(party.opening_balance or 0),
+                'balance': float(party.balance or 0),
+                'status': party.status,
+            }
+        want_breakdown = str(request.query_params.get('breakdown') or ('0' if lite else '1')).lower() in ('1', 'true', 'yes')
+        include_breakdown = want_breakdown and not project_id and not unallocated_only
+        breakdown = project_ledger_breakdown(party) if include_breakdown else None
         return Response({
-            'party': AccountSerializer(party).data,
-            'visits': visit_count(party),
+            'party': party_payload,
+            'visits': 0 if lite else visit_count(party),
             'relation': infer_relation(party, totals['net'], totals['yearly']),
             'totals': {
                 'opening': float(totals['opening']),
@@ -821,7 +989,7 @@ class AccountViewSet(AccountsBaseViewSet):
             'project': project,
         }, None
 
-    @action(detail=True, methods=['patch', 'put'], url_path=r'manual-ledger-entries/(?P<entry_id>[^/.]+)')
+    @action(detail=True, methods=['patch', 'put', 'delete'], url_path=r'manual-ledger-entries/(?P<entry_id>[^/.]+)')
     def update_manual_ledger_entry(self, request, pk=None, entry_id=None):
         party = self.get_object()
         if party.account_type != 'Customer':
@@ -829,6 +997,16 @@ class AccountViewSet(AccountsBaseViewSet):
         entry = CustomerLedgerManualEntry.objects.filter(pk=entry_id, party_id=party.id).select_related('project').first()
         if not entry:
             return Response({'detail': 'Manual ledger entry not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if request.method == 'DELETE':
+            entry.delete()
+            recalculate_party_balance(party.id)
+            party.refresh_from_db()
+            return Response({
+                'ok': True,
+                'deleted': True,
+                'entry_id': int(entry_id),
+                'party': AccountSerializer(party).data,
+            })
         payload, error = self._parse_customer_manual_payload(request, party)
         if error:
             return error
