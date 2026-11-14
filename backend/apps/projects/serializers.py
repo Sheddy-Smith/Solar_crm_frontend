@@ -352,6 +352,8 @@ class MaterialPlanSerializer(serializers.ModelSerializer):
     planning_total_value = serializers.SerializerMethodField()
     planning_difference_total = serializers.SerializerMethodField()
     cost_voucher_id = serializers.SerializerMethodField()
+    source_label = serializers.SerializerMethodField()
+    bom_version_label = serializers.SerializerMethodField()
 
     class Meta:
         model = MaterialPlan
@@ -363,9 +365,33 @@ class MaterialPlanSerializer(serializers.ModelSerializer):
             'inventory_item', 'inventory_item_name', 'stock_movement', 'cost_voucher_id',
             'inventory_unit_cost', 'planning_unit_price_display', 'unit_difference',
             'inventory_total_cost', 'planning_total_value', 'planning_difference_total',
+            'bom_version', 'source_quotation', 'source_label', 'bom_version_label',
             'created_at', 'updated_at',
         ]
-        read_only_fields = ['created_at', 'updated_at', 'stock_movement', 'cost_voucher_id', 'packed_at']
+        read_only_fields = [
+            'created_at', 'updated_at', 'stock_movement', 'cost_voucher_id', 'packed_at',
+            'source_label', 'bom_version_label',
+        ]
+
+    def get_source_label(self, obj):
+        if obj.source_quotation_id:
+            qno = getattr(obj.source_quotation, 'quotation_number', None) or obj.source_quotation_id
+            return f'Quotation ({qno})'
+        if obj.bom_version_id:
+            ver = obj.bom_version
+            return f'BOM ({ver.capacity_kw} kW v{ver.version_number})'
+        notes = (obj.dispatch_notes or '').strip()
+        if notes.startswith('Auto from quotation'):
+            return 'Quotation (legacy)'
+        if notes.startswith('BOM v'):
+            return 'BOM (legacy)'
+        return 'Manual'
+
+    def get_bom_version_label(self, obj):
+        if not obj.bom_version_id:
+            return ''
+        ver = obj.bom_version
+        return f'{ver.capacity_kw} kW v{ver.version_number}'
 
     def _normalize_dispatch_status(self, validated_data, instance=None):
         from django.utils import timezone

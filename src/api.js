@@ -591,6 +591,20 @@ export const quotationApi = {
   createRevision: (id) => request(`/quotations/${id}/create-revision/`, { method: 'POST' }),
 };
 
+export const moduleSyncApi = {
+  reportTypes: (module = 'quotation') => request(`/module-sync/report-types/?module=${encodeURIComponent(module)}`),
+  preview: (data) => request('/module-sync/preview/', { method: 'POST', body: data }),
+  run: (data) => request('/module-sync/run/', { method: 'POST', body: data }),
+  history: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null)),
+    ).toString();
+    return request(`/module-sync/history/${qs ? `?${qs}` : ''}`);
+  },
+  historyDetail: (id) => request(`/module-sync/history/${id}/`),
+  retryFailed: (id) => request(`/module-sync/history/${id}/retry-failed/`, { method: 'POST', body: {} }),
+};
+
 // ─── Projects ────────────────────────────────────────────────────────────────
 
 export const projectApi = {

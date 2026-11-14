@@ -454,6 +454,10 @@ class Quotation(models.Model):
 
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Draft')
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='quotations')
+    finalized_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='finalized_quotations',
+    )
+    finalized_at = models.DateTimeField(null=True, blank=True)
 
     # Soft delete → CRM Settings Recycle Bin
     is_deleted = models.BooleanField(default=False, db_index=True)
@@ -642,12 +646,107 @@ class LeadBomDraftOutbox(models.Model):
         return f'LeadBomDraftOutbox(lead={self.lead_id}, {self.status})'
 
 
+class ModuleSyncRun(models.Model):
+    """Durable history for Manual Sync between Quotation and Material Planning."""
+
+    MODULE_QUOTATION = 'quotation'
+    MODULE_MATERIAL_PLANNING = 'material_planning'
+    MODULE_CHOICES = [
+        (MODULE_QUOTATION, 'Quotation'),
+        (MODULE_MATERIAL_PLANNING, 'Material Planning'),
+    ]
+
+    REPORT_BOM = 'bom_report'
+    REPORT_QUOTATION_MATERIAL = 'quotation_material_report'
+    REPORT_MATERIAL_PLANNING = 'material_planning_report'
+    REPORT_PROJECT_WISE = 'project_wise_material_report'
+    REPORT_CHOICES = [
+        (REPORT_BOM, 'BOM Report'),
+        (REPORT_QUOTATION_MATERIAL, 'Quotation Material Report'),
+        (REPORT_MATERIAL_PLANNING, 'Material Planning Report'),
+        (REPORT_PROJECT_WISE, 'Project-wise Material Report'),
+    ]
+
+    STATUS_PENDING = 'pending'
+    STATUS_IN_PROGRESS = 'in_progress'
+    STATUS_SUCCESS = 'success'
+    STATUS_PARTIAL = 'partial_success'
+    STATUS_FAILED = 'failed'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_IN_PROGRESS, 'In Progress'),
+        (STATUS_SUCCESS, 'Success'),
+        (STATUS_PARTIAL, 'Partial Success'),
+        (STATUS_FAILED, 'Failed'),
+    ]
+
+    source_module = models.CharField(max_length=32, choices=MODULE_CHOICES, db_index=True)
+    destination_module = models.CharField(max_length=32, choices=MODULE_CHOICES, db_index=True)
+    report_type = models.CharField(max_length=64, choices=REPORT_CHOICES, db_index=True)
+    project = models.ForeignKey(
+        'projects.Project', on_delete=models.SET_NULL, null=True, blank=True, related_name='module_sync_runs',
+    )
+    bom_version = models.ForeignKey(
+        'projects.BomVersion', on_delete=models.SET_NULL, null=True, blank=True, related_name='module_sync_runs',
+    )
+    quotation = models.ForeignKey(
+        Quotation, on_delete=models.SET_NULL, null=True, blank=True, related_name='module_sync_runs',
+    )
+    preview_token = models.CharField(max_length=64, blank=True, default='', db_index=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
+    total_records = models.PositiveIntegerField(default=0)
+    created_records = models.PositiveIntegerField(default=0)
+    updated_records = models.PositiveIntegerField(default=0)
+    skipped_records = models.PositiveIntegerField(default=0)
+    failed_records = models.PositiveIntegerField(default=0)
+    protected_records = models.PositiveIntegerField(default=0)
+    conflict_details = models.JSONField(default=list, blank=True)
+    error_details = models.TextField(blank=True, default='')
+    started_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='module_sync_runs',
+    )
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', '-created_at'], name='modsync_status_created_idx'),
+            models.Index(fields=['source_module', 'destination_module', '-created_at'], name='modsync_dir_created_idx'),
+        ]
+
+    def __str__(self):
+        return f'ModuleSyncRun({self.id}, {self.source_module}->{self.destination_module}, {self.status})'
+
+
+class ModuleSyncMapping(models.Model):
+    """Stable identity mapping for idempotent Manual Sync."""
+
+    run = models.ForeignKey(ModuleSyncRun, on_delete=models.CASCADE, related_name='mappings')
+    source_type = models.CharField(max_length=64)
+    source_id = models.CharField(max_length=64)
+    destination_type = models.CharField(max_length=64)
+    destination_id = models.CharField(max_length=64)
+    content_hash = models.CharField(max_length=64, blank=True, default='')
+    status = models.CharField(max_length=20, default='success')
+    detail = models.CharField(max_length=255, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['source_type', 'source_id'], name='modsync_map_src_idx'),
+            models.Index(fields=['destination_type', 'destination_id'], name='modsync_map_dst_idx'),
+        ]
+
+
 class QuotationDownstreamSync(models.Model):
-    """Durable outbox for quotation → ledger / material-plan sync.
+    """Durable outbox for quotation → customer ledger sync.
 
     The pending outbox row is created in the same DB transaction as the
     quotation. Processing runs after commit; failures stay retryable without
-    rolling back the quotation.
+    rolling back the quotation. Material Planning is NOT updated here.
     """
 
     STATUS_PENDING = 'pending'

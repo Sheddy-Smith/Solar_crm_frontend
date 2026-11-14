@@ -516,14 +516,26 @@ class QuotationViewSet(viewsets.ModelViewSet):
 
         Previous Final (Approved) quotes for the same project (preferred) or lead
         become Superseded — records are never deleted or duplicated.
+        Locks the Project/Lead parent row to prevent concurrent dual-Final races.
         """
-        from django.db import transaction
+        from apps.projects.models import Project
 
         quotation = self.get_object()
         with transaction.atomic():
             locked = Quotation.objects.select_for_update().filter(pk=quotation.pk, is_deleted=False).first()
             if not locked:
                 raise PermissionDenied('Quotation not found.')
+
+            # Lock stable parent scope first (Project preferred, else Lead).
+            if locked.project_id:
+                Project.objects.select_for_update().filter(pk=locked.project_id).first()
+            elif locked.lead_id:
+                Lead.objects.select_for_update().filter(pk=locked.lead_id).first()
+
+            # Idempotent: already the active Final.
+            if locked.status == 'Approved' and locked.pricing_frozen:
+                return Response(self.get_serializer(locked).data)
+
             scope = Quotation.objects.select_for_update().filter(is_deleted=False)
             if locked.project_id:
                 scope = scope.filter(project_id=locked.project_id)
@@ -537,7 +549,11 @@ class QuotationViewSet(viewsets.ModelViewSet):
             )
             locked.status = 'Approved'
             locked.pricing_frozen = True
-            locked.save(update_fields=['status', 'pricing_frozen', 'updated_at'])
+            locked.finalized_by = request.user if getattr(request.user, 'is_authenticated', False) else None
+            locked.finalized_at = timezone.now()
+            locked.save(update_fields=[
+                'status', 'pricing_frozen', 'finalized_by', 'finalized_at', 'updated_at',
+            ])
         return Response(self.get_serializer(locked).data)
 
     @action(detail=True, methods=['post'], url_path='create-revision')

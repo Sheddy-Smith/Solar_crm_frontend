@@ -58,6 +58,14 @@ import {
 } from './accountsVoucherForm.jsx';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import {
+  MarkAsFinalConfirmModal,
+  ModuleIndependentBadge,
+  ModuleSyncDropdown,
+  ModuleSyncKeyPoints,
+  ModuleSyncStepper,
+  ModuleSyncWorkflowBanner,
+} from './moduleSyncUi.jsx';
+import {
   ProjectInstallationPage as OpsInstallationPage,
   ProjectMaterialDispatchPage as OpsDispatchPage,
   ProjectDispatchPanel,
@@ -24111,6 +24119,20 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
         />
       ) : (
         <>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-[18px] font-extrabold text-[#111827]">Material Planning Module</h2>
+                <ModuleIndependentBadge />
+              </div>
+              <p className="mt-0.5 text-[12px] font-bold text-[#7386a3]">Independent material plans — sync from Quotation only when you choose.</p>
+            </div>
+            <ModuleSyncDropdown
+              module="material_planning"
+              onNotify={onNotify}
+              onSynced={reloadPlans}
+            />
+          </div>
           <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
             {[
               { label: 'Won Projects', value: summary.total, note: 'Ready for BOM', tone: 'text-[#0b65e5]', icon: FolderKanban },
@@ -36415,8 +36437,12 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
     const accepted = quotations.filter((q) => q.status === 'Approved').length;
     const superseded = quotations.filter((q) => q.status === 'Superseded').length;
     const expired = quotations.filter((q) => isQuotationExpired(q)).length;
+    const amountSum = quotations.reduce((sum, q) => sum + (Number(q.grand_total) || 0), 0);
+    const now = new Date();
+    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const thisMonth = quotations.filter((q) => String(q.created_at || q.quotation_date || '').slice(0, 7) === ym).length;
     const pct = (count) => (total ? `${((count / total) * 100).toFixed(1)}%` : '0%');
-    return { total, sent, draft, accepted, superseded, expired, pct };
+    return { total, sent, draft, accepted, superseded, expired, amountSum, thisMonth, pct };
   }, [quotations]);
 
   const loadQuotations = useCallback(() => {
@@ -36555,15 +36581,43 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
 
   return (
     <div className="flex min-h-0 flex-1 flex-col space-y-3 overflow-visible pb-2 lg:overflow-hidden">
-      <section className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6 lg:gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="font-display text-[22px] font-extrabold text-[#111827]">Quotation Module</h1>
+            <ModuleIndependentBadge />
+          </div>
+          <p className="mt-0.5 text-[13px] font-bold text-[#7386a3]">Independent quotations — sync Material Planning only when you choose.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <ModuleSyncDropdown
+            module="quotation"
+            onNotify={onNotify}
+            onSynced={() => setRefreshKey((k) => k + 1)}
+          />
+          {quoteCaps.add ? (
+            <button
+              type="button"
+              onClick={startNewQuotation}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]"
+            >
+              <Plus className="size-4" />
+              Create Quotation
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      <section className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 lg:gap-3">
         <LiaisonApprovalStatCard label="Total Quotations" value={String(quotationStats.total)} caption="All Time" icon={FileText} tone="green" onClick={() => applyStatusCardFilter('All')} />
-        <LiaisonApprovalStatCard label="Sent" value={String(quotationStats.sent)} caption={quotationStats.pct(quotationStats.sent)} icon={Mail} tone="purple" onClick={() => applyStatusCardFilter('Sent')} />
+        <LiaisonApprovalStatCard label="Final Quotations" value={String(quotationStats.accepted)} caption={quotationStats.pct(quotationStats.accepted)} icon={BadgeCheck} tone="blue" onClick={() => applyStatusCardFilter('Final Quotation')} />
+        <LiaisonApprovalStatCard label="Total Quoted Amount" value={formatMoney(quotationStats.amountSum)} caption="Grand total" icon={IndianRupee} tone="amber" />
+        <LiaisonApprovalStatCard label="This Month" value={String(quotationStats.thisMonth)} caption="Created this month" icon={CalendarDays} tone="teal" />
         <LiaisonApprovalStatCard label="Draft" value={String(quotationStats.draft)} caption={quotationStats.pct(quotationStats.draft)} icon={FileText} tone="amber" onClick={() => applyStatusCardFilter('Draft')} />
-        <LiaisonApprovalStatCard label="Final Quotation" value={String(quotationStats.accepted)} caption={quotationStats.pct(quotationStats.accepted)} icon={BadgeCheck} tone="blue" onClick={() => applyStatusCardFilter('Final Quotation')} />
-        <LiaisonApprovalStatCard label="Previous Final" value={String(quotationStats.superseded)} caption={quotationStats.pct(quotationStats.superseded)} icon={Undo2} tone="purple" onClick={() => applyStatusCardFilter('Previous Final')} />
-        <LiaisonApprovalStatCard label="Expired" value={String(quotationStats.expired)} caption={quotationStats.pct(quotationStats.expired)} icon={CalendarDays} tone="red" onClick={() => applyStatusCardFilter('Expired')} />
       </section>
 
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="min-w-0 space-y-3">
       <article className={`${panelClass} relative z-30 overflow-visible p-3 sm:p-4`}>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(140px,170px)_minmax(130px,150px)_minmax(180px,220px)_auto] xl:items-end">
           <label className="flex h-11 min-w-0 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 sm:col-span-2 xl:col-span-1">
@@ -36737,6 +36791,14 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
           />
         ) : null}
       </section>
+        </div>
+        <div className="space-y-3">
+          <ModuleSyncStepper />
+          <ModuleSyncKeyPoints />
+        </div>
+      </div>
+
+      <ModuleSyncWorkflowBanner />
 
       {createFlow?.step === 'source' ? (
         <div className="modal-overlay fixed inset-0 z-95 flex items-end justify-center bg-[#111827]/50 p-0 sm:items-center sm:p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) closeCreateFlow(); }}>
@@ -36923,6 +36985,7 @@ function ProjectQuotationsPanel({ project, loggedInUser, onNotify, onChanged }) 
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [busyId, setBusyId] = useState(null);
   const [showCompare, setShowCompare] = useState(false);
+  const [markFinalTarget, setMarkFinalTarget] = useState(null);
 
   useEffect(() => {
     if (!leadId) {
@@ -37038,6 +37101,7 @@ function ProjectQuotationsPanel({ project, loggedInUser, onNotify, onChanged }) 
       if (status === 'Approved') {
         await quotationApi.markAsFinal(quotation.id);
         onNotify?.(`${quotation.quotation_number || 'Quotation'} marked as Final Quotation`);
+        setMarkFinalTarget(null);
       } else {
         await quotationApi.update(quotation.id, { status });
         onNotify?.(`${quotation.quotation_number || 'Quotation'} marked as ${status}`);
@@ -37045,6 +37109,20 @@ function ProjectQuotationsPanel({ project, loggedInUser, onNotify, onChanged }) 
       refresh();
     } catch (err) {
       onNotify?.(err.message || 'Failed to update quotation status');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const createRevision = async (quotation) => {
+    setBusyId(quotation.id);
+    try {
+      const revision = await quotationApi.createRevision(quotation.id);
+      onNotify?.(`Revision Draft ${revision.quotation_number || `#${revision.id}`} created`);
+      refresh();
+      if (revision?.id) setEditQuotationId(revision.id);
+    } catch (err) {
+      onNotify?.(err.message || 'Failed to create revision');
     } finally {
       setBusyId(null);
     }
@@ -37218,11 +37296,16 @@ function ProjectQuotationsPanel({ project, loggedInUser, onNotify, onChanged }) 
                       <button
                         type="button"
                         disabled={busy}
-                        onClick={() => setQuotationStatus(q, 'Approved')}
+                        onClick={() => setMarkFinalTarget(q)}
                         title="Customer accepted this option"
                         className="inline-flex h-8 items-center justify-center gap-1.5 rounded-[7px] border border-[#18a34a] bg-[#e8f8eb] px-2.5 text-[11px] font-extrabold text-[#15803d] transition hover:bg-[#d4f2da] disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <BadgeCheck className="size-3.5" />Mark Final
+                      </button>
+                    ) : null}
+                    {quoteCaps.add && isFinal ? (
+                      <button type="button" className={actionBtn} disabled={busy} onClick={() => createRevision(q)} title="Create editable Draft revision">
+                        <Copy className="size-3.5" />Create Revision
                       </button>
                     ) : null}
                     {quoteCaps.delete ? (
@@ -37323,6 +37406,16 @@ function ProjectQuotationsPanel({ project, loggedInUser, onNotify, onChanged }) 
 
       {deleteConfirm ? (
         <ConfirmDeleteModal message={deleteConfirm.message} onConfirm={deleteConfirm.onConfirm} onCancel={() => setDeleteConfirm(null)} />
+      ) : null}
+
+      {markFinalTarget ? (
+        <MarkAsFinalConfirmModal
+          quotation={markFinalTarget}
+          previousFinal={finalQuotation && finalQuotation.id !== markFinalTarget.id ? finalQuotation : null}
+          busy={busyId === markFinalTarget.id}
+          onCancel={() => setMarkFinalTarget(null)}
+          onConfirm={() => setQuotationStatus(markFinalTarget, 'Approved')}
+        />
       ) : null}
     </div>
   );

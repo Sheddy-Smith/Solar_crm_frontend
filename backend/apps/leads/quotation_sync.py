@@ -145,18 +145,9 @@ def sync_quotation_to_customer_ledger(quotation, user=None) -> Optional[object]:
             created_by=user or quotation.created_by,
         )
 
-    # Keep lead/project cost mirrors in sync with quotation pricing.
-    if not lead.project_cost or _d(lead.project_cost) != amount:
-        lead.project_cost = amount
-        lead.save(update_fields=['project_cost', 'updated_at'])
-
-    project = getattr(lead, 'projects', None)
-    if project is not None:
-        for proj in lead.projects.filter(is_deleted=False):
-            if not proj.total_value or _d(proj.total_value) != amount:
-                # Prefer quotation total when present; update empty or previous quote-backed value.
-                proj.total_value = amount
-                proj.save(update_fields=['total_value', 'updated_at'])
+    # Lead.project_cost / Project.total_value are NOT overwritten here.
+    # Direction: Lead Project Cost → new Draft Quotation prefill only.
+    # Quotation ↔ Material Planning exchange is Manual Sync only.
 
     recalculate_party_balance(party.id)
     return entry
@@ -248,100 +239,176 @@ def _material_lines_from_quotation(quotation) -> list[dict]:
     return lines
 
 
-def sync_quotation_to_material_plans(quotation, project=None) -> int:
-    """Auto-fill Material Planning from quotation materials (project required)."""
-    from apps.projects.models import MaterialPlan, Project
+def _plan_is_protected(plan) -> bool:
+    from apps.projects.models import MaterialPlan
+
+    return (
+        MaterialPlan.parse_qty(plan.dispatched_qty) > 0
+        or (plan.dispatch_status or '') in ('Partial', 'Dispatched', 'Packed')
+    )
+
+
+def sync_quotation_to_material_plans(quotation, project=None, *, dry_run: bool = False) -> dict:
+    """Sync quotation materials → Material Plans (Manual Sync engine).
+
+    Ownership rules:
+    - Prefer matching by source_quotation_id + (category, items).
+    - Never overwrite plans owned by another quotation.
+    - Never overwrite pure BOM-owned plans.
+    - Never reduce/delete protected (dispatched/packed) rows.
+    - Always set source_quotation on created/updated rows.
+    """
+    from apps.projects.models import Project
+
+    result = {
+        'created': 0,
+        'updated': 0,
+        'skipped': 0,
+        'protected': 0,
+        'conflicts': [],
+        'failed': 0,
+        'total': 0,
+        'material_plans': 0,
+    }
 
     if getattr(quotation, 'is_deleted', False) or (quotation.status or '') == 'Rejected':
-        return 0
+        return result
 
     lead = getattr(quotation, 'lead', None)
     if not lead:
-        return 0
+        return result
 
     if project is None:
-        project = (
-            Project.objects.filter(lead=lead, is_deleted=False)
-            .order_by('-updated_at', '-id')
-            .first()
-        )
+        if getattr(quotation, 'project_id', None):
+            project = Project.objects.filter(pk=quotation.project_id, is_deleted=False).first()
+        if project is None:
+            project = (
+                Project.objects.filter(lead=lead, is_deleted=False)
+                .order_by('-updated_at', '-id')
+                .first()
+            )
     if project is None:
-        return 0
+        return result
 
     note_tag = f'{QUOT_PLAN_NOTE_PREFIX}{quotation.quotation_number or quotation.id}'
     desired = _material_lines_from_quotation(quotation)
+    result['total'] = len(desired)
     if not desired:
-        return 0
+        return result
 
-    created_or_updated = 0
-    with transaction.atomic():
-        # Refresh auto-seeded undistracted lines for this quotation; keep manual/dispatched.
-        stale = MaterialPlan.objects.filter(
-            project=project,
-            dispatch_notes__startswith=QUOT_PLAN_NOTE_PREFIX,
-        )
-        for plan in stale:
-            if MaterialPlan.parse_qty(plan.dispatched_qty) > 0 or plan.dispatch_status in ('Partial', 'Dispatched', 'Packed'):
+    if dry_run:
+        _apply_sync(quotation, project, note_tag, desired, result, dry_run=True)
+    else:
+        with transaction.atomic():
+            _apply_sync(quotation, project, note_tag, desired, result, dry_run=False)
+    return result
+
+
+def _apply_sync(quotation, project, note_tag, desired, result, *, dry_run: bool):
+    from django.db.models import Q
+    from apps.projects.models import MaterialPlan
+
+    owned_qs = MaterialPlan.objects.filter(project=project, source_quotation_id=quotation.id)
+    owned_by_key = {}
+    for plan in owned_qs:
+        key = (plan.category.strip().lower(), (plan.items or '').strip().lower())
+        owned_by_key[key] = plan
+
+    claimable_by_key = {}
+    for plan in MaterialPlan.objects.filter(project=project).filter(
+        Q(source_quotation__isnull=True) | Q(dispatch_notes=note_tag)
+    ):
+        if plan.source_quotation_id and plan.source_quotation_id != quotation.id:
+            continue
+        if plan.bom_version_id and not plan.source_quotation_id:
+            if not (plan.dispatch_notes or '').startswith(QUOT_PLAN_NOTE_PREFIX):
                 continue
-            # Will recreate from desired set below — delete unmatched later.
-            plan._quot_refresh = True  # type: ignore[attr-defined]
+        key = (plan.category.strip().lower(), (plan.items or '').strip().lower())
+        claimable_by_key.setdefault(key, plan)
 
-        existing_by_key = {}
-        for plan in MaterialPlan.objects.filter(project=project):
-            key = (plan.category.strip().lower(), (plan.items or '').strip().lower())
-            existing_by_key.setdefault(key, plan)
+    other_owned_keys = set()
+    for plan in MaterialPlan.objects.filter(project=project).exclude(
+        Q(source_quotation__isnull=True) | Q(source_quotation_id=quotation.id)
+    ):
+        key = (plan.category.strip().lower(), (plan.items or '').strip().lower())
+        other_owned_keys.add(key)
 
-        seen_keys = set()
-        for row in desired:
-            key = (row['category'].strip().lower(), (row['items'] or '').strip().lower())
-            seen_keys.add(key)
-            inv = _match_inventory_item(row['inventory_name'], row.get('brand') or '')
-            plan = existing_by_key.get(key)
-            if plan and (
-                MaterialPlan.parse_qty(plan.dispatched_qty) > 0
-                or plan.dispatch_status in ('Partial', 'Dispatched')
-            ):
-                continue
+    seen_keys = set()
+    for row in desired:
+        key = (row['category'].strip().lower(), (row['items'] or '').strip().lower())
+        seen_keys.add(key)
+        inv = _match_inventory_item(row['inventory_name'], row.get('brand') or '')
 
-            payload = {
-                'category': row['category'],
-                'items': row['items'],
-                'uom': row['uom'],
-                'planned_qty': row['planned_qty'],
-                'planned_value': row['planned_value'],
-                'planning_unit_price': row['planning_unit_price'],
-                'status': 'Not Started',
-                'dispatch_notes': note_tag[:500],
-                'inventory_item': inv,
-            }
+        if key in other_owned_keys and key not in owned_by_key:
+            result['skipped'] += 1
+            result['conflicts'].append({
+                'key': f'{row["category"]}|{row["items"]}',
+                'reason': 'owned_by_other_quotation',
+                'source_qty': row['planned_qty'],
+            })
+            continue
+
+        plan = owned_by_key.get(key) or claimable_by_key.get(key)
+        if plan and _plan_is_protected(plan):
+            result['protected'] += 1
+            result['skipped'] += 1
+            continue
+
+        payload = {
+            'category': row['category'],
+            'items': row['items'],
+            'uom': row['uom'],
+            'planned_qty': row['planned_qty'],
+            'planned_value': row['planned_value'],
+            'planning_unit_price': row['planning_unit_price'],
+            'status': getattr(plan, 'status', None) or 'Not Started',
+            'dispatch_notes': note_tag[:500],
+            'inventory_item': inv,
+            'source_quotation': quotation,
+            'bom_version': getattr(quotation, 'bom_version', None),
+        }
+
+        if dry_run:
             if plan:
-                for field, value in payload.items():
-                    setattr(plan, field, value)
-                plan.save()
+                result['updated'] += 1
             else:
-                plan = MaterialPlan.objects.create(project=project, **payload)
-                existing_by_key[key] = plan
-            created_or_updated += 1
+                result['created'] += 1
+            continue
 
-        # Remove previous auto-lines for this quote that are no longer in desired and not dispatched.
-        for plan in MaterialPlan.objects.filter(project=project, dispatch_notes=note_tag):
+        if plan:
+            for field, value in payload.items():
+                setattr(plan, field, value)
+            plan.save()
+            result['updated'] += 1
+            owned_by_key[key] = plan
+        else:
+            plan = MaterialPlan.objects.create(project=project, **payload)
+            owned_by_key[key] = plan
+            result['created'] += 1
+
+    if not dry_run:
+        for plan in MaterialPlan.objects.filter(project=project, source_quotation_id=quotation.id):
             key = (plan.category.strip().lower(), (plan.items or '').strip().lower())
             if key in seen_keys:
                 continue
-            if MaterialPlan.parse_qty(plan.dispatched_qty) > 0:
+            if _plan_is_protected(plan):
+                result['protected'] += 1
+                result['skipped'] += 1
                 continue
             plan.delete()
 
-    return created_or_updated
+    result['material_plans'] = result['created'] + result['updated']
 
 
 def sync_quotation_downstream(quotation, user=None) -> dict:
-    """Run ledger + material-plan sync after quotation create/update."""
+    """Automatic path after quotation create/update: Customer Ledger only.
+
+    Material Planning is independent — exchange only via Manual Sync APIs.
+    """
     entry = sync_quotation_to_customer_ledger(quotation, user=user)
-    plans = sync_quotation_to_material_plans(quotation)
     return {
         'ledger_entry_id': getattr(entry, 'id', None),
-        'material_plans': plans,
+        'material_plans': 0,
         'amount': float(quotation_amount(quotation)),
     }
 

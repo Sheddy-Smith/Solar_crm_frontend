@@ -139,6 +139,7 @@ class QuotationSerializer(serializers.ModelSerializer):
             'project_type', 'installation_type', 'sanctioned_load_kw', 'monthly_electricity_bill', 'discom_name',
             'existing_meter_number', 'connection_type', 'consumer_number', 'execution_timeline',
             'plant_capacity_kw', 'bom_version', 'pricing_frozen', 'revision_of',
+            'finalized_by', 'finalized_at',
             'estimated_annual_generation', 'shadow_free_area', 'module_orientation',
             'panel_brand', 'panel_model', 'panel_type', 'panel_wattage', 'number_of_panels', 'total_dc_capacity',
             'inverter_brand', 'inverter_model', 'inverter_type', 'inverter_capacity', 'inverter_quantity',
@@ -164,7 +165,7 @@ class QuotationSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'created_by', 'quotation_number', 'subtotal', 'gst_amount', 'grand_total',
             'customer_contribution', 'total_dc_capacity', 'taxable_value', 'gst_5_amount', 'gst_18_amount',
-            'pricing_frozen', 'created_at', 'updated_at',
+            'pricing_frozen', 'finalized_by', 'finalized_at', 'created_at', 'updated_at',
         ]
 
     def get_customer_name(self, obj):
