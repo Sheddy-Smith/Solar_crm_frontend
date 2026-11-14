@@ -49,9 +49,17 @@ class LeadViewSet(viewsets.ModelViewSet):
     ordering = ['-last_activity_at', '-created_at']
 
     def get_queryset(self):
+        from django.db.models import OuterRef, Subquery
+        from apps.projects.models import SiteSurvey
+
         user = self.request.user
+        project_survey_status = SiteSurvey.objects.filter(
+            project__lead_id=OuterRef('pk'),
+        ).order_by('-updated_at').values('status')[:1]
         qs = Lead.objects.select_related(
             'assigned_to', 'created_by', 'site_survey', 'customer',
+        ).annotate(
+            list_survey_status=Subquery(project_survey_status),
         ).filter(is_deleted=False)
         owner_q = lead_owner_q(user)
         if owner_q is not None:

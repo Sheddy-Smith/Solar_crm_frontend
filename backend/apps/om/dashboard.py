@@ -3,7 +3,7 @@ from datetime import date, timedelta
 
 from django.db.models import Q
 
-from .models import OmPlant, OmMaintenanceTask, OmBreakdownTicket, OmInsurance
+from .models import OmPlant, OmMaintenanceTask, OmBreakdownTicket, OmInsurance, OmJobCard, OmSiteVisit
 
 SERVICE_DUE_WINDOW_DAYS = 15
 INSURANCE_EXPIRING_DAYS = 30
@@ -132,6 +132,25 @@ def dashboard_summary(today=None):
     def count(key):
         return len(plant_ids_for(key, today) or ())
 
+    pending_job_cards = OmJobCard.objects.filter(status__in=OmJobCard.OPEN_STATUSES).count()
+    completed_services = OmJobCard.objects.filter(status='Closed').count()
+    today_visits = OmSiteVisit.objects.filter(date=today).exclude(status='Cancelled').count()
+
+    active_amc = 0
+    warranty_expiring = 0
+    pending_amc_payments = None
+    amc_revenue = None
+    try:
+        from apps.amc.models import AmcContract, AmcWarranty
+        active_amc = AmcContract.objects.filter(status__in=('Active', 'Expiring Soon')).count()
+        warranty_expiring = AmcWarranty.objects.filter(status='Expiring Soon').count()
+        from django.db.models import Sum
+        amc_revenue = AmcContract.objects.filter(
+            status__in=('Active', 'Expiring Soon'),
+        ).aggregate(total=Sum('annual_value'))['total'] or 0
+    except Exception:
+        pass
+
     summary = {
         'total_plants': plants.count(),
         'active_plants': plants.filter(is_active=True).count(),
@@ -149,6 +168,14 @@ def dashboard_summary(today=None):
         'insurance_active': sum(1 for s in ins.values() if s == 'active'),
         'insurance_expiring': sum(1 for s in ins.values() if s == 'expiring'),
         'insurance_expired': sum(1 for s in ins.values() if s == 'expired'),
+        # Hub KPI aliases (master prompt §4)
+        'today_visits': today_visits,
+        'pending_job_cards': pending_job_cards,
+        'completed_services': completed_services,
+        'active_amc': active_amc,
+        'warranty_expiring': warranty_expiring,
+        'amc_revenue': amc_revenue,
+        'pending_amc_payments': pending_amc_payments,
     }
     alerts = {
         'critical': [

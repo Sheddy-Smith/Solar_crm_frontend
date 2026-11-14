@@ -3,6 +3,8 @@ from .models import (
     OmAsset, OmMaintenanceTask, OmBreakdownTicket,
     OmSiteVisit, OmSparePart, OmReport, OmDocument,
     OmPlant, OmVisitPart, OmInsurance,
+    OmJobCard, OmJobCardActivity, OmMaterialRequest, OmMaintenancePlan,
+    OmEquipmentReplacement, OmGenerationLog, OmCustomerFeedback, OmSettings,
 )
 
 admin.site.register(OmAsset)
@@ -14,6 +16,14 @@ admin.site.register(OmReport)
 admin.site.register(OmDocument)
 admin.site.register(OmVisitPart)
 admin.site.register(OmInsurance)
+admin.site.register(OmJobCard)
+admin.site.register(OmJobCardActivity)
+admin.site.register(OmMaterialRequest)
+admin.site.register(OmMaintenancePlan)
+admin.site.register(OmEquipmentReplacement)
+admin.site.register(OmGenerationLog)
+admin.site.register(OmCustomerFeedback)
+admin.site.register(OmSettings)
 
 
 @admin.register(OmPlant)

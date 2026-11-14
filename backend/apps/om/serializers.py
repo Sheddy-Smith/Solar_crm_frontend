@@ -6,6 +6,8 @@ from .models import (
     OmAsset, OmMaintenanceTask, OmBreakdownTicket,
     OmSiteVisit, OmSparePart, OmReport, OmDocument,
     OmPlant, OmVisitPart, OmInsurance,
+    OmJobCard, OmJobCardActivity, OmMaterialRequest, OmMaintenancePlan,
+    OmEquipmentReplacement, OmGenerationLog, OmCustomerFeedback, OmSettings,
 )
 
 
@@ -403,3 +405,157 @@ class OmDocumentSerializer(serializers.ModelSerializer):
             'uploaded_by', 'uploaded_by_name', 'uploaded_at',
         ]
         read_only_fields = ['uploaded_by', 'uploaded_at']
+
+
+class OmJobCardActivitySerializer(serializers.ModelSerializer):
+    changed_by_name = serializers.SerializerMethodField()
+
+    def get_changed_by_name(self, obj):
+        return _user_name(obj.changed_by)
+
+    class Meta:
+        model = OmJobCardActivity
+        fields = ['id', 'from_status', 'to_status', 'note', 'changed_by', 'changed_by_name', 'created_at']
+        read_only_fields = fields
+
+
+class OmJobCardSerializer(serializers.ModelSerializer):
+    job_card_no = serializers.CharField(read_only=True)
+    plant_code = serializers.SerializerMethodField()
+    plant_name = serializers.CharField(source='plant.plant_name', read_only=True)
+    customer_name = serializers.CharField(source='plant.customer_name', read_only=True)
+    project_name = serializers.CharField(source='project.project_name', read_only=True)
+    assigned_technician_name = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
+    activities = OmJobCardActivitySerializer(many=True, read_only=True)
+
+    def get_plant_code(self, obj):
+        return _plant_code(obj.plant)
+
+    def get_assigned_technician_name(self, obj):
+        return _user_name(obj.assigned_technician)
+
+    def get_created_by_name(self, obj):
+        return _user_name(obj.created_by)
+
+    class Meta:
+        model = OmJobCard
+        fields = [
+            'id', 'job_card_no', 'plant', 'plant_code', 'plant_name', 'customer_name',
+            'project', 'project_name', 'ticket', 'task', 'visit', 'amc_contract', 'service_request',
+            'assigned_technician', 'assigned_technician_name',
+            'visit_date', 'start_time', 'end_time',
+            'work_description', 'diagnosis', 'work_performed', 'labour_details',
+            'materials_used', 'checklist', 'completion_remarks', 'customer_feedback',
+            'customer_signature', 'technician_signature', 'service_completion_pct',
+            'status', 'started_at', 'completed_at', 'closed_at',
+            'created_by', 'created_by_name', 'updated_by', 'created_at', 'updated_at',
+            'activities',
+        ]
+        read_only_fields = [
+            'created_by', 'updated_by', 'created_at', 'updated_at',
+            'started_at', 'completed_at', 'closed_at', 'activities',
+        ]
+
+
+class OmMaterialRequestSerializer(serializers.ModelSerializer):
+    record_no = serializers.SerializerMethodField()
+    inventory_item_name = serializers.CharField(source='inventory_item.name', read_only=True)
+    job_card_no = serializers.CharField(source='job_card.job_card_no', read_only=True)
+    created_by_name = serializers.SerializerMethodField()
+
+    def get_record_no(self, obj):
+        return f'MR-{obj.id:05d}' if obj.id else ''
+
+    def get_created_by_name(self, obj):
+        return _user_name(obj.created_by)
+
+    class Meta:
+        model = OmMaterialRequest
+        fields = [
+            'id', 'record_no', 'job_card', 'job_card_no', 'ticket', 'project',
+            'inventory_item', 'inventory_item_name',
+            'quantity_requested', 'quantity_approved', 'quantity_issued', 'quantity_returned',
+            'status', 'issue_reference', 'stock_movement', 'issued_at', 'issued_by',
+            'remarks', 'created_by', 'created_by_name', 'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'created_by', 'created_at', 'updated_at', 'quantity_issued', 'quantity_returned',
+            'stock_movement', 'issued_at', 'issued_by', 'issue_reference',
+        ]
+
+
+class OmMaintenancePlanSerializer(serializers.ModelSerializer):
+    plan_no = serializers.SerializerMethodField()
+    plant_name = serializers.CharField(source='plant.plant_name', read_only=True)
+    project_name = serializers.CharField(source='project.project_name', read_only=True)
+    assigned_technician_name = serializers.SerializerMethodField()
+
+    def get_plan_no(self, obj):
+        return f'MP-{obj.id:05d}' if obj.id else ''
+
+    def get_assigned_technician_name(self, obj):
+        return _user_name(obj.assigned_technician)
+
+    class Meta:
+        model = OmMaintenancePlan
+        fields = [
+            'id', 'plan_no', 'plant', 'plant_name', 'project', 'project_name', 'amc_contract',
+            'maintenance_type', 'frequency', 'custom_interval_days', 'start_date', 'next_due_date',
+            'assigned_technician', 'assigned_technician_name', 'checklist', 'requires_active_amc',
+            'status', 'remarks', 'created_by', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['created_by', 'created_at', 'updated_at']
+
+
+class OmEquipmentReplacementSerializer(serializers.ModelSerializer):
+    record_no = serializers.SerializerMethodField()
+    asset_name = serializers.CharField(source='asset.name', read_only=True)
+
+    def get_record_no(self, obj):
+        return f'REP-{obj.id:05d}' if obj.id else ''
+
+    class Meta:
+        model = OmEquipmentReplacement
+        fields = [
+            'id', 'record_no', 'plant', 'project', 'asset', 'asset_name', 'job_card', 'ticket',
+            'inventory_item', 'old_serial', 'new_serial', 'old_model', 'new_model',
+            'reason', 'status', 'material_request', 'installed_on',
+            'created_by', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['created_by', 'created_at', 'updated_at']
+
+
+class OmGenerationLogSerializer(serializers.ModelSerializer):
+    plant_name = serializers.CharField(source='plant.plant_name', read_only=True)
+
+    class Meta:
+        model = OmGenerationLog
+        fields = [
+            'id', 'plant', 'plant_name', 'project', 'generation_date',
+            'expected_kwh', 'actual_kwh', 'performance_ratio',
+            'inverter_status', 'downtime_hours', 'monitoring_status',
+            'notes', 'source', 'created_by', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['created_by', 'created_at', 'updated_at']
+
+
+class OmCustomerFeedbackSerializer(serializers.ModelSerializer):
+    plant_name = serializers.CharField(source='plant.plant_name', read_only=True)
+    job_card_no = serializers.CharField(source='job_card.job_card_no', read_only=True)
+
+    class Meta:
+        model = OmCustomerFeedback
+        fields = [
+            'id', 'job_card', 'job_card_no', 'visit', 'plant', 'plant_name', 'project',
+            'rating', 'service_quality', 'technician_behaviour', 'problem_resolution',
+            'remarks', 'feedback_date', 'created_by', 'created_at',
+        ]
+        read_only_fields = ['created_by', 'created_at']
+
+
+class OmSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OmSettings
+        fields = ['id', 'key', 'value', 'updated_by', 'updated_at']
+        read_only_fields = ['updated_by', 'updated_at']

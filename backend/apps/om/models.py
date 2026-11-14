@@ -527,3 +527,271 @@ class OmDocument(models.Model):
 
     class Meta:
         ordering = ['-uploaded_at']
+
+
+class OmJobCard(models.Model):
+    """Field work order linked to ticket / task / visit — does not own Customer/Project masters."""
+    STATUS_CHOICES = [
+        ('Draft', 'Draft'),
+        ('Assigned', 'Assigned'),
+        ('Scheduled', 'Scheduled'),
+        ('In Progress', 'In Progress'),
+        ('Work Completed', 'Work Completed'),
+        ('Customer Confirmation', 'Customer Confirmation'),
+        ('Closed', 'Closed'),
+        ('Cancelled', 'Cancelled'),
+    ]
+    OPEN_STATUSES = ('Draft', 'Assigned', 'Scheduled', 'In Progress', 'Work Completed', 'Customer Confirmation')
+    TRANSITIONS = {
+        'Draft': ('Assigned', 'Cancelled'),
+        'Assigned': ('Scheduled', 'In Progress', 'Cancelled'),
+        'Scheduled': ('In Progress', 'Cancelled'),
+        'In Progress': ('Work Completed', 'Cancelled'),
+        'Work Completed': ('Customer Confirmation', 'In Progress'),
+        'Customer Confirmation': ('Closed', 'In Progress'),
+        'Closed': (),
+        'Cancelled': (),
+    }
+
+    plant = models.ForeignKey(OmPlant, on_delete=models.SET_NULL, null=True, blank=True, related_name='job_cards')
+    project = models.ForeignKey(Project, on_delete=models.SET_NULL, null=True, blank=True, related_name='om_job_cards')
+    ticket = models.ForeignKey(OmBreakdownTicket, on_delete=models.SET_NULL, null=True, blank=True, related_name='job_cards')
+    task = models.ForeignKey(OmMaintenanceTask, on_delete=models.SET_NULL, null=True, blank=True, related_name='job_cards')
+    visit = models.ForeignKey(OmSiteVisit, on_delete=models.SET_NULL, null=True, blank=True, related_name='job_cards')
+    amc_contract = models.ForeignKey(
+        'amc.AmcContract', on_delete=models.SET_NULL, null=True, blank=True, related_name='job_cards',
+    )
+    service_request = models.ForeignKey(
+        'amc.AmcServiceRequest', on_delete=models.SET_NULL, null=True, blank=True, related_name='job_cards',
+    )
+    assigned_technician = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='om_job_cards_assigned',
+    )
+    visit_date = models.DateField(null=True, blank=True)
+    start_time = models.TimeField(null=True, blank=True)
+    end_time = models.TimeField(null=True, blank=True)
+    work_description = models.TextField(blank=True)
+    diagnosis = models.TextField(blank=True)
+    work_performed = models.TextField(blank=True)
+    labour_details = models.TextField(blank=True)
+    materials_used = models.JSONField(default=list, blank=True)
+    checklist = models.JSONField(default=list, blank=True)
+    completion_remarks = models.TextField(blank=True)
+    customer_feedback = models.TextField(blank=True)
+    customer_signature = models.ImageField(
+        upload_to='om_job_cards/signatures/%Y/%m/', null=True, blank=True,
+        validators=[validate_image_extension, validate_upload_size],
+    )
+    technician_signature = models.ImageField(
+        upload_to='om_job_cards/signatures/%Y/%m/', null=True, blank=True,
+        validators=[validate_image_extension, validate_upload_size],
+    )
+    service_completion_pct = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='Draft', db_index=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='om_job_cards_created')
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='om_job_cards_updated')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def job_card_no(self):
+        return f'JC-{self.id:05d}' if self.id else ''
+
+    def can_transition_to(self, new_status):
+        return new_status in self.TRANSITIONS.get(self.status, ())
+
+    def __str__(self):
+        return f'{self.job_card_no} — {self.status}'
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+class OmJobCardActivity(models.Model):
+    job_card = models.ForeignKey(OmJobCard, on_delete=models.CASCADE, related_name='activities')
+    from_status = models.CharField(max_length=30, blank=True)
+    to_status = models.CharField(max_length=30, blank=True)
+    note = models.TextField(blank=True)
+    changed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+class OmMaterialRequest(models.Model):
+    """Parts requirement against a Job Card. Stock changes only via Inventory StockMovement."""
+    STATUS_CHOICES = [
+        ('Draft', 'Draft'),
+        ('Submitted', 'Submitted'),
+        ('Approved', 'Approved'),
+        ('Partially Issued', 'Partially Issued'),
+        ('Issued', 'Issued'),
+        ('Returned', 'Returned'),
+        ('Rejected', 'Rejected'),
+        ('Cancelled', 'Cancelled'),
+    ]
+
+    job_card = models.ForeignKey(OmJobCard, on_delete=models.CASCADE, related_name='material_requests')
+    ticket = models.ForeignKey(OmBreakdownTicket, on_delete=models.SET_NULL, null=True, blank=True, related_name='material_requests')
+    project = models.ForeignKey(Project, on_delete=models.SET_NULL, null=True, blank=True, related_name='om_material_requests')
+    inventory_item = models.ForeignKey(
+        'inventory.InventoryItem', on_delete=models.PROTECT, related_name='om_material_requests',
+    )
+    quantity_requested = models.DecimalField(max_digits=12, decimal_places=2)
+    quantity_approved = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    quantity_issued = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    quantity_returned = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Draft', db_index=True)
+    issue_reference = models.CharField(max_length=100, blank=True)
+    stock_movement = models.ForeignKey(
+        'inventory.StockMovement', on_delete=models.SET_NULL, null=True, blank=True, related_name='om_material_requests',
+    )
+    issued_at = models.DateTimeField(null=True, blank=True)
+    issued_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='om_materials_issued')
+    remarks = models.TextField(blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='om_material_requests_created')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'MR-{self.id:05d}' if self.id else 'MR'
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+class OmMaintenancePlan(models.Model):
+    FREQUENCY_CHOICES = [
+        ('Monthly', 'Monthly'),
+        ('Quarterly', 'Quarterly'),
+        ('Half-Yearly', 'Half-Yearly'),
+        ('Yearly', 'Yearly'),
+        ('Custom', 'Custom'),
+    ]
+    STATUS_CHOICES = [
+        ('Active', 'Active'),
+        ('Paused', 'Paused'),
+        ('Completed', 'Completed'),
+        ('Cancelled', 'Cancelled'),
+    ]
+
+    plant = models.ForeignKey(OmPlant, on_delete=models.CASCADE, null=True, blank=True, related_name='maintenance_plans')
+    project = models.ForeignKey(Project, on_delete=models.SET_NULL, null=True, blank=True, related_name='om_maintenance_plans')
+    amc_contract = models.ForeignKey(
+        'amc.AmcContract', on_delete=models.SET_NULL, null=True, blank=True, related_name='maintenance_plans',
+    )
+    maintenance_type = models.CharField(max_length=100, blank=True)
+    frequency = models.CharField(max_length=20, choices=FREQUENCY_CHOICES, default='Quarterly')
+    custom_interval_days = models.PositiveIntegerField(null=True, blank=True)
+    start_date = models.DateField(null=True, blank=True)
+    next_due_date = models.DateField(null=True, blank=True, db_index=True)
+    assigned_technician = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='om_maintenance_plans_assigned',
+    )
+    checklist = models.JSONField(default=list, blank=True)
+    requires_active_amc = models.BooleanField(default=False)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Active', db_index=True)
+    remarks = models.TextField(blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='om_maintenance_plans_created')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'MP-{self.id:05d} — {self.maintenance_type or self.frequency}'
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+class OmEquipmentReplacement(models.Model):
+    """Auditable replacement history — never overwrites prior serials on OmAsset."""
+    STATUS_CHOICES = [
+        ('Pending Approval', 'Pending Approval'),
+        ('Approved', 'Approved'),
+        ('Issued', 'Issued'),
+        ('Installed', 'Installed'),
+        ('Cancelled', 'Cancelled'),
+    ]
+
+    plant = models.ForeignKey(OmPlant, on_delete=models.SET_NULL, null=True, blank=True, related_name='replacements')
+    project = models.ForeignKey(Project, on_delete=models.SET_NULL, null=True, blank=True, related_name='om_replacements')
+    asset = models.ForeignKey(OmAsset, on_delete=models.SET_NULL, null=True, blank=True, related_name='replacements')
+    job_card = models.ForeignKey(OmJobCard, on_delete=models.SET_NULL, null=True, blank=True, related_name='replacements')
+    ticket = models.ForeignKey(OmBreakdownTicket, on_delete=models.SET_NULL, null=True, blank=True, related_name='replacements')
+    inventory_item = models.ForeignKey(
+        'inventory.InventoryItem', on_delete=models.SET_NULL, null=True, blank=True, related_name='om_replacements',
+    )
+    old_serial = models.CharField(max_length=200, blank=True)
+    new_serial = models.CharField(max_length=200, blank=True)
+    old_model = models.CharField(max_length=200, blank=True)
+    new_model = models.CharField(max_length=200, blank=True)
+    reason = models.TextField(blank=True)
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='Pending Approval')
+    material_request = models.ForeignKey(
+        OmMaterialRequest, on_delete=models.SET_NULL, null=True, blank=True, related_name='replacements',
+    )
+    installed_on = models.DateField(null=True, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='om_replacements_created')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'REP-{self.id:05d}'
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+class OmGenerationLog(models.Model):
+    """Manual / imported plant generation — never fabricated live inverter feeds."""
+    plant = models.ForeignKey(OmPlant, on_delete=models.CASCADE, related_name='generation_logs')
+    project = models.ForeignKey(Project, on_delete=models.SET_NULL, null=True, blank=True, related_name='om_generation_logs')
+    generation_date = models.DateField(db_index=True)
+    expected_kwh = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    actual_kwh = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    performance_ratio = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    inverter_status = models.CharField(max_length=50, blank=True)
+    downtime_hours = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    monitoring_status = models.CharField(max_length=50, blank=True)
+    notes = models.TextField(blank=True)
+    source = models.CharField(max_length=30, default='Manual')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='om_generation_logs_created')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-generation_date', '-id']
+        unique_together = [('plant', 'generation_date')]
+
+
+class OmCustomerFeedback(models.Model):
+    job_card = models.ForeignKey(OmJobCard, on_delete=models.CASCADE, null=True, blank=True, related_name='feedback_entries')
+    visit = models.ForeignKey(OmSiteVisit, on_delete=models.SET_NULL, null=True, blank=True, related_name='feedback_entries')
+    plant = models.ForeignKey(OmPlant, on_delete=models.SET_NULL, null=True, blank=True, related_name='feedback_entries')
+    project = models.ForeignKey(Project, on_delete=models.SET_NULL, null=True, blank=True, related_name='om_feedback')
+    rating = models.PositiveSmallIntegerField(default=5)
+    service_quality = models.PositiveSmallIntegerField(null=True, blank=True)
+    technician_behaviour = models.PositiveSmallIntegerField(null=True, blank=True)
+    problem_resolution = models.PositiveSmallIntegerField(null=True, blank=True)
+    remarks = models.TextField(blank=True)
+    feedback_date = models.DateField(null=True, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='om_feedback_created')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+class OmSettings(models.Model):
+    """Singleton-style configurable O&M masters (categories, SLA, alert windows)."""
+    key = models.CharField(max_length=100, unique=True)
+    value = models.JSONField(default=dict, blank=True)
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.key

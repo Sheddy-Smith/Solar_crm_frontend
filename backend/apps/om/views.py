@@ -14,11 +14,16 @@ from .models import (
     OmAsset, OmMaintenanceTask, OmBreakdownTicket,
     OmSiteVisit, OmSparePart, OmReport, OmDocument,
     OmPlant, OmVisitPart, OmInsurance,
+    OmJobCard, OmJobCardActivity, OmMaterialRequest, OmMaintenancePlan,
+    OmEquipmentReplacement, OmGenerationLog, OmCustomerFeedback, OmSettings,
 )
 from .serializers import (
     OmAssetSerializer, OmMaintenanceTaskSerializer, OmBreakdownTicketSerializer,
     OmSiteVisitSerializer, OmSparePartSerializer, OmReportSerializer, OmDocumentSerializer,
     OmPlantSerializer, OmVisitPartSerializer, OmInsuranceSerializer,
+    OmJobCardSerializer, OmMaterialRequestSerializer, OmMaintenancePlanSerializer,
+    OmEquipmentReplacementSerializer, OmGenerationLogSerializer,
+    OmCustomerFeedbackSerializer, OmSettingsSerializer,
 )
 from .permissions import OmOrFieldWorkPermission, has_full_om_access
 from apps.accounts.permissions import HasModulePermission, lead_owner_filter
@@ -449,3 +454,299 @@ class OmDocumentViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(uploaded_by=self.request.user)
+
+
+def _checklist_complete(checklist):
+    if not checklist:
+        return False
+    for item in checklist:
+        if isinstance(item, dict):
+            if not item.get('done') and not item.get('checked') and not item.get('completed'):
+                return False
+        elif not item:
+            return False
+    return True
+
+
+class OmJobCardViewSet(OmBaseViewSet):
+    serializer_class = OmJobCardSerializer
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    filterset_fields = ['plant', 'project', 'ticket', 'task', 'visit', 'status', 'assigned_technician']
+    search_fields = [
+        'work_description', 'diagnosis', 'plant__plant_name', 'plant__customer_name',
+        'project__project_name',
+    ]
+    field_work_actions = ('list', 'retrieve', 'start_work', 'complete_work')
+    permission_action_map = {
+        'assign': 'can_edit', 'start_work': 'can_edit', 'complete_work': 'can_edit',
+        'confirm_customer': 'can_edit', 'close': 'can_edit', 'transition': 'can_edit',
+    }
+
+    def get_queryset(self):
+        qs = OmJobCard.objects.select_related(
+            'plant', 'project', 'ticket', 'task', 'visit', 'assigned_technician', 'created_by',
+        ).prefetch_related('activities')
+        qs = self._scope(qs)
+        if self._field_only():
+            qs = qs.filter(assigned_technician=self.request.user)
+        return qs
+
+    def perform_create(self, serializer):
+        jc = serializer.save(created_by=self.request.user, updated_by=self.request.user)
+        OmJobCardActivity.objects.create(
+            job_card=jc, from_status='', to_status=jc.status,
+            note='Job card created', changed_by=self.request.user,
+        )
+
+    def perform_update(self, serializer):
+        if serializer.instance.status == 'Closed' and not has_full_om_access(self.request.user):
+            raise ValidationError({'status': 'Closed job cards cannot be edited by field staff.'})
+        serializer.save(updated_by=self.request.user)
+
+    def _transition(self, jc, new_status, note=''):
+        if not jc.can_transition_to(new_status):
+            raise ValidationError({
+                'status': f'Cannot move from {jc.status} to {new_status}.',
+            })
+        old = jc.status
+        jc.status = new_status
+        now = timezone.now()
+        updates = ['status', 'updated_at', 'updated_by']
+        jc.updated_by = self.request.user
+        if new_status == 'In Progress' and not jc.started_at:
+            jc.started_at = now
+            updates.append('started_at')
+        if new_status == 'Work Completed':
+            jc.completed_at = now
+            updates.append('completed_at')
+        if new_status == 'Closed':
+            jc.closed_at = now
+            updates.append('closed_at')
+        jc.save(update_fields=updates)
+        OmJobCardActivity.objects.create(
+            job_card=jc, from_status=old, to_status=new_status,
+            note=note or f'Status → {new_status}', changed_by=self.request.user,
+        )
+        return Response(self.get_serializer(jc).data)
+
+    @action(detail=True, methods=['post'])
+    def assign(self, request, pk=None):
+        jc = self.get_object()
+        tech = request.data.get('assigned_technician')
+        if not tech:
+            raise ValidationError({'assigned_technician': 'Required.'})
+        jc.assigned_technician_id = tech
+        jc.updated_by = request.user
+        jc.save(update_fields=['assigned_technician', 'updated_by', 'updated_at'])
+        if jc.status == 'Draft':
+            return self._transition(jc, 'Assigned', note=f'Assigned technician #{tech}')
+        OmJobCardActivity.objects.create(
+            job_card=jc, from_status=jc.status, to_status=jc.status,
+            note=f'Reassigned technician #{tech}', changed_by=request.user,
+        )
+        return Response(self.get_serializer(jc).data)
+
+    @action(detail=True, methods=['post'], url_path='start-work')
+    def start_work(self, request, pk=None):
+        return self._transition(self.get_object(), 'In Progress', note='Work started')
+
+    @action(detail=True, methods=['post'], url_path='complete-work')
+    def complete_work(self, request, pk=None):
+        jc = self.get_object()
+        if not _checklist_complete(jc.checklist):
+            raise ValidationError({'checklist': 'Complete mandatory checklist before marking Work Completed.'})
+        if not (jc.work_performed or '').strip():
+            raise ValidationError({'work_performed': 'Work performed is required.'})
+        return self._transition(jc, 'Work Completed', note='Work completed')
+
+    @action(detail=True, methods=['post'], url_path='confirm-customer')
+    def confirm_customer(self, request, pk=None):
+        return self._transition(self.get_object(), 'Customer Confirmation', note='Customer confirmation')
+
+    @action(detail=True, methods=['post'])
+    def close(self, request, pk=None):
+        return self._transition(self.get_object(), 'Closed', note='Job card closed')
+
+    @action(detail=True, methods=['post'])
+    def transition(self, request, pk=None):
+        new_status = request.data.get('status')
+        if not new_status:
+            raise ValidationError({'status': 'Required.'})
+        return self._transition(self.get_object(), new_status, note=request.data.get('note', ''))
+
+
+class OmMaterialRequestViewSet(OmBaseViewSet):
+    serializer_class = OmMaterialRequestSerializer
+    filterset_fields = ['job_card', 'project', 'ticket', 'status', 'inventory_item']
+    search_fields = ['issue_reference', 'remarks', 'inventory_item__name']
+    permission_action_map = {
+        'submit': 'can_edit', 'approve': 'can_edit', 'link_issue': 'can_edit', 'reject': 'can_edit',
+    }
+
+    def get_queryset(self):
+        return self._scope(
+            OmMaterialRequest.objects.select_related(
+                'job_card', 'project', 'ticket', 'inventory_item', 'created_by', 'stock_movement',
+            )
+        )
+
+    @action(detail=True, methods=['post'])
+    def submit(self, request, pk=None):
+        mr = self.get_object()
+        if mr.status not in ('Draft',):
+            raise ValidationError({'status': 'Only Draft requests can be submitted.'})
+        mr.status = 'Submitted'
+        mr.save(update_fields=['status', 'updated_at'])
+        if mr.job_card_id and mr.job_card.status == 'In Progress':
+            ticket = mr.ticket or mr.job_card.ticket
+            if ticket and ticket.status in OmBreakdownTicket.OPEN_STATUSES:
+                ticket.status = 'In Progress'
+                ticket.save(update_fields=['status', 'updated_at'])
+        return Response(self.get_serializer(mr).data)
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        mr = self.get_object()
+        if mr.status != 'Submitted':
+            raise ValidationError({'status': 'Only Submitted requests can be approved.'})
+        qty = request.data.get('quantity_approved', mr.quantity_requested)
+        mr.quantity_approved = qty
+        mr.status = 'Approved'
+        mr.save(update_fields=['quantity_approved', 'status', 'updated_at'])
+        return Response(self.get_serializer(mr).data)
+
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        mr = self.get_object()
+        mr.status = 'Rejected'
+        mr.remarks = (mr.remarks + '\n' + (request.data.get('reason') or '')).strip()
+        mr.save(update_fields=['status', 'remarks', 'updated_at'])
+        return Response(self.get_serializer(mr).data)
+
+    @action(detail=True, methods=['post'], url_path='link-issue')
+    def link_issue(self, request, pk=None):
+        """Attach an existing Inventory StockMovement (Outward) — O&M never writes stock itself."""
+        from apps.inventory.models import StockMovement
+        mr = self.get_object()
+        if mr.status not in ('Approved', 'Partially Issued', 'Issued'):
+            raise ValidationError({'status': 'Approve the material request before linking an issue.'})
+        movement_id = request.data.get('stock_movement')
+        movement = StockMovement.objects.filter(pk=movement_id, movement_type='Outward').first()
+        if not movement:
+            raise ValidationError({'stock_movement': 'Provide a valid Outward StockMovement id.'})
+        if movement.item_id != mr.inventory_item_id:
+            raise ValidationError({'stock_movement': 'Movement item must match the requested inventory item.'})
+        if OmMaterialRequest.objects.filter(stock_movement_id=movement.id).exclude(pk=mr.pk).exists():
+            raise ValidationError({'stock_movement': 'This stock movement is already linked to another O&M request.'})
+        qty = Decimal(str(request.data.get('quantity_issued') or movement.quantity))
+        mr.stock_movement = movement
+        mr.quantity_issued = qty
+        mr.issue_reference = movement.reference_no or movement.reference or f'SM-{movement.id}'
+        mr.issued_at = timezone.now()
+        mr.issued_by = request.user
+        mr.status = 'Issued' if qty >= (mr.quantity_approved or mr.quantity_requested) else 'Partially Issued'
+        mr.save()
+        return Response(self.get_serializer(mr).data)
+
+
+class OmMaintenancePlanViewSet(OmBaseViewSet):
+    serializer_class = OmMaintenancePlanSerializer
+    filterset_fields = ['plant', 'project', 'amc_contract', 'frequency', 'status']
+    search_fields = ['maintenance_type', 'plant__plant_name', 'project__project_name']
+    permission_action_map = {'generate_tasks': 'can_edit'}
+
+    def get_queryset(self):
+        return self._scope(
+            OmMaintenancePlan.objects.select_related(
+                'plant', 'project', 'amc_contract', 'assigned_technician', 'created_by',
+            )
+        )
+
+    @action(detail=True, methods=['post'], url_path='generate-tasks')
+    def generate_tasks(self, request, pk=None):
+        """Create next OmMaintenanceTask from plan; skip duplicates for same due date."""
+        plan = self.get_object()
+        if plan.status != 'Active':
+            raise ValidationError({'status': 'Plan must be Active.'})
+        if plan.requires_active_amc and not plan.amc_contract_id:
+            raise ValidationError({'amc_contract': 'Active AMC required for this plan.'})
+        due = plan.next_due_date or plan.start_date
+        if not due:
+            raise ValidationError({'next_due_date': 'Set next due date first.'})
+        exists = OmMaintenanceTask.objects.filter(
+            plant=plan.plant, project=plan.project, due_date=due, source='Manual',
+            title__icontains=plan.maintenance_type or plan.frequency,
+        ).exclude(status='Cancelled').exists()
+        if exists:
+            raise ValidationError({'due_date': 'A task for this due date already exists.'})
+        task = OmMaintenanceTask.objects.create(
+            title=f'{plan.maintenance_type or "PM"} — {plan.frequency}',
+            plant=plan.plant,
+            project=plan.project,
+            source='Manual',
+            task_type='Preventive',
+            assigned_engineer=plan.assigned_technician,
+            due_date=due,
+            status='Scheduled',
+            checklist=plan.checklist or [],
+            created_by=request.user,
+        )
+        # Advance next due
+        from datetime import timedelta as td
+        months = {'Monthly': 30, 'Quarterly': 90, 'Half-Yearly': 182, 'Yearly': 365}.get(plan.frequency)
+        days = plan.custom_interval_days or months or 90
+        plan.next_due_date = due + td(days=days)
+        plan.save(update_fields=['next_due_date', 'updated_at'])
+        return Response({
+            'task_id': task.id,
+            'next_due_date': plan.next_due_date,
+            'message': 'Maintenance task generated.',
+        }, status=status.HTTP_201_CREATED)
+
+
+class OmEquipmentReplacementViewSet(OmBaseViewSet):
+    serializer_class = OmEquipmentReplacementSerializer
+    filterset_fields = ['plant', 'project', 'asset', 'job_card', 'status']
+    search_fields = ['old_serial', 'new_serial', 'reason']
+
+    def get_queryset(self):
+        return self._scope(
+            OmEquipmentReplacement.objects.select_related('plant', 'project', 'asset', 'job_card', 'created_by')
+        )
+
+
+class OmGenerationLogViewSet(OmBaseViewSet):
+    serializer_class = OmGenerationLogSerializer
+    filterset_fields = ['plant', 'project', 'generation_date', 'source']
+    search_fields = ['plant__plant_name', 'notes', 'inverter_status']
+    ordering = ['-generation_date']
+
+    def get_queryset(self):
+        return self._scope(
+            OmGenerationLog.objects.select_related('plant', 'project', 'created_by')
+        )
+
+
+class OmCustomerFeedbackViewSet(OmBaseViewSet):
+    serializer_class = OmCustomerFeedbackSerializer
+    filterset_fields = ['plant', 'project', 'job_card', 'visit']
+    search_fields = ['remarks', 'plant__plant_name']
+
+    def get_queryset(self):
+        return self._scope(
+            OmCustomerFeedback.objects.select_related('plant', 'project', 'job_card', 'visit', 'created_by')
+        )
+
+
+class OmSettingsViewSet(viewsets.ModelViewSet):
+    serializer_class = OmSettingsSerializer
+    permission_classes = [HasModulePermission]
+    permission_module = 'O&M'
+    lookup_field = 'key'
+    queryset = OmSettings.objects.all()
+
+    def perform_create(self, serializer):
+        serializer.save(updated_by=self.request.user)
+
+    def perform_update(self, serializer):
+        serializer.save(updated_by=self.request.user)

@@ -4,6 +4,9 @@ from .views import (
     OmAssetViewSet, OmMaintenanceTaskViewSet, OmBreakdownTicketViewSet,
     OmSiteVisitViewSet, OmSparePartViewSet, OmReportViewSet, OmDocumentViewSet,
     OmPlantViewSet, OmVisitPartViewSet, OmInsuranceViewSet, OmDashboardView, OmEngineersView,
+    OmJobCardViewSet, OmMaterialRequestViewSet, OmMaintenancePlanViewSet,
+    OmEquipmentReplacementViewSet, OmGenerationLogViewSet,
+    OmCustomerFeedbackViewSet, OmSettingsViewSet,
 )
 from .pending_views import PendingFlowViewSet
 
@@ -19,6 +22,13 @@ router.register('insurance', OmInsuranceViewSet, basename='om-insurance')
 router.register('spare-parts', OmSparePartViewSet, basename='om-part')
 router.register('reports', OmReportViewSet, basename='om-report')
 router.register('documents', OmDocumentViewSet, basename='om-document')
+router.register('job-cards', OmJobCardViewSet, basename='om-job-card')
+router.register('material-requests', OmMaterialRequestViewSet, basename='om-material-request')
+router.register('maintenance-plans', OmMaintenancePlanViewSet, basename='om-maintenance-plan')
+router.register('replacements', OmEquipmentReplacementViewSet, basename='om-replacement')
+router.register('generation-logs', OmGenerationLogViewSet, basename='om-generation-log')
+router.register('feedback', OmCustomerFeedbackViewSet, basename='om-feedback')
+router.register('settings', OmSettingsViewSet, basename='om-settings')
 
 urlpatterns = [
     path('dashboard/', OmDashboardView.as_view(), name='om-dashboard'),

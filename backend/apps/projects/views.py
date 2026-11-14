@@ -253,6 +253,12 @@ class ProjectViewSet(viewsets.ModelViewSet):
         serializer = SiteSurveySerializer(survey, data=data, partial=True, context={'request': request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        # Lead List reads Lead.site_survey — keep it aligned with Project SiteSurvey status.
+        try:
+            from apps.projects.survey_lead_sync import sync_lead_site_survey_from_project_survey
+            sync_lead_site_survey_from_project_survey(survey)
+        except Exception:
+            pass
         return Response(serializer.data)
 
 

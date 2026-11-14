@@ -365,8 +365,8 @@ class LeadListSerializer(serializers.ModelSerializer):
         return obj.created_at.strftime('%d %b %Y') if obj.created_at else '—'
 
     def get_survey_status(self, obj):
-        survey = getattr(obj, 'site_survey', None)
-        return survey.status if survey else 'Pending'
+        from apps.projects.survey_lead_sync import resolve_lead_survey_status
+        return resolve_lead_survey_status(obj)
 
 
 class LeadDetailSerializer(serializers.ModelSerializer):

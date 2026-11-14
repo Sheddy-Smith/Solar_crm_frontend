@@ -31,15 +31,54 @@ class AmcBaseViewSet(viewsets.ModelViewSet):
 
 class AmcContractViewSet(AmcBaseViewSet):
     serializer_class = AmcContractSerializer
-    filterset_fields = ['project', 'status', 'contract_type']
+    filterset_fields = ['project', 'customer', 'status', 'contract_type']
     search_fields = ['customer_name', 'site', 'project__project_name']
+    permission_action_map = {'create_renewal': 'can_edit'}
 
     def get_queryset(self):
-        return AmcContract.objects.select_related('project', 'created_by').all()
+        return AmcContract.objects.select_related('project', 'customer', 'renewed_from', 'created_by').all()
 
     @action(detail=False, methods=['get'])
     def summary(self, request):
         return Response(amc_dashboard_summary())
+
+    @action(detail=True, methods=['post'], url_path='create-renewal')
+    def create_renewal(self, request, pk=None):
+        """Create a new AMC linked via renewed_from — never overwrite the previous contract."""
+        from datetime import timedelta
+        old = self.get_object()
+        start = request.data.get('start_date') or (old.end_date + timedelta(days=1) if old.end_date else None)
+        end = request.data.get('end_date')
+        if not start or not end:
+            return Response(
+                {'detail': 'start_date and end_date are required for renewal.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        with transaction.atomic():
+            new_contract = AmcContract.objects.create(
+                project=old.project,
+                customer=old.customer,
+                customer_name=old.customer_name,
+                site=old.site,
+                contract_type=request.data.get('contract_type') or old.contract_type,
+                start_date=start,
+                end_date=end,
+                annual_value=request.data.get('annual_value', old.annual_value),
+                gst_amount=request.data.get('gst_amount', old.gst_amount),
+                visits_included=request.data.get('visits_included', old.visits_included),
+                service_frequency=request.data.get('service_frequency') or old.service_frequency,
+                included_services=old.included_services,
+                excluded_services=old.excluded_services,
+                payment_terms=old.payment_terms,
+                renewal_type=request.data.get('renewal_type') or old.renewal_type or 'Standard',
+                renewed_from=old,
+                status='Active',
+                remarks=request.data.get('remarks') or f'Renewed from AMC-{old.id:04d}',
+                created_by=request.user,
+            )
+            old.status = 'Renewed'
+            old.save(update_fields=['status', 'updated_at'])
+        return Response(self.get_serializer(new_contract).data, status=status.HTTP_201_CREATED)
 
 
 class AmcWarrantyViewSet(AmcBaseViewSet):

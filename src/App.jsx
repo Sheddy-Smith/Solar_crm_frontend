@@ -75,7 +75,8 @@ import { ProjectJobSheetPage as OpsJobSheetPage } from './projectJobSheetPage.js
 import { MaterialPlanningPoPage } from './materialPlanningPoPage.jsx';
 import { BomMasterPage } from './bomMasterPage.jsx';
 import { OmPendingFlowPage, OM_PENDING_SECTIONS, OM_PENDING_STEPS } from './omPendingPages.jsx';
-import { OmModulePage, OM_LEGACY_SECTIONS, OM_MODULE_SECTIONS, OM_SECTION_ROUTES } from './omPlantPages.jsx';
+import { OM_LEGACY_SECTIONS, OM_MODULE_SECTIONS, OM_SECTION_ROUTES } from './omPlantPages.jsx';
+import { OmHubPage } from './omHubPages.jsx';
 import {
   SETTINGS_PILLARS,
   SettingsArchitectureTabs,
@@ -742,9 +743,9 @@ const PM_PIPELINE = {
 const liaisonLegacyPages = ['Applications', 'Approvals', 'Inspections', 'Compliance'];
 const liaisonActionPages = ['Liaison Application Create', 'Liaison Application Details', 'Liaison Approval Details', 'Liaison Inspection Create', 'Liaison Inspection Details', 'Liaison Commissioning Create', 'Liaison Commissioning Details', 'Liaison Compliance Create', 'Liaison Compliance Details', 'Liaison Document Upload', 'Liaison Document Preview', 'Liaison Reports'];
 const liaisonRelatedPages = [...liaisonActionPages, ...liaisonSubItems, ...liaisonLegacyPages];
-const omSubItems = [...OM_MODULE_SECTIONS, 'Asset Management', 'Spare Parts', 'O&M Reports'];
+const omSubItems = [...OM_MODULE_SECTIONS];
 const omRelatedPages = ['O&M', 'Energy Performance', ...Object.keys(OM_LEGACY_SECTIONS), ...omSubItems];
-const OM_FIELD_WORK_SECTION = 'My Tasks';
+const OM_FIELD_WORK_SECTION = 'Service Requests';
 const OM_FOCUS_KEYS = ['plant', 'ticket', 'task', 'policy', 'filter', 'alert'];
 
 function omFocusFromSearch(search) {
@@ -13190,23 +13191,10 @@ function LiaisonApprovalSubmittedBy({ user }) {
 // ── O&M (simplified popup-based work management module) ───────────────────────
 
 function OmPage({ activeSection, onOpenSection, onNotify, loggedInUser, focus, onFocusConsumed, onNavigate }) {
-  if (activeSection === 'Asset Management') {
-    return <OmAssetManagementPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
-  }
-  if (activeSection === 'Spare Parts') {
-    return <OmSparePartsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
-  }
-  if (activeSection === 'O&M Reports') {
-    return <OmReportsPage activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
-  }
-  if (activeSection === 'Energy Performance') {
-    // Energy performance fields (generated/consumed kWh, PR, specific yield) live on
-    // the Asset record itself (BUG-010) — Asset Management is where they're editable.
-    return <OmAssetManagementPage activeSection="Asset Management" onOpenSection={onOpenSection} onNotify={onNotify} />;
-  }
+  const section = OM_LEGACY_SECTIONS[activeSection] || activeSection;
   return (
-    <OmModulePage
-      activeSection={activeSection === 'O&M' ? 'O&M Dashboard' : activeSection}
+    <OmHubPage
+      activeSection={section === 'O&M' ? 'O&M Dashboard' : section}
       onOpenSection={onOpenSection}
       onNotify={onNotify}
       loggedInUser={loggedInUser}
@@ -17808,7 +17796,7 @@ function SurveyMultiPhotoGroup({ title, slots, visibleCount, onAdd, getPhoto, up
   );
 }
 
-function SiteSurveyFullForm({ projectId, onClose, onNotify, readOnly = false, footer = null }) {
+function SiteSurveyFullForm({ projectId, onClose, onNotify, readOnly = false, footer = null, onStatusSaved = null }) {
   const [loading, setLoading] = useState(true);
   const [survey, setSurvey] = useState(null);
   const [form, setForm] = useState(SURVEY_EMPTY_FORM);
@@ -18092,6 +18080,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify, readOnly = false, fo
       setSurvey((prev) => ({ ...prev, ...saved }));
       setForm((f) => ({ ...f, status: saved.status }));
       setDirty(false);
+      onStatusSaved?.(saved);
       return saved;
     } catch (err) {
       onNotify?.(err?.message || 'Failed to save survey', 'error');
@@ -18099,7 +18088,7 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify, readOnly = false, fo
     } finally {
       setSaving(false);
     }
-  }, [projectId, onNotify, readOnly]);
+  }, [projectId, onNotify, readOnly, onStatusSaved]);
 
   // Auto-save draft every 30s while editing — never in read-only View modal.
   useEffect(() => {
@@ -33565,6 +33554,7 @@ function LeadSiteSurveyModal({ leadId, customerName, onClose, onSaved, onNotify 
             projectId={projectId}
             onClose={() => { onSaved?.(); onClose(); }}
             onNotify={onNotify}
+            onStatusSaved={() => onSaved?.()}
           />
         )}
       </div>

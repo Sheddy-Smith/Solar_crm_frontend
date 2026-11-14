@@ -439,7 +439,10 @@ const amcCrud = (base) => ({
 });
 
 export const amcModuleApi = {
-  contracts: amcCrud('contracts'),
+  contracts: {
+    ...amcCrud('contracts'),
+    createRenewal: (id, data) => request(`/amc/contracts/${id}/create-renewal/`, { method: 'POST', body: data }),
+  },
   warranties: amcCrud('warranties'),
   serviceRequests: amcCrud('service-requests'),
   visits: amcCrud('visits'),
@@ -1013,6 +1016,42 @@ export const omInsuranceApi = omCrud('insurance');
 export const omVisitPartApi = omCrud('visit-parts');
 export const omDashboardApi = { get: () => request('/om/dashboard/') };
 export const omEngineerApi = { list: () => request('/om/engineers/') };
+export const omJobCardApi = {
+  ...omCrud('job-cards'),
+  assign: (id, assignedTechnician, extra = {}) =>
+    omPost(`job-cards/${id}/assign/`, { assigned_technician: assignedTechnician, ...extra }),
+  startWork: (id) => omPost(`job-cards/${id}/start-work/`),
+  completeWork: (id) => omPost(`job-cards/${id}/complete-work/`),
+  confirmCustomer: (id) => omPost(`job-cards/${id}/confirm-customer/`),
+  close: (id) => omPost(`job-cards/${id}/close/`),
+  transition: (id, status, note = '') => omPost(`job-cards/${id}/transition/`, { status, note }),
+};
+export const omMaterialRequestApi = {
+  ...omCrud('material-requests'),
+  submit: (id) => omPost(`material-requests/${id}/submit/`),
+  approve: (id, quantityApproved) => omPost(`material-requests/${id}/approve/`, { quantity_approved: quantityApproved }),
+  reject: (id, reason = '') => omPost(`material-requests/${id}/reject/`, { reason }),
+  linkIssue: (id, stockMovement, quantityIssued) =>
+    omPost(`material-requests/${id}/link-issue/`, { stock_movement: stockMovement, quantity_issued: quantityIssued }),
+};
+export const omMaintenancePlanApi = {
+  ...omCrud('maintenance-plans'),
+  generateTasks: (id) => omPost(`maintenance-plans/${id}/generate-tasks/`),
+};
+export const omReplacementApi = omCrud('replacements');
+export const omGenerationLogApi = omCrud('generation-logs');
+export const omFeedbackApi = omCrud('feedback');
+export const omSettingsApi = {
+  list: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
+    ).toString();
+    return request(`/om/settings/${qs ? '?' + qs : ''}`);
+  },
+  get: (key) => request(`/om/settings/${key}/`),
+  create: (data) => request('/om/settings/', { method: 'POST', body: data }),
+  update: (key, data) => request(`/om/settings/${key}/`, { method: 'PATCH', body: data }),
+};
 
 export const notificationApi = {
   list: (params = {}) => {

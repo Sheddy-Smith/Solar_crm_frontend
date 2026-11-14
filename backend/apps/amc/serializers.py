@@ -26,9 +26,11 @@ class AmcContractSerializer(serializers.ModelSerializer):
     class Meta:
         model = AmcContract
         fields = [
-            'id', 'record_no', 'project', 'project_name', 'customer_name', 'site',
-            'contract_type', 'start_date', 'end_date', 'annual_value', 'status',
-            'next_renewal_date', 'remarks', 'created_by', 'created_by_name',
+            'id', 'record_no', 'project', 'project_name', 'customer', 'customer_name', 'site',
+            'contract_type', 'start_date', 'end_date', 'annual_value', 'gst_amount',
+            'visits_included', 'service_frequency', 'included_services', 'excluded_services',
+            'payment_terms', 'renewal_type', 'renewed_from', 'accounts_invoice_ref',
+            'status', 'next_renewal_date', 'remarks', 'created_by', 'created_by_name',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['created_by', 'created_at', 'updated_at']

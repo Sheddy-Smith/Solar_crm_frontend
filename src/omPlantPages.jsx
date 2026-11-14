@@ -18,23 +18,29 @@ import {
   VisitDetailModal, omCaps,
 } from './omServicePages.jsx';
 
-export const OM_SECTION_ROUTES = {
-  'O&M Dashboard': '/om/dashboard',
-  Plants: '/om/plants',
-  'Quarterly Services': '/om/quarterly-services',
-  'Complaint Tickets': '/om/complaint-tickets',
-  'Service Tasks': '/om/tasks',
-  'Service Visits': '/om/service-visits',
-  Insurance: '/om/insurance',
-  'My Tasks': '/om/my-tasks',
-};
-export const OM_MODULE_SECTIONS = Object.keys(OM_SECTION_ROUTES);
-/** Old O&M sub-pages → their replacements, so bookmarks keep working. */
+// New O&M hub sidebar (master prompt §3). Re-exported from hub for App.jsx compat.
+export { OM_HUB_ROUTES as OM_SECTION_ROUTES, OM_HUB_SECTIONS as OM_MODULE_SECTIONS } from './omHubPages.jsx';
+
+/** Old O&M / AMC labels → new hub sections. */
 export const OM_LEGACY_SECTIONS = {
   'O&M Overview': 'O&M Dashboard',
-  'Maintenance Tasks': 'Service Tasks',
-  'Breakdown Tickets': 'Complaint Tickets',
-  'Site Visits': 'Service Visits',
+  Plants: 'O&M Dashboard',
+  'Quarterly Services': 'Preventive Maintenance',
+  'Complaint Tickets': 'Complaint Management',
+  'Service Tasks': 'Preventive Maintenance',
+  'Service Visits': 'Site Visits',
+  Insurance: 'Warranty Management',
+  'My Tasks': 'Service Requests',
+  'Maintenance Tasks': 'Preventive Maintenance',
+  'Breakdown Tickets': 'Complaint Management',
+  'Site Visits': 'Site Visits',
+  'Asset Management': 'Equipment & Replacement',
+  'Spare Parts': 'Service Inventory',
+  'O&M Reports': 'Service Reports',
+  Reports: 'Service Reports',
+  'AMC Overview': 'AMC Management',
+  'AMC Contracts': 'AMC Management',
+  Warranties: 'Warranty Management',
 };
 
 const OM_STATUSES = ['Free Service Active', 'Free Service Expiring Soon', 'Free Service Expired', 'Paid O&M', 'AMC Active', 'AMC Expired'];

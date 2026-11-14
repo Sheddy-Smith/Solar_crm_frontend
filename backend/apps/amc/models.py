@@ -9,21 +9,39 @@ class AmcContract(models.Model):
     TYPE_CHOICES = [
         ('Comprehensive', 'Comprehensive'),
         ('Non-Comprehensive', 'Non-Comprehensive'),
+        ('Preventive Maintenance', 'Preventive Maintenance'),
+        ('Custom', 'Custom'),
     ]
     STATUS_CHOICES = [
+        ('Draft', 'Draft'),
         ('Active', 'Active'),
         ('Expiring Soon', 'Expiring Soon'),
         ('Expired', 'Expired'),
+        ('Renewed', 'Renewed'),
         ('Cancelled', 'Cancelled'),
     ]
 
     project = models.ForeignKey(Project, on_delete=models.SET_NULL, null=True, blank=True, related_name='amc_contracts')
+    customer = models.ForeignKey(
+        'accounts_module.Account', on_delete=models.SET_NULL, null=True, blank=True, related_name='amc_contracts',
+    )
     customer_name = models.CharField(max_length=200)
     site = models.CharField(max_length=255, blank=True)
     contract_type = models.CharField(max_length=30, choices=TYPE_CHOICES, default='Comprehensive')
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
     annual_value = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    gst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    visits_included = models.PositiveIntegerField(null=True, blank=True)
+    service_frequency = models.CharField(max_length=50, blank=True)
+    included_services = models.TextField(blank=True)
+    excluded_services = models.TextField(blank=True)
+    payment_terms = models.CharField(max_length=255, blank=True)
+    renewal_type = models.CharField(max_length=50, blank=True)
+    renewed_from = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True, related_name='renewals_as_source',
+    )
+    accounts_invoice_ref = models.CharField(max_length=100, blank=True, help_text='External Accounts invoice id/ref — no duplicate payments in AMC')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Active')
     next_renewal_date = models.DateField(null=True, blank=True)
     remarks = models.TextField(blank=True)
