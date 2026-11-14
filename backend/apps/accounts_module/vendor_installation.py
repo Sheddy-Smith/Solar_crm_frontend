@@ -434,6 +434,32 @@ def approve_stage(stage: VendorInstallationStage, user=None, remarks='') -> Vend
 
 
 @transaction.atomic
+def reopen_stage(stage: VendorInstallationStage, user=None, remarks='') -> VendorInstallationStage:
+    """Remove approval from a stage and recalculate earned / payable amounts."""
+    if stage.status != VendorInstallationStage.STATUS_APPROVED:
+        return stage
+    note = remarks or 'Reopened / approval removed'
+    stage.status = VendorInstallationStage.STATUS_IN_PROGRESS
+    stage.approved_by = None
+    stage.approval_date = None
+    stage.completion_date = None
+    stage.work_remarks = (stage.work_remarks + '\n' if stage.work_remarks else '') + note
+    stage.save()
+    recalculate_assignment_amounts(stage.assignment)
+    return stage
+
+
+@transaction.atomic
+def approve_all_stages(assignment: VendorInstallationAssignment, user=None) -> VendorInstallationAssignment:
+    """Approve every pending stage and mark assignment overall complete when 100%."""
+    for stage in assignment.stages.exclude(status=VendorInstallationStage.STATUS_APPROVED):
+        approve_stage(stage, user=user, remarks='Bulk approve / mark overall complete')
+    assignment.refresh_from_db()
+    recalculate_assignment_amounts(assignment)
+    return assignment
+
+
+@transaction.atomic
 def record_installation_payment(
     *,
     assignment: VendorInstallationAssignment,
@@ -508,6 +534,9 @@ def record_installation_payment(
 
 
 def vendor_installation_summary(vendor: Account) -> dict:
+    # Keep Vendor Details / party.balance aligned with Contract − Payments.
+    recalculate_party_balance(vendor.id)
+    vendor.refresh_from_db(fields=['balance', 'opening_balance'])
     qs = VendorInstallationAssignment.objects.filter(vendor=vendor, is_cancelled=False)
     contract = _d(qs.aggregate(t=Sum('contract_amount'))['t'])
     earned = _d(qs.aggregate(t=Sum('earned_amount'))['t'])
@@ -516,6 +545,7 @@ def vendor_installation_summary(vendor: Account) -> dict:
     advance = _d(
         VendorInstallationPayment.objects.filter(vendor=vendor, is_advance=True).aggregate(t=Sum('amount'))['t']
     )
+    remaining = max(earned - paid, Decimal('0'))
     return {
         'previous_balance': float(_d(vendor.opening_balance)),
         'total_projects_assigned': qs.count(),
@@ -525,7 +555,8 @@ def vendor_installation_summary(vendor: Account) -> dict:
         'total_earned_amount': float(earned),
         'total_advance_paid': float(advance),
         'total_payments_made': float(paid),
-        'remaining_earned_payable': float(max(earned - paid, Decimal('0'))),
+        'remaining_earned_payable': float(remaining),
+        'net_balance': float(remaining),
         'pending_work_amount': float(max(contract - earned, Decimal('0'))),
         'party_balance': float(_d(vendor.balance)),
     }

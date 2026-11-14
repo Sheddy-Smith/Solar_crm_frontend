@@ -333,12 +333,27 @@ def recalculate_party_balance(party_id):
         party_id=party_id,
     ).aggregate(total=Sum('debit'))['total'] or Decimal('0')
 
-    # Vendor payable rises with completed vouchers / manual credit work, falls with payments / manual debit.
-    party.balance = (
-        party.opening_balance - received + made + receivable - payable
-        + manual_sale - manual_credit
-        + vendor_vouchers + vendor_manual_credit - vendor_manual_debit
-    )
+    # Vendor payable = work credit − payments (must match vendor_totals / ledger net).
+    # Bug: shared customer formula used `+ made`, so paying a vendor *increased*
+    # Vendor Details Net Balance (e.g. contract ₹5700 + payment ₹1000 = ₹6700).
+    # Correct: Contract ₹5700 − Payment ₹1000 = ₹4700 Payable.
+    if getattr(party, 'account_type', None) == 'Vendor':
+        opening = party.opening_balance or Decimal('0')
+        credit = vendor_vouchers + vendor_manual_credit + received
+        debit = made + vendor_manual_debit
+        if opening > 0:
+            credit += opening
+        elif opening < 0:
+            debit += abs(opening)
+        # Outstanding purchase docs still increase what we owe the vendor/supplier.
+        party.balance = credit - debit + payable
+    else:
+        # Customer / other parties — receivable rises with sales, falls with receipts.
+        party.balance = (
+            party.opening_balance - received + made + receivable - payable
+            + manual_sale - manual_credit
+            + vendor_vouchers + vendor_manual_credit - vendor_manual_debit
+        )
     party.save(update_fields=['balance', 'updated_at'])
 
 

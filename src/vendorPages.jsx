@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Download, Eye, FileText, Layers, Pencil, Phone, Plus, Receipt, Save, Search, Trash2, Wallet, X,
+  CheckCircle2, Download, Eye, FileText, Layers, Pencil, Phone, Plus, Receipt, RotateCcw, Save, Search, Trash2, Wallet, X,
 } from 'lucide-react';
 import { accountsModuleApi, projectApi } from './api.js';
 import { exportNotifyCsv, normalizeApiRows } from './lib/utils.js';
@@ -66,6 +66,20 @@ function weekRangeIso(d = new Date()) {
   const iso = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
   return { start: iso(start), end: iso(end) };
 }
+
+function lastMonthRangeIso(d = new Date()) {
+  const firstThis = new Date(d.getFullYear(), d.getMonth(), 1);
+  const lastPrev = new Date(firstThis.getTime() - 86400000);
+  return { start: monthStartIso(lastPrev), end: monthEndIso(lastPrev) };
+}
+
+const LEDGER_FILTERS = [
+  { key: 'all', label: 'All / Overall' },
+  { key: 'this_month', label: 'This Month' },
+  { key: 'last_month', label: 'Last Month' },
+  { key: 'this_week', label: 'This Week' },
+  { key: 'custom', label: 'Custom Date' },
+];
 
 function BalanceBadge({ balance }) {
   const n = Number(balance || 0);
@@ -418,8 +432,7 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
   const [vendors, setVendors] = useState([]);
   const [projects, setProjects] = useState([]);
   const [partyId, setPartyId] = useState('');
-  const [mode, setMode] = useState('monthly');
-  const [month, setMonth] = useState(todayIso().slice(0, 7));
+  const [mode, setMode] = useState('all');
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
   const [category, setCategory] = useState('');
@@ -450,12 +463,14 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
   }, [onNotify]);
 
   const range = useMemo(() => {
-    if (mode === 'weekly') return weekRangeIso();
+    if (mode === 'all') return { start: null, end: null };
+    if (mode === 'this_week') return weekRangeIso();
+    if (mode === 'last_month') return lastMonthRangeIso();
     if (mode === 'custom') return { start: start || null, end: end || null };
-    const [y, m] = month.split('-').map(Number);
-    const d = new Date(y, (m || 1) - 1, 1);
-    return { start: monthStartIso(d), end: monthEndIso(d) };
-  }, [mode, month, start, end]);
+    // this_month
+    const now = new Date();
+    return { start: monthStartIso(now), end: monthEndIso(now) };
+  }, [mode, start, end]);
 
   const loadLedger = useCallback(async () => {
     if (!partyId) {
@@ -663,6 +678,21 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
     }
   };
 
+  const openStageDetails = async (assignmentOrId) => {
+    const id = typeof assignmentOrId === 'object' ? assignmentOrId?.id : assignmentOrId;
+    if (!id) return;
+    if (typeof assignmentOrId === 'object' && assignmentOrId?.stages) {
+      setStageView(assignmentOrId);
+    }
+    try {
+      const fresh = await accountsModuleApi.vendorInstallations.get(id);
+      setStageView(fresh);
+    } catch (e) {
+      if (typeof assignmentOrId === 'object') setStageView(assignmentOrId);
+      else onNotify(e.message || 'Failed to open stage details', 'error');
+    }
+  };
+
   const approveStage = async (assignmentId, stageId) => {
     try {
       const updated = await accountsModuleApi.vendorInstallations.approveStage(assignmentId, { stage_id: stageId });
@@ -671,6 +701,29 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
       onNotify('Stage approved — earned amount updated', 'success');
     } catch (e) {
       onNotify(e.message || 'Approval failed', 'error');
+    }
+  };
+
+  const reopenStage = async (assignmentId, stageId) => {
+    try {
+      const updated = await accountsModuleApi.vendorInstallations.reopenStage(assignmentId, { stage_id: stageId });
+      setStageView(updated);
+      setReloadKey((k) => k + 1);
+      onNotify('Approval removed — earned amount recalculated', 'success');
+    } catch (e) {
+      onNotify(e.message || 'Reopen failed', 'error');
+    }
+  };
+
+  const approveAllStages = async (assignmentId) => {
+    if (!assignmentId) return;
+    try {
+      const updated = await accountsModuleApi.vendorInstallations.approveAllStages(assignmentId);
+      setStageView(updated);
+      setReloadKey((k) => k + 1);
+      onNotify('All stages approved — marked overall complete', 'success');
+    } catch (e) {
+      onNotify(e.message || 'Approve all failed', 'error');
     }
   };
 
@@ -694,35 +747,50 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
     </>
   );
 
+  const installNetPayable = Number(
+    installSummary?.remaining_earned_payable
+    ?? Math.max(0, Number(installSummary?.total_earned_amount || 0) - Number(installSummary?.total_payments_made || 0)),
+  );
   const installCards = [
     { label: 'Projects Assigned', value: installSummary?.total_projects_assigned ?? assignments.length, money: false },
-    { label: 'Capacity (kW)', value: installSummary?.total_capacity_kw ?? 0, money: false },
+    { label: 'Total Capacity', value: Number(installSummary?.total_capacity_kw ?? 0).toFixed(2), money: false, suffix: ' kW' },
     { label: 'Contract Amount', value: installSummary?.total_contract_amount ?? 0, money: true },
     { label: 'Earned Amount', value: installSummary?.total_earned_amount ?? 0, money: true, tone: 'green' },
     { label: 'Payments Made', value: installSummary?.total_payments_made ?? 0, money: true, tone: 'red' },
-    { label: 'Remaining Payable', value: installSummary?.remaining_earned_payable ?? 0, money: true, tone: 'purple' },
+    {
+      label: 'Net Balance',
+      value: installNetPayable,
+      money: true,
+      tone: 'purple',
+      hint: installNetPayable > 0 ? 'Payable' : Number(installSummary?.total_payments_made || 0) > Number(installSummary?.total_earned_amount || 0) ? 'Receivable' : 'Clear',
+    },
   ];
 
   const kpiCards = [
     { label: 'Net Previous Balance', value: prevBal, tone: 'bg-[#fffbeb] border-[#fde68a] text-[#b45309]', hint: prevBal > 0 ? 'Payable' : prevBal < 0 ? 'Receivable' : '' },
     { label: 'Total Credit (Work Done)', value: totalCredit, tone: 'bg-[#ecfdf5] border-[#a7f3d0] text-[#047857]' },
     { label: 'Total Debit (Payments)', value: totalDebit, tone: 'bg-[#fef2f2] border-[#fecaca] text-[#dc2626]' },
-    { label: 'Net Balance', value: netBal, tone: 'bg-[#f5f3ff] border-[#ddd6fe] text-[#6d28d9]', hint: netBal > 0 ? 'Payable' : netBal < 0 ? 'Receivable' : 'Clear' },
+    { label: 'Ledger Net Balance', value: netBal, tone: 'bg-[#f5f3ff] border-[#ddd6fe] text-[#6d28d9]', hint: netBal > 0 ? 'Payable' : netBal < 0 ? 'Receivable' : 'Clear' },
   ];
 
   return (
     <>
       <div className="grid gap-3 rounded-[14px] border border-[#e2e9f3] bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap gap-4 text-[12px] font-bold text-[#53647f]">
-          {[
-            ['weekly', 'Weekly View'],
-            ['monthly', 'Monthly View'],
-            ['custom', 'Custom Date Range'],
-          ].map(([key, label]) => (
-            <label key={key} className="inline-flex items-center gap-2">
-              <input type="radio" name="vendor-range" checked={mode === key} onChange={() => setMode(key)} className="accent-[#0b65e5]" />
-              {label}
-            </label>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[12px] font-extrabold uppercase tracking-wide text-[#7386a3]">Filter</span>
+          {LEDGER_FILTERS.map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              onClick={() => setMode(f.key)}
+              className={`inline-flex h-9 items-center rounded-[8px] px-3 text-[12px] font-extrabold transition ${
+                mode === f.key
+                  ? 'bg-[#0b65e5] text-white shadow-sm'
+                  : 'border border-[#d9e4f2] bg-white text-[#284276] hover:bg-[#f8fbff]'
+              }`}
+            >
+              {f.label}
+            </button>
           ))}
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -732,9 +800,6 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
               {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}{v.vendor_type ? ` (${v.vendor_type})` : ''}{v.phone ? ` · ${v.phone}` : ''}</option>)}
             </select>
           </Field>
-          {mode === 'monthly' ? (
-            <Field label="Select Month"><input type="month" className={inputClass} value={month} onChange={(e) => setMonth(e.target.value)} /></Field>
-          ) : null}
           {mode === 'custom' ? (
             <>
               <Field label="Start Date"><input type="date" className={inputClass} value={start} onChange={(e) => setStart(e.target.value)} /></Field>
@@ -787,10 +852,11 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {installCards.map((c) => (
-              <article key={c.label} className="rounded-[14px] border border-[#e2e9f3] bg-white p-4 shadow-sm">
+              <article key={c.label} className={`rounded-[14px] border p-4 shadow-sm ${c.tone === 'purple' ? 'border-[#ddd6fe] bg-[#f5f3ff]' : 'border-[#e2e9f3] bg-white'}`}>
                 <p className="text-[11px] font-bold text-[#64748b]">{c.label}</p>
                 <p className={`mt-2 text-[20px] font-extrabold ${c.tone === 'green' ? 'text-[#047857]' : c.tone === 'red' ? 'text-[#dc2626]' : c.tone === 'purple' ? 'text-[#6d28d9]' : 'text-[#1e3261]'}`}>
-                  {c.money ? fmtRs(c.value) : c.value}
+                  {c.money ? fmtRs(c.value) : `${c.value}${c.suffix || ''}`}
+                  {c.hint ? <span className="ml-1 text-[13px] font-bold">({c.hint})</span> : null}
                 </p>
               </article>
             ))}
@@ -834,7 +900,7 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
                         <td className="px-3 py-2.5"><TypeBadge value={a.status} /></td>
                         <td className="px-3 py-2.5">
                           <div className="flex gap-1">
-                            <button type="button" onClick={() => setStageView(a)} className="grid size-8 place-items-center rounded-[8px] text-[#7c3aed] hover:bg-[#f5f3ff]" title="Stages"><Eye className="size-4" /></button>
+                            <button type="button" onClick={() => openStageDetails(a)} className="grid size-8 place-items-center rounded-[8px] text-[#7c3aed] hover:bg-[#f5f3ff]" title="Stage Details"><Eye className="size-4" /></button>
                             <button type="button" onClick={() => openPay(a)} className="grid size-8 place-items-center rounded-[8px] text-[#0b65e5] hover:bg-[#eff6ff]" title="Pay"><Wallet className="size-4" /></button>
                           </div>
                         </td>
@@ -877,7 +943,10 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
                   totalDebit={totalDebit}
                   totalCredit={totalCredit}
                   finalBalance={netBal}
-                  onOpen={setDetail}
+                  onOpen={(e) => {
+                    if (e?.assignment_id) openStageDetails(e.assignment_id);
+                    else setDetail(e);
+                  }}
                   TypeBadge={TypeBadge}
                   fmtDate={fmtDisplayDate}
                   fmtMoney={fmtRs}
@@ -917,7 +986,17 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
                             <td className="px-3 py-2.5 font-extrabold text-[#16a34a]">{e.credit ? fmtRs(e.credit) : '—'}</td>
                             <td className="px-3 py-2.5">
                               <div className="flex gap-1">
-                                <button type="button" onClick={() => setDetail(e)} className="grid size-8 place-items-center rounded-[8px] text-[#7c3aed] hover:bg-[#f5f3ff]" title="View"><Eye className="size-4" /></button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (e.assignment_id) openStageDetails(e.assignment_id);
+                                    else setDetail(e);
+                                  }}
+                                  className="grid size-8 place-items-center rounded-[8px] text-[#7c3aed] hover:bg-[#f5f3ff]"
+                                  title={e.assignment_id ? 'Stage Details' : 'View'}
+                                >
+                                  <Eye className="size-4" />
+                                </button>
                                 {e.editable ? (
                                   <>
                                     <button type="button" onClick={() => openEditManual(e)} className="grid size-8 place-items-center rounded-[8px] text-[#0b65e5] hover:bg-[#eff6ff]" title="Edit"><Pencil className="size-4" /></button>
@@ -1076,21 +1155,34 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
           onClose={() => setStageView(null)}
           footer={<button type="button" onClick={() => setStageView(null)} className="h-10 rounded-[8px] border px-4 text-[13px] font-semibold">Close</button>}
         >
-          <div className="mb-4 flex flex-wrap items-center gap-6">
-            <ProgressRing percent={stageView.approved_percent} size={96} stroke={9} label="Completed" />
-            <div className="grid gap-1 text-[13px]">
-              <p><span className="font-bold text-[#64748b]">Contract:</span> <span className="font-extrabold">{fmtRs(stageView.contract_amount)}</span></p>
-              <p><span className="font-bold text-[#64748b]">Earned:</span> <span className="font-extrabold text-[#047857]">{fmtRs(stageView.earned_amount)}</span></p>
-              <p><span className="font-bold text-[#64748b]">Paid:</span> <span className="font-extrabold text-[#dc2626]">{fmtRs(stageView.total_paid)}</span></p>
-              <p><span className="font-bold text-[#64748b]">Remaining Payable:</span> <span className="font-extrabold text-[#6d28d9]">{fmtRs(stageView.remaining_earned_payable)}</span></p>
-              <p className="text-[12px] font-semibold text-[#7386a3]">{stageView.completed_stages}/{stageView.total_stages} stages approved · {stageView.pending_percent}% remaining</p>
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-6">
+              <ProgressRing percent={stageView.approved_percent} size={96} stroke={9} label="Completed" />
+              <div className="grid gap-1 text-[13px]">
+                <p><span className="font-bold text-[#64748b]">Contract:</span> <span className="font-extrabold">{fmtRs(stageView.contract_amount)}</span></p>
+                <p><span className="font-bold text-[#64748b]">Earned:</span> <span className="font-extrabold text-[#047857]">{fmtRs(stageView.earned_amount)}</span></p>
+                <p><span className="font-bold text-[#64748b]">Paid:</span> <span className="font-extrabold text-[#dc2626]">{fmtRs(stageView.total_paid)}</span></p>
+                <p><span className="font-bold text-[#64748b]">Remaining Payable:</span> <span className="font-extrabold text-[#6d28d9]">{fmtRs(stageView.remaining_earned_payable)}</span></p>
+                <p className="text-[12px] font-semibold text-[#7386a3]">
+                  {stageView.completed_stages}/{stageView.total_stages} stages approved · {Number(stageView.approved_percent || 0)}% completed
+                </p>
+              </div>
             </div>
+            <button
+              type="button"
+              disabled={Number(stageView.approved_percent || 0) >= 100}
+              onClick={() => approveAllStages(stageView.id)}
+              className="inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#0b8f43] px-4 text-[13px] font-extrabold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <CheckCircle2 className="size-4" />
+              Approve All / Mark Overall Complete
+            </button>
           </div>
           <div className="overflow-hidden rounded-[12px] border border-[#e7eef7]">
             <table className="min-w-full text-left text-[13px]">
               <thead className="bg-[#f8fbff] text-[11px] font-extrabold uppercase tracking-wide text-[#64748b]">
                 <tr>
-                  {['#', 'Installation Work Stage', 'Percentage', 'Progress', 'Status', 'Action'].map((h) => (
+                  {['#', 'Installation Stage', 'Percentage', 'Progress', 'Status', 'Action'].map((h) => (
                     <th key={h} className="px-3 py-2.5">{h}</th>
                   ))}
                 </tr>
@@ -1122,10 +1214,17 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
                           <span className="w-8 text-right text-[11px] font-bold text-[#64748b]">{approved ? 100 : 0}%</span>
                         </div>
                       </td>
-                      <td className="px-3 py-2.5 text-[12px] font-extrabold text-[#64748b]">{s.status || 'Not Started'}</td>
+                      <td className="px-3 py-2.5 text-[12px] font-extrabold text-[#64748b]">{approved ? 'Approved' : (s.status || 'Not Started')}</td>
                       <td className="px-3 py-2.5">
                         {approved ? (
-                          <span className="text-[11px] font-extrabold text-[#16a34a]">Approved</span>
+                          <button
+                            type="button"
+                            onClick={() => reopenStage(stageView.id, s.id)}
+                            className="inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-[#fdba74] bg-[#fff7ed] px-2.5 text-[11px] font-extrabold text-[#c2410c] hover:bg-[#ffedd5]"
+                          >
+                            <RotateCcw className="size-3.5" />
+                            Reopen / Remove Approval
+                          </button>
                         ) : (
                           <button type="button" onClick={() => approveStage(stageView.id, s.id)} className="h-8 rounded-[8px] bg-[#0b8f43] px-3 text-[11px] font-extrabold text-white">Approve</button>
                         )}

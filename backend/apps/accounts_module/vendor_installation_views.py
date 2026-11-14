@@ -16,11 +16,13 @@ from apps.accounts_module.models import (
     VendorInstallStageTemplate,
 )
 from apps.accounts_module.vendor_installation import (
+    approve_all_stages,
     approve_stage,
     assign_installation_vendor,
     ensure_default_stage_templates,
     realign_assignment_stages,
     record_installation_payment,
+    reopen_stage,
     serialize_assignment,
     serialize_stage,
     validate_stage_templates_total,
@@ -171,6 +173,27 @@ class VendorInstallationAssignmentViewSet(viewsets.ViewSet):
         if not stage:
             return Response({'detail': 'Stage not found'}, status=404)
         approve_stage(stage, user=request.user, remarks=str(request.data.get('remarks') or ''))
+        assignment.refresh_from_db()
+        return Response(serialize_assignment(assignment))
+
+    @action(detail=True, methods=['post'], url_path='reopen-stage')
+    def reopen_stage_action(self, request, pk=None):
+        assignment = VendorInstallationAssignment.objects.filter(pk=pk).first()
+        if not assignment:
+            return Response({'detail': 'Not found'}, status=404)
+        stage = assignment.stages.filter(pk=request.data.get('stage_id')).first()
+        if not stage:
+            return Response({'detail': 'Stage not found'}, status=404)
+        reopen_stage(stage, user=request.user, remarks=str(request.data.get('remarks') or ''))
+        assignment.refresh_from_db()
+        return Response(serialize_assignment(assignment))
+
+    @action(detail=True, methods=['post'], url_path='approve-all-stages')
+    def approve_all_stages_action(self, request, pk=None):
+        assignment = VendorInstallationAssignment.objects.filter(pk=pk).first()
+        if not assignment:
+            return Response({'detail': 'Not found'}, status=404)
+        approve_all_stages(assignment, user=request.user)
         assignment.refresh_from_db()
         return Response(serialize_assignment(assignment))
 

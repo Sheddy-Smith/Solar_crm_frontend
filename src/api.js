@@ -570,6 +570,8 @@ export const accountsModuleApi = {
     get: (id) => request(`/accounts/vendor-installations/${id}/`),
     create: (data) => request('/accounts/vendor-installations/', { method: 'POST', body: data }),
     approveStage: (id, data) => request(`/accounts/vendor-installations/${id}/approve-stage/`, { method: 'POST', body: data }),
+    reopenStage: (id, data) => request(`/accounts/vendor-installations/${id}/reopen-stage/`, { method: 'POST', body: data }),
+    approveAllStages: (id, data = {}) => request(`/accounts/vendor-installations/${id}/approve-all-stages/`, { method: 'POST', body: data }),
     updateStage: (id, data) => request(`/accounts/vendor-installations/${id}/update-stage/`, { method: 'POST', body: data }),
     addPayment: (id, data) => request(`/accounts/vendor-installations/${id}/add-payment/`, { method: 'POST', body: data }),
   },

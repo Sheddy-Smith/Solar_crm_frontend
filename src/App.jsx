@@ -73,7 +73,6 @@ import {
 } from './projectOpsPages.jsx';
 import { ProjectJobSheetPage as OpsJobSheetPage } from './projectJobSheetPage.jsx';
 import { MaterialPlanningPoPage } from './materialPlanningPoPage.jsx';
-import { BomMasterPage } from './bomMasterPage.jsx';
 import { OmPendingFlowPage, OM_PENDING_SECTIONS, OM_PENDING_STEPS } from './omPendingPages.jsx';
 import { OM_LEGACY_SECTIONS, OM_MODULE_SECTIONS, OM_SECTION_ROUTES } from './omPlantPages.jsx';
 import { OmHubPage } from './omHubPages.jsx';
@@ -114,6 +113,7 @@ import { usePagedRows, usePageSize, TablePagination } from './components/TablePa
 import { LIST_PAGE_SIZE, LOOKUP_PAGE_SIZE, rowsOf, parseListPage, listParams, fetchEveryPage } from './lib/listQuery.js';
 import { downloadSurveyPhoto, downloadSurveyPhotosPdf } from './lib/surveyPhotoExport.js';
 import { MobileDashboardPage, MobileBottomNav } from './mobileDashboard.jsx';
+import { HomeDashboardPage } from './homeDashboard.jsx';
 import { SettingsRecycleBinPage } from './recycleBinPage.jsx';
 import {
   SyncShareBackupPage,
@@ -599,7 +599,7 @@ const projectSubItems = [
   'Project List',
   'Project Site Survey',
   'Project Material Planning',
-  'BOM Master',
+  // BOM Master UI removed — backend BOM automation + bomApi kept for Quotation/MP.
   'Project Job Sheet',
   'Project Dispatch',
   'Project Installation',
@@ -1072,7 +1072,6 @@ const projectSubRoutes = {
   'Project Installation': '/projects/installation',
   'Project Dispatch': '/projects/dispatch',
   'Project Material Planning': '/projects/material-planning',
-  'BOM Master': '/projects/bom-master',
   'Project Job Sheet': '/projects/job-sheet',
   'Subsidy': '/projects/subsidy/:projectId',
   'Project Work Orders': '/projects/work-orders/:projectId',
@@ -1275,6 +1274,10 @@ function resolveSectionFromPath(pathname) {
   }
   if (path === '/projects') {
     return { section: 'Project List', params: {} };
+  }
+  // Legacy BOM Master UI route — redirect to Material Planning (automation unchanged).
+  if (path === '/projects/bom-master') {
+    return { section: 'Project Material Planning', params: {} };
   }
   if (REMOVED_INVENTORY_PATHS.includes(path)) {
     return { section: 'Inventory Overview', params: {} };
@@ -1553,8 +1556,8 @@ function buildDashboardWorkflowStages(leadStats = {}, projectSummary = {}) {
 const stats = [
   {
     title: 'Total Leads',
-    value: '247',
-    delta: '12% from last month',
+    value: '—',
+    delta: 'Loading…',
     deltaTone: 'positive',
     icon: Users,
     iconBg: 'from-[#14c63b] to-[#27d56f]',
@@ -1562,8 +1565,8 @@ const stats = [
   },
   {
     title: 'Today Follow-ups',
-    value: '7',
-    delta: '3 more than yesterday',
+    value: '—',
+    delta: 'Scheduled today',
     deltaTone: 'positive',
     icon: CalendarDays,
     iconBg: 'from-[#1277ff] to-[#2aa7ff]',
@@ -1571,12 +1574,39 @@ const stats = [
   },
   {
     title: 'Won Leads',
-    value: '34',
-    delta: '5 this month',
+    value: '—',
+    delta: 'This month',
     deltaTone: 'positive',
     icon: Trophy,
     iconBg: 'from-[#16c93f] to-[#39e264]',
     target: 'Lead List',
+  },
+  {
+    title: 'High Alert',
+    value: '—',
+    delta: 'Needs immediate action',
+    deltaTone: 'positive',
+    icon: AlertTriangle,
+    iconBg: 'from-[#ef4444] to-[#f87171]',
+    target: 'Follow-ups',
+  },
+  {
+    title: 'Overdue',
+    value: '—',
+    delta: 'Past scheduled date',
+    deltaTone: 'positive',
+    icon: CalendarDays,
+    iconBg: 'from-[#7c3aed] to-[#a78bfa]',
+    target: 'Follow-ups',
+  },
+  {
+    title: 'Missed',
+    value: '—',
+    delta: 'Marked missed',
+    deltaTone: 'positive',
+    icon: AlertTriangle,
+    iconBg: 'from-[#ea580c] to-[#fb923c]',
+    target: 'Follow-ups',
   },
 ];
 
@@ -2214,12 +2244,15 @@ function App() {
     if (insightsRelatedPages.includes(preferred) && preferred !== 'Insights') return 'Insights';
     // Legacy L&C stage removed from workflow.
     if (preferred === 'Inspection Placed') return 'Inspection';
+    // BOM Master UI removed — land on Material Planning instead.
+    if (preferred === 'BOM Master') return 'Project Material Planning';
     return preferred;
   });
   const setActiveSidebarItem = useCallback((next) => {
     setActiveSidebarItemState((prev) => {
       const resolved = typeof next === 'function' ? next(prev) : next;
-      const target = resolved === 'Inspection Placed' ? 'Inspection' : resolved;
+      let target = resolved === 'Inspection Placed' ? 'Inspection' : resolved;
+      if (target === 'BOM Master') target = 'Project Material Planning';
       if (prev && target && prev !== target) {
         navHistoryRef.current = [...navHistoryRef.current.slice(-39), prev];
       }
@@ -2344,6 +2377,8 @@ function App() {
   const [dashboardProjectSummary, setDashboardProjectSummary] = useState({});
   const [dashboardFollowUps, setDashboardFollowUps] = useState([]);
   const [dashboardScheduledFollowUps, setDashboardScheduledFollowUps] = useState(null);
+  const [dashboardMissedFollowUps, setDashboardMissedFollowUps] = useState([]);
+  const [dashboardCompletedFollowUps, setDashboardCompletedFollowUps] = useState([]);
   const [dashboardRecentLeads, setDashboardRecentLeads] = useState(null);
   const [dashboardOverdue, setDashboardOverdue] = useState(null);
   const [dashboardWidgetErrors, setDashboardWidgetErrors] = useState({});
@@ -2599,9 +2634,27 @@ function App() {
   }, [canViewLeadModule, dashboardPeriod, dashboardPeriodAnchor, setDashWidgetError]);
 
   useEffect(() => {
-    const todayCount = dashboardScheduledFollowUps === null ? null : dashboardFollowUpAlerts.today.length;
+    const loaded = dashboardScheduledFollowUps !== null;
+    const todayCount = loaded ? dashboardFollowUpAlerts.today.length : null;
+    const overdueCount = loaded ? dashboardFollowUpAlerts.overdue.length : null;
+    const highAlertCount = loaded ? overdueCount + todayCount : null;
+    const missedCount = loaded ? dashboardMissedFollowUps.length : null;
     setDashboardStats((prev) =>
-      prev.map((s) => (s.title === 'Today Follow-ups' ? { ...s, value: todayCount === null ? '—' : String(todayCount) } : s)),
+      prev.map((s) => {
+        if (s.title === 'Today Follow-ups') {
+          return { ...s, value: todayCount === null ? '—' : String(todayCount), delta: todayCount == null ? s.delta : `${todayCount} scheduled today` };
+        }
+        if (s.title === 'High Alert') {
+          return { ...s, value: highAlertCount === null ? '—' : String(highAlertCount), delta: 'Needs immediate action' };
+        }
+        if (s.title === 'Overdue') {
+          return { ...s, value: overdueCount === null ? '—' : String(overdueCount), delta: 'Past scheduled date' };
+        }
+        if (s.title === 'Missed') {
+          return { ...s, value: missedCount === null ? '—' : String(missedCount), delta: 'Marked missed' };
+        }
+        return s;
+      }),
     );
     const overdueRows = dashboardFollowUpAlerts.overdue.map((item) => ({
       id: item.id,
@@ -2625,7 +2678,7 @@ function App() {
       date: formatDateTime(item.scheduled_at),
       assignedTo: { name: item.lead_assigned_to_name || item.created_by_name || 'Unassigned' },
     })));
-  }, [dashboardFollowUpAlerts, dashboardScheduledFollowUps]);
+  }, [dashboardFollowUpAlerts, dashboardScheduledFollowUps, dashboardMissedFollowUps]);
 
   useEffect(() => {
     if (currentPage !== 'dashboard') return undefined;
@@ -2637,20 +2690,37 @@ function App() {
   const refreshDashboardFollowUps = useCallback((signal) => {
     if (!canViewLeadModule) {
       setDashboardScheduledFollowUps([]);
+      setDashboardMissedFollowUps([]);
+      setDashboardCompletedFollowUps([]);
       setDashWidgetError('followUps', '');
       return Promise.resolve();
     }
-    // Paginate through every Scheduled row — a single page_size=40 slice made
-    // Extra High look capped while Follow-ups (page_size=25 newest) showed fewer.
-    return fetchEveryPage((page, pageSize) => followUpApi.listAll({
-      page,
-      page_size: pageSize,
-      status: 'Scheduled',
-      ordering: 'scheduled_at',
-    })).then((rows) => {
+    // Scheduled (all pages) + Missed/Completed for dashboard KPIs & charts.
+    return Promise.all([
+      fetchEveryPage((page, pageSize) => followUpApi.listAll({
+        page,
+        page_size: pageSize,
+        status: 'Scheduled',
+        ordering: 'scheduled_at',
+      })),
+      fetchEveryPage((page, pageSize) => followUpApi.listAll({
+        page,
+        page_size: pageSize,
+        status: 'Missed',
+        ordering: '-scheduled_at',
+      })),
+      fetchEveryPage((page, pageSize) => followUpApi.listAll({
+        page,
+        page_size: pageSize,
+        status: 'Completed',
+        ordering: '-scheduled_at',
+      }), { maxPages: 8 }),
+    ]).then(([scheduled, missed, completed]) => {
       if (signal?.aborted) return;
       setDashWidgetError('followUps', '');
-      setDashboardScheduledFollowUps(rows);
+      setDashboardScheduledFollowUps(scheduled);
+      setDashboardMissedFollowUps(missed);
+      setDashboardCompletedFollowUps(completed);
     }).catch((err) => {
       if (signal?.aborted || err?.name === 'AbortError') return;
       setDashboardScheduledFollowUps((prev) => prev ?? []);
@@ -4404,261 +4474,76 @@ function App() {
                   onOpenMenu={() => setMobileSidebarOpen(true)}
                 />
               </div>
-              <div className="hidden space-y-1.5 md:block">
-            <Card className="p-3.5">
-              <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#0e582a] dark:text-emerald-400">Live Dashboard</p>
-                  <h3 className="mt-1 text-[18px] font-extrabold text-[#163d70] dark:text-slate-100">Overview for {dashboardPeriod}</h3>
-                  {dashboardRange.start && dashboardRange.end ? (
-                    <p className="mt-0.5 text-[12px] font-semibold text-[#7b88a2] dark:text-slate-400">
-                      {formatDashboardRange(dashboardRange.start, dashboardRange.end)}
-                    </p>
-                  ) : null}
-                </div>
-
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
-                  <div className="flex flex-wrap gap-2">
-                    {dashboardPeriods.map((period) => (
-                      <motion.button
-                        key={period}
-                        type="button"
-                        whileHover={{ y: -1 }}
-                        whileTap={{ scale: 0.95 }}
-                        transition={microMotionTransition}
-                        onClick={() => {
-                          setDashboardPeriod(period);
-                          setDashboardPeriodAnchor(new Date());
-                        }}
-                        className={cx(
-                          'rounded-full px-4 py-2 text-[13px] font-bold transition-colors',
-                          dashboardPeriod === period
-                            ? 'bg-[#0b65e5] text-white'
-                            : 'border border-[#d4d9e7] bg-white text-[#324f7b] hover:bg-[#f4f7ff] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700',
-                        )}
-                      >
-                        {period}
-                      </motion.button>
+              {Object.values(dashboardWidgetErrors).some(Boolean) ? (
+                <div className="mb-3 hidden rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-2 text-[12px] font-semibold text-amber-900 md:block" role="status">
+                  {Object.entries(dashboardWidgetErrors)
+                    .filter(([, msg]) => msg)
+                    .map(([key, msg]) => (
+                      <div key={key}>{msg}</div>
                     ))}
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {dashboardPeriod === 'Month' ? (
-                      <input
-                        type="month"
-                        value={dateToMonthInput(dashboardPeriodAnchor)}
-                        onChange={(e) => {
-                          if (!e.target.value) return;
-                          setDashboardPeriodAnchor(monthInputToDate(e.target.value));
-                        }}
-                        className="h-[38px] rounded-[10px] border border-[#d4d9e7] bg-white px-3 text-[13px] font-bold text-[#324f7b] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
-                        aria-label="Select month"
-                      />
-                    ) : dashboardPeriod === 'Year' ? (
-                      <input
-                        type="number"
-                        value={dashboardPeriodAnchor.getFullYear()}
-                        onChange={(e) => {
-                          const year = Number(e.target.value);
-                          if (!Number.isFinite(year) || String(year).length !== 4) return;
-                          setDashboardPeriodAnchor(new Date(year, dashboardPeriodAnchor.getMonth(), 1));
-                        }}
-                        className="h-[38px] w-[90px] rounded-[10px] border border-[#d4d9e7] bg-white px-3 text-[13px] font-bold text-[#324f7b] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
-                        aria-label="Select year"
-                      />
-                    ) : (
-                      <input
-                        type="week"
-                        value={dateToWeekInput(dashboardPeriodAnchor)}
-                        onChange={(e) => {
-                          if (!e.target.value) return;
-                          setDashboardPeriodAnchor(weekInputToDate(e.target.value));
-                        }}
-                        className="h-[38px] rounded-[10px] border border-[#d4d9e7] bg-white px-3 text-[13px] font-bold text-[#324f7b] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
-                        aria-label="Select week"
-                      />
-                    )}
-
-                    <motion.button
-                      type="button"
-                      whileHover={{ y: -1 }}
-                      whileTap={{ scale: 0.95 }}
-                      transition={microMotionTransition}
-                      onClick={() => {
-                        refreshDashboardLeadStats();
-                        refreshDashboardFollowUps();
-                        notify('Dashboard refreshed');
-                      }}
-                      className="inline-flex h-[38px] items-center gap-2 rounded-[10px] bg-[#163d70] px-4 text-[13px] font-bold text-white transition hover:bg-[#12305c] dark:bg-slate-700 dark:hover:bg-slate-600"
-                    >
-                      <RefreshCw className="size-4" />
-                      Refresh
-                    </motion.button>
-                  </div>
                 </div>
-              </div>
-            </Card>
+              ) : null}
 
-            {Object.values(dashboardWidgetErrors).some(Boolean) ? (
-              <div className="rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-2 text-[12px] font-semibold text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100" role="status">
-                {Object.entries(dashboardWidgetErrors)
-                  .filter(([, msg]) => msg)
-                  .map(([key, msg]) => (
-                    <div key={key}>{msg}</div>
-                  ))}
-              </div>
-            ) : null}
-
-            <section className="flex gap-1.5 md:grid md:grid-cols-[repeat(auto-fit,minmax(140px,1fr))] md:gap-3">
-              {dashboardStats.map((stat) => (
-                <StatCard key={stat.title} stat={stat} onClick={() => openDashboardSection(stat.target, `${stat.title} opened`, null, stat.title === 'Today Follow-ups' ? 'today' : undefined)} />
-              ))}
-            </section>
-
-            <TeleFollowUpAlertsPanel
-              todayFollowUps={dashboardFollowUpAlerts.today}
-              overdueFollowUps={dashboardFollowUpAlerts.overdue}
-              loaded={dashboardScheduledFollowUps !== null}
-              compact={false}
-              onOpenToday={() => openDashboardSection('Follow-ups', "Today's follow-ups opened", null, 'today')}
-              onOpenOverdue={() => openDashboardSection('Follow-ups', 'Overdue follow-ups opened', null, 'overdue')}
-              onCall={(item) => {
-                const raw = String(item.lead_mobile_number || '').trim();
-                if (!raw) { notify('No mobile number on this lead.', 'error'); return; }
-                const href = raw.startsWith('+') ? `tel:${raw.replace(/[^\d+]/g, '')}` : `tel:${raw.replace(/\D/g, '')}`;
-                window.location.href = href;
-              }}
-              onLog={(item) => {
-                if (!item.lead) return;
-                setPopupLeadId(item.lead);
-              }}
-              onView={(item) => {
-                if (!item.lead) return;
-                openDashboardSection('Lead Details', `${item.lead_customer_name || 'Lead'} opened`, { id: item.lead, customer: item.lead_customer_name, mobile: item.lead_mobile_number });
-              }}
-            />
-
-            <section className="grid gap-3 lg:grid-cols-[1.6fr_1fr] lg:items-start">
-              <div className="min-w-0 space-y-3">
-                <article className={dataPanelClass}>
-                  <SectionHeader icon={Users} title="Recent Leads" actionLabel="View All" onAction={() => openDashboardSection('Lead List', 'All recent leads opened')} />
-
-                  <div className="max-h-[420px] divide-y divide-[#edf2f8] overflow-y-auto px-4">
-                    {(dashboardRecentLeads ?? []).length === 0 ? (
-                      <p className="py-6 text-center text-[13px] font-semibold text-[#8895ab]">No leads added yet</p>
-                    ) : null}
-                    {(dashboardRecentLeads ?? []).map((lead, index) => (
-                      <RecentLeadRow
-                        key={lead.id ?? `${lead.customer}-${lead.mobile}-${index}`}
-                        lead={lead}
-                        onView={() => openDashboardSection('Lead Details', `${lead.customer} lead opened`, lead)}
-                      />
-                    ))}
-                  </div>
-                </article>
-
-                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-                  {quickActions.filter((action) => {
-                    if (!loggedInUser) return true;
-                    if (action.target === 'Create Lead' || action.label === 'Fast Lead') return hasModuleAccess(loggedInUser, 'Lead', 'Add');
-                    if (action.label === 'Add Follow-up') return hasModuleAccess(loggedInUser, 'Lead', 'Add') || hasModuleAccess(loggedInUser, 'Lead', 'Edit');
-                    if (action.label === 'Create Quotation') return hasModuleAccess(loggedInUser, 'Quotation', 'Add');
-                    const mod = permissionModuleForSection(action.target);
-                    return !mod || hasAnyModuleAccess(loggedInUser, mod);
-                  }).map((action) => {
-                    const Icon = action.icon;
-
-                    return (
-                      <motion.button
-                        key={action.label}
-                        type="button"
-                        whileHover={{ y: -2, filter: 'brightness(1.03)' }}
-                        whileTap={{ scale: 0.97 }}
-                        transition={microMotionTransition}
-                        onClick={() => {
-                          if (action.target === 'Create Lead' || action.label === 'Fast Lead') {
-                            if (loggedInUser && !hasModuleAccess(loggedInUser, 'Lead', 'Add')) {
-                              notify('You do not have permission to create leads', 'error');
-                              return;
-                            }
-                            setDashboardCreateLeadOpen(true);
-                          } else {
-                            if (action.label === 'Add Follow-up') {
-                              if (loggedInUser && !hasModuleAccess(loggedInUser, 'Lead', 'Add') && !hasModuleAccess(loggedInUser, 'Lead', 'Edit')) {
-                                notify('You do not have permission to add follow-ups', 'error');
-                                return;
-                              }
-                              setAutoOpenFollowUps(true);
-                            }
-                            if (action.label === 'Create Quotation') {
-                              if (loggedInUser && !hasModuleAccess(loggedInUser, 'Quotation', 'Add')) {
-                                notify('You do not have permission to create quotations', 'error');
-                                return;
-                              }
-                              setAutoOpenQuotation(true);
-                            }
-                            openDashboardSection(action.target, `${action.label} opened`);
-                          }
-                        }}
-                        className={cx(
-                          'flex flex-col items-center justify-center gap-1.5 rounded-[10px] bg-linear-to-r px-3 py-3 text-center text-white shadow-[0_10px_20px_rgba(22,65,145,0.16)]',
-                          action.bg,
-                        )}
-                      >
-                        <Icon className="size-[18px]" />
-                        <span className="text-[12px] font-extrabold leading-tight">{action.label}</span>
-                      </motion.button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="min-w-0">
-                <aside className={`${panelClass} overflow-hidden`}>
-                  <div className="flex border-b border-[#e8eef6]">
-                    <button
-                      type="button"
-                      onClick={() => setDashboardRightTab('workflow')}
-                      className={cx(
-                        'flex-1 px-4 py-3 text-[13px] font-extrabold transition',
-                        dashboardRightTab === 'workflow'
-                          ? 'border-b-2 border-[#0b65e5] text-[#0b65e5]'
-                          : 'border-b-2 border-transparent text-[#7b88a2] hover:text-[#324f7b]',
-                      )}
-                    >
-                      Workflow
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDashboardRightTab('overdue')}
-                      className={cx(
-                        'flex-1 px-4 py-3 text-[13px] font-extrabold transition',
-                        dashboardRightTab === 'overdue'
-                          ? 'border-b-2 border-[#ef5a4b] text-[#ef5a4b]'
-                          : 'border-b-2 border-transparent text-[#7b88a2] hover:text-[#324f7b]',
-                      )}
-                    >
-                      Overdue{(dashboardOverdue ?? []).length > 0 ? ` (${(dashboardOverdue ?? []).length})` : ''}
-                    </button>
-                  </div>
-
-                  {dashboardRightTab === 'workflow' ? (
-                    <WorkflowTabContent
-                      stages={dashboardWorkflowStages}
-                      onViewAll={() => openDashboardSection('Project List', 'Project workflow opened')}
-                      onStageClick={(target) => openDashboardSection(target, `${target} opened`)}
-                    />
-                  ) : (
-                    <OverdueTabContent
-                      items={dashboardOverdue}
-                      onViewAll={() => openDashboardSection('Follow-ups', 'All overdue follow-ups opened', null, 'overdue')}
-                    />
-                  )}
-                </aside>
-              </div>
-            </section>
-
-              </div>
+              <HomeDashboardPage
+                stats={dashboardStats}
+                leadStats={dashboardLeadStats}
+                workflowStages={dashboardWorkflowStages}
+                recentLeads={dashboardRecentLeads ?? []}
+                scheduledFollowUps={dashboardScheduledFollowUps || []}
+                missedFollowUps={dashboardMissedFollowUps}
+                completedFollowUps={dashboardCompletedFollowUps}
+                followUpsLoaded={dashboardScheduledFollowUps !== null}
+                onOpenSection={(section, message, lead, tab) => openDashboardSection(section, message, lead, tab)}
+                onViewLead={(lead) => openDashboardSection('Lead Details', `${lead.customer || 'Lead'} opened`, lead)}
+                onCallFollowUp={(item) => {
+                  const raw = String(item.lead_mobile_number || '').trim();
+                  if (!raw) { notify('No mobile number on this lead.', 'error'); return; }
+                  const href = raw.startsWith('+') ? `tel:${raw.replace(/[^\d+]/g, '')}` : `tel:${raw.replace(/\D/g, '')}`;
+                  window.location.href = href;
+                }}
+                onLogFollowUp={(item) => {
+                  if (!item.lead) return;
+                  setPopupLeadId(item.lead);
+                }}
+                onViewFollowUp={(item) => {
+                  if (!item.lead) return;
+                  openDashboardSection('Lead Details', `${item.lead_customer_name || 'Lead'} opened`, {
+                    id: item.lead,
+                    customer: item.lead_customer_name,
+                    mobile: item.lead_mobile_number,
+                  });
+                }}
+                onQuickAction={(action) => {
+                  if (action.target === 'Create Lead' || action.label === 'Fast Lead') {
+                    if (loggedInUser && !hasModuleAccess(loggedInUser, 'Lead', 'Add')) {
+                      notify('You do not have permission to create leads', 'error');
+                      return;
+                    }
+                    setDashboardCreateLeadOpen(true);
+                    return;
+                  }
+                  if (action.label === 'Add Follow-up') {
+                    if (loggedInUser && !hasModuleAccess(loggedInUser, 'Lead', 'Add') && !hasModuleAccess(loggedInUser, 'Lead', 'Edit')) {
+                      notify('You do not have permission to add follow-ups', 'error');
+                      return;
+                    }
+                    setAutoOpenFollowUps(true);
+                  }
+                  if (action.label === 'Create Quotation') {
+                    if (loggedInUser && !hasModuleAccess(loggedInUser, 'Quotation', 'Add')) {
+                      notify('You do not have permission to create quotations', 'error');
+                      return;
+                    }
+                    setAutoOpenQuotation(true);
+                  }
+                  openDashboardSection(action.target, `${action.label} opened`);
+                }}
+                onRefresh={() => {
+                  refreshDashboardLeadStats();
+                  refreshDashboardFollowUps();
+                  notify('Dashboard refreshed');
+                }}
+              />
               </>
             )}
           </div>
@@ -10639,10 +10524,6 @@ function getModuleSubnavLabel(item) {
     return 'Material Planning';
   }
 
-  if (item === 'BOM Master') {
-    return 'BOM Master';
-  }
-
   if (item === 'Project Job Sheet') {
     return 'Job Sheet';
   }
@@ -15237,10 +15118,6 @@ function ProjectManagementPage({
         onConsumeAutoOpenQuotation={onConsumeAutoOpenQuotation}
       />
     );
-  }
-
-  if (activeSection === 'BOM Master') {
-    return <BomMasterPage onNotify={onNotify} />;
   }
 
   if (activeSection === 'Project KPI Analytics') {

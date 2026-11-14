@@ -190,6 +190,18 @@ class AccountViewSet(AccountsBaseViewSet):
         if 'alternate_phone' in validated_data and validated_data.get('alternate_phone'):
             validated_data['alternate_phone'] = normalize_phone(validated_data['alternate_phone']) or validated_data['alternate_phone']
 
+    def list(self, request, *args, **kwargs):
+        # Refresh Vendor Net Balance after payable formula fix
+        # (Contract/work credit − payments = Payable, e.g. 5700 − 1000 = 4700).
+        if str(request.query_params.get('account_type') or '') == 'Vendor':
+            for party_id in (
+                self.filter_queryset(self.get_queryset())
+                .filter(account_type='Vendor')
+                .values_list('id', flat=True)[:300]
+            ):
+                recalculate_party_balance(party_id)
+        return super().list(request, *args, **kwargs)
+
     def perform_create(self, serializer):
         self._normalize_customer_phone(serializer.validated_data)
         opening = serializer.validated_data.get('opening_balance', 0)
