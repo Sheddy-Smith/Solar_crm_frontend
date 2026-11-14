@@ -543,6 +543,26 @@ export const accountsModuleApi = {
   addVendorManualEntry: (id, data) => request(`/accounts/parties/${id}/add-vendor-manual-entry/`, { method: 'POST', body: data }),
   updateVendorManualEntry: (id, entryId, data) => request(`/accounts/parties/${id}/vendor-manual-entries/${entryId}/`, { method: 'PATCH', body: data }),
   deleteVendorManualEntry: (id, entryId) => request(`/accounts/parties/${id}/vendor-manual-entries/${entryId}/delete/`, { method: 'DELETE' }),
+  vendorCreditLedger: () => request('/accounts/vendor-credit-ledger/'),
+  vendorInstallSummary: (vendorId) => request(`/accounts/parties/${vendorId}/installation-summary/`),
+  vendorInstallStages: {
+    list: () => request('/accounts/vendor-install-stages/'),
+    create: (data) => request('/accounts/vendor-install-stages/', { method: 'POST', body: data }),
+    update: (id, data) => request(`/accounts/vendor-install-stages/${id}/`, { method: 'PATCH', body: data }),
+  },
+  vendorInstallations: {
+    list: (params = {}) => {
+      const qs = new URLSearchParams(
+        Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
+      ).toString();
+      return request(`/accounts/vendor-installations/${qs ? '?' + qs : ''}`);
+    },
+    get: (id) => request(`/accounts/vendor-installations/${id}/`),
+    create: (data) => request('/accounts/vendor-installations/', { method: 'POST', body: data }),
+    approveStage: (id, data) => request(`/accounts/vendor-installations/${id}/approve-stage/`, { method: 'POST', body: data }),
+    updateStage: (id, data) => request(`/accounts/vendor-installations/${id}/update-stage/`, { method: 'POST', body: data }),
+    addPayment: (id, data) => request(`/accounts/vendor-installations/${id}/add-payment/`, { method: 'POST', body: data }),
+  },
 };
 
 // ─── Follow-ups ──────────────────────────────────────────────────────────────

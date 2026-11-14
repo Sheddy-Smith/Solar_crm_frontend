@@ -57,7 +57,6 @@ def vendor_totals(party, year=None):
 def build_vendor_ledger_entries(party, start=None, end=None, category=''):
     from .models import Payment, VendorLedgerManualEntry
 
-    vehicle = (party.vehicle_number or '').strip()
     entries = []
     opening = _d(party.opening_balance)
     if opening:
@@ -67,9 +66,9 @@ def build_vendor_ledger_entries(party, start=None, end=None, category=''):
             'work': 'Opening Balance',
             'ref': 'OPENING',
             'category': '',
-            'vehicle_no': vehicle,
-            'wheeler': '',
-            'owner_name': '',
+            'project_id': None,
+            'project_name': '',
+            'assignment_id': None,
             'debit': float(abs(opening)) if opening < 0 else 0,
             'credit': float(opening) if opening > 0 else 0,
             'type': 'Opening',
@@ -81,7 +80,7 @@ def build_vendor_ledger_entries(party, start=None, end=None, category=''):
     received = Payment.objects.filter(party_id=party.id, direction='Received', status='Completed')
     made = Payment.objects.filter(party_id=party.id, direction='Made', status='Completed')
     vouchers = vendor_voucher_qs(party)
-    manual = VendorLedgerManualEntry.objects.filter(party_id=party.id)
+    manual = VendorLedgerManualEntry.objects.filter(party_id=party.id).select_related('project', 'installation_assignment')
     if start:
         received = received.filter(payment_date__gte=start)
         made = made.filter(payment_date__gte=start)
@@ -105,9 +104,9 @@ def build_vendor_ledger_entries(party, start=None, end=None, category=''):
             'work': work,
             'ref': vch.voucher_no or f'VCH-{vch.id}',
             'category': vch.category or '',
-            'vehicle_no': vehicle,
-            'wheeler': '',
-            'owner_name': '',
+            'project_id': None,
+            'project_name': '',
+            'assignment_id': None,
             'debit': 0,
             'credit': float(_d(vch.amount)),
             'type': 'Service',
@@ -116,7 +115,7 @@ def build_vendor_ledger_entries(party, start=None, end=None, category=''):
             'source_id': vch.id,
             'editable': False,
         })
-    for pay in made.order_by('payment_date', 'id'):
+    for pay in made.select_related('project').order_by('payment_date', 'id'):
         work = pay.description or pay.particulars or 'Payment to vendor'
         entries.append({
             'date': _iso(pay.payment_date),
@@ -124,9 +123,10 @@ def build_vendor_ledger_entries(party, start=None, end=None, category=''):
             'work': work,
             'ref': pay.reference_no or f'PMT-{pay.id}',
             'category': '',
-            'vehicle_no': vehicle,
-            'wheeler': '',
-            'owner_name': '',
+            'project_id': pay.project_id,
+            'project_name': getattr(pay.project, 'project_name', '') if pay.project_id else (pay.project_ref or ''),
+            'assignment_id': None,
+            'payment_mode': pay.payment_mode or '',
             'debit': float(_d(pay.amount)),
             'credit': 0,
             'type': 'Payment',
@@ -135,7 +135,7 @@ def build_vendor_ledger_entries(party, start=None, end=None, category=''):
             'source_id': pay.id,
             'editable': False,
         })
-    for pay in received.order_by('payment_date', 'id'):
+    for pay in received.select_related('project').order_by('payment_date', 'id'):
         work = pay.description or pay.particulars or 'Refund / receipt'
         entries.append({
             'date': _iso(pay.payment_date),
@@ -143,9 +143,9 @@ def build_vendor_ledger_entries(party, start=None, end=None, category=''):
             'work': work,
             'ref': pay.reference_no or f'RCPT-{pay.id}',
             'category': '',
-            'vehicle_no': vehicle,
-            'wheeler': '',
-            'owner_name': '',
+            'project_id': pay.project_id,
+            'project_name': getattr(pay.project, 'project_name', '') if pay.project_id else '',
+            'assignment_id': None,
             'debit': 0,
             'credit': float(_d(pay.amount)),
             'type': 'Receipt',
@@ -161,16 +161,16 @@ def build_vendor_ledger_entries(party, start=None, end=None, category=''):
             'work': row.work or 'Manual entry',
             'ref': f'MAN-{row.id}',
             'category': '',
-            'vehicle_no': row.vehicle_no or vehicle,
-            'wheeler': row.wheeler or '',
-            'owner_name': row.owner_name or '',
+            'project_id': row.project_id,
+            'project_name': getattr(row.project, 'project_name', '') if row.project_id else '',
+            'assignment_id': row.installation_assignment_id,
             'debit': float(_d(row.debit)),
             'credit': float(_d(row.credit)),
-            'type': 'Manual',
-            'type_label': 'manual',
+            'type': 'Manual' if not row.installation_assignment_id else 'Install Work',
+            'type_label': 'manual' if not row.installation_assignment_id else 'service',
             'source': 'manual',
             'source_id': row.id,
-            'editable': True,
+            'editable': not bool(row.installation_assignment_id),
         })
 
     dated = [e for e in entries if e['date']]

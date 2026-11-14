@@ -741,16 +741,29 @@ class CustomerLedgerManualEntry(models.Model):
 
 
 class VendorLedgerManualEntry(models.Model):
-    """Manual Vendor Ledger rows (work credit / payment debit) from Add Manual Entry."""
+    """Manual Vendor Ledger rows (work credit / payment debit) from Add Manual Entry.
+
+    Vehicle fields are legacy (solar install workflow no longer uses them).
+    Prefer project / installation_assignment linkage for install work.
+    """
 
     party = models.ForeignKey(Account, on_delete=models.CASCADE, related_name='vendor_manual_ledger_entries')
     entry_date = models.DateField()
+    # Legacy transport fields — kept for historical rows; UI no longer collects them.
     vehicle_no = models.CharField(max_length=40, blank=True)
     wheeler = models.CharField(max_length=40, blank=True)
     owner_name = models.CharField(max_length=200, blank=True)
     work = models.TextField(blank=True)
     debit = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     credit = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    project = models.ForeignKey(
+        'projects.Project', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='vendor_manual_ledger_entries',
+    )
+    installation_assignment = models.ForeignKey(
+        'accounts_module.VendorInstallationAssignment', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='ledger_entries',
+    )
     created_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True, related_name='vendor_manual_ledger_entries_created',
     )
@@ -764,6 +777,180 @@ class VendorLedgerManualEntry(models.Model):
         ordering = ['-entry_date', '-created_at']
         verbose_name = 'Vendor ledger manual entry'
         verbose_name_plural = 'Vendor ledger manual entries'
+
+
+class VendorInstallStageTemplate(models.Model):
+    """Editable Super-Admin stage weights for new installation assignments (must total 100%)."""
+
+    name = models.CharField(max_length=120)
+    percentage = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    sort_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['sort_order', 'id']
+
+    def __str__(self):
+        return f'{self.name} ({self.percentage}%)'
+
+
+class VendorInstallationAssignment(models.Model):
+    """Project-wise solar installation work assigned to a Vendor (rate snapshot frozen)."""
+
+    RATE_PER_KW = 'per_kw'
+    RATE_PER_WATT = 'per_watt'
+    RATE_UNIT_CHOICES = [
+        (RATE_PER_KW, '₹/kW'),
+        (RATE_PER_WATT, '₹/Watt'),
+    ]
+    STATUS_ASSIGNED = 'Assigned'
+    STATUS_NOT_STARTED = 'Not Started'
+    STATUS_IN_PROGRESS = 'In Progress'
+    STATUS_PARTIAL = 'Partially Completed'
+    STATUS_COMPLETED = 'Completed'
+    STATUS_ON_HOLD = 'On Hold'
+    STATUS_CANCELLED = 'Cancelled'
+    STATUS_CHOICES = [
+        (STATUS_ASSIGNED, 'Assigned'),
+        (STATUS_NOT_STARTED, 'Not Started'),
+        (STATUS_IN_PROGRESS, 'In Progress'),
+        (STATUS_PARTIAL, 'Partially Completed'),
+        (STATUS_COMPLETED, 'Completed'),
+        (STATUS_ON_HOLD, 'On Hold'),
+        (STATUS_CANCELLED, 'Cancelled'),
+    ]
+
+    project = models.ForeignKey(
+        'projects.Project', on_delete=models.CASCADE, related_name='vendor_install_assignments',
+    )
+    vendor = models.ForeignKey(
+        Account, on_delete=models.PROTECT, related_name='installation_assignments',
+        limit_choices_to={'account_type': 'Vendor'},
+    )
+    capacity_kw = models.DecimalField(max_digits=10, decimal_places=3, default=0)
+    capacity_watt = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    rate = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    rate_unit = models.CharField(max_length=16, choices=RATE_UNIT_CHOICES, default=RATE_PER_WATT)
+    contract_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    work_description = models.TextField(blank=True)
+    start_date = models.DateField(null=True, blank=True)
+    expected_completion_date = models.DateField(null=True, blank=True)
+    advance_payment = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    payment_terms = models.CharField(max_length=255, blank=True)
+    remarks = models.TextField(blank=True)
+    status = models.CharField(max_length=32, choices=STATUS_CHOICES, default=STATUS_ASSIGNED, db_index=True)
+    approved_percent = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    earned_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    total_paid = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    daily_task = models.ForeignKey(
+        'daily_tasks.DailyTask', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='vendor_install_assignments',
+    )
+    assigned_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='vendor_install_assignments_created',
+    )
+    assigned_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_cancelled = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-assigned_at']
+        indexes = [
+            models.Index(fields=['vendor', 'is_cancelled'], name='vend_inst_vendor_active_idx'),
+            models.Index(fields=['project', 'is_cancelled'], name='vend_inst_project_active_idx'),
+        ]
+
+    def __str__(self):
+        return f'Install {self.project_id} → vendor {self.vendor_id}'
+
+    @property
+    def remaining_earned_payable(self):
+        from decimal import Decimal
+        return max(Decimal(self.earned_amount or 0) - Decimal(self.total_paid or 0), Decimal('0'))
+
+    @property
+    def pending_work_amount(self):
+        from decimal import Decimal
+        return max(Decimal(self.contract_amount or 0) - Decimal(self.earned_amount or 0), Decimal('0'))
+
+
+class VendorInstallationStage(models.Model):
+    """Frozen stage snapshot on an assignment (historical % preserved)."""
+
+    STATUS_NOT_STARTED = 'Not Started'
+    STATUS_IN_PROGRESS = 'In Progress'
+    STATUS_SUBMITTED = 'Submitted for Approval'
+    STATUS_APPROVED = 'Approved'
+    STATUS_ON_HOLD = 'On Hold'
+    STATUS_CHOICES = [
+        (STATUS_NOT_STARTED, 'Not Started'),
+        (STATUS_IN_PROGRESS, 'In Progress'),
+        (STATUS_SUBMITTED, 'Submitted for Approval'),
+        (STATUS_APPROVED, 'Approved / Completed'),
+        (STATUS_ON_HOLD, 'On Hold'),
+    ]
+
+    assignment = models.ForeignKey(
+        VendorInstallationAssignment, on_delete=models.CASCADE, related_name='stages',
+    )
+    stage_name = models.CharField(max_length=120)
+    allocated_percent = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    sort_order = models.PositiveIntegerField(default=0)
+    status = models.CharField(max_length=32, choices=STATUS_CHOICES, default=STATUS_NOT_STARTED)
+    start_date = models.DateField(null=True, blank=True)
+    completion_date = models.DateField(null=True, blank=True)
+    work_remarks = models.TextField(blank=True)
+    proof_url = models.CharField(max_length=500, blank=True)
+    submitted_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='vendor_stages_submitted',
+    )
+    approved_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='vendor_stages_approved',
+    )
+    approval_date = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['sort_order', 'id']
+
+    def __str__(self):
+        return f'{self.stage_name} ({self.allocated_percent}%)'
+
+
+class VendorInstallationPayment(models.Model):
+    """Individual vendor payment against an installation assignment (never overwrites history)."""
+
+    assignment = models.ForeignKey(
+        VendorInstallationAssignment, on_delete=models.CASCADE, related_name='payments',
+    )
+    vendor = models.ForeignKey(Account, on_delete=models.PROTECT, related_name='installation_payments')
+    project = models.ForeignKey(
+        'projects.Project', on_delete=models.SET_NULL, null=True, blank=True, related_name='vendor_install_payments',
+    )
+    payment_date = models.DateField()
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+    payment_mode = models.CharField(max_length=20, blank=True, default='Cash')
+    reference_no = models.CharField(max_length=100, blank=True)
+    remarks = models.TextField(blank=True)
+    proof_url = models.CharField(max_length=500, blank=True)
+    is_advance = models.BooleanField(default=False)
+    accounts_payment = models.ForeignKey(
+        'accounts_module.Payment', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='vendor_install_payments',
+    )
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='vendor_install_payments_created',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-payment_date', '-id']
+
+    def __str__(self):
+        return f'Pay {self.amount} → assignment {self.assignment_id}'
 
 
 class GstOpeningBalance(models.Model):

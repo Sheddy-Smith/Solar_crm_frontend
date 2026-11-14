@@ -4,9 +4,10 @@ import {
   Search, Trash2, Truck, Undo2, Wrench, X,
 } from 'lucide-react';
 import {
-  installationMaterialApi, materialPlanApi, projectApi, projectChecklistApi,
+  accountsModuleApi, installationMaterialApi, materialPlanApi, projectApi, projectChecklistApi,
   projectMilestoneApi, userApi, inventoryApi,
 } from './api.js';
+import { AssignVendorInstallationModal } from './vendorPages.jsx';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
@@ -848,7 +849,7 @@ const INSTALL_PROGRESS_WEIGHTS = [
 ];
 
 function InstallationDetailModal({ project, onClose, onNotify, statusToggle, inline = false }) {
-  const TABS = ['Progress', 'Tasks', 'Materials'];
+  const TABS = ['Progress', 'Vendor', 'Tasks', 'Materials'];
   const [tab, setTab] = useState('Progress');
   const [tasks, setTasks] = useState([]);
   const [materials, setMaterials] = useState([]);
@@ -857,6 +858,8 @@ function InstallationDetailModal({ project, onClose, onNotify, statusToggle, inl
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [vendorAssignments, setVendorAssignments] = useState([]);
+  const [assignVendorOpen, setAssignVendorOpen] = useState(false);
 
   const [taskOpen, setTaskOpen] = useState(false);
   const [taskEdit, setTaskEdit] = useState(null);
@@ -868,15 +871,17 @@ function InstallationDetailModal({ project, onClose, onNotify, statusToggle, inl
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [mils, mats, ensured] = await Promise.all([
+      const [mils, mats, ensured, installs] = await Promise.all([
         projectMilestoneApi.list(project.id),
         installationMaterialApi.list(project.id),
         projectApi.ensureInstallationTasks(project.id),
+        accountsModuleApi.vendorInstallations.list({ project_id: project.id }).catch(() => []),
       ]);
       setTasks(rowsOf(mils));
       setMaterials(rowsOf(mats));
       setChecklist(Array.isArray(ensured?.results) ? ensured.results : rowsOf(ensured));
       setProgressPct(Number(ensured?.work_completion_pct || 0));
+      setVendorAssignments(Array.isArray(installs) ? installs : []);
     } catch {
       onNotify('Failed to load installation data');
     } finally {
@@ -987,6 +992,54 @@ function InstallationDetailModal({ project, onClose, onNotify, statusToggle, inl
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
             {loading ? (
               <p className="py-10 text-center text-[13px] font-semibold text-[#8a98af]">Loading...</p>
+            ) : tab === 'Vendor' ? (
+              <div>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-[13px] font-extrabold text-[#1e3261]">Installation Vendor Assignment</p>
+                  <button
+                    type="button"
+                    onClick={() => setAssignVendorOpen(true)}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-[#0b8f43] px-3 text-[12px] font-semibold text-white"
+                  >
+                    <Plus className="size-3.5" /> Assign Vendor
+                  </button>
+                </div>
+                {vendorAssignments.length === 0 ? (
+                  <p className="py-8 text-center text-[13px] font-semibold text-[#8a98af]">
+                    No vendor assigned yet. Assign an installation vendor to auto-create Daily Task + Vendor Ledger entry.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {vendorAssignments.map((a) => (
+                      <div key={a.id} className="rounded-[12px] border border-[#e7eef7] bg-white p-3">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="text-[14px] font-extrabold text-[#1e3261]">{a.vendor_name}</p>
+                            <p className="text-[12px] font-semibold text-[#7386a3]">
+                              {a.capacity_kw} kW · ₹{a.rate}/{a.rate_unit === 'per_kw' ? 'kW' : 'W'} · Contract ₹{Number(a.contract_amount || 0).toLocaleString('en-IN')}
+                            </p>
+                            <p className="mt-1 text-[12px] font-semibold text-[#53647f]">
+                              Earned ₹{Number(a.earned_amount || 0).toLocaleString('en-IN')} · Paid ₹{Number(a.total_paid || 0).toLocaleString('en-IN')} · Payable ₹{Number(a.remaining_earned_payable || 0).toLocaleString('en-IN')}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[20px] font-extrabold text-[#0b65e5]">{Number(a.approved_percent || 0).toFixed(0)}%</p>
+                            <p className="text-[11px] font-bold text-[#8a98af]">{a.status}</p>
+                          </div>
+                        </div>
+                        <div className="mt-3 space-y-1.5">
+                          {(a.stages || []).map((s) => (
+                            <div key={s.id} className="flex items-center justify-between gap-2 rounded-[8px] bg-[#f8fbff] px-2.5 py-1.5 text-[12px]">
+                              <span className="font-semibold text-[#1e3261]">{s.stage_name} ({s.allocated_percent}%)</span>
+                              <span className={`font-extrabold ${s.status === 'Approved' ? 'text-[#16a34a]' : 'text-[#94a3b8]'}`}>{s.status}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             ) : tab === 'Progress' ? (
               <div>
                 <div className="mb-3 rounded-[10px] border border-[#dcfce7] bg-[#f0fdf4] px-3 py-2 text-[12px] font-semibold text-[#166534]">
@@ -1146,6 +1199,15 @@ function InstallationDetailModal({ project, onClose, onNotify, statusToggle, inl
             </div>
           </div>
         </div>
+      ) : null}
+
+      {assignVendorOpen ? (
+        <AssignVendorInstallationModal
+          project={project}
+          onClose={() => setAssignVendorOpen(false)}
+          onNotify={onNotify}
+          onAssigned={() => { setAssignVendorOpen(false); load(); }}
+        />
       ) : null}
 
       {deleteConfirm ? (

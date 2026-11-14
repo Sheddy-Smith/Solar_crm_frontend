@@ -589,7 +589,7 @@ const employeeSubItems = ['Employee Details', 'Employee Ledger'];
 const employeeRelatedPages = ['Employee', ...employeeSubItems];
 const customerSubItems = ['Customer Details', 'Customer Ledger', 'Overall Credit Ledger'];
 const customerRelatedPages = ['Customer', ...customerSubItems, 'Customer Leads'];
-const vendorSubItems = ['Vendor Details', 'Vendor Ledger'];
+const vendorSubItems = ['Vendor Details', 'Vendor Ledger', 'Vendor Overall Credit Ledger'];
 const vendorRelatedPages = ['Vendors', ...vendorSubItems];
 const supplierSubItems = ['Supplier Details', 'Supplier Ledger'];
 const supplierRelatedPages = ['Supplier', ...supplierSubItems];
@@ -1048,6 +1048,7 @@ const customerSubRoutes = {
 const vendorSubRoutes = {
   'Vendor Details': '/vendors/details',
   'Vendor Ledger': '/vendors/ledger',
+  'Vendor Overall Credit Ledger': '/vendors/credit-ledger',
 };
 
 const supplierSubRoutes = {
@@ -10611,7 +10612,7 @@ function getModuleSubnavLabel(item) {
     return 'Customer Ledger';
   }
 
-  if (item === 'Overall Credit Ledger') {
+  if (item === 'Overall Credit Ledger' || item === 'Vendor Overall Credit Ledger') {
     return 'Overall Credit Ledger';
   }
 

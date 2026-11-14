@@ -8,6 +8,12 @@ from .document_views import (
     PurchaseInvoiceViewSet, SellInvoiceViewSet, PaymentVoucherViewSet,
     PurchaseChallanViewSet, SellChallanViewSet, GstOpeningBalanceViewSet,
 )
+from .vendor_installation_views import (
+    VendorInstallStageTemplateViewSet,
+    VendorInstallationAssignmentViewSet,
+    VendorInstallationSummaryView,
+    VendorOverallCreditLedgerView,
+)
 
 router = DefaultRouter()
 router.register('chart-of-accounts', ChartOfAccountViewSet, basename='chart-of-account')
@@ -23,5 +29,11 @@ router.register('vouchers', PaymentVoucherViewSet, basename='payment-voucher')
 router.register('purchase-challans', PurchaseChallanViewSet, basename='purchase-challan')
 router.register('sell-challans', SellChallanViewSet, basename='sell-challan')
 router.register('gst-opening', GstOpeningBalanceViewSet, basename='gst-opening')
+router.register('vendor-install-stages', VendorInstallStageTemplateViewSet, basename='vendor-install-stage')
+router.register('vendor-installations', VendorInstallationAssignmentViewSet, basename='vendor-installation')
 
-urlpatterns = [path('', include(router.urls))]
+urlpatterns = [
+    path('vendor-credit-ledger/', VendorOverallCreditLedgerView.as_view(), name='vendor-credit-ledger'),
+    path('parties/<int:vendor_id>/installation-summary/', VendorInstallationSummaryView.as_view(), name='vendor-install-summary'),
+    path('', include(router.urls)),
+]

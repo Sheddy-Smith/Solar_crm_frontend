@@ -9,6 +9,10 @@ from .models import (
     SellChallan, SellChallanLine,
     CustomerLedgerManualEntry,
     VendorLedgerManualEntry,
+    VendorInstallStageTemplate,
+    VendorInstallationAssignment,
+    VendorInstallationStage,
+    VendorInstallationPayment,
     GstOpeningBalance,
 )
 
@@ -94,8 +98,33 @@ class CustomerLedgerManualEntryAdmin(admin.ModelAdmin):
 
 @admin.register(VendorLedgerManualEntry)
 class VendorLedgerManualEntryAdmin(admin.ModelAdmin):
-    list_display = ['entry_date', 'party', 'vehicle_no', 'owner_name', 'debit', 'credit', 'created_at']
-    search_fields = ['vehicle_no', 'wheeler', 'owner_name', 'work', 'party__name', 'party__phone']
+    list_display = ['entry_date', 'party', 'project', 'debit', 'credit', 'created_at']
+    search_fields = ['work', 'party__name', 'party__phone']
+
+
+@admin.register(VendorInstallStageTemplate)
+class VendorInstallStageTemplateAdmin(admin.ModelAdmin):
+    list_display = ['name', 'percentage', 'sort_order', 'is_active']
+    list_editable = ['percentage', 'sort_order', 'is_active']
+
+
+class VendorInstallationStageInline(admin.TabularInline):
+    model = VendorInstallationStage
+    extra = 0
+
+
+class VendorInstallationPaymentInline(admin.TabularInline):
+    model = VendorInstallationPayment
+    extra = 0
+    readonly_fields = ['accounts_payment', 'created_at']
+
+
+@admin.register(VendorInstallationAssignment)
+class VendorInstallationAssignmentAdmin(admin.ModelAdmin):
+    list_display = ['id', 'project', 'vendor', 'capacity_kw', 'rate', 'rate_unit', 'contract_amount', 'approved_percent', 'earned_amount', 'total_paid', 'status']
+    list_filter = ['status', 'rate_unit', 'is_cancelled']
+    search_fields = ['project__project_name', 'project__project_id', 'vendor__name']
+    inlines = [VendorInstallationStageInline, VendorInstallationPaymentInline]
 
 
 @admin.register(GstOpeningBalance)

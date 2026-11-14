@@ -872,14 +872,16 @@ class AccountViewSet(AccountsBaseViewSet):
             return None, Response({'detail': 'Enter Debit or Credit amount greater than zero.'}, status=status.HTTP_400_BAD_REQUEST)
         if debit > 0 and credit > 0:
             return None, Response({'detail': 'Enter either Debit or Credit, not both.'}, status=status.HTTP_400_BAD_REQUEST)
+        project_id = request.data.get('project_id') or None
         payload = {
             'entry_date': entry_date,
-            'vehicle_no': str(request.data.get('vehicle_no') or '').strip()[:40],
-            'wheeler': str(request.data.get('wheeler') or '').strip()[:40],
-            'owner_name': str(request.data.get('owner_name') or '').strip()[:200],
+            'vehicle_no': '',
+            'wheeler': '',
+            'owner_name': '',
             'work': str(request.data.get('work') or request.data.get('particulars') or '').strip(),
             'debit': debit,
             'credit': credit,
+            'project_id': int(project_id) if project_id else None,
         }
         return payload, None
 
@@ -888,9 +890,7 @@ class AccountViewSet(AccountsBaseViewSet):
         return {
             'id': entry.id,
             'entry_date': entry.entry_date.isoformat(),
-            'vehicle_no': entry.vehicle_no,
-            'wheeler': entry.wheeler,
-            'owner_name': entry.owner_name,
+            'project_id': entry.project_id,
             'work': entry.work,
             'debit': float(entry.debit),
             'credit': float(entry.credit),
@@ -898,7 +898,7 @@ class AccountViewSet(AccountsBaseViewSet):
 
     @action(detail=True, methods=['post'], url_path='add-vendor-manual-entry')
     def add_vendor_manual_entry(self, request, pk=None):
-        """Vendor Ledger — Add Manual Entry (Date / Vehicle / Work / Debit / Credit)."""
+        """Vendor Ledger — Add Manual Entry (Date / Work / Debit / Credit / optional Project)."""
         party = self.get_object()
         if party.account_type != 'Vendor':
             return Response({'detail': 'Manual vendor entries are only for Vendor accounts.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -906,9 +906,6 @@ class AccountViewSet(AccountsBaseViewSet):
         if error:
             return error
         entry = VendorLedgerManualEntry.objects.create(party=party, created_by=request.user, **payload)
-        if payload['vehicle_no'] and not (party.vehicle_number or '').strip():
-            party.vehicle_number = payload['vehicle_no']
-            party.save(update_fields=['vehicle_number', 'updated_at'])
         recalculate_party_balance(party.id)
         party.refresh_from_db()
         return Response({
