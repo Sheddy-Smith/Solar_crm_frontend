@@ -78,6 +78,7 @@ export const SIDEBAR_MODULE_BY_LABEL = {
   Customer: 'Customer',
   Vendors: 'Vendors',
   Quotation: 'Quotation',
+  'Final Quotation': 'Quotation',
   'Project Management': 'Project Management',
   'Liaisoning & Commissioning': 'Liaisoning & Commissioning',
   'O&M': 'O&M',

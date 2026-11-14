@@ -44,8 +44,13 @@ def ensure_project_for_lead(lead, *, quotation=None, user=None):
     def _capacity():
         if quote and quote.plant_capacity_kw:
             return Decimal(str(quote.plant_capacity_kw))
+        from apps.projects.bom_3kw_template import resolve_lead_capacity_kw
+        from apps.projects.bom_services import parse_capacity_kw
+        detected = resolve_lead_capacity_kw(locked_lead)
+        if detected is not None:
+            return detected
         try:
-            return Decimal(str(locked_lead.estimated_capacity or '0').replace('kW', '').replace('kw', '').strip() or '0')
+            return parse_capacity_kw(locked_lead.estimated_capacity) or Decimal('0')
         except (InvalidOperation, ValueError):
             return Decimal('0')
 
@@ -158,6 +163,14 @@ def _seed_bom_plans(project, quote, user=None):
         bom = get_active_bom_version(project.capacity_kwp)
     if bom and not bom.pending_configuration:
         seed_material_plans_from_bom(project, bom, quotation=quote)
+        # Link Draft/Final quotation to the project when missing (idempotent).
+        if quote and not getattr(quote, 'project_id', None):
+            try:
+                from apps.leads.models import Quotation
+                Quotation.objects.filter(pk=quote.pk, project__isnull=True).update(project_id=project.pk)
+                quote.project_id = project.pk
+            except Exception:
+                logger.exception('Failed linking quotation_id=%s to project_id=%s', getattr(quote, 'pk', None), project.pk)
     elif bom and bom.pending_configuration:
         logger.info(
             'Skip MaterialPlan seed — BOM pending_configuration project_id=%s bom_version_id=%s',

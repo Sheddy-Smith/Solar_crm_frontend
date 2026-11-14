@@ -248,7 +248,8 @@ class Quotation(models.Model):
         ('Draft', 'Draft'),
         ('Sent', 'Sent'),
         ('Viewed', 'Viewed'),
-        ('Approved', 'Approved'),
+        ('Approved', 'Approved'),  # Final Quotation (one active Final per project/lead)
+        ('Superseded', 'Superseded'),  # Previous Final after another quotation is marked Final
         ('Rejected', 'Rejected'),
         ('Revised', 'Revised'),
         ('Expired', 'Expired'),
@@ -805,6 +806,7 @@ def _capture_previous_lead_capacity(sender, instance, **kwargs):
 def auto_draft_quotation_from_bom_on_lead(sender, instance, created, **kwargs):
     """Lead create/update with capacity → enqueue durable BOM Draft outbox.
 
+    Capacity may come from estimated_capacity or project_name (e.g. "3 KW …").
     BUG-04: Quotation generation must NOT roll back Lead create/update.
     Outbox is written in this transaction; processing runs on_commit. Failures
     stay retryable with structured logging; Lead remains persisted.
@@ -812,6 +814,13 @@ def auto_draft_quotation_from_bom_on_lead(sender, instance, created, **kwargs):
     if getattr(instance, 'is_deleted', False):
         return
     capacity = (instance.estimated_capacity or '').strip()
+    if not capacity:
+        try:
+            from apps.projects.bom_3kw_template import resolve_lead_capacity_kw
+            detected = resolve_lead_capacity_kw(instance)
+            capacity = str(detected) if detected is not None else ''
+        except Exception:
+            capacity = ''
     if not capacity:
         return
     try:

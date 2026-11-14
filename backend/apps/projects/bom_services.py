@@ -203,17 +203,25 @@ def create_draft_quotation_from_bom(lead, bom_version=None, user=None, force_new
     exists for the same Lead + BOM version, skips Draft creation and returns that
     quotation with created=False. Duplicate Draft for same BOM is reused unless
     force_new=True (force_new still cannot invent a Draft over Approved/Sent).
+
+    Project Quoted Amount preference:
+      1) Lead.project_cost when present and > 0 (overall contract amount; line prices kept)
+      2) BomVersion.final_project_price when configured
+      3) Material + labour + tax recalculation
+    Never invents a price when Project Cost is empty/zero.
     """
     from apps.leads.models import Quotation, QuotationItem
+    from apps.projects.bom_3kw_template import lead_project_cost_amount, resolve_lead_capacity_kw
 
     if bom_version is None:
-        bom_version = get_active_bom_version(lead.estimated_capacity)
+        capacity = resolve_lead_capacity_kw(lead) or parse_capacity_kw(lead.estimated_capacity)
+        bom_version = get_active_bom_version(capacity)
     if bom_version is None:
         raise ValueError('No active BOM configured for this lead capacity.')
     if bom_version.pending_configuration and not bom_version.lines.exists():
         raise ValueError('Active BOM is still pending configuration (no material lines).')
 
-    # BUG-01: never auto-create another Draft when Approved/Sent already exists for this BOM.
+    # BUG-01: never auto-create another Draft when Approved/Sent/Final already exists for this BOM.
     frozen = (
         Quotation.objects.filter(
             lead=lead,
@@ -237,8 +245,22 @@ def create_draft_quotation_from_bom(lead, bom_version=None, user=None, force_new
 
     price = bom_version.computed_project_price()
     kw = bom_version.capacity_kw
+    customer_id = getattr(lead, 'customer_id', None)
+    project = None
+    try:
+        from apps.projects.models import Project
+        project = (
+            Project.objects.filter(lead_id=lead.pk, is_deleted=False)
+            .order_by('id')
+            .first()
+        )
+    except Exception:
+        project = None
+
     quotation = Quotation.objects.create(
         lead=lead,
+        customer_id=customer_id,
+        project=project,
         status='Draft',
         plant_capacity_kw=kw,
         bom_version=bom_version,
@@ -260,6 +282,13 @@ def create_draft_quotation_from_bom(lead, bom_version=None, user=None, force_new
         gst_percent=bom_version.tax_percent or 0,
     )
     for line in bom_version.lines.all():
+        # Refresh unit_price from inventory when BOM line price is 0 but product has a rate.
+        rate = Decimal(line.unit_price or 0)
+        if rate <= 0 and line.inventory_item_id:
+            from apps.projects.bom_3kw_template import inventory_unit_price
+            rate = inventory_unit_price(line.inventory_item)
+        qty = Decimal(line.quantity or 0)
+        amount = (qty * rate).quantize(Decimal('0.01'))
         QuotationItem.objects.create(
             quotation=quotation,
             item_name=line.material_name[:200],
@@ -267,12 +296,18 @@ def create_draft_quotation_from_bom(lead, bom_version=None, user=None, force_new
             specification=line.sku or line.category,
             quantity=str(line.quantity),
             unit=line.unit or 'Nos',
-            rate=line.unit_price,
-            amount=line.line_total,
+            rate=rate,
+            amount=amount,
         )
     quotation.recalculate_totals()
-    # Prefer BOM fixed contract price when configured.
-    if bom_version.final_project_price is not None:
+
+    # Overall Project Quoted Amount vs material subtotal — do not double-add Project Cost into lines.
+    project_cost = lead_project_cost_amount(lead)
+    if project_cost is not None:
+        quotation.grand_total = project_cost
+        quotation.customer_contribution = project_cost
+        quotation.save(update_fields=['grand_total', 'customer_contribution', 'updated_at'])
+    elif bom_version.final_project_price is not None:
         quotation.grand_total = bom_version.final_project_price
         quotation.customer_contribution = bom_version.final_project_price
         quotation.save(update_fields=['grand_total', 'customer_contribution', 'updated_at'])
@@ -389,13 +424,15 @@ def material_shortage_count(date_from=None, date_to=None, plan_queryset=None) ->
 def maybe_draft_quotation_for_lead(lead, user=None):
     """Best-effort Draft quotation from active BOM when lead has a capacity.
 
+    Capacity is resolved from estimated_capacity, then project_name (e.g. "3 KW …").
     Returns (quotation|None, created: bool, skip_reason: str|None).
     Does not raise when BOM is missing/pending/Approved — callers treat as skip.
     Raises only on unexpected DB errors (callers/outbox decide whether to surface).
     """
     from apps.leads.models import Quotation
+    from apps.projects.bom_3kw_template import resolve_lead_capacity_kw
 
-    kw = parse_capacity_kw(getattr(lead, 'estimated_capacity', None))
+    kw = resolve_lead_capacity_kw(lead)
     if kw is None:
         return None, False, 'no_capacity'
     bom = get_active_bom_version(kw)

@@ -117,6 +117,9 @@ class QuotationSerializer(serializers.ModelSerializer):
     lead_ivrs_number = serializers.SerializerMethodField()
     lead_mobile_number = serializers.SerializerMethodField()
     lead_status = serializers.SerializerMethodField()
+    project_name = serializers.SerializerMethodField()
+    project_code = serializers.SerializerMethodField()
+    lead_project_name = serializers.SerializerMethodField()
     lost_lead_warning = serializers.SerializerMethodField()
     cost_per_watt = serializers.ReadOnlyField()
     estimated_annual_savings = serializers.ReadOnlyField()
@@ -127,6 +130,7 @@ class QuotationSerializer(serializers.ModelSerializer):
         model = Quotation
         fields = [
             'id', 'customer', 'customer_name', 'lead', 'project',
+            'project_name', 'project_code', 'lead_project_name',
             'lead_customer_name', 'lead_ivrs_number', 'lead_mobile_number', 'lead_status',
             'lost_lead_warning', 'items',
             'quotation_number', 'template', 'quotation_date', 'valid_till',
@@ -172,6 +176,21 @@ class QuotationSerializer(serializers.ModelSerializer):
 
     def get_lead_customer_name(self, obj):
         return obj.lead.customer_name if obj.lead_id else ''
+
+    def get_project_name(self, obj):
+        if obj.project_id and getattr(obj.project, 'project_name', None):
+            return obj.project.project_name
+        if obj.lead_id and getattr(obj.lead, 'project_name', None):
+            return obj.lead.project_name
+        return ''
+
+    def get_project_code(self, obj):
+        if obj.project_id:
+            return getattr(obj.project, 'project_id', '') or ''
+        return ''
+
+    def get_lead_project_name(self, obj):
+        return obj.lead.project_name if obj.lead_id else ''
 
     def get_lead_ivrs_number(self, obj):
         return obj.lead.ivrs_number if obj.lead_id else ''
@@ -257,7 +276,10 @@ class QuotationSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         user = getattr(request, 'user', None) if request else None
         # Approved / frozen quotations cannot silently rewrite pricing or line items.
-        frozen = bool(instance.pricing_frozen or (instance.status or '') == 'Approved')
+        frozen = bool(
+            instance.pricing_frozen
+            or (instance.status or '') in ('Approved', 'Superseded')
+        )
         pricing_keys = {
             'grand_total', 'subtotal', 'material_cost', 'installation_cost', 'structure_cost',
             'transportation_cost', 'liaisoning_charges', 'net_metering_charges', 'other_charges',
@@ -265,20 +287,38 @@ class QuotationSerializer(serializers.ModelSerializer):
             'plant_capacity_kw', 'bom_version', 'items',
         }
         if frozen:
+            # Allow workflow-only transition to Superseded when another quote is marked Final.
+            incoming = self.initial_data if isinstance(self.initial_data, dict) else {}
+            new_status = validated_data.get('status', instance.status)
+            status_only = (
+                set(validated_data.keys()) <= {'status'}
+                and new_status in ('Superseded', 'Approved', 'Cancelled')
+                and items_data is None
+            )
             if items_data is not None:
                 raise serializers.ValidationError({
-                    'items': 'Approved quotation is frozen. Create a revision Draft instead of editing lines.',
+                    'items': 'Final quotation is frozen. Create a revision Draft instead of editing lines.',
                 })
-            # Read-only totals (grand_total etc.) never enter validated_data — still reject client attempts.
-            incoming = self.initial_data if isinstance(self.initial_data, dict) else {}
             attempted = sorted({k for k in pricing_keys if k in incoming or k in validated_data})
-            if attempted:
+            if attempted and not status_only:
                 raise serializers.ValidationError({
-                    'detail': 'Approved quotation pricing is frozen. Create a revision Draft to change amounts.',
+                    'detail': 'Final quotation pricing is frozen. Create a revision Draft to change amounts.',
                     'blocked_fields': attempted,
+                })
+            if not status_only and 'status' not in validated_data and attempted:
+                raise serializers.ValidationError({
+                    'detail': 'Final quotation pricing is frozen. Create a revision Draft to change amounts.',
                 })
         with transaction.atomic():
             new_status = validated_data.get('status', instance.status)
+            # Marking Approved via PATCH also supersedes other Finals for same project/lead.
+            if new_status == 'Approved' and (instance.status or '') != 'Approved':
+                scope = Quotation.objects.filter(is_deleted=False, status='Approved').exclude(pk=instance.pk)
+                if instance.project_id:
+                    scope = scope.filter(project_id=instance.project_id)
+                elif instance.lead_id:
+                    scope = scope.filter(lead_id=instance.lead_id)
+                scope.update(status='Superseded', pricing_frozen=True)
             for attr, value in validated_data.items():
                 setattr(instance, attr, value)
             if new_status == 'Approved':

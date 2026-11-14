@@ -587,6 +587,8 @@ export const quotationApi = {
   create: (data) => request('/quotations/', { method: 'POST', body: data }),
   update: (id, data) => request(`/quotations/${id}/`, { method: 'PATCH', body: data }),
   delete: (id) => request(`/quotations/${id}/`, { method: 'DELETE' }),
+  markAsFinal: (id) => request(`/quotations/${id}/mark-as-final/`, { method: 'POST' }),
+  createRevision: (id) => request(`/quotations/${id}/create-revision/`, { method: 'POST' }),
 };
 
 // ─── Projects ────────────────────────────────────────────────────────────────

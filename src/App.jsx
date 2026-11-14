@@ -573,8 +573,8 @@ const sidebarItems = [
   { label: 'Settings', icon: Settings, showChevron: false },
 ];
 
-const leadSubItems = ['Lead List', 'Quotation'];
-const leadRelatedPages = ['Lead List', 'Lead Details', 'Lead Edit', 'Follow-ups', 'Lead Follow-up Create', 'Lead Site Visit Schedule', 'Lead Note Create', 'Lead Status Update', 'Lead Assign', 'Admin Approval', 'Quotation'];
+const leadSubItems = ['Lead List', 'Quotation', 'Final Quotation'];
+const leadRelatedPages = ['Lead List', 'Lead Details', 'Lead Edit', 'Follow-ups', 'Lead Follow-up Create', 'Lead Site Visit Schedule', 'Lead Note Create', 'Lead Status Update', 'Lead Assign', 'Admin Approval', 'Quotation', 'Final Quotation'];
 // Pages jinhe ek selected lead chahiye — refresh/restore pe selectedLead null hota hai, isliye inhe Lead List se replace karo
 const leadDetailPages = ['Lead Details', 'Lead Edit', 'Lead Follow-up Create', 'Lead Site Visit Schedule', 'Lead Note Create', 'Lead Status Update', 'Lead Assign'];
 const employeeSubItems = ['Employee Details', 'Employee Ledger'];
@@ -894,7 +894,7 @@ const settingsRelatedPages = [
 function permissionModuleForSection(section) {
   if (!section) return null;
   if (section === 'Dashboard') return 'Dashboard';
-  if (section === 'Quotation') return 'Quotation';
+  if (section === 'Quotation' || section === 'Final Quotation') return 'Quotation';
   if (section === 'Lead' || leadRelatedPages.includes(section)) return 'Lead';
   if (section === 'Customer' || customerRelatedPages.includes(section)) return 'Customer';
   if (section === 'Vendors' || vendorRelatedPages.includes(section)) return 'Vendors';
@@ -1010,6 +1010,7 @@ const summarySubRoutes = {
 const leadSubRoutes = {
   'Lead List': '/lead/list',
   Quotation: '/quotation',
+  'Final Quotation': '/quotation/final',
   'Follow-ups': '/lead/follow-ups',
   'Lead Edit': '/lead/edit/:leadId',
   'Lead Follow-up Create': '/lead/follow-up/create/:leadId',
@@ -1226,6 +1227,7 @@ const sectionRoutes = {
   Summary: '/insights?tab=overview',
   Settings: '/settings',
   Quotation: '/quotation',
+  'Final Quotation': '/quotation/final',
   'O&M': '/om/dashboard',
   'Tracker': OM_PENDING_STEPS[0].route,
   Reports: '/insights?tab=sales',
@@ -2226,7 +2228,7 @@ function App() {
     const item = isKnownSection(initialPreferences.activeSidebarItem)
       ? initialPreferences.activeSidebarItem
       : 'Dashboard';
-    if (item === 'Lead' || item === 'Quotation' || leadRelatedPages.includes(item)) return 'Lead';
+    if (item === 'Lead' || item === 'Quotation' || item === 'Final Quotation' || leadRelatedPages.includes(item)) return 'Lead';
     if (item === 'Project Management' || projectRelatedPages.includes(item)) return 'Project Management';
     if (item === 'Employee' || employeeRelatedPages.includes(item)) return 'Employee';
     if (item === 'Customer' || customerRelatedPages.includes(item)) return 'Customer';
@@ -2344,6 +2346,7 @@ function App() {
   const quotationInProjectHub = false;
   const fixedHeightPage = activeSidebarItem === 'Lead List'
     || activeSidebarItem === 'Quotation'
+    || activeSidebarItem === 'Final Quotation'
     || activeSidebarItem === 'Developer Mode';
   const [followUpPopupLead, setFollowUpPopupLead] = useState(null);
   const [followUpsPageTab, setFollowUpsPageTab] = useState('today');
@@ -2493,9 +2496,9 @@ function App() {
     if (!loggedInUser) return leadSubItems;
     const canLead = hasAnyModuleAccess(loggedInUser, 'Lead');
     const canQuotation = hasAnyModuleAccess(loggedInUser, 'Quotation');
-    // Quotation is nested under Lead — show when Lead OR Quotation module is allowed.
+    // Quotation / Final Quotation nested under Lead — show when Lead OR Quotation allowed.
     return leadSubItems.filter((subItem) => {
-      if (subItem === 'Quotation') return canLead || canQuotation;
+      if (subItem === 'Quotation' || subItem === 'Final Quotation') return canLead || canQuotation;
       return canLead;
     });
   }, [loggedInUser]);
@@ -2851,7 +2854,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (activeSidebarItem === 'Lead' || activeSidebarItem === 'Quotation' || leadRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Lead'); return; }
+    if (activeSidebarItem === 'Lead' || activeSidebarItem === 'Quotation' || activeSidebarItem === 'Final Quotation' || leadRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Lead'); return; }
     if (activeSidebarItem === 'Project Management' || projectExpandHighlightPages.includes(activeSidebarItem)) { setExpandedSection('Project Management'); return; }
     if (activeSidebarItem === 'Employee' || employeeRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Employee'); return; }
     if (activeSidebarItem === 'Customer' || customerRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Customer'); return; }
@@ -3240,7 +3243,7 @@ function App() {
                   const isDailyTasksSection = item.label === 'Daily Tasks';
                   const isSettingsSection = item.label === 'Settings';
                   const isDeveloperSection = item.label === 'Developer Mode';
-                  const isLeadHighlighted = isLeadSection && (activeSidebarItem === 'Lead' || activeSidebarItem === 'Quotation' || leadRelatedPages.includes(activeSidebarItem));
+                  const isLeadHighlighted = isLeadSection && (activeSidebarItem === 'Lead' || activeSidebarItem === 'Quotation' || activeSidebarItem === 'Final Quotation' || leadRelatedPages.includes(activeSidebarItem));
                   const isCustomerHighlighted = isCustomerSection && (activeSidebarItem === 'Customer' || customerRelatedPages.includes(activeSidebarItem));
                   const isVendorHighlighted = isVendorSection && (activeSidebarItem === 'Vendors' || vendorRelatedPages.includes(activeSidebarItem));
                   const isSupplierHighlighted = isSupplierSection && (activeSidebarItem === 'Supplier' || supplierRelatedPages.includes(activeSidebarItem));
@@ -3382,7 +3385,7 @@ function App() {
                           <div className="space-y-1">
                             {visibleLeadSidebarSubItems.map((subItem) => {
                               const isSubActive = activeSidebarItem === subItem
-                                || (subItem === 'Lead List' && leadRelatedPages.includes(activeSidebarItem) && activeSidebarItem !== 'Quotation');
+                                || (subItem === 'Lead List' && leadRelatedPages.includes(activeSidebarItem) && activeSidebarItem !== 'Quotation' && activeSidebarItem !== 'Final Quotation');
 
                               return (
                                 <button
@@ -4277,6 +4280,24 @@ function App() {
                 autoOpenCreate={autoOpenQuotation}
                 onConsumeAutoOpenCreate={consumeAutoOpenQuotation}
                 onNotify={notify}
+              />
+            ) : activeSidebarItem === 'Final Quotation' ? (
+              <FinalQuotationListPage
+                loggedInUser={loggedInUser}
+                onNotify={notify}
+                onCreateQuotation={() => {
+                  if (loggedInUser && !hasModuleAccess(loggedInUser, 'Quotation', 'Add')) {
+                    notify('You do not have permission to create quotations', 'error');
+                    return;
+                  }
+                  setAutoOpenQuotation(true);
+                  setActiveSidebarItem('Quotation');
+                  notify('Create Quotation opened');
+                }}
+                onOpenQuotationModule={() => {
+                  setActiveSidebarItem('Quotation');
+                  notify('Quotation opened');
+                }}
               />
             ) : activeSidebarItem === 'Lead Edit' ? (
               <LeadEditPage
@@ -35911,6 +35932,445 @@ function QuotationEditDetailModal({ quotationId, onClose, onSaved, onNotify }) {
   );
 }
 
+function FinalQuotationListPage({ onNotify, loggedInUser = null, onCreateQuotation, onOpenQuotationModule }) {
+  const quoteCaps = moduleCaps(loggedInUser, 'Quotation');
+  const [quotations, setQuotations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [capacityFilter, setCapacityFilter] = useState('All');
+  const [activePage, setActivePage] = useState(1);
+  const [pageSize, setPageSize] = usePageSize('final-quotation-list');
+  const tableRef = useRef(null);
+  const [viewQuotationId, setViewQuotationId] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [dateRangeOpen, setDateRangeOpen] = useState(false);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [menuOpenId, setMenuOpenId] = useState(null);
+
+  const loadQuotations = useCallback(() => {
+    setLoading(true);
+    return quotationApi.listAll({ category: 'final', page_size: 25 })
+      .then((data) => setQuotations(normalizeApiRows(data)))
+      .catch(() => {
+        setQuotations([]);
+        onNotify?.('Failed to load final quotations');
+      })
+      .finally(() => setLoading(false));
+  }, [onNotify]);
+
+  useEffect(() => {
+    loadQuotations();
+  }, [refreshKey, loadQuotations]);
+
+  useEffect(() => {
+    if (!menuOpenId) return undefined;
+    const onDoc = () => setMenuOpenId(null);
+    document.addEventListener('click', onDoc);
+    return () => document.removeEventListener('click', onDoc);
+  }, [menuOpenId]);
+
+  const projectLabel = (q) => (q.project_name || q.lead_project_name || '').trim() || '—';
+  const customerLabel = (q) => q.lead_customer_name || q.customer_name || '—';
+  const capacityLabel = (q) => {
+    const raw = q.plant_capacity_kw;
+    if (raw === null || raw === undefined || raw === '') return '—';
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return String(raw);
+    return `${n % 1 === 0 ? String(Math.trunc(n)) : String(n)} KW`;
+  };
+  const finalizedOn = (q) => {
+    const raw = q.updated_at || q.quotation_date || q.created_at;
+    if (!raw) return '—';
+    if (q.quotation_date && !String(raw).includes('T')) return formatReportDate(q.quotation_date);
+    return new Date(raw).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
+  const capacityOptions = useMemo(() => {
+    const set = new Set();
+    quotations.forEach((q) => {
+      const label = capacityLabel(q);
+      if (label && label !== '—') set.add(label);
+    });
+    return ['All', ...Array.from(set).sort((a, b) => parseFloat(a) - parseFloat(b))];
+  }, [quotations]);
+
+  const filtered = useMemo(() => quotations.filter((q) => {
+    if ((q.status || '') !== 'Approved') return false;
+    const projectName = projectLabel(q);
+    const cust = customerLabel(q);
+    const cap = capacityLabel(q);
+    const capacityMatch = capacityFilter === 'All' || cap === capacityFilter;
+    const query = searchQuery.trim().toLowerCase();
+    const searchMatch = !query
+      || q.quotation_number?.toLowerCase().includes(query)
+      || cust.toLowerCase().includes(query)
+      || projectName.toLowerCase().includes(query)
+      || q.project_code?.toLowerCase().includes(query)
+      || String(q.grand_total ?? '').includes(query)
+      || cap.toLowerCase().includes(query);
+    const quoteDate = (q.quotation_date || q.updated_at || q.created_at || '').slice(0, 10);
+    const dateMatch = (!dateFrom || !quoteDate || quoteDate >= dateFrom) && (!dateTo || !quoteDate || quoteDate <= dateTo);
+    return capacityMatch && searchMatch && dateMatch;
+  }), [quotations, capacityFilter, searchQuery, dateFrom, dateTo]);
+
+  const stats = useMemo(() => {
+    const total = filtered.length;
+    const capacitySum = filtered.reduce((sum, q) => sum + (Number(q.plant_capacity_kw) || 0), 0);
+    const amountSum = filtered.reduce((sum, q) => sum + (Number(q.grand_total) || 0), 0);
+    const now = new Date();
+    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const thisMonth = filtered.filter((q) => {
+      const d = (q.updated_at || q.quotation_date || q.created_at || '').slice(0, 7);
+      return d === ym;
+    }).length;
+    const wonProjects = new Set(
+      filtered
+        .filter((q) => (q.lead_status || '') === 'Won' || q.project)
+        .map((q) => q.project || `lead:${q.lead}` || projectLabel(q)),
+    ).size;
+    return { total, capacitySum, amountSum, thisMonth, wonProjects };
+  }, [filtered]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(activePage, totalPages);
+  const pagedRows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  useEffect(() => { setActivePage(1); }, [searchQuery, capacityFilter, dateFrom, dateTo]);
+  useEffect(() => { if (activePage > totalPages) setActivePage(totalPages); }, [activePage, totalPages]);
+
+  const printQuotation = async (quotation) => {
+    try {
+      await printQuotationRecord(quotation.id);
+    } catch (err) {
+      onNotify?.(err.message || 'Failed to print quotation');
+    }
+  };
+
+  const downloadQuotation = async (quotation) => {
+    try {
+      await printQuotationRecord(quotation.id);
+      onNotify?.(`Download / print started for ${quotation.quotation_number || `#${quotation.id}`}`);
+    } catch (err) {
+      onNotify?.(err.message || 'Failed to download quotation');
+    }
+  };
+
+  const exportCsv = () => {
+    const headers = ['#', 'Final Quotation No.', 'Project Name', 'Customer Name', 'Capacity', 'Quoted Amount', 'Finalized On', 'Status'];
+    const rows = filtered.map((q, index) => ([
+      index + 1,
+      q.quotation_number || `FQ-${q.id}`,
+      projectLabel(q),
+      customerLabel(q),
+      capacityLabel(q),
+      q.grand_total ?? '',
+      finalizedOn(q),
+      'Final',
+    ]));
+    if (!rows.length) {
+      onNotify?.('No final quotations to export', 'error');
+      return;
+    }
+    exportNotifyCsv(onNotify, 'Final Quotations', headers, rows);
+  };
+
+  const resetFilters = () => {
+    setSearchQuery('');
+    setCapacityFilter('All');
+    setDateFrom('');
+    setDateTo('');
+    setActivePage(1);
+    onNotify?.('Filters reset');
+  };
+
+  const formattedRange = useMemo(() => {
+    if (!dateFrom && !dateTo) return 'All';
+    if (dateFrom && dateTo) return `${formatReportDate(dateFrom)} - ${formatReportDate(dateTo)}`;
+    if (dateFrom) return `From ${formatReportDate(dateFrom)}`;
+    return `Until ${formatReportDate(dateTo)}`;
+  }, [dateFrom, dateTo]);
+
+  const kpiCard = (label, value, Icon, tone) => {
+    const tones = {
+      green: 'bg-[#e8f8eb] text-[#0d9f4a]',
+      blue: 'bg-[#edf5ff] text-[#0b65e5]',
+      amber: 'bg-[#fff4df] text-[#d97706]',
+      teal: 'bg-[#e6fbf4] text-[#0f9f6e]',
+      purple: 'bg-[#f0edff] text-[#4f38ef]',
+    };
+    return (
+      <article className={`${panelClass} flex items-center gap-3 p-3.5 sm:p-4`}>
+        <span className={cx('grid size-11 shrink-0 place-items-center rounded-[12px]', tones[tone] || tones.green)}>
+          <Icon className="size-5" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">{label}</p>
+          <p className="mt-0.5 truncate font-display text-[18px] font-extrabold text-[#111827] sm:text-[20px]">{value}</p>
+        </div>
+      </article>
+    );
+  };
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col space-y-3 overflow-visible pb-2 lg:overflow-hidden">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7b88a2]">
+            Lead <span className="mx-1 text-[#c0c8d6]">›</span> Final Quotation
+          </p>
+          <h1 className="mt-1 font-display text-[22px] font-extrabold text-[#111827]">Final Quotation</h1>
+          <p className="mt-0.5 text-[13px] font-bold text-[#7386a3]">Approved and active final quotations (one per project)</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={exportCsv}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"
+          >
+            <Download className="size-4 text-[#0b65e5]" />
+            Export
+          </button>
+          {quoteCaps.add ? (
+            <button
+              type="button"
+              onClick={() => onCreateQuotation?.()}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]"
+            >
+              <Plus className="size-4" />
+              Create Quotation
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      <section className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5 xl:gap-3">
+        {kpiCard('Total Final Quotations', String(stats.total), BadgeCheck, 'green')}
+        {kpiCard('Total Capacity', `${Number(stats.capacitySum.toFixed(2))} KW`, Zap, 'blue')}
+        {kpiCard('Total Quoted Amount', formatMoney(stats.amountSum), IndianRupee, 'amber')}
+        {kpiCard('This Month Final', String(stats.thisMonth), CheckCircle2, 'teal')}
+        {kpiCard('Won Projects', String(stats.wonProjects), Trophy, 'purple')}
+      </section>
+
+      <article className={`${panelClass} relative z-30 overflow-visible p-3 sm:p-4`}>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_minmax(120px,150px)_minmax(160px,200px)_minmax(120px,140px)_auto] xl:items-end">
+          <label className="flex h-11 min-w-0 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 sm:col-span-2 xl:col-span-1">
+            <Search className="size-4 shrink-0 text-[#7386a3]" />
+            <input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              type="search"
+              placeholder="Search by Customer / Project / Quotation No..."
+              className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]"
+            />
+          </label>
+          <ReportSelect
+            label="Capacity"
+            value={capacityFilter === 'All' ? 'All' : capacityFilter}
+            onChange={(value) => setCapacityFilter(value === 'All' ? 'All' : value)}
+            options={capacityOptions}
+            optionLabels={Object.fromEntries(
+              capacityOptions.map((option) => [option, option === 'All' ? 'Capacity: All' : `Capacity: ${option}`]),
+            )}
+            hideLabel
+          />
+          <ReportDateRangePicker
+            open={dateRangeOpen}
+            onToggle={() => setDateRangeOpen((current) => !current)}
+            onClose={() => setDateRangeOpen(false)}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            setDateFrom={setDateFrom}
+            setDateTo={setDateTo}
+            formattedRange={formattedRange === 'All' ? 'Date Range: All' : `Date Range: ${formattedRange}`}
+            hideLabel
+          />
+          <div className="flex h-11 items-center justify-between gap-2 rounded-[8px] border border-[#d9e4f2] bg-[#f3fbf5] px-3">
+            <span className="text-[12px] font-extrabold text-[#15803d]">Status: Final</span>
+            <BadgeCheck className="size-4 text-[#0d9f4a]" />
+          </div>
+          <button
+            type="button"
+            onClick={resetFilters}
+            title="Reset filters"
+            aria-label="Reset filters"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] xl:w-11 xl:px-0"
+          >
+            <RefreshCw className="size-4 text-[#0b65e5]" />
+            <span className="xl:hidden">Reset</span>
+          </button>
+        </div>
+      </article>
+
+      <section ref={tableRef} className={`${panelClass} flex min-h-0 flex-1 flex-col overflow-hidden p-3 sm:p-4`}>
+        {loading ? (
+          <PageLoadingState message="Loading final quotations..." />
+        ) : filtered.length === 0 ? (
+          <div className="py-16 text-center text-[14px] font-bold text-[#7386a3]">No final quotations found</div>
+        ) : (
+          <>
+            <div className="flex flex-col gap-2.5 lg:hidden">
+              {pagedRows.map((q, index) => (
+                <article key={q.id} className="rounded-[12px] border border-[#e7eef7] bg-white p-3 shadow-sm">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <button type="button" onClick={() => setViewQuotationId(q.id)} className="truncate text-left text-[14px] font-extrabold text-[#0b65e5]">
+                        {q.quotation_number || `FQ-${String(q.id).padStart(3, '0')}`}
+                      </button>
+                      <p className="mt-0.5 truncate text-[12px] font-extrabold uppercase tracking-wide text-[#1e3261]">{projectLabel(q)}</p>
+                      <p className="mt-0.5 inline-flex items-center gap-1 truncate text-[12px] font-bold text-[#53647f]">
+                        <UserRound className="size-3.5 shrink-0" />
+                        {customerLabel(q)}
+                      </p>
+                    </div>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-[#e8f8eb] px-2.5 py-1 text-[11px] font-extrabold text-[#15803d]">
+                      <CheckCircle2 className="size-3.5" />Final
+                    </span>
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-[12px] font-semibold text-[#53647f]">
+                    <span>{capacityLabel(q)}</span>
+                    <span className="text-right font-extrabold text-[#1e3261]">{formatMoney(q.grand_total)}</span>
+                    <span className="col-span-2">{finalizedOn(q)}</span>
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <button type="button" onClick={() => setViewQuotationId(q.id)} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-[8px] border border-[#e3ebf7] text-[12px] font-extrabold text-[#284276]">
+                      <Eye className="size-3.5" />View
+                    </button>
+                    <button type="button" onClick={() => downloadQuotation(q)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#e3ebf7] text-[#0b65e5]"><Download className="size-4" /></button>
+                    <button type="button" onClick={() => printQuotation(q)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#e3ebf7] text-[#0d9f4a]"><Printer className="size-4" /></button>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <div className="hidden min-h-0 flex-1 overflow-auto rounded-[12px] border border-[#e7eef7] bg-white lg:block">
+              <table className="crm-table crm-table--fit crm-table-sticky-head w-full min-w-[1080px]">
+                <colgroup>
+                  <col style={{ width: '4%' }} />
+                  <col style={{ width: '13%' }} />
+                  <col style={{ width: '16%' }} />
+                  <col style={{ width: '15%' }} />
+                  <col style={{ width: '8%' }} />
+                  <col style={{ width: '12%' }} />
+                  <col style={{ width: '11%' }} />
+                  <col style={{ width: '9%' }} />
+                  <col style={{ width: '12%' }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th><span className="block truncate">#</span></th>
+                    <th><span className="block truncate">Final Quotation No.</span></th>
+                    <th><span className="block truncate">Project Name</span></th>
+                    <th><span className="block truncate">Customer Name</span></th>
+                    <th title="Capacity">
+                      <TableHeaderFilter
+                        label="Capacity"
+                        value={capacityFilter}
+                        active={capacityFilter !== 'All'}
+                        options={capacityOptions}
+                        onChange={(v) => { setCapacityFilter(v); setActivePage(1); }}
+                      />
+                    </th>
+                    <th><span className="block truncate">Quoted Amount</span></th>
+                    <th><span className="block truncate">Finalized On</span></th>
+                    <th><span className="block truncate">Status</span></th>
+                    <th><span className="block truncate">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pagedRows.map((q, index) => (
+                    <tr key={q.id} {...rowDoubleOpenProps(() => setViewQuotationId(q.id))}>
+                      <td className="font-extrabold text-[#233a6b]">{(safePage - 1) * pageSize + index + 1}</td>
+                      <td>
+                        <button type="button" onClick={() => setViewQuotationId(q.id)} className="block truncate font-extrabold text-[#0b65e5] hover:underline">
+                          {q.quotation_number || `FQ-${String(q.id).padStart(3, '0')}`}
+                        </button>
+                      </td>
+                      <td className="font-extrabold uppercase tracking-wide text-[#1e3261]"><span className="block truncate">{projectLabel(q)}</span></td>
+                      <td>
+                        <span className="inline-flex max-w-full items-center gap-1.5 font-bold text-[#233a6b]">
+                          <UserRound className="size-3.5 shrink-0 text-[#8391a8]" />
+                          <span className="truncate">{customerLabel(q)}</span>
+                        </span>
+                      </td>
+                      <td className="font-extrabold text-[#233a6b]"><span className="block truncate">{capacityLabel(q)}</span></td>
+                      <td className="font-extrabold text-[#233a6b]"><span className="block truncate">{formatMoney(q.grand_total)}</span></td>
+                      <td><span className="block truncate">{finalizedOn(q)}</span></td>
+                      <td>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-[#e8f8eb] px-2.5 py-1 text-[11px] font-extrabold text-[#15803d]">
+                          <CheckCircle2 className="size-3.5" />Final
+                        </span>
+                      </td>
+                      <td className="relative overflow-visible" onDoubleClick={(event) => event.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button type="button" onClick={() => setViewQuotationId(q.id)} title="View" aria-label={`View ${q.quotation_number}`} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#0b65e5] transition hover:bg-[#edf5ff]">
+                            <Eye className="size-4" />
+                          </button>
+                          <button type="button" onClick={() => downloadQuotation(q)} title="Download" aria-label={`Download ${q.quotation_number}`} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#0b65e5] transition hover:bg-[#edf5ff]">
+                            <Download className="size-4" />
+                          </button>
+                          <button type="button" onClick={() => printQuotation(q)} title="Print" aria-label={`Print ${q.quotation_number}`} className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#0d9f4a] transition hover:bg-[#f3fbf6]">
+                            <Printer className="size-4" />
+                          </button>
+                          <div className="relative">
+                            <button
+                              type="button"
+                              title="More"
+                              aria-label={`More actions for ${q.quotation_number}`}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setMenuOpenId((id) => (id === q.id ? null : q.id));
+                              }}
+                              className="inline-flex size-8 items-center justify-center rounded-[8px] border border-[#e3ebf7] bg-white text-[#284276] transition hover:bg-[#f8fbff]"
+                            >
+                              <MoreVertical className="size-4" />
+                            </button>
+                            {menuOpenId === q.id ? (
+                              <div className="absolute right-0 z-40 mt-1 w-48 overflow-hidden rounded-[10px] border border-[#dbe5f2] bg-white py-1 shadow-[0_16px_40px_rgba(17,24,39,0.14)]" onClick={(e) => e.stopPropagation()}>
+                                <button type="button" className="block w-full px-3 py-2 text-left text-[12px] font-bold text-[#30466d] hover:bg-[#f5f8fc]" onClick={() => { setViewQuotationId(q.id); setMenuOpenId(null); }}>View Details</button>
+                                <button type="button" className="block w-full px-3 py-2 text-left text-[12px] font-bold text-[#30466d] hover:bg-[#f5f8fc]" onClick={() => { onOpenQuotationModule?.(); setMenuOpenId(null); }}>Open Quotation Module</button>
+                                <button type="button" className="block w-full px-3 py-2 text-left text-[12px] font-bold text-[#30466d] hover:bg-[#f5f8fc]" onClick={() => { onNotify?.('Final quotation is frozen. Create a revision from Quotation module to edit.'); setMenuOpenId(null); }}>Create Revision Tip</button>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+
+        {!loading ? (
+          <TablePagination
+            total={filtered.length}
+            page={safePage}
+            pageSize={pageSize}
+            onPageChange={(page) => {
+              setActivePage(page);
+              tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}
+            onPageSizeChange={(next) => { setPageSize(next); setActivePage(1); }}
+          />
+        ) : null}
+      </section>
+
+      {viewQuotationId ? (
+        <QuotationViewModal
+          quotationId={viewQuotationId}
+          onClose={() => setViewQuotationId(null)}
+          onEdit={quoteCaps.edit ? () => {
+            onNotify?.('Final quotations are frozen. Open Quotation module and create a revision to edit.');
+          } : undefined}
+          onNotify={onNotify}
+        />
+      ) : null}
+    </div>
+  );
+}
+
 function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, onNotify, loggedInUser = null }) {
   const quoteCaps = moduleCaps(loggedInUser, 'Quotation');
   const [quotations, setQuotations] = useState([]);
@@ -35953,9 +36413,10 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
     const sent = quotations.filter((q) => q.status === 'Sent').length;
     const draft = quotations.filter((q) => q.status === 'Draft').length;
     const accepted = quotations.filter((q) => q.status === 'Approved').length;
+    const superseded = quotations.filter((q) => q.status === 'Superseded').length;
     const expired = quotations.filter((q) => isQuotationExpired(q)).length;
     const pct = (count) => (total ? `${((count / total) * 100).toFixed(1)}%` : '0%');
-    return { total, sent, draft, accepted, expired, pct };
+    return { total, sent, draft, accepted, superseded, expired, pct };
   }, [quotations]);
 
   const loadQuotations = useCallback(() => {
@@ -36034,7 +36495,11 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
   const filteredQuotations = quotations.filter((q) => {
     const statusMatch = expiredFilter
       ? isQuotationExpired(q)
-      : (statusFilter === 'All' || q.status === statusFilter || (statusFilter === 'Accepted' && q.status === 'Approved'));
+      : (statusFilter === 'All'
+        || q.status === statusFilter
+        || (statusFilter === 'Accepted' && q.status === 'Approved')
+        || (statusFilter === 'Final Quotation' && q.status === 'Approved')
+        || (statusFilter === 'Previous Final' && q.status === 'Superseded'));
     const templateMatch = templateFilter === 'All' || q.template === templateFilter;
     const query = searchQuery.trim().toLowerCase();
     const searchMatch = !query
@@ -36077,8 +36542,12 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
       setExpiredFilter(true);
       return;
     }
-    if (filter === 'Accepted') {
-      setStatusFilter('Accepted');
+    if (filter === 'Accepted' || filter === 'Final Quotation') {
+      setStatusFilter('Final Quotation');
+      return;
+    }
+    if (filter === 'Previous Final') {
+      setStatusFilter('Previous Final');
       return;
     }
     setStatusFilter(filter);
@@ -36086,11 +36555,12 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
 
   return (
     <div className="flex min-h-0 flex-1 flex-col space-y-3 overflow-visible pb-2 lg:overflow-hidden">
-      <section className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 lg:gap-3">
+      <section className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6 lg:gap-3">
         <LiaisonApprovalStatCard label="Total Quotations" value={String(quotationStats.total)} caption="All Time" icon={FileText} tone="green" onClick={() => applyStatusCardFilter('All')} />
         <LiaisonApprovalStatCard label="Sent" value={String(quotationStats.sent)} caption={quotationStats.pct(quotationStats.sent)} icon={Mail} tone="purple" onClick={() => applyStatusCardFilter('Sent')} />
         <LiaisonApprovalStatCard label="Draft" value={String(quotationStats.draft)} caption={quotationStats.pct(quotationStats.draft)} icon={FileText} tone="amber" onClick={() => applyStatusCardFilter('Draft')} />
-        <LiaisonApprovalStatCard label="Accepted" value={String(quotationStats.accepted)} caption={quotationStats.pct(quotationStats.accepted)} icon={BadgeCheck} tone="blue" onClick={() => applyStatusCardFilter('Accepted')} />
+        <LiaisonApprovalStatCard label="Final Quotation" value={String(quotationStats.accepted)} caption={quotationStats.pct(quotationStats.accepted)} icon={BadgeCheck} tone="blue" onClick={() => applyStatusCardFilter('Final Quotation')} />
+        <LiaisonApprovalStatCard label="Previous Final" value={String(quotationStats.superseded)} caption={quotationStats.pct(quotationStats.superseded)} icon={Undo2} tone="purple" onClick={() => applyStatusCardFilter('Previous Final')} />
         <LiaisonApprovalStatCard label="Expired" value={String(quotationStats.expired)} caption={quotationStats.pct(quotationStats.expired)} icon={CalendarDays} tone="red" onClick={() => applyStatusCardFilter('Expired')} />
       </section>
 
@@ -36115,15 +36585,16 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
           />
           <ReportSelect
             label="Status"
-            value={expiredFilter ? 'Expired' : (statusFilter === 'All' ? 'All Status' : statusFilter === 'Approved' ? 'Accepted' : statusFilter)}
+            value={expiredFilter ? 'Expired' : (statusFilter === 'All' ? 'All Status' : (statusFilter === 'Approved' || statusFilter === 'Accepted') ? 'Final Quotation' : statusFilter)}
             onChange={(value) => {
               setExpiredFilter(false);
               if (value === 'All Status') setStatusFilter('All');
-              else if (value === 'Accepted') setStatusFilter('Accepted');
+              else if (value === 'Accepted' || value === 'Final Quotation') setStatusFilter('Final Quotation');
+              else if (value === 'Previous Final') setStatusFilter('Previous Final');
               else if (value === 'Expired') setExpiredFilter(true);
               else setStatusFilter(value);
             }}
-            options={['All Status', 'Draft', 'Sent', 'Accepted', 'Rejected', 'Expired']}
+            options={['All Status', 'Draft', 'Sent', 'Final Quotation', 'Previous Final', 'Rejected', 'Expired']}
             hideLabel
           />
           <ReportDateRangePicker
@@ -36565,13 +37036,12 @@ function ProjectQuotationsPanel({ project, loggedInUser, onNotify, onChanged }) 
     setBusyId(quotation.id);
     try {
       if (status === 'Approved') {
-        const others = quotations.filter((q) => q.id !== quotation.id && q.status === 'Approved');
-        await Promise.all(others.map((q) => quotationApi.update(q.id, { status: 'Rejected' })));
+        await quotationApi.markAsFinal(quotation.id);
+        onNotify?.(`${quotation.quotation_number || 'Quotation'} marked as Final Quotation`);
+      } else {
+        await quotationApi.update(quotation.id, { status });
+        onNotify?.(`${quotation.quotation_number || 'Quotation'} marked as ${status}`);
       }
-      await quotationApi.update(quotation.id, { status });
-      onNotify?.(status === 'Approved'
-        ? `${quotation.quotation_number || 'Quotation'} marked as final`
-        : `${quotation.quotation_number || 'Quotation'} marked as ${status}`);
       refresh();
     } catch (err) {
       onNotify?.(err.message || 'Failed to update quotation status');

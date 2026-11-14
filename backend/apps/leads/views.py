@@ -469,7 +469,7 @@ class AdminApprovalViewSet(viewsets.ModelViewSet):
 
 
 class QuotationViewSet(viewsets.ModelViewSet):
-    queryset = Quotation.objects.select_related('lead', 'created_by').prefetch_related('items').all()
+    queryset = Quotation.objects.select_related('lead', 'project', 'customer', 'created_by').prefetch_related('items').all()
     serializer_class = QuotationSerializer
     permission_classes = [HasModulePermission]
     permission_module = 'Quotation'
@@ -478,7 +478,15 @@ class QuotationViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        qs = super().get_queryset().filter(is_deleted=False, lead__is_deleted=False)
+        qs = super().get_queryset().filter(is_deleted=False)
+        category = (self.request.query_params.get('category') or '').strip().lower()
+        # Final Quotation page: active Final only (Approved). Superseded drops out automatically.
+        if category in ('final', 'final_quotation'):
+            qs = qs.filter(status='Approved').filter(Q(lead__isnull=True) | Q(lead__is_deleted=False))
+        elif category in ('previous_final', 'superseded'):
+            qs = qs.filter(status='Superseded').filter(Q(lead__isnull=True) | Q(lead__is_deleted=False))
+        else:
+            qs = qs.filter(lead__is_deleted=False)
         # Sales / Tele Sales Executives see only quotations on their own leads
         owner_q = lead_owner_q(self.request.user, prefix='lead__')
         if owner_q is not None:
@@ -501,3 +509,63 @@ class QuotationViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         soft_delete_quotation(instance, self.request.user)
+
+    @action(detail=True, methods=['post'], url_path='mark-as-final')
+    def mark_as_final(self, request, pk=None):
+        """Mark this quotation as the single active Final Quotation for its project/lead.
+
+        Previous Final (Approved) quotes for the same project (preferred) or lead
+        become Superseded — records are never deleted or duplicated.
+        """
+        from django.db import transaction
+
+        quotation = self.get_object()
+        with transaction.atomic():
+            locked = Quotation.objects.select_for_update().filter(pk=quotation.pk, is_deleted=False).first()
+            if not locked:
+                raise PermissionDenied('Quotation not found.')
+            scope = Quotation.objects.select_for_update().filter(is_deleted=False)
+            if locked.project_id:
+                scope = scope.filter(project_id=locked.project_id)
+            elif locked.lead_id:
+                scope = scope.filter(lead_id=locked.lead_id)
+            else:
+                scope = scope.filter(pk=locked.pk)
+            scope.filter(status='Approved').exclude(pk=locked.pk).update(
+                status='Superseded',
+                pricing_frozen=True,
+            )
+            locked.status = 'Approved'
+            locked.pricing_frozen = True
+            locked.save(update_fields=['status', 'pricing_frozen', 'updated_at'])
+        return Response(self.get_serializer(locked).data)
+
+    @action(detail=True, methods=['post'], url_path='create-revision')
+    def create_revision(self, request, pk=None):
+        """Clone a frozen Final quotation into a new editable Draft revision."""
+        from apps.leads.models import QuotationItem
+
+        source = self.get_object()
+        with transaction.atomic():
+            revision = Quotation.objects.get(pk=source.pk)
+            revision.pk = None
+            revision.id = None
+            revision.quotation_number = None
+            revision.status = 'Draft'
+            revision.pricing_frozen = False
+            revision.revision_of_id = source.pk
+            revision.created_by = request.user
+            revision.save()
+            for item in source.items.all():
+                QuotationItem.objects.create(
+                    quotation=revision,
+                    item_name=item.item_name,
+                    brand=item.brand,
+                    specification=item.specification,
+                    quantity=item.quantity,
+                    unit=item.unit,
+                    rate=item.rate,
+                    amount=item.amount,
+                )
+            revision.recalculate_totals()
+        return Response(self.get_serializer(revision).data, status=status.HTTP_201_CREATED)
