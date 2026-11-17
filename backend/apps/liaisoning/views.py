@@ -11,6 +11,7 @@ from .models import (
     LiaisonApplication, LiaisonApproval, LiaisonInspection,
     LiaisonCommissioning, LiaisonCompliance, LiaisonDocument,
     LiaisonAgreement, LiaisonNetMeter, LiaisonLoanProcess, LiaisonInspectionPlaced,
+    LiaisonDivision, LiaisonZone,
     LiaisonProjectStage, LIAISON_STAGES, LIAISON_STAGE_COMPLETED,
 )
 from .serializers import (
@@ -18,6 +19,7 @@ from .serializers import (
     LiaisonCommissioningSerializer, LiaisonComplianceSerializer, LiaisonDocumentSerializer,
     LiaisonAgreementSerializer, LiaisonNetMeterSerializer, LiaisonLoanProcessSerializer,
     LiaisonInspectionPlacedSerializer, LiaisonProjectSerializer,
+    LiaisonDivisionSerializer, LiaisonZoneSerializer,
 )
 from apps.accounts.permissions import HasModulePermission, lead_owner_filter
 
@@ -40,8 +42,11 @@ class LiaisonBaseViewSet(viewsets.ModelViewSet):
 
 class LiaisonApplicationViewSet(LiaisonBaseViewSet):
     serializer_class = LiaisonApplicationSerializer
-    filterset_fields = ['project', 'status', 'application_type']
-    search_fields = ['application_number', 'discom', 'project__project_name', 'project__customer_name']
+    filterset_fields = ['project', 'status', 'application_type', 'division', 'zone']
+    search_fields = [
+        'application_number', 'discom', 'division', 'zone',
+        'project__project_name', 'project__customer_name',
+    ]
 
     def get_queryset(self):
         return self._scope(LiaisonApplication.objects.select_related('project', 'created_by').all())
@@ -159,11 +164,35 @@ class LiaisonDocumentViewSet(viewsets.ModelViewSet):
 
 class LiaisonLoanProcessViewSet(LiaisonBaseViewSet):
     serializer_class = LiaisonLoanProcessSerializer
-    filterset_fields = ['project', 'status', 'loan_type']
+    filterset_fields = ['project', 'status', 'loan_type', 'financier_name']
     search_fields = ['financier_name', 'loan_account_number', 'project__project_name', 'project__customer_name']
 
     def get_queryset(self):
         return self._scope(LiaisonLoanProcess.objects.select_related('project', 'created_by').all())
+
+
+class LiaisonDivisionViewSet(viewsets.ModelViewSet):
+    serializer_class = LiaisonDivisionSerializer
+    permission_classes = [HasModulePermission]
+    permission_module = 'Liaisoning & Commissioning'
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['is_active']
+    search_fields = ['name']
+    ordering = ['name']
+    queryset = LiaisonDivision.objects.all()
+
+
+class LiaisonZoneViewSet(viewsets.ModelViewSet):
+    serializer_class = LiaisonZoneSerializer
+    permission_classes = [HasModulePermission]
+    permission_module = 'Liaisoning & Commissioning'
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['is_active', 'division']
+    search_fields = ['name', 'division__name']
+    ordering = ['name']
+
+    def get_queryset(self):
+        return LiaisonZone.objects.select_related('division').all()
 
 
 class LiaisonInspectionPlacedViewSet(LiaisonBaseViewSet):
@@ -177,6 +206,7 @@ class LiaisonInspectionPlacedViewSet(LiaisonBaseViewSet):
 
 class LiaisonAgreementViewSet(LiaisonBaseViewSet):
     serializer_class = LiaisonAgreementSerializer
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
     filterset_fields = ['project', 'status', 'agreement_type']
     search_fields = ['agreement_number', 'signed_by', 'project__project_name', 'project__customer_name']
 
@@ -186,8 +216,11 @@ class LiaisonAgreementViewSet(LiaisonBaseViewSet):
 
 class LiaisonNetMeterViewSet(LiaisonBaseViewSet):
     serializer_class = LiaisonNetMeterSerializer
-    filterset_fields = ['project', 'status', 'meter_type']
-    search_fields = ['meter_number', 'meter_make', 'project__project_name', 'project__customer_name']
+    filterset_fields = ['project', 'status', 'meter_type', 'meter_source', 'division', 'zone']
+    search_fields = [
+        'meter_number', 'meter_make', 'division', 'zone', 'assigned_to',
+        'project__project_name', 'project__customer_name', 'project__project_id',
+    ]
 
     def get_queryset(self):
         return self._scope(LiaisonNetMeter.objects.select_related('project', 'created_by').all())

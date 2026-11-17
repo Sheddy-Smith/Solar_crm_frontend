@@ -1,10 +1,11 @@
 from rest_framework import serializers
+from django.utils import timezone
 from apps.projects.models import Project
 from .models import (
     LiaisonApplication, LiaisonApproval, LiaisonInspection,
     LiaisonCommissioning, LiaisonCompliance, LiaisonDocument,
     LiaisonAgreement, LiaisonNetMeter, LiaisonLoanProcess, LiaisonInspectionPlaced,
-    LIAISON_STAGES,
+    LiaisonDivision, LiaisonZone, LiaisonProjectStage, LIAISON_STAGES,
 )
 
 
@@ -31,6 +32,7 @@ class LiaisonApplicationSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'record_no', 'project', 'project_name', 'customer_name',
             'application_number', 'application_type', 'capacity_kw', 'discom',
+            'division', 'zone',
             'status', 'submitted_date', 'remarks',
             'created_by', 'created_by_name', 'created_at', 'updated_at',
         ]
@@ -247,11 +249,35 @@ class LiaisonLoanProcessSerializer(serializers.ModelSerializer):
         model = LiaisonLoanProcess
         fields = [
             'id', 'record_no', 'project', 'project_name', 'customer_name',
-            'loan_type', 'financier_name', 'loan_account_number', 'loan_amount',
+            'loan_type', 'financier_name', 'loan_account_number',
+            'quotation_amount', 'loan_amount', 'loan_percent', 'sanctioned_amount',
             'applied_date', 'sanctioned_date', 'status', 'remarks',
             'created_by', 'created_by_name', 'created_at', 'updated_at',
         ]
         read_only_fields = ['created_by', 'created_at', 'updated_at']
+
+    def validate(self, attrs):
+        quote = attrs.get('quotation_amount', getattr(self.instance, 'quotation_amount', None) if self.instance else None)
+        applied = attrs.get('loan_amount', getattr(self.instance, 'loan_amount', None) if self.instance else None)
+        if quote not in (None, '') and applied not in (None, '') and float(quote) > 0:
+            attrs['loan_percent'] = round((float(applied) / float(quote)) * 100, 2)
+        return attrs
+
+
+class LiaisonDivisionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LiaisonDivision
+        fields = ['id', 'name', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at']
+
+
+class LiaisonZoneSerializer(serializers.ModelSerializer):
+    division_name = serializers.CharField(source='division.name', read_only=True)
+
+    class Meta:
+        model = LiaisonZone
+        fields = ['id', 'name', 'division', 'division_name', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at']
 
 
 class LiaisonInspectionPlacedSerializer(serializers.ModelSerializer):
@@ -282,6 +308,7 @@ class LiaisonAgreementSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source='project.customer_name', read_only=True)
     record_no = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
+    document_name = serializers.SerializerMethodField()
 
     def get_record_no(self, obj):
         return f'LC-AGR-{obj.id:04d}'
@@ -289,15 +316,24 @@ class LiaisonAgreementSerializer(serializers.ModelSerializer):
     def get_created_by_name(self, obj):
         return _user_name(obj.created_by)
 
+    def get_document_name(self, obj):
+        if not obj.document:
+            return ''
+        name = getattr(obj.document, 'name', '') or ''
+        return name.rsplit('/', 1)[-1] if name else ''
+
     class Meta:
         model = LiaisonAgreement
         fields = [
             'id', 'record_no', 'project', 'project_name', 'customer_name',
             'agreement_type', 'agreement_number', 'agreement_date', 'signed_by',
-            'status', 'remarks',
+            'status', 'remarks', 'document', 'document_name',
             'created_by', 'created_by_name', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['created_by', 'created_at', 'updated_at']
+        read_only_fields = ['created_by', 'created_at', 'updated_at', 'document_name']
+        extra_kwargs = {
+            'document': {'required': False, 'allow_null': True},
+        }
 
 
 class LiaisonNetMeterSerializer(serializers.ModelSerializer):
@@ -305,6 +341,8 @@ class LiaisonNetMeterSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source='project.customer_name', read_only=True)
     record_no = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
+    ready_for_commissioning = serializers.SerializerMethodField()
+    project_id_display = serializers.CharField(source='project.project_id', read_only=True)
 
     def get_record_no(self, obj):
         return f'LC-NMT-{obj.id:04d}'
@@ -312,15 +350,116 @@ class LiaisonNetMeterSerializer(serializers.ModelSerializer):
     def get_created_by_name(self, obj):
         return _user_name(obj.created_by)
 
+    def get_ready_for_commissioning(self, obj):
+        return obj.is_ready_for_commissioning()
+
+    def validate(self, attrs):
+        meter_number = attrs.get('meter_number')
+        if meter_number is None and self.instance:
+            meter_number = self.instance.meter_number
+        meter_number = (meter_number or '').strip()
+        project = attrs.get('project') or (self.instance.project if self.instance else None)
+        if meter_number and project:
+            qs = LiaisonNetMeter.objects.filter(project=project, meter_number=meter_number)
+            if self.instance:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError({
+                    'meter_number': 'A meter with this number already exists for this project.',
+                })
+        return attrs
+
+    def _append_history(self, instance, old_status, request):
+        if old_status == instance.status:
+            return
+        entry = {
+            'from': old_status or '',
+            'to': instance.status,
+            'by': _user_name(request.user) if request and getattr(request, 'user', None) else '',
+            'at': timezone.now().isoformat(),
+            'note': '',
+        }
+        history = list(instance.status_history or [])
+        history.append(entry)
+        instance.status_history = history
+
+    def _ready_commissioning_stage(self, instance, request):
+        """When Net Metering is fully completed, move project to Commissioning stage
+        (Ready for Commissioning). Does NOT create/complete a Commissioning record."""
+        if not instance.is_ready_for_commissioning():
+            return
+        tracker, _ = LiaisonProjectStage.objects.get_or_create(project=instance.project)
+        if tracker.stage != 'Net Meter':
+            return
+        tracker.history = [*(tracker.history or []), {
+            'from': tracker.stage,
+            'to': 'Commissioning',
+            'action': 'net_meter_completed',
+            'by': _user_name(request.user) if request and getattr(request, 'user', None) else '',
+            'at': timezone.now().isoformat(),
+        }]
+        tracker.stage = 'Commissioning'
+        if request and getattr(request, 'user', None) and request.user.is_authenticated:
+            tracker.updated_by = request.user
+        tracker.save(update_fields=['history', 'stage', 'updated_by', 'updated_at'])
+
+    def create(self, validated_data):
+        request = self.context.get('request')
+        meter_type = validated_data.get('meter_type') or LiaisonNetMeter.METER_TYPE_SMART_1P
+        validated_data['phase'] = LiaisonNetMeter.PHASE_BY_TYPE.get(
+            meter_type, validated_data.get('phase') or 'Single Phase',
+        )
+        source = validated_data.get('meter_source') or LiaisonNetMeter.SOURCE_NEW
+        if source == LiaisonNetMeter.SOURCE_EXISTING:
+            validated_data.setdefault('status', LiaisonNetMeter.STATUS_EXISTING_VERIFIED)
+            validated_data.setdefault('existing_verified', True)
+        else:
+            validated_data.setdefault('status', LiaisonNetMeter.STATUS_PURCHASE)
+        instance = super().create(validated_data)
+        self._append_history(instance, '', request)
+        if instance.status_history:
+            instance.save(update_fields=['status_history'])
+        self._ready_commissioning_stage(instance, request)
+        return instance
+
+    def update(self, instance, validated_data):
+        request = self.context.get('request')
+        old_status = instance.status
+        if 'meter_type' in validated_data:
+            validated_data['phase'] = LiaisonNetMeter.PHASE_BY_TYPE.get(
+                validated_data['meter_type'], instance.phase or 'Single Phase',
+            )
+        if validated_data.get('meter_source') == LiaisonNetMeter.SOURCE_EXISTING:
+            if validated_data.get('status') == LiaisonNetMeter.STATUS_EXISTING_VERIFIED:
+                validated_data['existing_verified'] = True
+        instance = super().update(instance, validated_data)
+        self._append_history(instance, old_status, request)
+        if instance.status_history is not None:
+            instance.save(update_fields=['status_history', 'updated_at'])
+        self._ready_commissioning_stage(instance, request)
+        return instance
+
     class Meta:
         model = LiaisonNetMeter
         fields = [
-            'id', 'record_no', 'project', 'project_name', 'customer_name',
-            'meter_type', 'meter_number', 'meter_make', 'phase',
-            'application_date', 'installation_date', 'status', 'remarks',
+            'id', 'record_no', 'project', 'project_name', 'customer_name', 'project_id_display',
+            'meter_type', 'meter_number', 'meter_make', 'phase', 'meter_source',
+            'division', 'zone',
+            'application_date', 'status_date',
+            'purchase_date', 'purchase_vendor',
+            'testing_date', 'testing_details',
+            'installation_date', 'assigned_to',
+            'existing_verified',
+            'email_sent_date', 'email_reference', 'email_recipient', 'email_notes',
+            'division_response', 'division_response_date',
+            'status', 'remarks', 'status_history',
+            'ready_for_commissioning',
             'created_by', 'created_by_name', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['created_by', 'created_at', 'updated_at']
+        read_only_fields = [
+            'created_by', 'created_at', 'updated_at', 'phase',
+            'status_history', 'ready_for_commissioning', 'project_id_display',
+        ]
 
 
 class LiaisonProjectSerializer(serializers.ModelSerializer):

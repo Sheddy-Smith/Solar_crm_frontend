@@ -1,32 +1,80 @@
 from django.db import models
+from django.db.models import Q
 from apps.accounts.models import User
 from apps.projects.models import Project
 from malwa_solar.validators import validate_document_extension, validate_upload_size
 
 
+class LiaisonDivision(models.Model):
+    """DISCOM / utility division master for Application module."""
+
+    name = models.CharField(max_length=120, unique=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        ordering = ['name']
+
+
+class LiaisonZone(models.Model):
+    """Zone under a division (optional FK)."""
+
+    name = models.CharField(max_length=120)
+    division = models.ForeignKey(
+        LiaisonDivision, on_delete=models.SET_NULL, null=True, blank=True, related_name='zones',
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        ordering = ['name']
+        unique_together = [('name', 'division')]
+
+
 class LiaisonApplication(models.Model):
     TYPE_CHOICES = [
+        ('Solar Application', 'Solar Application'),
+        ('PM Surya Ghar', 'PM Surya Ghar'),
+        ('RTP', 'RTP'),
+        ('Load Enhancement', 'Load Enhancement'),
+        ('Load Change', 'Load Change'),
+        ('Name Change', 'Name Change'),
+        ('System Modification', 'System Modification'),
+        ('Other', 'Other'),
+        # Legacy (kept for existing rows)
         ('Net Metering', 'Net Metering'),
         ('Captive Consumption', 'Captive Consumption'),
         ('Rooftop Solar', 'Rooftop Solar'),
         ('Grid Connection', 'Grid Connection'),
-        ('Other', 'Other'),
     ]
     STATUS_CHOICES = [
+        ('Pending', 'Pending'),
+        ('Under Process', 'Under Process'),
+        ('Rejected', 'Rejected'),
+        ('Completed', 'Completed'),
+        # Legacy
         ('Draft', 'Draft'),
         ('Submitted', 'Submitted'),
         ('Under Review', 'Under Review'),
         ('Approved', 'Approved'),
-        ('Rejected', 'Rejected'),
-        ('Completed', 'Completed'),
     ]
 
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='lc_applications')
     application_number = models.CharField(max_length=100, blank=True)
-    application_type = models.CharField(max_length=50, choices=TYPE_CHOICES, default='Net Metering')
+    application_type = models.CharField(max_length=50, choices=TYPE_CHOICES, default='Solar Application')
     capacity_kw = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     discom = models.CharField(max_length=200, blank=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Submitted')
+    division = models.CharField(max_length=120, blank=True)
+    zone = models.CharField(max_length=120, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
     submitted_date = models.DateField(null=True, blank=True)
     remarks = models.TextField(blank=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='lc_applications_created')
@@ -260,6 +308,12 @@ class LiaisonAgreement(models.Model):
     signed_by = models.CharField(max_length=200, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
     remarks = models.TextField(blank=True)
+    document = models.FileField(
+        upload_to='liaison_agreements/%Y/%m/',
+        null=True,
+        blank=True,
+        validators=[validate_document_extension, validate_upload_size],
+    )
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='lc_agreements_created')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -272,41 +326,141 @@ class LiaisonAgreement(models.Model):
 
 
 class LiaisonNetMeter(models.Model):
+    """Net Metering workflow (new purchase vs existing smart meter at site)."""
+
+    METER_TYPE_NORMAL_1P = 'Normal Meter - Single Phase'
+    METER_TYPE_SMART_1P = 'Smart Meter - Single Phase'
+    METER_TYPE_SMART_3P = 'Smart Meter - Three Phase'
+    METER_TYPE_SOLAR_3P = 'Solar Generation Meter - Three Phase'
     METER_TYPE_CHOICES = [
+        (METER_TYPE_NORMAL_1P, METER_TYPE_NORMAL_1P),
+        (METER_TYPE_SMART_1P, METER_TYPE_SMART_1P),
+        (METER_TYPE_SMART_3P, METER_TYPE_SMART_3P),
+        (METER_TYPE_SOLAR_3P, METER_TYPE_SOLAR_3P),
+        # Legacy values kept for existing rows until data migration remaps them
         ('Bi-directional Meter', 'Bi-directional Meter'),
         ('Net Meter', 'Net Meter'),
         ('Solar Generation Meter', 'Solar Generation Meter'),
         ('Other', 'Other'),
     ]
+    PHASE_BY_TYPE = {
+        METER_TYPE_NORMAL_1P: 'Single Phase',
+        METER_TYPE_SMART_1P: 'Single Phase',
+        METER_TYPE_SMART_3P: 'Three Phase',
+        METER_TYPE_SOLAR_3P: 'Three Phase',
+        'Bi-directional Meter': 'Single Phase',
+        'Net Meter': 'Single Phase',
+        'Solar Generation Meter': 'Three Phase',
+        'Other': 'Single Phase',
+    }
     PHASE_CHOICES = [
         ('Single Phase', 'Single Phase'),
         ('Three Phase', 'Three Phase'),
     ]
+    SOURCE_NEW = 'New Meter Purchased by Company'
+    SOURCE_EXISTING = 'Existing Smart Meter Already Installed at Site'
+    SOURCE_CHOICES = [
+        (SOURCE_NEW, SOURCE_NEW),
+        (SOURCE_EXISTING, SOURCE_EXISTING),
+    ]
+    # New-meter workflow
+    STATUS_PURCHASE = 'Purchase'
+    STATUS_SENT_TESTING = 'Sent for Testing'
+    STATUS_TESTING_DONE = 'Testing Done'
+    STATUS_DIVISION_SUBMITTED = 'Division Application Submitted'
+    STATUS_MAIL_CONVERSION = 'Mail Sent for Solar Conversion'
+    STATUS_INSTALL_SCHEDULED = 'Installation Scheduled'
+    STATUS_INSTALLED = 'Installed at Customer Site'
+    STATUS_DIVISION_CONFIRM = 'Division Confirmation'
+    STATUS_COMPLETED = 'Completed'
+    # Existing-meter workflow
+    STATUS_EXISTING_VERIFIED = 'Existing Smart Meter Verified'
+    STATUS_DOCS_UPLOADED = 'Application Documents Uploaded'
+    STATUS_DIVISION_RESPONSE = 'Division Response Received'
+    STATUS_CONVERSION_DONE = 'Solar Conversion Completed'
+    STATUS_REJECTED = 'Rejected'
+    # Short display aliases still accepted from older UI / mockup
     STATUS_CHOICES = [
+        (STATUS_PURCHASE, STATUS_PURCHASE),
+        (STATUS_SENT_TESTING, STATUS_SENT_TESTING),
+        (STATUS_TESTING_DONE, STATUS_TESTING_DONE),
+        (STATUS_DIVISION_SUBMITTED, STATUS_DIVISION_SUBMITTED),
+        (STATUS_MAIL_CONVERSION, STATUS_MAIL_CONVERSION),
+        (STATUS_INSTALL_SCHEDULED, STATUS_INSTALL_SCHEDULED),
+        (STATUS_INSTALLED, STATUS_INSTALLED),
+        (STATUS_DIVISION_CONFIRM, STATUS_DIVISION_CONFIRM),
+        (STATUS_EXISTING_VERIFIED, STATUS_EXISTING_VERIFIED),
+        (STATUS_DOCS_UPLOADED, STATUS_DOCS_UPLOADED),
+        (STATUS_DIVISION_RESPONSE, STATUS_DIVISION_RESPONSE),
+        (STATUS_CONVERSION_DONE, STATUS_CONVERSION_DONE),
+        (STATUS_COMPLETED, STATUS_COMPLETED),
+        (STATUS_REJECTED, STATUS_REJECTED),
+        # Legacy
         ('Applied', 'Applied'),
         ('Testing', 'Testing'),
         ('Installed', 'Installed'),
-        ('Rejected', 'Rejected'),
     ]
+    NEW_WORKFLOW_STATUSES = [
+        STATUS_PURCHASE, STATUS_SENT_TESTING, STATUS_TESTING_DONE,
+        STATUS_DIVISION_SUBMITTED, STATUS_MAIL_CONVERSION, STATUS_INSTALL_SCHEDULED,
+        STATUS_INSTALLED, STATUS_DIVISION_CONFIRM, STATUS_COMPLETED, STATUS_REJECTED,
+    ]
+    EXISTING_WORKFLOW_STATUSES = [
+        STATUS_EXISTING_VERIFIED, STATUS_DOCS_UPLOADED, STATUS_MAIL_CONVERSION,
+        STATUS_DIVISION_RESPONSE, STATUS_CONVERSION_DONE, STATUS_COMPLETED, STATUS_REJECTED,
+    ]
+    READY_FOR_COMMISSIONING_STATUSES = {
+        STATUS_COMPLETED, STATUS_CONVERSION_DONE,
+    }
 
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='lc_net_meters')
-    meter_type = models.CharField(max_length=30, choices=METER_TYPE_CHOICES, default='Bi-directional Meter')
+    meter_type = models.CharField(max_length=60, choices=METER_TYPE_CHOICES, default=METER_TYPE_SMART_1P)
     meter_number = models.CharField(max_length=100, blank=True)
     meter_make = models.CharField(max_length=100, blank=True)
     phase = models.CharField(max_length=20, choices=PHASE_CHOICES, blank=True)
+    meter_source = models.CharField(max_length=60, choices=SOURCE_CHOICES, default=SOURCE_NEW)
+    division = models.CharField(max_length=120, blank=True)
+    zone = models.CharField(max_length=120, blank=True)
     application_date = models.DateField(null=True, blank=True)
+    status_date = models.DateField(null=True, blank=True)
+    purchase_date = models.DateField(null=True, blank=True)
+    purchase_vendor = models.CharField(max_length=200, blank=True)
+    testing_date = models.DateField(null=True, blank=True)
+    testing_details = models.TextField(blank=True)
     installation_date = models.DateField(null=True, blank=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Applied')
+    assigned_to = models.CharField(max_length=200, blank=True)
+    existing_verified = models.BooleanField(default=False)
+    email_sent_date = models.DateField(null=True, blank=True)
+    email_reference = models.CharField(max_length=120, blank=True)
+    email_recipient = models.CharField(max_length=200, blank=True)
+    email_notes = models.TextField(blank=True)
+    division_response = models.TextField(blank=True)
+    division_response_date = models.DateField(null=True, blank=True)
+    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default=STATUS_PURCHASE)
     remarks = models.TextField(blank=True)
+    status_history = models.JSONField(default=list, blank=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='lc_net_meters_created')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def derive_phase(self):
+        return self.PHASE_BY_TYPE.get(self.meter_type, self.phase or 'Single Phase')
+
+    def is_ready_for_commissioning(self):
+        return self.status in self.READY_FOR_COMMISSIONING_STATUSES
 
     def __str__(self):
         return f'LC-NMT-{self.id:04d} — {self.project.project_name}'
 
     class Meta:
         ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['project', 'meter_number'],
+                condition=~models.Q(meter_number=''),
+                name='uniq_lc_net_meter_project_number',
+            ),
+        ]
 
 
 class LiaisonLoanProcess(models.Model):
@@ -332,7 +486,10 @@ class LiaisonLoanProcess(models.Model):
     loan_type = models.CharField(max_length=40, choices=TYPE_CHOICES, default='Bank Loan')
     financier_name = models.CharField(max_length=200, blank=True)
     loan_account_number = models.CharField(max_length=100, blank=True)
-    loan_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    quotation_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    loan_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)  # applied loan amount
+    loan_percent = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    sanctioned_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     applied_date = models.DateField(null=True, blank=True)
     sanctioned_date = models.DateField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Applied')

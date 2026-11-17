@@ -57,6 +57,7 @@ import {
   splitVoucherParticulars,
 } from './accountsVoucherForm.jsx';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
+import SearchableSelect from './components/SearchableSelect.jsx';
 import {
   MarkAsFinalConfirmModal,
   ModuleIndependentBadge,
@@ -85,6 +86,27 @@ import {
   OM_HUB_SECTIONS as OM_MODULE_SECTIONS,
   OM_LEGACY_TO_SECTION as OM_LEGACY_SECTIONS,
 } from './omHubPages.jsx';
+import {
+  ApplicationWizardForm,
+  LoanWizardForm,
+  MasterManageModal,
+  APPLICATION_KPI_GROUPS,
+  LOAN_KPI_GROUPS,
+  LC_APPLICATION_TYPES,
+  LC_APPLICATION_STATUSES,
+  LC_LOAN_STATUSES,
+  countByStatusGroups,
+} from './liaisonApplicationLoanUi.jsx';
+import {
+  NetMeterWizardForm,
+  NetMeterHistoryPanel,
+  NET_METER_KPI_GROUPS,
+  NM_METER_TYPES,
+  NM_ALL_STATUSES,
+  NM_SOURCE_NEW,
+  NM_SOURCES,
+  NM_PHASE_BY_TYPE,
+} from './liaisonNetMeterUi.jsx';
 import {
   SETTINGS_PILLARS,
   SettingsArchitectureTabs,
@@ -5867,15 +5889,15 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
             </label>
             <label className="grid gap-1 text-[11px] font-extrabold uppercase tracking-wide text-[#7b88a2]">
               Assigned to
-              <select
+              <SearchableSelect
                 value={assignedToFilter}
-                onChange={(e) => { setAssignedToFilter(e.target.value); setActivePage(1); }}
-                className="h-11 rounded-[10px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]"
-              >
-                {assigneeOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
+                onChange={(v) => { setAssignedToFilter(v || 'All'); setActivePage(1); }}
+                options={assigneeOptions}
+                placeholder="All"
+                searchPlaceholder="Search employee..."
+                allowOther={false}
+                triggerClassName="flex h-11 w-full items-center justify-between gap-2 rounded-[10px] border border-[#d9e4f2] bg-white px-3 text-left text-[13px] font-bold text-[#1e3261]"
+              />
             </label>
             <label className="grid gap-1 text-[11px] font-extrabold uppercase tracking-wide text-[#7b88a2]">
               Added by
@@ -6295,16 +6317,14 @@ function LeadAssignModal({ lead, executives = [], onClose, onAssigned, onNotify 
           </div>
           <div>
             <label className="mb-1.5 block text-[12px] font-extrabold text-[#334666]">Assign to Employee</label>
-            <select
+            <SearchableSelect
               value={selected}
-              onChange={(e) => setSelected(e.target.value)}
-              className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#233a6b] outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-            >
-              <option value="">{options.length ? 'Select employee' : 'No employees found'}</option>
-              {options.map((e) => (
-                <option key={e.id} value={String(e.id)}>{e.name}</option>
-              ))}
-            </select>
+              onChange={setSelected}
+              options={options.map((e) => ({ value: String(e.id), label: e.name || e.email || String(e.id) }))}
+              placeholder={options.length ? 'Select employee' : 'No employees found'}
+              searchPlaceholder="Search employee..."
+              triggerClassName="flex h-11 w-full items-center justify-between gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-left text-[13px] font-bold text-[#233a6b] outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+            />
             <p className="mt-1.5 text-[11px] font-semibold text-[#7b88a2]">Tele Sales Executives are excluded from assignment.</p>
           </div>
         </div>
@@ -10787,6 +10807,7 @@ const lcFormatDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN') : '—'
 function LcStatusBadge({ status }) {
   const cfg = {
     Pending: 'bg-[#fff4df] text-[#d97706]',
+    'Under Process': 'bg-[#eef4ff] text-[#0b65e5]',
     Approved: 'bg-[#dcfce7] text-[#16a34a]',
     Rejected: 'bg-[#fee2e2] text-[#dc2626]',
     Draft: 'bg-[#f1f5f9] text-[#64748b]',
@@ -10799,7 +10820,21 @@ function LcStatusBadge({ status }) {
     Overdue: 'bg-[#fee2e2] text-[#dc2626]',
     Signed: 'bg-[#dcfce7] text-[#16a34a]',
     Applied: 'bg-[#eef4ff] text-[#0b65e5]',
+    Sanctioned: 'bg-[#dcfce7] text-[#15803d]',
+    Disbursed: 'bg-[#ecfdf5] text-[#0b8f43]',
     Testing: 'bg-[#fff4df] text-[#d97706]',
+    Purchase: 'bg-[#fff4df] text-[#d97706]',
+    'Sent for Testing': 'bg-[#fff4df] text-[#d97706]',
+    'Testing Done': 'bg-[#eef4ff] text-[#0b65e5]',
+    'Division Application Submitted': 'bg-[#f3e8ff] text-[#7c3aed]',
+    'Mail Sent for Solar Conversion': 'bg-[#e0f2fe] text-[#0284c7]',
+    'Installation Scheduled': 'bg-[#fff4df] text-[#d97706]',
+    'Installed at Customer Site': 'bg-[#dcfce7] text-[#16a34a]',
+    'Division Confirmation': 'bg-[#f3e8ff] text-[#7c3aed]',
+    'Existing Smart Meter Verified': 'bg-[#eef4ff] text-[#0b65e5]',
+    'Application Documents Uploaded': 'bg-[#eef4ff] text-[#0b65e5]',
+    'Division Response Received': 'bg-[#f3e8ff] text-[#7c3aed]',
+    'Solar Conversion Completed': 'bg-[#dcfce7] text-[#15803d]',
     Installed: 'bg-[#dcfce7] text-[#16a34a]',
     Open: 'bg-[#fee2e2] text-[#dc2626]',
     'On Hold': 'bg-[#f1f5f9] text-[#64748b]',
@@ -11069,6 +11104,7 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(config.defaults);
   const [completeItem, setCompleteItem] = useState(null);
+  const [manageMaster, setManageMaster] = useState(null);
 
   const needsUsers = config.fields.some((f) => f.type === 'user');
   const needsProjects = config.fields.some((f) => f.type === 'project');
@@ -11076,21 +11112,41 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
   const isCommissioningCompleteFlow = Boolean(config.requiresCompleteForm);
 
   useEffect(() => {
-    if (needsProjects) projectApi.list({ page_size: 25 }).then((r) => setProjects(normalizeApiRows(r))).catch(() => {});
-    if (needsUsers) userApi.list({ page_size: 25 }).then((r) => setUsers(normalizeApiRows(r))).catch(() => {});
+    if (needsProjects) {
+      fetchEveryPage((page, pageSize) => projectApi.list({ page, page_size: pageSize }))
+        .then((rows) => setProjects(rows))
+        .catch(() => setProjects([]));
+    }
+    // CRM account users (login accounts) — full active directory for assign fields.
+    if (needsUsers) {
+      userApi.options({ is_active: true })
+        .then((r) => setUsers(normalizeApiRows(r)))
+        .catch(() => setUsers([]));
+    }
+    // Workforce employees — full list (no status filter) for Assign To dropdowns.
     if (needsEmployees) {
-      workforceApi.listEmployees({ page_size: 200 })
-        .then((r) => {
-          const activeStatuses = new Set(['Available', 'Assigned', 'In Progress']);
-          const rows = normalizeApiRows(r).filter((e) => activeStatuses.has(e.status || 'Available'));
-          setEmployees(rows);
+      fetchEveryPage((page, pageSize) => workforceApi.listEmployees({ page, page_size: pageSize }))
+        .then((rows) => {
+          const sorted = [...rows].sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+          setEmployees(sorted);
         })
         .catch(() => setEmployees([]));
     }
     Object.entries(config.lookups || {}).forEach(([key, lk]) => {
-      lk.api.list({ page_size: 25 }).then((r) => setLookupData((prev) => ({ ...prev, [key]: normalizeApiRows(r) }))).catch(() => {});
+      // Staff / user assign lookups: show every CRM account employee.
+      if (key === 'staff' || lk.api === userApi) {
+        userApi.options({ is_active: true })
+          .then((r) => setLookupData((prev) => ({ ...prev, [key]: normalizeApiRows(r) })))
+          .catch(() => setLookupData((prev) => ({ ...prev, [key]: [] })));
+        return;
+      }
+      if (typeof lk.api?.list === 'function') {
+        fetchEveryPage((page, pageSize) => lk.api.list({ page, page_size: pageSize }))
+          .then((rows) => setLookupData((prev) => ({ ...prev, [key]: rows })))
+          .catch(() => setLookupData((prev) => ({ ...prev, [key]: [] })));
+      }
     });
-  }, [needsUsers, needsProjects, needsEmployees]);  
+  }, [needsUsers, needsProjects, needsEmployees]);
 
   const serverFilterValues = extraFilters.filter((f) => !f.client).map((f) => extraFilterValues[f.key] || '').join('|');
 
@@ -11114,8 +11170,15 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
   useEffect(() => { loadRows(); }, [loadRows]);
   useEffect(() => { setSearch(''); setFilterStatus(''); setForm(config.defaults); setShowNew(false); setEditItem(null); setViewItem(null); }, [listParamsKey, fixedFieldsKey]);
 
+  const resolvedExtraFilters = extraFilters.map((f) => {
+    if (!f.client) return f;
+    const fromRows = [...new Set(rows.map((r) => r[f.key]).filter(Boolean).map(String))].sort();
+    const opts = (f.options || []).filter((o) => o && o !== '—');
+    return { ...f, options: opts.length ? opts : fromRows };
+  });
+
   const filtered = rows.filter((r) => {
-    for (const f of extraFilters) {
+    for (const f of resolvedExtraFilters) {
       if (f.client && extraFilterValues[f.key] && (r[f.key] || '') !== extraFilterValues[f.key]) return false;
     }
     if (!search) return true;
@@ -11129,7 +11192,17 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
 
   function buildBody(f) {
     const body = {};
+    let hasFileUpload = false;
     config.fields.forEach(({ name, type }) => {
+      if (type === 'file') {
+        // Only send a real File; skip empty / existing URL strings so PATCH
+        // does not clear an already-uploaded document.
+        if (f[name] instanceof File) {
+          body[name] = f[name];
+          hasFileUpload = true;
+        }
+        return;
+      }
       let v = f[name];
       if (type === 'user' || type === 'lookup' || type === 'project' || type === 'employee') v = v || null;
       if (type === 'number' && v === '') v = null;
@@ -11149,7 +11222,16 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
     if (config.fixedFields) {
       Object.entries(config.fixedFields).forEach(([k, v]) => { body[k] = v; });
     }
-    return config.transformBody ? config.transformBody(body, f) : body;
+    const payload = config.transformBody ? config.transformBody(body, f) : body;
+    if (!hasFileUpload) return payload;
+    const fd = new FormData();
+    Object.entries(payload).forEach(([k, v]) => {
+      if (v === null || v === undefined) return;
+      if (v instanceof File) fd.append(k, v);
+      else if (typeof v === 'object') fd.append(k, JSON.stringify(v));
+      else fd.append(k, String(v));
+    });
+    return fd;
   }
 
   const requiredOk = config.fields.every((f) => !f.required || form[f.name]);
@@ -11179,6 +11261,7 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
     config.fields.forEach(({ name, type }) => {
       if (type === 'activeFlag') f[name] = item.is_active === false ? 'Inactive' : 'Active';
       else if (type === 'employee') f[name] = item.assigned_employee ?? item[name] ?? '';
+      else if (type === 'file') f[name] = null;
       else f[name] = item[name] ?? '';
     });
     setForm(config.mapItemToForm ? config.mapItemToForm(item, f) : f);
@@ -11233,59 +11316,105 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
       .catch((e) => onNotify(e.message || 'Action failed.', 'error'));
   }
 
+  const searchableTrigger = 'flex h-9 w-full items-center justify-between gap-2 rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-left text-[13px] font-semibold text-[#1e2a38] outline-none transition focus:border-[#0b65e5] focus:ring-2 focus:ring-[#e3efff] disabled:cursor-not-allowed disabled:bg-[#f8fafc]';
+
   const renderField = ({ name, label, type, options, required, lookup }) => (
-    <div key={name} className={type === 'textarea' ? 'col-span-2' : ''}>
+    <div key={name} className={type === 'textarea' || type === 'file' ? 'col-span-2' : ''}>
       <label className={lcLabelCls}>{label}{required ? ' *' : ''}</label>
       {type === 'project' ? (
-        <select
-          className={lcInputCls}
+        <SearchableSelect
           value={form[name] ?? ''}
-          onChange={(e) => {
-            const projectId = e.target.value;
+          onChange={(projectId) => {
             setForm((p) => ({ ...p, [name]: projectId }));
-            // Optional per-config hook — lets a specific module (e.g. Commissioning,
-            // O&M Assets) pull the project's site survey and prefill other fields,
-            // without affecting any other page that reuses this shared component.
             config.onProjectSelect?.(projectId, setForm);
           }}
-        >
-          <option value="">Select project...</option>
-          {projects.map((p) => <option key={p.id} value={p.id}>{p.project_name}</option>)}
-        </select>
-      ) : type === 'user' ? (
-        <select className={lcInputCls} value={form[name] ?? ''} onChange={(e) => setForm((p) => ({ ...p, [name]: e.target.value }))}>
-          <option value="">Select user...</option>
-          {users.map((u) => <option key={u.id} value={u.id}>{u.name || u.username}</option>)}
-        </select>
-      ) : type === 'employee' ? (
-        <select
-          className={lcInputCls}
-          value={form[name] ?? ''}
+          options={projects.map((p) => ({ value: String(p.id), label: p.project_name || p.project_id || String(p.id) }))}
+          placeholder="Select project..."
+          searchPlaceholder="Search project..."
           required={required}
-          onChange={(e) => setForm((p) => ({ ...p, [name]: e.target.value }))}
-        >
-          <option value="">Select engineer...</option>
-          {employees.map((emp) => (
-            <option key={emp.id} value={emp.id}>
-              {emp.name}{emp.employee_id ? ` (${emp.employee_id})` : ''}{emp.department ? ` · ${emp.department}` : ''}
-            </option>
-          ))}
-        </select>
+          triggerClassName={searchableTrigger}
+        />
+      ) : type === 'user' ? (
+        <SearchableSelect
+          value={form[name] ?? ''}
+          onChange={(v) => setForm((p) => ({ ...p, [name]: v }))}
+          options={users.map((u) => ({ value: String(u.id), label: u.name || u.email || u.username || String(u.id) }))}
+          placeholder="Select user..."
+          searchPlaceholder="Search employee..."
+          required={required}
+          triggerClassName={searchableTrigger}
+        />
+      ) : type === 'employee' ? (
+        <SearchableSelect
+          value={form[name] ?? ''}
+          onChange={(v) => setForm((p) => ({ ...p, [name]: v }))}
+          options={employees.map((emp) => ({
+            value: String(emp.id),
+            label: `${emp.name || 'Employee'}${emp.employee_id ? ` (${emp.employee_id})` : ''}${emp.department ? ` · ${emp.department}` : ''}`,
+          }))}
+          placeholder="Select employee..."
+          searchPlaceholder="Search employee..."
+          required={required}
+          triggerClassName={searchableTrigger}
+        />
       ) : type === 'lookup' ? (
-        <select className={lcInputCls} value={form[name] ?? ''} onChange={(e) => setForm((p) => ({ ...p, [name]: e.target.value }))}>
-          <option value="">Select...</option>
-          {(lookupData[lookup] || []).map((item) => <option key={item.id} value={item.id}>{config.lookups[lookup].label(item)}</option>)}
-        </select>
+        <SearchableSelect
+          value={form[name] ?? ''}
+          onChange={(v) => setForm((p) => ({ ...p, [name]: v }))}
+          options={(lookupData[lookup] || []).map((item) => ({
+            value: String(item.id),
+            label: config.lookups[lookup].label(item),
+          }))}
+          placeholder="Select..."
+          searchPlaceholder="Search..."
+          required={required}
+          triggerClassName={searchableTrigger}
+        />
       ) : type === 'select' ? (
-        <select className={lcInputCls} value={form[name] ?? ''} onChange={(e) => setForm((p) => ({ ...p, [name]: e.target.value }))}>
-          {options.map((o) => <option key={o} value={o}>{o}</option>)}
-        </select>
+        <SearchableSelect
+          value={form[name] ?? ''}
+          onChange={(v) => setForm((p) => ({ ...p, [name]: v }))}
+          options={options || []}
+          placeholder="Select..."
+          searchPlaceholder="Search..."
+          required={required}
+          triggerClassName={searchableTrigger}
+        />
       ) : type === 'activeFlag' ? (
-        <select className={lcInputCls} value={form[name] ?? 'Active'} onChange={(e) => setForm((p) => ({ ...p, [name]: e.target.value }))}>
-          {['Active', 'Inactive'].map((o) => <option key={o} value={o}>{o}</option>)}
-        </select>
+        <SearchableSelect
+          value={form[name] ?? 'Active'}
+          onChange={(v) => setForm((p) => ({ ...p, [name]: v }))}
+          options={['Active', 'Inactive']}
+          placeholder="Select..."
+          required={required}
+          allowOther={false}
+          triggerClassName={searchableTrigger}
+        />
       ) : type === 'textarea' ? (
         <textarea rows={2} className={lcTextareaCls} value={form[name] ?? ''} onChange={(e) => setForm((p) => ({ ...p, [name]: e.target.value }))} />
+      ) : type === 'file' ? (
+        <div className="space-y-1.5">
+          {editItem?.[name] && !(form[name] instanceof File) ? (
+            <a
+              href={getMediaUrl(editItem[name])}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex max-w-full items-center gap-1.5 truncate text-[12px] font-bold text-[#0b65e5] hover:underline"
+            >
+              <FileText className="size-3.5 shrink-0" />
+              {editItem[`${name}_name`] || editItem.document_name || 'Current document'}
+            </a>
+          ) : null}
+          {form[name] instanceof File ? (
+            <p className="truncate text-[12px] font-semibold text-[#1e2a38]">{form[name].name}</p>
+          ) : null}
+          <input
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
+            className="block w-full text-[12px] text-[#1e2a38] file:mr-3 file:rounded-[6px] file:border-0 file:bg-[#eef4ff] file:px-3 file:py-1.5 file:text-[12px] file:font-bold file:text-[#0b65e5]"
+            onChange={(e) => setForm((p) => ({ ...p, [name]: e.target.files?.[0] || null }))}
+          />
+        </div>
       ) : (
         <input type={type === 'number' ? 'number' : type === 'date' ? 'date' : 'text'} className={lcInputCls} value={form[name] ?? ''} onChange={(e) => setForm((p) => ({ ...p, [name]: e.target.value }))} />
       )}
@@ -11303,6 +11432,8 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
         saving,
         requiredOk,
         isEdit: Boolean(editItem),
+        project: config.project || null,
+        onNotify,
       });
     }
     return (
@@ -11328,8 +11459,11 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
   const moduleTitle = config.moduleTitle || 'Liaisoning & Commissioning';
   const Subnav = config.Subnav || LiaisonSubnavTabs;
 
+  const kpiGroups = config.statusKpiGroups || null;
+  const kpiCounts = kpiGroups ? countByStatusGroups(rows, kpiGroups) : null;
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-2.5">
       {!config.embedded && (
         <>
           <PageHeading
@@ -11340,7 +11474,7 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
               { label: config.title },
             ]}
             actions={
-              <button type="button" onClick={openNew} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white hover:bg-[#084fc0]">
+              <button type="button" onClick={openNew} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#0b8f43] px-4 text-[13px] font-extrabold text-white hover:bg-[#097a39]">
                 <Plus className="size-4" />{config.newLabel}
               </button>
             }
@@ -11350,44 +11484,81 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
         </>
       )}
 
-      <div className={cx(panelClass, 'flex flex-col gap-4 p-4 sm:p-5')}>
+      {kpiGroups && kpiCounts ? (
+        <div className={config.statusKpiGridClass || 'grid grid-cols-2 gap-1.5 sm:grid-cols-3 xl:grid-cols-5'}>
+          <LiaisonApprovalStatCard
+            label={`Total ${config.recordLabel}s`}
+            value={String(kpiCounts.total)}
+            caption="All records"
+            icon={FileText}
+            tone="green"
+            onClick={() => setFilterStatus('')}
+          />
+          {kpiGroups.map((g) => (
+            <LiaisonApprovalStatCard
+              key={g.key}
+              label={g.label}
+              value={String(kpiCounts[g.key] ?? 0)}
+              caption={g.label}
+              icon={g.icon || FileText}
+              tone={g.tone || 'blue'}
+              onClick={() => setFilterStatus(g.match[0] || '')}
+            />
+          ))}
+        </div>
+      ) : null}
+
+      <div className={cx(panelClass, 'flex flex-col gap-2.5 p-2.5 sm:p-3')}>
         {config.embedded && (
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="font-display text-[15px] font-extrabold text-[#1e3261]">
               {config.title}
-              <span className="ml-2 rounded-full bg-[#eef4ff] px-2 py-0.5 text-[11px] font-extrabold text-[#0b65e5]">{filtered.length}</span>
+              <span className="ml-2 rounded-full bg-[#ecfdf5] px-2 py-0.5 text-[11px] font-extrabold text-[#0b8f43]">{filtered.length}</span>
             </h3>
-            <button type="button" onClick={openNew} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white hover:bg-[#084fc0] sm:h-9">
-              <Plus className="size-4" />{config.newLabel}
-            </button>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {config.showManageMasters ? (
+                <>
+                  <button type="button" onClick={() => setManageMaster('division')} className="inline-flex h-8 items-center gap-1 rounded-[8px] border border-[#d9e4f2] bg-white px-2.5 text-[11px] font-extrabold text-[#284276]">Manage Division</button>
+                  <button type="button" onClick={() => setManageMaster('zone')} className="inline-flex h-8 items-center gap-1 rounded-[8px] border border-[#d9e4f2] bg-white px-2.5 text-[11px] font-extrabold text-[#284276]">Manage Zone</button>
+                </>
+              ) : null}
+              {typeof config.onProceedNext === 'function' ? (
+                <button type="button" onClick={config.onProceedNext} className="inline-flex h-8 items-center gap-1 rounded-[8px] border border-[#bbf7d0] bg-[#f0fdf4] px-2.5 text-[11px] font-extrabold text-[#15803d]">
+                  {config.title === 'Net Metering' || config.recordLabel === 'Meter' ? 'Proceed to Commissioning' : 'Proceed to Next Stage'}
+                </button>
+              ) : null}
+              <button type="button" onClick={openNew} className="inline-flex h-8 items-center gap-1.5 rounded-[8px] bg-[#0b8f43] px-3 text-[12px] font-extrabold text-white hover:bg-[#097a39]">
+                <Plus className="size-3.5" />{config.newLabel}
+              </button>
+            </div>
           </div>
         )}
         {/* Toolbar */}
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+        <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap sm:items-center sm:gap-2">
           <div className="relative col-span-2 flex-1 sm:min-w-[180px]">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-[#7a8fa6]" />
+            <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[#7a8fa6]" />
             <input
               type="search"
-              className="h-11 w-full rounded-[12px] border border-[#d9e2ec] bg-white pl-10 pr-3 text-[14px] font-bold text-[#1e2a38] placeholder-[#94a3b8] focus:border-[#0b65e5] focus:outline-none sm:h-9 sm:rounded-[8px] sm:pl-9 sm:text-[13px] sm:font-normal"
+              className="h-9 w-full rounded-[8px] border border-[#d9e2ec] bg-white pl-9 pr-3 text-[13px] font-bold text-[#1e2a38] placeholder-[#94a3b8] focus:border-[#0b8f43] focus:outline-none"
               placeholder={`Search ${config.title.toLowerCase()}...`}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
           {statuses.length > 0 && (
-            <select className="h-11 min-w-0 rounded-[12px] border border-[#d9e2ec] bg-white px-3 text-[13px] font-bold text-[#1e2a38] focus:border-[#0b65e5] focus:outline-none sm:h-9 sm:rounded-[8px] sm:font-normal" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+            <select className="h-9 min-w-0 rounded-[8px] border border-[#d9e2ec] bg-white px-2.5 text-[12px] font-bold text-[#1e2a38] focus:border-[#0b8f43] focus:outline-none" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
               <option value="">All Statuses</option>
               {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           )}
-          {extraFilters.map((f) => (
-            <select key={f.key} className="h-11 min-w-0 rounded-[12px] border border-[#d9e2ec] bg-white px-3 text-[13px] font-bold text-[#1e2a38] focus:border-[#0b65e5] focus:outline-none sm:h-9 sm:rounded-[8px] sm:font-normal" value={extraFilterValues[f.key] || ''} onChange={(e) => setExtraFilterValues((prev) => ({ ...prev, [f.key]: e.target.value }))}>
+          {resolvedExtraFilters.map((f) => (
+            <select key={f.key} className="h-9 min-w-0 rounded-[8px] border border-[#d9e2ec] bg-white px-2.5 text-[12px] font-bold text-[#1e2a38] focus:border-[#0b8f43] focus:outline-none" value={extraFilterValues[f.key] || ''} onChange={(e) => setExtraFilterValues((prev) => ({ ...prev, [f.key]: e.target.value }))}>
               <option value="">{f.label}</option>
               {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
             </select>
           ))}
           {(search || filterStatus || Object.values(extraFilterValues).some(Boolean)) && (
-            <button type="button" onClick={() => { setSearch(''); setFilterStatus(''); setExtraFilterValues({}); }} className="h-11 rounded-[12px] border border-[#e5eaf2] bg-white px-3 text-[13px] font-extrabold text-[#ef4444] hover:bg-[#fef2f2] sm:h-9 sm:rounded-[8px] sm:text-[12px] sm:font-bold">Clear</button>
+            <button type="button" onClick={() => { setSearch(''); setFilterStatus(''); setExtraFilterValues({}); }} className="h-9 rounded-[8px] border border-[#e5eaf2] bg-white px-3 text-[12px] font-extrabold text-[#ef4444] hover:bg-[#fef2f2]">Clear</button>
           )}
         </div>
 
@@ -11445,7 +11616,7 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
                 <thead>
                   <tr>
                     {[...config.columns.map((c) => c.label), 'Actions'].map((h) => (
-                      <th key={h} className="sticky top-0 z-10 border-b border-[#e5eaf2] bg-[#f8fafc] px-4 py-3 text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6]">{h}</th>
+                      <th key={h} className="sticky top-0 z-10 border-b border-[#e5eaf2] bg-[#f8fafc] px-3 py-2 text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6]">{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -11453,9 +11624,9 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
                   {pageRows.map((item) => (
                     <tr key={item.id} className="hover:bg-[#f8fafc]">
                       {config.columns.map((c) => (
-                        <td key={c.label} className="px-4 py-3">{c.render(item)}</td>
+                        <td key={c.label} className="px-3 py-2">{c.render(item)}</td>
                       ))}
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2">
                         <div className="flex items-center gap-1">
                           <button type="button" title="View" onClick={() => setViewItem(item)} className="grid size-7 place-items-center rounded-[6px] border border-[#e5eaf2] text-[#0b65e5] hover:bg-[#eef4ff]"><Eye className="size-3.5" /></button>
                           {config.isRowLocked?.(item) ? (
@@ -11539,6 +11710,8 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
               </dl>
             </div>
 
+            {typeof config.renderViewExtra === 'function' ? config.renderViewExtra(viewItem) : null}
+
             {config.checklistItems && (
               <LcChecklistSection
                 record={viewItem}
@@ -11618,6 +11791,14 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
         />
       ) : null}
 
+      {manageMaster ? (
+        <MasterManageModal
+          kind={manageMaster}
+          onClose={() => setManageMaster(null)}
+          onNotify={onNotify}
+        />
+      ) : null}
+
       {!config.embedded && <DashboardFooter />}
     </div>
   );
@@ -11647,67 +11828,98 @@ function getLiaisonStepBaseConfig(stepKey, project) {
   const statusCol = { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> };
 
   if (stepKey === 'Application') {
-    const statuses = ['Draft', 'Submitted', 'Under Review', 'Approved', 'Rejected', 'Completed'];
+    const statuses = [...LC_APPLICATION_STATUSES, 'Draft', 'Submitted', 'Under Review', 'Approved'];
     return {
       title: 'Applications',
       recordLabel: 'Application',
-      newLabel: 'New Application',
+      newLabel: '+ New Application',
       api: lcApplicationApi,
       docModule: 'Application',
-      statuses,
-      searchKeys: ['application_number', 'discom', 'application_type'],
+      statuses: LC_APPLICATION_STATUSES,
+      statusKpiGroups: APPLICATION_KPI_GROUPS,
+      showManageMasters: true,
+      searchKeys: ['application_number', 'discom', 'application_type', 'division', 'zone', 'customer_name', 'project_name'],
+      extraFilters: [
+        { key: 'application_type', label: 'Application Type', options: LC_APPLICATION_TYPES, client: true },
+        { key: 'division', label: 'Division', options: [], client: true },
+        { key: 'zone', label: 'Zone', options: [], client: true },
+      ],
       columns: [
         { label: 'Application No', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.application_number || r.record_no}</span> },
+        { label: 'Project / Customer', render: (r) => <div><p className="font-bold text-[#1e3261]">{r.customer_name || r.project_name || '—'}</p><p className="text-[11px] text-[#8a98af]">{r.project_name}</p></div> },
         { label: 'Application Type', render: (r) => r.application_type },
-        { label: 'Capacity (kW)', render: (r) => r.capacity_kw ?? '—' },
-        { label: 'DISCOM', render: (r) => r.discom || '—' },
+        { label: 'Division', render: (r) => r.division || '—' },
+        { label: 'Zone', render: (r) => r.zone || '—' },
+        { label: 'Applied On', render: (r) => lcFormatDate(r.submitted_date) },
         statusCol,
-        { label: 'Submitted Date', render: (r) => lcFormatDate(r.submitted_date) },
       ],
       fields: [
-        { name: 'application_type', label: 'Application Type', type: 'select', options: ['Net Metering', 'Captive Consumption', 'Rooftop Solar', 'Grid Connection', 'Other'] },
+        { name: 'application_type', label: 'Application Type', type: 'select', options: LC_APPLICATION_TYPES, required: true },
         { name: 'application_number', label: 'Application Number', type: 'text' },
         { name: 'capacity_kw', label: 'Capacity (kW)', type: 'number' },
         { name: 'discom', label: 'DISCOM', type: 'text' },
-        { name: 'submitted_date', label: 'Submitted Date', type: 'date' },
+        { name: 'division', label: 'Division', type: 'text' },
+        { name: 'zone', label: 'Zone', type: 'text' },
+        { name: 'submitted_date', label: 'Applied Date', type: 'date' },
         { name: 'status', label: 'Status', type: 'select', options: statuses },
         { name: 'remarks', label: 'Remarks', type: 'textarea' },
       ],
-      defaults: { application_type: 'Net Metering', application_number: '', capacity_kw: project.capacity_kwp ?? '', discom: project.discom_name || '', submitted_date: '', status: 'Submitted', remarks: '' },
+      defaults: {
+        application_type: 'Solar Application',
+        application_number: '',
+        capacity_kw: project.capacity_kwp ?? '',
+        discom: project.discom_name || '',
+        division: '',
+        zone: '',
+        submitted_date: '',
+        status: 'Pending',
+        remarks: '',
+      },
       detailRows: [
         ['Application No', (r) => r.application_number || r.record_no],
         ['Application Type', (r) => r.application_type],
+        ['Division', (r) => r.division || '—'],
+        ['Zone', (r) => r.zone || '—'],
         ['Capacity (kW)', (r) => r.capacity_kw ?? '—'],
         ['DISCOM', (r) => r.discom || '—'],
-        ['Submitted Date', (r) => lcFormatDate(r.submitted_date)],
+        ['Applied On', (r) => lcFormatDate(r.submitted_date)],
         ['Remarks', (r) => r.remarks || '—'],
       ],
+      renderForm: (props) => <ApplicationWizardForm {...props} />,
     };
   }
 
   if (stepKey === 'Loan Process') {
-    const statuses = ['Draft', 'Applied', 'Under Review', 'Sanctioned', 'Disbursed', 'Rejected'];
+    const statuses = [...LC_LOAN_STATUSES, 'Draft'];
     return {
       title: 'Loan Process',
       recordLabel: 'Loan',
-      newLabel: 'New Loan Process',
+      newLabel: '+ Add Loan',
       api: lcLoanProcessApi,
       docModule: 'Loan Process',
-      statuses,
-      searchKeys: ['financier_name', 'loan_account_number', 'loan_type'],
+      statuses: LC_LOAN_STATUSES,
+      statusKpiGroups: LOAN_KPI_GROUPS,
+      searchKeys: ['financier_name', 'loan_account_number', 'loan_type', 'customer_name', 'project_name'],
+      extraFilters: [
+        { key: 'financier_name', label: 'Bank', options: [], client: true },
+      ],
       columns: [
         { label: 'Loan No', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.record_no}</span> },
-        { label: 'Loan Type', render: (r) => r.loan_type },
-        { label: 'Financier / Bank', render: (r) => r.financier_name || '—' },
-        { label: 'Loan Amount', render: (r) => (r.loan_amount != null && r.loan_amount !== '' ? `₹${Number(r.loan_amount).toLocaleString('en-IN')}` : '—') },
+        { label: 'Project / Customer', render: (r) => <div><p className="font-bold text-[#1e3261]">{r.customer_name || r.project_name || '—'}</p><p className="text-[11px] text-[#8a98af]">{r.project_name}</p></div> },
+        { label: 'Bank / Financier', render: (r) => r.financier_name || '—' },
+        { label: 'Quotation Amount', render: (r) => (r.quotation_amount != null && r.quotation_amount !== '' ? `₹${Number(r.quotation_amount).toLocaleString('en-IN')}` : '—') },
+        { label: 'Applied Loan', render: (r) => (r.loan_amount != null && r.loan_amount !== '' ? `₹${Number(r.loan_amount).toLocaleString('en-IN')}` : '—') },
+        { label: 'Loan %', render: (r) => (r.loan_percent != null && r.loan_percent !== '' ? `${r.loan_percent}%` : '—') },
         statusCol,
-        { label: 'Applied Date', render: (r) => lcFormatDate(r.applied_date) },
       ],
       fields: [
         { name: 'loan_type', label: 'Loan Type', type: 'select', options: ['Bank Loan', 'NBFC', 'Solar Finance', 'Subsidy-linked Loan', 'Other'] },
         { name: 'financier_name', label: 'Financier / Bank', type: 'text' },
         { name: 'loan_account_number', label: 'Loan Account / Reference No.', type: 'text' },
-        { name: 'loan_amount', label: 'Loan Amount (₹)', type: 'number' },
+        { name: 'quotation_amount', label: 'Quotation Amount (₹)', type: 'number' },
+        { name: 'loan_amount', label: 'Applied Loan Amount (₹)', type: 'number' },
+        { name: 'loan_percent', label: 'Loan %', type: 'number' },
+        { name: 'sanctioned_amount', label: 'Sanctioned Amount (₹)', type: 'number' },
         { name: 'applied_date', label: 'Applied Date', type: 'date' },
         { name: 'sanctioned_date', label: 'Sanctioned Date', type: 'date' },
         { name: 'status', label: 'Status', type: 'select', options: statuses },
@@ -11717,7 +11929,10 @@ function getLiaisonStepBaseConfig(stepKey, project) {
         loan_type: 'Bank Loan',
         financier_name: '',
         loan_account_number: '',
+        quotation_amount: '',
         loan_amount: '',
+        loan_percent: '',
+        sanctioned_amount: '',
         applied_date: '',
         sanctioned_date: '',
         status: 'Applied',
@@ -11728,12 +11943,16 @@ function getLiaisonStepBaseConfig(stepKey, project) {
         ['Loan Type', (r) => r.loan_type],
         ['Financier / Bank', (r) => r.financier_name || '—'],
         ['Loan Account / Reference No.', (r) => r.loan_account_number || '—'],
-        ['Loan Amount', (r) => (r.loan_amount != null && r.loan_amount !== '' ? `₹${Number(r.loan_amount).toLocaleString('en-IN')}` : '—')],
+        ['Quotation Amount', (r) => (r.quotation_amount != null && r.quotation_amount !== '' ? `₹${Number(r.quotation_amount).toLocaleString('en-IN')}` : '—')],
+        ['Applied Loan Amount', (r) => (r.loan_amount != null && r.loan_amount !== '' ? `₹${Number(r.loan_amount).toLocaleString('en-IN')}` : '—')],
+        ['Loan %', (r) => (r.loan_percent != null && r.loan_percent !== '' ? `${r.loan_percent}%` : '—')],
+        ['Sanctioned Amount', (r) => (r.sanctioned_amount != null && r.sanctioned_amount !== '' ? `₹${Number(r.sanctioned_amount).toLocaleString('en-IN')}` : '—')],
         ['Applied Date', (r) => lcFormatDate(r.applied_date)],
         ['Sanctioned Date', (r) => lcFormatDate(r.sanctioned_date)],
         ['Remarks', (r) => r.remarks || '—'],
       ],
       docTitle: 'Loan Documents',
+      renderForm: (props) => <LoanWizardForm {...props} />,
     };
   }
 
@@ -11746,12 +11965,21 @@ function getLiaisonStepBaseConfig(stepKey, project) {
       api: lcAgreementApi,
       docModule: 'Agreement',
       statuses,
-      searchKeys: ['agreement_number', 'agreement_type', 'signed_by'],
+      searchKeys: ['agreement_number', 'agreement_type', 'signed_by', 'document_name'],
       columns: [
         { label: 'Agreement No', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.agreement_number || r.record_no}</span> },
         { label: 'Agreement Type', render: (r) => r.agreement_type },
         { label: 'Agreement Date', render: (r) => lcFormatDate(r.agreement_date) },
         { label: 'Signed By', render: (r) => r.signed_by || '—' },
+        {
+          label: 'Document',
+          render: (r) => (r.document ? (
+            <a href={getMediaUrl(r.document)} target="_blank" rel="noreferrer" className="inline-flex max-w-[140px] items-center gap-1 truncate font-bold text-[#0b65e5] hover:underline">
+              <FileText className="size-3.5 shrink-0" />
+              {r.document_name || 'View'}
+            </a>
+          ) : '—'),
+        },
         statusCol,
       ],
       fields: [
@@ -11760,14 +11988,21 @@ function getLiaisonStepBaseConfig(stepKey, project) {
         { name: 'agreement_date', label: 'Agreement Date', type: 'date' },
         { name: 'signed_by', label: 'Signed By', type: 'text' },
         { name: 'status', label: 'Status', type: 'select', options: statuses },
+        { name: 'document', label: 'Upload Agreement Document', type: 'file' },
         { name: 'remarks', label: 'Remarks', type: 'textarea' },
       ],
-      defaults: { agreement_type: 'Net Metering Agreement', agreement_number: '', agreement_date: '', signed_by: project.customer_name || '', status: 'Pending', remarks: '' },
+      defaults: { agreement_type: 'Net Metering Agreement', agreement_number: '', agreement_date: '', signed_by: project.customer_name || '', status: 'Pending', document: null, remarks: '' },
       detailRows: [
         ['Agreement No', (r) => r.agreement_number || r.record_no],
         ['Agreement Type', (r) => r.agreement_type],
         ['Agreement Date', (r) => lcFormatDate(r.agreement_date)],
         ['Signed By', (r) => r.signed_by || '—'],
+        ['Document', (r) => (r.document ? (
+          <a href={getMediaUrl(r.document)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-bold text-[#0b65e5] hover:underline">
+            <FileText className="size-3.5" />
+            {r.document_name || 'Open document'}
+          </a>
+        ) : '—')],
         ['Remarks', (r) => r.remarks || '—'],
       ],
       docTitle: 'Agreement Copies',
@@ -11808,42 +12043,140 @@ function getLiaisonStepBaseConfig(stepKey, project) {
   }
 
   if (stepKey === 'Net Meter') {
-    const statuses = ['Applied', 'Testing', 'Installed', 'Rejected'];
     return {
-      title: 'Net Meter',
-      recordLabel: 'Net Meter',
-      newLabel: 'Add Net Meter',
+      title: 'Net Metering',
+      recordLabel: 'Meter',
+      newLabel: '+ Add Net Meter',
       api: lcNetMeterApi,
       docModule: 'Net Meter',
-      statuses,
-      searchKeys: ['meter_number', 'meter_make', 'meter_type'],
+      statuses: NM_ALL_STATUSES,
+      statusKpiGroups: NET_METER_KPI_GROUPS,
+      statusKpiGridClass: 'grid grid-cols-2 gap-1.5 sm:grid-cols-3 xl:grid-cols-4',
+      showManageMasters: true,
+      searchKeys: [
+        'meter_number', 'meter_make', 'meter_type', 'meter_source',
+        'division', 'zone', 'assigned_to', 'customer_name', 'project_name', 'project_id_display',
+      ],
+      extraFilters: [
+        { key: 'meter_type', label: 'Meter Type', options: NM_METER_TYPES, client: true },
+        { key: 'meter_source', label: 'Meter Source', options: NM_SOURCES, client: true },
+        { key: 'division', label: 'Division', options: [], client: true },
+        { key: 'zone', label: 'Zone', options: [], client: true },
+      ],
       columns: [
-        { label: 'Meter No', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.meter_number || r.record_no}</span> },
-        { label: 'Meter Type', render: (r) => r.meter_type },
-        { label: 'Make', render: (r) => r.meter_make || '—' },
-        { label: 'Phase', render: (r) => r.phase || '—' },
-        { label: 'Installation Date', render: (r) => lcFormatDate(r.installation_date) },
+        { label: 'Project ID', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.project_id_display || r.record_no}</span> },
+        { label: 'Customer / Project', render: (r) => (
+          <div>
+            <p className="font-bold text-[#1e3261]">{r.customer_name || r.project_name || '—'}</p>
+            <p className="text-[11px] text-[#8a98af]">{r.project_name}</p>
+          </div>
+        ) },
+        { label: 'Meter Type', render: (r) => r.meter_type || '—' },
+        { label: 'Meter No.', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.meter_number || '—'}</span> },
+        { label: 'Division', render: (r) => r.division || '—' },
+        { label: 'Zone', render: (r) => r.zone || '—' },
         statusCol,
+        { label: 'Last Update', render: (r) => lcFormatDate(r.updated_at || r.status_date) },
       ],
       fields: [
-        { name: 'meter_type', label: 'Meter Type', type: 'select', options: ['Bi-directional Meter', 'Net Meter', 'Solar Generation Meter', 'Other'] },
+        { name: 'meter_source', label: 'Meter Source', type: 'select', options: NM_SOURCES, required: true },
+        { name: 'meter_type', label: 'Meter Type', type: 'select', options: NM_METER_TYPES, required: true },
         { name: 'meter_number', label: 'Meter Number', type: 'text' },
-        { name: 'meter_make', label: 'Meter Make', type: 'text' },
-        { name: 'phase', label: 'Phase', type: 'select', options: ['Single Phase', 'Three Phase'] },
+        { name: 'meter_make', label: 'Meter Make / Model', type: 'text' },
+        { name: 'phase', label: 'Phase', type: 'text' },
+        { name: 'division', label: 'Division', type: 'text' },
+        { name: 'zone', label: 'Zone', type: 'text' },
         { name: 'application_date', label: 'Application Date', type: 'date' },
+        { name: 'status_date', label: 'Status Date', type: 'date' },
+        { name: 'purchase_date', label: 'Purchase Date', type: 'date' },
+        { name: 'purchase_vendor', label: 'Purchase Vendor', type: 'text' },
+        { name: 'testing_date', label: 'Testing Date', type: 'date' },
+        { name: 'testing_details', label: 'Testing Details', type: 'textarea' },
         { name: 'installation_date', label: 'Installation Date', type: 'date' },
-        { name: 'status', label: 'Status', type: 'select', options: statuses },
+        { name: 'assigned_to', label: 'Assigned Employee', type: 'text' },
+        { name: 'existing_verified', label: 'Existing Verified', type: 'text' },
+        { name: 'email_sent_date', label: 'Email Sent Date', type: 'date' },
+        { name: 'email_reference', label: 'Email Reference', type: 'text' },
+        { name: 'email_recipient', label: 'Email Recipient', type: 'text' },
+        { name: 'email_notes', label: 'Email Notes', type: 'textarea' },
+        { name: 'division_response', label: 'Division Response', type: 'textarea' },
+        { name: 'division_response_date', label: 'Division Response Date', type: 'date' },
+        { name: 'status', label: 'Status', type: 'select', options: NM_ALL_STATUSES },
         { name: 'remarks', label: 'Remarks', type: 'textarea' },
       ],
-      defaults: { meter_type: 'Bi-directional Meter', meter_number: '', meter_make: '', phase: 'Single Phase', application_date: '', installation_date: '', status: 'Applied', remarks: '' },
+      defaults: {
+        meter_source: NM_SOURCE_NEW,
+        meter_type: 'Smart Meter - Single Phase',
+        meter_number: '',
+        meter_make: '',
+        phase: 'Single Phase',
+        division: '',
+        zone: '',
+        application_date: '',
+        status_date: '',
+        purchase_date: '',
+        purchase_vendor: '',
+        testing_date: '',
+        testing_details: '',
+        installation_date: '',
+        assigned_to: '',
+        existing_verified: false,
+        email_sent_date: '',
+        email_reference: '',
+        email_recipient: '',
+        email_notes: '',
+        division_response: '',
+        division_response_date: '',
+        status: 'Purchase',
+        remarks: '',
+      },
+      transformBody: (body, f) => ({
+        ...body,
+        existing_verified: Boolean(f.existing_verified),
+        phase: NM_PHASE_BY_TYPE[f.meter_type] || body.phase || 'Single Phase',
+      }),
+      mapItemToForm: (item, f) => ({
+        ...f,
+        existing_verified: Boolean(item.existing_verified),
+        phase: item.phase || NM_PHASE_BY_TYPE[item.meter_type] || 'Single Phase',
+      }),
+      validateForm: (f) => {
+        if (f.meter_source === 'Existing Smart Meter Already Installed at Site' && !(f.meter_number || '').trim()) {
+          return 'Meter number is required for existing smart meters.';
+        }
+        return null;
+      },
+      renderForm: (props) => <NetMeterWizardForm {...props} />,
+      renderViewExtra: (item) => (
+        <div>
+          <h3 className="mb-2 text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6]">Status History</h3>
+          <NetMeterHistoryPanel history={item.status_history || []} />
+          {item.ready_for_commissioning ? (
+            <p className="mt-3 rounded-[8px] border border-[#bbf7d0] bg-[#f0fdf4] px-3 py-2 text-[12px] font-bold text-[#15803d]">
+              Ready for Commissioning — use Proceed to Commissioning on the project bar. Commissioning engineer assignment remains a separate step.
+            </p>
+          ) : null}
+        </div>
+      ),
       detailRows: [
-        ['Meter No', (r) => r.meter_number || r.record_no],
-        ['Meter Type', (r) => r.meter_type],
-        ['Make', (r) => r.meter_make || '—'],
+        ['Meter Source', (r) => r.meter_source || '—'],
+        ['Meter Type', (r) => r.meter_type || '—'],
         ['Phase', (r) => r.phase || '—'],
-        ['Application Date', (r) => lcFormatDate(r.application_date)],
+        ['Meter No.', (r) => r.meter_number || '—'],
+        ['Make / Model', (r) => r.meter_make || '—'],
+        ['Division', (r) => r.division || '—'],
+        ['Zone', (r) => r.zone || '—'],
+        ['Purchase Date', (r) => lcFormatDate(r.purchase_date)],
+        ['Vendor', (r) => r.purchase_vendor || '—'],
+        ['Testing Date', (r) => lcFormatDate(r.testing_date)],
+        ['Testing Details', (r) => r.testing_details || '—', true],
         ['Installation Date', (r) => lcFormatDate(r.installation_date)],
-        ['Remarks', (r) => r.remarks || '—'],
+        ['Assigned To', (r) => r.assigned_to || '—'],
+        ['Email Sent', (r) => lcFormatDate(r.email_sent_date)],
+        ['Email Ref', (r) => r.email_reference || '—'],
+        ['Email Recipient', (r) => r.email_recipient || '—'],
+        ['Division Response', (r) => r.division_response || '—', true],
+        ['Remarks', (r) => r.remarks || '—', true],
       ],
     };
   }
@@ -11894,14 +12227,25 @@ function getLiaisonStepBaseConfig(stepKey, project) {
   return null;
 }
 
-function getLiaisonStepConfig(stepKey, project) {
+function getLiaisonStepConfig(stepKey, project, extras = {}) {
   const base = getLiaisonStepBaseConfig(stepKey, project);
   if (!base) return null;
+  // Populate client-side Division/Zone filter options from loaded rows later via empty defaults;
+  // keep options flexible so Manage masters stay the source of truth.
+  const extraFilters = (base.extraFilters || []).map((f) => {
+    if (f.key === 'division' || f.key === 'zone' || f.key === 'financier_name' || f.key === 'meter_source') {
+      return { ...f, options: f.options?.length ? f.options : ['—'] };
+    }
+    return f;
+  });
   return {
     ...base,
+    extraFilters,
     embedded: true,
+    project,
     listParams: { project: project.id },
     fixedFields: { project: project.id },
+    onProceedNext: extras.onProceedNext,
   };
 }
 
@@ -12212,7 +12556,7 @@ function PipelineProjectBar({ pipeline = LIAISON_PIPELINE, project, section, bus
         <span className="sm:hidden"><PipelineStageBadge stage={stage} pipeline={pipeline} /></span>
         {canMarkDone && onMarkDone ? (
           <button type="button" disabled={busy} onClick={onMarkDone} className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-[10px] border border-[#bbf7d0] bg-[#f0fdf4] px-3 text-[12px] font-extrabold text-[#15803d] transition hover:bg-[#dcfce7] disabled:opacity-60 sm:flex-none">
-            <CheckCircle2 className="size-4" />{busy ? 'Saving...' : `Mark ${markLabel} Done`}
+            <CheckCircle2 className="size-4" />{busy ? 'Saving...' : (section === 'Application' || section === 'Loan Process' ? 'Proceed to Next Stage' : `Mark ${markLabel} Done`)}
           </button>
         ) : null}
         {canUnmark && onUnmarkDone ? (
@@ -12706,7 +13050,9 @@ function LiaisonPipelineHub({ section, onOpenSection, onNotify }) {
     content = (
       <LiaisonCrudPage
         key={`${step.key}-${selected.id}`}
-        config={getLiaisonStepConfig(step.key, selected)}
+        config={getLiaisonStepConfig(step.key, selected, {
+          onProceedNext: (step.key === 'Application' || step.key === 'Loan Process' || step.key === 'Net Meter') ? markDone : undefined,
+        })}
         activeSection={section}
         onOpenSection={onOpenSection}
         onNotify={onNotify}
@@ -20857,16 +21203,25 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-1.5">
                       <label className="block text-[12px] font-extrabold text-[#53647f]">Type</label>
-                      <select value={newActivity.activity_type} onChange={(e) => setNewActivity((p) => ({ ...p, activity_type: e.target.value }))} className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]">
-                        {['Site Survey', 'Material Delivery', 'Installation', 'Testing', 'Commissioning', 'Safety', 'Other'].map((o) => <option key={o} value={o}>{o}</option>)}
-                      </select>
+                      <SearchableSelect
+                      value={newActivity.activity_type}
+                      onChange={(v) => setNewActivity((p) => ({ ...p, activity_type: v }))}
+                      options={['Site Survey', 'Material Delivery', 'Installation', 'Testing', 'Commissioning', 'Safety', 'Other']}
+                      placeholder="Select type"
+                      searchPlaceholder="Search..."
+                      triggerClassName="flex h-11 w-full items-center justify-between gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-left text-[13px] font-bold text-[#1e3261]"
+                    />
                     </div>
                     <div className="space-y-1.5">
                       <label className="block text-[12px] font-extrabold text-[#53647f]">Assigned To</label>
-                      <select value={newActivity.assigned_to} onChange={(e) => setNewActivity((p) => ({ ...p, assigned_to: e.target.value }))} className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]">
-                        <option value="">Unassigned</option>
-                        {userOptions.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-                      </select>
+                      <SearchableSelect
+                      value={newActivity.assigned_to}
+                      onChange={(v) => setNewActivity((p) => ({ ...p, assigned_to: v }))}
+                      options={userOptions.map((u) => ({ value: String(u.id), label: u.name || u.email || String(u.id) }))}
+                      placeholder="Unassigned"
+                      searchPlaceholder="Search employee..."
+                      triggerClassName="flex h-11 w-full items-center justify-between gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-left text-[13px] font-bold text-[#1e3261]"
+                    />
                     </div>
                     <div className="space-y-1.5">
                       <label className="block text-[12px] font-extrabold text-[#53647f]">Status</label>
@@ -20919,16 +21274,25 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <label className="block text-[12px] font-extrabold text-[#53647f]">Type</label>
-                <select value={newActivity.activity_type} onChange={(e) => setNewActivity((p) => ({ ...p, activity_type: e.target.value }))} className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]">
-                  {['Site Survey', 'Material Delivery', 'Installation', 'Testing', 'Commissioning', 'Safety', 'Other'].map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
+                <SearchableSelect
+                      value={newActivity.activity_type}
+                      onChange={(v) => setNewActivity((p) => ({ ...p, activity_type: v }))}
+                      options={['Site Survey', 'Material Delivery', 'Installation', 'Testing', 'Commissioning', 'Safety', 'Other']}
+                      placeholder="Select type"
+                      searchPlaceholder="Search..."
+                      triggerClassName="flex h-11 w-full items-center justify-between gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-left text-[13px] font-bold text-[#1e3261]"
+                    />
               </div>
               <div className="space-y-1.5">
                 <label className="block text-[12px] font-extrabold text-[#53647f]">Assigned To</label>
-                <select value={newActivity.assigned_to} onChange={(e) => setNewActivity((p) => ({ ...p, assigned_to: e.target.value }))} className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]">
-                  <option value="">Unassigned</option>
-                  {userOptions.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-                </select>
+                <SearchableSelect
+                      value={newActivity.assigned_to}
+                      onChange={(v) => setNewActivity((p) => ({ ...p, assigned_to: v }))}
+                      options={userOptions.map((u) => ({ value: String(u.id), label: u.name || u.email || String(u.id) }))}
+                      placeholder="Unassigned"
+                      searchPlaceholder="Search employee..."
+                      triggerClassName="flex h-11 w-full items-center justify-between gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-left text-[13px] font-bold text-[#1e3261]"
+                    />
               </div>
               <div className="space-y-1.5">
                 <label className="block text-[12px] font-extrabold text-[#53647f]">Status</label>
@@ -21207,10 +21571,14 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
                 <div className="mt-5 space-y-4">
                   <div className="space-y-1.5">
                     <label className="block text-[12px] font-extrabold text-[#53647f]">User</label>
-                    <select value={newMember.user} onChange={(e) => setNewMember((prev) => ({ ...prev, user: e.target.value }))} className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]">
-                      <option value="">Select user</option>
-                      {userOptions.filter((u) => !addedUserIds.has(u.id)).map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-                    </select>
+                    <SearchableSelect
+                  value={newMember.user}
+                  onChange={(v) => setNewMember((p) => ({ ...p, user: v }))}
+                  options={userOptions.filter((u) => !addedUserIds.has(u.id)).map((u) => ({ value: String(u.id), label: u.name || u.email || String(u.id) }))}
+                  placeholder="Select team member"
+                  searchPlaceholder="Search employee..."
+                  triggerClassName="flex h-11 w-full items-center justify-between gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-left text-[13px] font-bold text-[#1e3261]"
+                />
                   </div>
                   <div className="space-y-1.5">
                     <label className="block text-[12px] font-extrabold text-[#53647f]">Role Title</label>
@@ -21338,10 +21706,14 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
             <div className="mt-4 space-y-4">
               <div className="space-y-1.5">
                 <label className="block text-[12px] font-extrabold text-[#53647f]">User</label>
-                <select value={newMember.user} onChange={(e) => setNewMember((prev) => ({ ...prev, user: e.target.value }))} className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]">
-                  <option value="">Select user</option>
-                  {userOptions.filter((u) => !addedUserIds.has(u.id)).map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-                </select>
+                <SearchableSelect
+                  value={newMember.user}
+                  onChange={(v) => setNewMember((p) => ({ ...p, user: v }))}
+                  options={userOptions.filter((u) => !addedUserIds.has(u.id)).map((u) => ({ value: String(u.id), label: u.name || u.email || String(u.id) }))}
+                  placeholder="Select team member"
+                  searchPlaceholder="Search employee..."
+                  triggerClassName="flex h-11 w-full items-center justify-between gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-left text-[13px] font-bold text-[#1e3261]"
+                />
               </div>
               <div className="space-y-1.5">
                 <label className="block text-[12px] font-extrabold text-[#53647f]">Role Title</label>
@@ -21608,12 +21980,14 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
                   <input value={newMilestone.start_date} onChange={(e) => setNewMilestone((p) => ({ ...p, start_date: e.target.value }))} type="date" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
                   <input value={newMilestone.end_date} onChange={(e) => setNewMilestone((p) => ({ ...p, end_date: e.target.value }))} type="date" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
                 </div>
-                <select value={newMilestone.owner} onChange={(e) => setNewMilestone((p) => ({ ...p, owner: e.target.value }))} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]">
-                  <option value="">Select owner (optional)</option>
-                  {userOptions.map((u) => (
-                    <option key={u.id} value={u.id}>{u.name}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  value={newMilestone.owner}
+                  onChange={(v) => setNewMilestone((p) => ({ ...p, owner: v }))}
+                  options={userOptions.map((u) => ({ value: String(u.id), label: u.name || u.email || String(u.id) }))}
+                  placeholder="Unassigned"
+                  searchPlaceholder="Search employee..."
+                  triggerClassName="flex h-11 w-full items-center justify-between gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-left text-[13px] font-bold text-[#1e3261]"
+                />
                 <button type="button" disabled={savingMilestone} onClick={handleAddMilestone} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">
                   <Plus className="size-4" />{savingMilestone ? 'Saving…' : 'Add Milestone'}
                 </button>
@@ -21761,12 +22135,14 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
               <input value={newMilestone.progress_percent} onChange={(e) => setNewMilestone((p) => ({ ...p, progress_percent: e.target.value }))} type="number" min="0" max="100" placeholder="Progress %" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
               <input value={newMilestone.start_date} onChange={(e) => setNewMilestone((p) => ({ ...p, start_date: e.target.value }))} type="date" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
               <input value={newMilestone.end_date} onChange={(e) => setNewMilestone((p) => ({ ...p, end_date: e.target.value }))} type="date" className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" />
-              <select value={newMilestone.owner} onChange={(e) => setNewMilestone((p) => ({ ...p, owner: e.target.value }))} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] sm:col-span-2">
-                <option value="">Select owner (optional)</option>
-                {userOptions.map((u) => (
-                  <option key={u.id} value={u.id}>{u.name}</option>
-                ))}
-              </select>
+              <SearchableSelect
+                  value={newMilestone.owner}
+                  onChange={(v) => setNewMilestone((p) => ({ ...p, owner: v }))}
+                  options={userOptions.map((u) => ({ value: String(u.id), label: u.name || u.email || String(u.id) }))}
+                  placeholder="Unassigned"
+                  searchPlaceholder="Search employee..."
+                  triggerClassName="flex h-11 w-full items-center justify-between gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-left text-[13px] font-bold text-[#1e3261]"
+                />
               <button type="button" disabled={savingMilestone} onClick={handleAddMilestone} className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-4 text-[13px] font-extrabold text-white disabled:opacity-60 sm:col-span-2">
                 <Plus className="size-4" />{savingMilestone ? 'Saving…' : 'Add Milestone'}
               </button>
@@ -22341,22 +22717,37 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
         <article className={`${panelClass} p-4 sm:p-5`}>
           <div className="grid gap-1.5 sm:grid-cols-2">
             <label className="grid gap-1 text-[16px] font-extrabold text-[#53647f]">Survey Engineer
-              <select value={surveyForm.surveyed_by} onChange={(e) => setSurveyForm((prev) => ({ ...prev, surveyed_by: e.target.value }))} disabled={!canEdit} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[17px] font-bold text-[#1e3261] disabled:bg-[#f8fafc]">
-                <option value="">Unassigned</option>
-                {userOptions.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-              </select>
+              <SearchableSelect
+                value={surveyForm.surveyed_by}
+                onChange={(v) => setSurveyForm((prev) => ({ ...prev, surveyed_by: v }))}
+                options={userOptions.map((u) => ({ value: String(u.id), label: u.name || u.email || String(u.id) }))}
+                placeholder="Unassigned"
+                searchPlaceholder="Search employee..."
+                disabled={!canEdit}
+                triggerClassName="flex h-11 w-full items-center justify-between gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-left text-[17px] font-bold text-[#1e3261] disabled:bg-[#f8fafc]"
+              />
             </label>
             <label className="grid gap-1 text-[16px] font-extrabold text-[#53647f]">Sales Executive
-              <select value={projectAssignForm.sales_executive} onChange={(e) => setProjectAssignForm((prev) => ({ ...prev, sales_executive: e.target.value }))} disabled={!canEdit} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[17px] font-bold text-[#1e3261] disabled:bg-[#f8fafc]">
-                <option value="">Unassigned</option>
-                {userOptions.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-              </select>
+              <SearchableSelect
+                value={projectAssignForm.sales_executive}
+                onChange={(v) => setProjectAssignForm((prev) => ({ ...prev, sales_executive: v }))}
+                options={userOptions.map((u) => ({ value: String(u.id), label: u.name || u.email || String(u.id) }))}
+                placeholder="Unassigned"
+                searchPlaceholder="Search employee..."
+                disabled={!canEdit}
+                triggerClassName="flex h-11 w-full items-center justify-between gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-left text-[17px] font-bold text-[#1e3261] disabled:bg-[#f8fafc]"
+              />
             </label>
             <label className="grid gap-1 text-[16px] font-extrabold text-[#53647f]">Project Manager
-              <select value={projectAssignForm.manager} onChange={(e) => setProjectAssignForm((prev) => ({ ...prev, manager: e.target.value }))} disabled={!canEdit} className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[17px] font-bold text-[#1e3261] disabled:bg-[#f8fafc]">
-                <option value="">Unassigned</option>
-                {userOptions.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-              </select>
+              <SearchableSelect
+                value={projectAssignForm.manager}
+                onChange={(v) => setProjectAssignForm((prev) => ({ ...prev, manager: v }))}
+                options={userOptions.map((u) => ({ value: String(u.id), label: u.name || u.email || String(u.id) }))}
+                placeholder="Unassigned"
+                searchPlaceholder="Search employee..."
+                disabled={!canEdit}
+                triggerClassName="flex h-11 w-full items-center justify-between gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-left text-[17px] font-bold text-[#1e3261] disabled:bg-[#f8fafc]"
+              />
             </label>
             <label className="grid gap-1 text-[16px] font-extrabold text-[#53647f]">Survey Date
               <input value={surveyForm.survey_date} onChange={(e) => setSurveyForm((prev) => ({ ...prev, survey_date: e.target.value }))} disabled={!canEdit} type="date" className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[17px] font-bold text-[#1e3261] disabled:bg-[#f8fafc]" />
@@ -24964,7 +25355,7 @@ function ProjectWorkOrdersPage({ activeSection, onOpenSection, selectedProject: 
               <div><label className="mb-1 block text-[12px] font-extrabold text-[#53647f]">Task Name *</label><input value={addForm.task} onChange={(e) => setAddForm((p) => ({ ...p, task: e.target.value }))} type="text" placeholder="e.g. Panel Installation" className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261] outline-none focus:border-[#0b65e5]" /></div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div><label className="mb-1 block text-[12px] font-extrabold text-[#53647f]">Category</label><input value={addForm.category} onChange={(e) => setAddForm((p) => ({ ...p, category: e.target.value }))} type="text" placeholder="e.g. Installation" className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261] outline-none focus:border-[#0b65e5]" /></div>
-                <div><label className="mb-1 block text-[12px] font-extrabold text-[#53647f]">Assigned To</label><select value={addForm.assignee} onChange={(e) => setAddForm((p) => ({ ...p, assignee: e.target.value }))} className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]"><option value="">Unassigned</option>{userOptions.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
+                <div><label className="mb-1 block text-[12px] font-extrabold text-[#53647f]">Assigned To</label><SearchableSelect value={addForm.assignee} onChange={(v) => setAddForm((p) => ({ ...p, assignee: v }))} options={userOptions.map((u) => ({ value: String(u.id), label: u.name || u.email || String(u.id) }))} placeholder="Unassigned" searchPlaceholder="Search employee..." triggerClassName="flex h-11 w-full items-center justify-between gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-left text-[13px] font-bold text-[#1e3261]" /></div>
                 <div><label className="mb-1 block text-[12px] font-extrabold text-[#53647f]">Status</label><select value={addForm.status} onChange={(e) => setAddForm((p) => ({ ...p, status: e.target.value }))} className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]">{['Pending', 'In Progress', 'Completed', 'Overdue'].map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
                 <div><label className="mb-1 block text-[12px] font-extrabold text-[#53647f]">Start Date</label><input value={addForm.start_date} onChange={(e) => setAddForm((p) => ({ ...p, start_date: e.target.value }))} type="date" className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]" /></div>
                 <div><label className="mb-1 block text-[12px] font-extrabold text-[#53647f]">Due Date</label><input value={addForm.due_date} onChange={(e) => setAddForm((p) => ({ ...p, due_date: e.target.value }))} type="date" className="h-11 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#1e3261]" /></div>
@@ -25368,8 +25759,12 @@ function ProjectApprovalsPage({ activeSection, onOpenSection, onNotify }) {
   const [editForm, setEditForm] = useState({});
 
   useEffect(() => {
-    projectApi.list().then((r) => setProjects(normalizeApiRows(r))).catch(() => {});
-    userApi.list().then((r) => setUsers(normalizeApiRows(r))).catch(() => {});
+    fetchEveryPage((page, pageSize) => projectApi.list({ page, page_size: pageSize }))
+      .then((rows) => setProjects(rows))
+      .catch(() => setProjects([]));
+    userApi.options({ is_active: true })
+      .then((r) => setUsers(normalizeApiRows(r)))
+      .catch(() => setUsers([]));
   }, []);
 
   const loadApprovals = useCallback(() => {
@@ -25515,22 +25910,36 @@ function ProjectApprovalsPage({ activeSection, onOpenSection, onNotify }) {
     <div className="grid grid-cols-2 gap-x-4 gap-y-3">
       <div className="col-span-2">
         <label className={lCls}>Select Project *</label>
-        <select className={iCls} value={fields.project ?? ''} onChange={(e) => setter((p) => ({ ...p, project: e.target.value }))}>
-          <option value="">Select project...</option>
-          {projects.map((p) => <option key={p.id} value={p.id}>{p.project_name}</option>)}
-        </select>
+        <SearchableSelect
+          value={fields.project ?? ''}
+          onChange={(v) => setter((p) => ({ ...p, project: v }))}
+          options={projects.map((p) => ({ value: String(p.id), label: p.project_name || p.project_id || String(p.id) }))}
+          placeholder="Select project..."
+          searchPlaceholder="Search project..."
+          triggerClassName={iCls + ' flex items-center justify-between gap-2 text-left'}
+        />
       </div>
       <div>
         <label className={lCls}>Approval Type</label>
-        <select className={iCls} value={fields.approval_type} onChange={(e) => setter((p) => ({ ...p, approval_type: e.target.value }))}>
-          {APPROVAL_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-        </select>
+        <SearchableSelect
+          value={fields.approval_type}
+          onChange={(v) => setter((p) => ({ ...p, approval_type: v }))}
+          options={APPROVAL_TYPES}
+          placeholder="Select type..."
+          searchPlaceholder="Search..."
+          triggerClassName={iCls + ' flex items-center justify-between gap-2 text-left'}
+        />
       </div>
       <div>
         <label className={lCls}>Priority</label>
-        <select className={iCls} value={fields.priority} onChange={(e) => setter((p) => ({ ...p, priority: e.target.value }))}>
-          {PRIORITIES.map((t) => <option key={t} value={t}>{t}</option>)}
-        </select>
+        <SearchableSelect
+          value={fields.priority}
+          onChange={(v) => setter((p) => ({ ...p, priority: v }))}
+          options={PRIORITIES}
+          placeholder="Select priority..."
+          allowOther={false}
+          triggerClassName={iCls + ' flex items-center justify-between gap-2 text-left'}
+        />
       </div>
       <div className="col-span-2">
         <label className={lCls}>Subject *</label>
@@ -25546,10 +25955,14 @@ function ProjectApprovalsPage({ activeSection, onOpenSection, onNotify }) {
       </div>
       <div>
         <label className={lCls}>Assigned To</label>
-        <select className={iCls} value={fields.assigned_to ?? ''} onChange={(e) => setter((p) => ({ ...p, assigned_to: e.target.value }))}>
-          <option value="">Select user...</option>
-          {users.map((u) => <option key={u.id} value={u.id}>{u.name || u.username}</option>)}
-        </select>
+        <SearchableSelect
+          value={fields.assigned_to ?? ''}
+          onChange={(v) => setter((p) => ({ ...p, assigned_to: v }))}
+          options={users.map((u) => ({ value: String(u.id), label: u.name || u.email || u.username || String(u.id) }))}
+          placeholder="Select employee..."
+          searchPlaceholder="Search employee..."
+          triggerClassName={iCls + ' flex items-center justify-between gap-2 text-left'}
+        />
       </div>
       <div className="col-span-2">
         <label className={lCls}>Remarks</label>
@@ -38513,24 +38926,29 @@ function ExistingMobileDetailsModal({ mobileNumber, leads = [], onClose, onConti
 }
 
 function LeadSelect({ label, placeholder, options, required = false, optional = false, icon: Icon, badgeValue, name, defaultValue }) {
+  const [value, setValue] = useState(defaultValue ?? '');
   return (
     <label className="block min-w-0">
       <LeadLabel label={label} required={required} optional={optional} />
-      <span className="mt-2 flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
-        {Icon ? <Icon className="size-4 shrink-0 text-[#8391a8]" /> : null}
+      <span className="mt-2 flex items-start gap-3 rounded-[8px] border border-black/20 bg-white px-3 py-2 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+        {Icon ? <Icon className="mt-2 size-4 shrink-0 text-[#8391a8]" /> : null}
         {badgeValue ? (
-          <span className="rounded-[7px] bg-[#e8f8eb] px-3 py-1 text-[12px] font-extrabold text-[#18a34a]">
+          <span className="mt-1.5 rounded-[7px] bg-[#e8f8eb] px-3 py-1 text-[12px] font-extrabold text-[#18a34a]">
             {badgeValue}
           </span>
         ) : null}
-        <select name={name} defaultValue={defaultValue ?? ''} className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#53647f] outline-none">
-          <option value="">{placeholder}</option>
-          {options.map((option) => {
-            const value = typeof option === 'object' ? option.value : option;
-            const label = typeof option === 'object' ? option.label : option;
-            return <option key={value} value={value}>{label}</option>;
-          })}
-        </select>
+        <div className="min-w-0 flex-1">
+          <SearchableSelect
+            name={name}
+            value={value}
+            onChange={setValue}
+            options={options || []}
+            placeholder={placeholder}
+            searchPlaceholder="Search..."
+            required={required}
+            triggerClassName="flex h-9 w-full items-center justify-between gap-2 rounded-[6px] border-0 bg-transparent px-0 text-left text-[13px] font-bold text-[#53647f] outline-none"
+          />
+        </div>
       </span>
     </label>
   );

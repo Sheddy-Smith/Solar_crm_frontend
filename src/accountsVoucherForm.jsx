@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { User, Building2, Package, X } from 'lucide-react';
 import { accountsModuleApi, workforceApi } from './api.js';
+import SearchableSelect from './components/SearchableSelect.jsx';
+import { fetchEveryPage } from './lib/listQuery.js';
 
 const PAYEE_TYPES = [
   { value: 'Vendor', label: 'Vendor (Service Provider)', selectLabel: 'Select Vendor', icon: Building2 },
@@ -51,15 +53,15 @@ export function PaymentVoucherFormModal({
     let cancelled = false;
     setLoadingOptions(true);
     Promise.all([
-      accountsModuleApi.parties.list({ account_type: 'Vendor', page_size: 25 }),
-      accountsModuleApi.parties.list({ account_type: 'Supplier', page_size: 25 }),
-      workforceApi.listEmployees({ page_size: 25 }),
+      fetchEveryPage((page, pageSize) => accountsModuleApi.parties.list({ account_type: 'Vendor', page, page_size: pageSize })),
+      fetchEveryPage((page, pageSize) => accountsModuleApi.parties.list({ account_type: 'Supplier', page, page_size: pageSize })),
+      fetchEveryPage((page, pageSize) => workforceApi.listEmployees({ page, page_size: pageSize })),
     ])
       .then(([vendorRes, supplierRes, employeeRes]) => {
         if (cancelled) return;
-        setVendors(normalizeRows(vendorRes));
-        setSuppliers(normalizeRows(supplierRes));
-        setEmployees(normalizeRows(employeeRes));
+        setVendors(Array.isArray(vendorRes) ? vendorRes : normalizeRows(vendorRes));
+        setSuppliers(Array.isArray(supplierRes) ? supplierRes : normalizeRows(supplierRes));
+        setEmployees(Array.isArray(employeeRes) ? employeeRes : normalizeRows(employeeRes));
       })
       .catch(() => {
         if (cancelled) return;
@@ -179,15 +181,14 @@ export function PaymentVoucherFormModal({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="block">
               <span className={labelCls}>Payee Type<RequiredMark /></span>
-              <select
-                className={inputCls}
+              <SearchableSelect
                 value={payeeType}
-                onChange={(e) => onPayeeTypeChange(e.target.value)}
-              >
-                {PAYEE_TYPES.map((type) => (
-                  <option key={type.value} value={type.value}>{type.label}</option>
-                ))}
-              </select>
+                onChange={(v) => onPayeeTypeChange(v)}
+                options={PAYEE_TYPES.map((type) => ({ value: type.value, label: type.label }))}
+                placeholder="Select payee type"
+                allowOther={false}
+                triggerClassName={`${inputCls} flex items-center justify-between gap-2 text-left`}
+              />
             </label>
 
             {payeeType === 'Other' ? (
@@ -204,21 +205,18 @@ export function PaymentVoucherFormModal({
             ) : (
               <label className="block">
                 <span className={labelCls}>{typeMeta.selectLabel}<RequiredMark /></span>
-                <select
-                  className={inputCls}
+                <SearchableSelect
                   value={selectedPayee?.id || form.payee_id || ''}
-                  onChange={(e) => onPayeeSelect(e.target.value)}
+                  onChange={(v) => onPayeeSelect(v)}
                   disabled={loadingOptions}
-                >
-                  <option value="">{loadingOptions ? 'Loading...' : 'Select...'}</option>
-                  {options.map((row) => (
-                    <option key={row.id} value={row.id}>
-                      {row.name}
-                      {payeeType === 'Labour' && row.detail.employee_id ? ` (${row.detail.employee_id})` : ''}
-                      {(payeeType === 'Vendor' || payeeType === 'Supplier') && row.detail.phone ? ` · ${row.detail.phone}` : ''}
-                    </option>
-                  ))}
-                </select>
+                  options={options.map((row) => ({
+                    value: row.id,
+                    label: `${row.name}${payeeType === 'Labour' && row.detail.employee_id ? ` (${row.detail.employee_id})` : ''}${(payeeType === 'Vendor' || payeeType === 'Supplier') && row.detail.phone ? ` · ${row.detail.phone}` : ''}`,
+                  }))}
+                  placeholder={loadingOptions ? 'Loading...' : 'Select...'}
+                  searchPlaceholder="Search..."
+                  triggerClassName={`${inputCls} flex items-center justify-between gap-2 text-left`}
+                />
               </label>
             )}
           </div>
@@ -260,15 +258,14 @@ export function PaymentVoucherFormModal({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="block">
               <span className={labelCls}>Payment Mode<RequiredMark /></span>
-              <select
-                className={inputCls}
+              <SearchableSelect
                 value={form.payment_mode || 'Cash'}
-                onChange={(e) => update({ payment_mode: e.target.value })}
-              >
-                {PAYMENT_MODES.map((mode) => (
-                  <option key={mode} value={mode}>{mode}</option>
-                ))}
-              </select>
+                onChange={(v) => update({ payment_mode: v })}
+                options={PAYMENT_MODES}
+                placeholder="Select payment mode"
+                searchPlaceholder="Search..."
+                triggerClassName={`${inputCls} flex items-center justify-between gap-2 text-left`}
+              />
             </label>
             <label className="block">
               <span className={labelCls}>Amount (₹)<RequiredMark /></span>

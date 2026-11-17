@@ -4,6 +4,7 @@ import { omEngineerApi, omPlantApi } from './api.js';
 import { cx, normalizeApiRows } from './lib/utils.js';
 import { MobileCardEmpty, MobileCardList } from './components/mobile/MobileRecordCard.jsx';
 import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
+import SearchableSelect from './components/SearchableSelect.jsx';
 
 export { cx, normalizeApiRows };
 
@@ -142,15 +143,18 @@ export function Field({ label, required, wide, children, hint }) {
   );
 }
 
-export function SelectInput({ value, onChange, options, placeholder, className, disabled }) {
+export function SelectInput({ value, onChange, options, placeholder, className, disabled, allowOther }) {
   return (
-    <select className={cx(INPUT, className)} value={value ?? ''} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
-      {placeholder !== undefined ? <option value="">{placeholder}</option> : null}
-      {options.map((o) => {
-        const opt = typeof o === 'object' ? o : { value: o, label: o };
-        return <option key={opt.value} value={opt.value}>{opt.label}</option>;
-      })}
-    </select>
+    <SearchableSelect
+      value={value ?? ''}
+      onChange={onChange}
+      options={options}
+      placeholder={placeholder}
+      disabled={disabled}
+      className={className}
+      allowOther={allowOther}
+      triggerClassName={cx(INPUT, 'flex items-center justify-between gap-2 text-left', className)}
+    />
   );
 }
 

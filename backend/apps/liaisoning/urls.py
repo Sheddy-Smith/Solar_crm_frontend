@@ -5,6 +5,7 @@ from .views import (
     LiaisonCommissioningViewSet, LiaisonComplianceViewSet, LiaisonDocumentViewSet,
     LiaisonAgreementViewSet, LiaisonNetMeterViewSet, LiaisonLoanProcessViewSet,
     LiaisonInspectionPlacedViewSet, LiaisonProjectViewSet,
+    LiaisonDivisionViewSet, LiaisonZoneViewSet,
 )
 
 router = DefaultRouter()
@@ -18,6 +19,8 @@ router.register('loan-processes', LiaisonLoanProcessViewSet, basename='lc-loan-p
 router.register('inspections-placed', LiaisonInspectionPlacedViewSet, basename='lc-inspection-placed')
 router.register('agreements', LiaisonAgreementViewSet, basename='lc-agreement')
 router.register('net-meters', LiaisonNetMeterViewSet, basename='lc-net-meter')
+router.register('divisions', LiaisonDivisionViewSet, basename='lc-division')
+router.register('zones', LiaisonZoneViewSet, basename='lc-zone')
 router.register('projects', LiaisonProjectViewSet, basename='lc-project')
 
 urlpatterns = [

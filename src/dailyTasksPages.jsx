@@ -13,6 +13,7 @@ import {
 import { useRecentAllRows } from './hooks/useRecentAllRows.js';
 import { RECENT_LIST_LIMIT } from './lib/recentAllList.js';
 import { fetchEveryPage } from './lib/listQuery.js';
+import SearchableSelect from './components/SearchableSelect.jsx';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { TeleDailyTasksPage } from './teleDailyTasks.jsx';
 
@@ -243,24 +244,34 @@ function TaskModal({
             </label>
             <label className="block text-[12px] font-bold text-[#53647f]">
               Status
-              <select className="mt-1.5 h-11 w-full rounded-[8px] border border-[#d9e2ec] px-3 text-[13px] font-semibold text-[#30466d]" value={form.status} onChange={(e) => setField('status', e.target.value)}>
-                {STATUS_OPTIONS.map((o) => <option key={o}>{o}</option>)}
-              </select>
+              <div className="mt-1.5">
+                <SearchableSelect
+                  value={form.status}
+                  onChange={(v) => setField('status', v)}
+                  options={STATUS_OPTIONS}
+                  placeholder="Select status"
+                  allowOther={false}
+                  triggerClassName="flex h-11 w-full items-center justify-between gap-2 rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-left text-[13px] font-semibold text-[#30466d]"
+                />
+              </div>
             </label>
           </div>
 
           <label className="mt-4 block text-[12px] font-bold text-[#53647f]">
             Assigned To <span className="font-semibold text-[#9aa8bc]">(optional)</span>
-            <select
-              className="mt-1.5 h-11 w-full rounded-[8px] border border-[#d9e2ec] px-3 text-[13px] font-semibold text-[#30466d]"
-              value={form.assigned_to}
-              onChange={(e) => setField('assigned_to', e.target.value)}
-            >
-              <option value="">Select employee</option>
-              {employees.map((emp) => (
-                <option key={emp.id} value={emp.id}>{emp.name}{emp.employee_id ? ` (${emp.employee_id})` : ''}</option>
-              ))}
-            </select>
+            <div className="mt-1.5">
+              <SearchableSelect
+                value={form.assigned_to}
+                onChange={(v) => setField('assigned_to', v)}
+                options={employees.map((emp) => ({
+                  value: String(emp.id),
+                  label: `${emp.name || 'Employee'}${emp.employee_id ? ` (${emp.employee_id})` : ''}`,
+                }))}
+                placeholder="Select employee"
+                searchPlaceholder="Search employee..."
+                triggerClassName="flex h-11 w-full items-center justify-between gap-2 rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-left text-[13px] font-semibold text-[#30466d]"
+              />
+            </div>
           </label>
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -274,10 +285,17 @@ function TaskModal({
                   {field.type === 'textarea' ? (
                     <textarea rows={4} required={field.required} placeholder={field.placeholder} className={`${inputClass} py-2.5`} value={val} onChange={(e) => setDetail(field.key, e.target.value, field)} />
                   ) : field.type === 'select' ? (
-                    <select required={field.required} className={`${inputClass} h-11`} value={val} onChange={(e) => setDetail(field.key, e.target.value, field)}>
-                      <option value="">{field.placeholder || 'Select'}</option>
-                      {(field.options || []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                    </select>
+                    <div className="mt-1.5">
+                      <SearchableSelect
+                        value={val}
+                        onChange={(v) => setDetail(field.key, v, field)}
+                        options={field.options || []}
+                        placeholder={field.placeholder || 'Select'}
+                        searchPlaceholder="Search..."
+                        required={field.required}
+                        triggerClassName={`${inputClass} flex h-11 items-center justify-between gap-2 text-left`}
+                      />
+                    </div>
                   ) : (
                     <input
                       type={field.type}
@@ -344,16 +362,18 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
 
   useEffect(() => {
     Promise.all([
-      projectApi.list({ page_size: 25 }),
-      leadApi.list({ page_size: 25 }),
-      inventoryApi.warehouses.list({ page_size: 25 }),
-      workforceApi.listEmployees({ page_size: 25 }),
+      fetchEveryPage((page, pageSize) => projectApi.list({ page, page_size: pageSize })),
+      fetchEveryPage((page, pageSize) => leadApi.list({ page, page_size: pageSize })),
+      fetchEveryPage((page, pageSize) => inventoryApi.warehouses.list({ page, page_size: pageSize })),
+      // Full workforce employee directory for Assign To (Employee FK).
+      fetchEveryPage((page, pageSize) => workforceApi.listEmployees({ page, page_size: pageSize })),
     ])
       .then(([projRes, leadRes, whRes, empRes]) => {
-        setProjects(normalizeRows(projRes));
-        setLeads(normalizeRows(leadRes));
-        setWarehouses(normalizeRows(whRes));
-        const present = normalizeRows(empRes).filter((e) => e.status !== 'On Leave');
+        setProjects(Array.isArray(projRes) ? projRes : normalizeRows(projRes));
+        setLeads(Array.isArray(leadRes) ? leadRes : normalizeRows(leadRes));
+        setWarehouses(Array.isArray(whRes) ? whRes : normalizeRows(whRes));
+        const present = (Array.isArray(empRes) ? empRes : normalizeRows(empRes))
+          .filter((e) => e.status !== 'On Leave');
         present.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         setEmployees(present);
       })
