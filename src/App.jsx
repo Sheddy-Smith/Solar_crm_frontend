@@ -79,8 +79,12 @@ import {
   normalizeCommissioningChecklist,
 } from './commissioningCompleteModal.jsx';
 import { OmPendingFlowPage, OM_PENDING_SECTIONS, OM_PENDING_STEPS } from './omPendingPages.jsx';
-import { OM_LEGACY_SECTIONS, OM_MODULE_SECTIONS, OM_SECTION_ROUTES } from './omPlantPages.jsx';
-import { OmHubPage } from './omHubPages.jsx';
+import {
+  OmHubPage,
+  OM_HUB_ROUTES as OM_SECTION_ROUTES,
+  OM_HUB_SECTIONS as OM_MODULE_SECTIONS,
+  OM_LEGACY_TO_SECTION as OM_LEGACY_SECTIONS,
+} from './omHubPages.jsx';
 import {
   SETTINGS_PILLARS,
   SettingsArchitectureTabs,
@@ -763,7 +767,7 @@ const liaisonActionPages = ['Liaison Application Create', 'Liaison Application D
 const liaisonRelatedPages = [...liaisonActionPages, ...liaisonSubItems, ...liaisonLegacyPages];
 const omSubItems = [...OM_MODULE_SECTIONS];
 const omRelatedPages = ['O&M', 'Energy Performance', ...Object.keys(OM_LEGACY_SECTIONS), ...omSubItems];
-const OM_FIELD_WORK_SECTION = 'Job Cards & Site Visits';
+const OM_FIELD_WORK_SECTION = 'Service Tickets & Complaints';
 const OM_FOCUS_KEYS = ['plant', 'ticket', 'task', 'policy', 'filter', 'alert'];
 
 function omFocusFromSearch(search) {
@@ -4686,7 +4690,7 @@ function AppHeader({
       onOpenLink={onOpenNotificationLink}
       onChanged={onNotificationsChanged}
       onViewAll={() => (hasAnyModuleAccess(loggedInUser, 'O&M')
-        ? openDashboardSection('O&M Dashboard', 'O&M alerts opened')
+        ? openDashboardSection('O&M Dashboard & Plant List', 'O&M alerts opened')
         : openDashboardSection(OM_FIELD_WORK_SECTION, 'My Tasks opened'))}
     />
   );
@@ -5334,7 +5338,6 @@ function SignInPage({ onLogin, onBack, onNotify }) {
 function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initialSearch = '', searchNonce, onOpenSection, onCreateLead, onOpenLead, autoOpenFollowUps = false, onConsumeAutoOpenFollowUps, onNotify }) {
   // Assign / Delete from Settings → Roles & Permissions → Lead (refreshed from /me on open).
   const [permUser, setPermUser] = useState(loggedInUser);
-  const { isAll: isAllLeadsView, openAll: openAllLeads, openRecent: openRecentLeads } = useRecentAllView({ storageKey: 'lead-list' });
   useEffect(() => { setPermUser(loggedInUser); }, [loggedInUser]);
   useEffect(() => {
     authApi.me()
@@ -5347,7 +5350,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
   const canExportLeads = hasModuleAccess(permUser, 'Lead', 'Export');
   const canShowLeadDelete = (lead) => canDeleteLeads && (lead.status !== 'Won' || isLeadManager);
   const [searchQuery, setSearchQuery] = useState(initialSearch);
-  const [sortOrdering, setSortOrdering] = useState(RECENT_ACTIVITY_ORDERING);
+  const [sortOrdering, setSortOrdering] = useState('-last_activity_at');
 
   useEffect(() => {
     if (searchNonce) setSearchQuery(initialSearch);
@@ -5365,9 +5368,9 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
   const [pageSize, setPageSize] = useState(() => {
     try {
       const saved = Number(window.localStorage.getItem('crm-lead-page-size'));
-      return LEAD_PAGE_SIZE_OPTIONS.includes(saved) ? saved : 10;
+      return LEAD_PAGE_SIZE_OPTIONS.includes(saved) ? saved : 20;
     } catch {
-      return 10;
+      return 20;
     }
   });
   const [apiLeads, setApiLeads] = useState(null);
@@ -5412,8 +5415,11 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
     }
 
     const csvRows = [
-      ['Customer Name', 'Mobile Number', 'IVRS Number', 'Project Name', 'Project Type', 'Status', 'Assigned To', 'Next Follow-up'],
-      ...rows.map((lead) => [lead.customer, lead.mobile, lead.ivrs, lead.project, lead.type, lead.status, lead.assignedTo.name, lead.nextFollowUp]),
+      ['Customer Name', 'Mobile Number', 'IVRS Number', 'Project Name', 'Project Type', 'Status', 'Assigned To', 'Last Activity', 'Added On', 'Next Follow-up'],
+      ...rows.map((lead) => [
+        lead.customer, lead.mobile, lead.ivrs, lead.project, lead.type, lead.status,
+        lead.assignedTo.name, lead.lastActivityLabel, lead.createdAtLabel, lead.nextFollowUp,
+      ]),
     ];
     const csv = csvRows.map((row) => row.map((value) => `"${String(value ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
@@ -5463,8 +5469,8 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
     return map[label];
   }, [activeLeadCategory]);
 
-  const effectiveLeadPageSize = isAllLeadsView ? (pageSize || LIST_PAGE_SIZE) : RECENT_LIST_LIMIT;
-  const effectiveLeadPage = isAllLeadsView ? activePage : 1;
+  const effectiveLeadPageSize = pageSize || LIST_PAGE_SIZE;
+  const effectiveLeadPage = activePage;
 
   useEffect(() => {
     setLeadsLoading(true);
@@ -5474,7 +5480,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
       search: debouncedSearch || undefined,
       status: statusFilter !== 'All' ? statusFilter : undefined,
       category_bucket: categoryBucketParam,
-      ordering: sortOrdering || RECENT_ACTIVITY_ORDERING,
+      ordering: sortOrdering || '-created_at',
       assigned_to: (
         assignedToFilter !== 'All' && assignedToFilter !== '__unassigned__'
           ? assignedToFilter
@@ -5502,13 +5508,21 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         nextFollowUp: lead.next_follow_up ? new Date(lead.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
         nextFollowUpRaw: lead.next_follow_up || null,
         surveyStatus: lead.survey_status || 'Pending',
+        // Immutable first-add time (created_at) — never use last_activity here.
+        createdAt: lead.created_at || null,
+        createdAtLabel: lead.created_at_display
+          || (lead.created_at
+            ? new Date(lead.created_at).toLocaleString('en-IN', {
+              day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+            })
+            : '—'),
         lastActivityAt: lead.last_activity_at || lead.updated_at || lead.created_at || null,
         lastActivityLabel: formatRelativeActivity(lead.last_activity_at || lead.updated_at || lead.created_at),
       })));
     }).catch((err) => {
       onNotify?.((err && err.message) ? `Failed to load leads: ${err.message}` : 'Failed to load leads. Please try again.');
     }).finally(() => setLeadsLoading(false));
-  }, [debouncedSearch, refreshKey, effectiveLeadPage, effectiveLeadPageSize, statusFilter, assignedToFilter, categoryBucketParam, sortOrdering, isAllLeadsView]);
+  }, [debouncedSearch, refreshKey, effectiveLeadPage, effectiveLeadPageSize, statusFilter, assignedToFilter, categoryBucketParam, sortOrdering]);
 
   useEffect(() => {
     leadApi.stats().then((data) => {
@@ -5527,10 +5541,10 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
     }).catch(() => setCategoryLeadCount(null));
   }, [refreshKey]);
 
-  // Search / filter / view change → page 1. Assign/delete refresh keeps the current page.
+  // Search / filter change → page 1. Assign/delete refresh keeps the current page.
   useEffect(() => {
     setActivePage(1);
-  }, [debouncedSearch, statusFilter, assignedToFilter, pageSize, categoryBucketParam, isAllLeadsView, sortOrdering]);
+  }, [debouncedSearch, statusFilter, assignedToFilter, pageSize, categoryBucketParam, sortOrdering]);
   const followUpDateInputRef = useRef(null);
   const leadTableSectionRef = useRef(null);
 
@@ -5638,10 +5652,8 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
   }, [apiLeads, projectTypeFilter, assignedToFilter, addByFilter, followUpDate]);
 
   const LEAD_PAGE_SIZE = effectiveLeadPageSize;
-  const totalLeadPages = isAllLeadsView
-    ? Math.max(1, Math.ceil((leadsTotal || visibleLeadRows.length) / LEAD_PAGE_SIZE))
-    : 1;
-  const safePage = isAllLeadsView ? Math.min(activePage, totalLeadPages) : 1;
+  const totalLeadPages = Math.max(1, Math.ceil((leadsTotal || visibleLeadRows.length) / LEAD_PAGE_SIZE));
+  const safePage = Math.min(activePage, totalLeadPages);
   const pagedLeadRows = visibleLeadRows;
 
   useEffect(() => {
@@ -5694,22 +5706,18 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
   );
 
   return (
-    <div className="lead-list-page -mx-1 flex min-h-0 flex-1 flex-col gap-2 overflow-visible pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0 lg:overflow-hidden md:mx-0 xl:-mx-1">
-      <section className={`${panelClass} shrink-0 overflow-hidden p-3 sm:p-2.5`}>
-        <RecentAllPageHeading
-          isAll={isAllLeadsView}
-          moduleLabel="Leads"
-          recentTitle="Lead List (Recent Leads)"
-          allTitle="All Leads"
-          recentSubtitle={`Showing the latest ${RECENT_LIST_LIMIT} leads you recently worked on (view, edit or update).`}
-          allSubtitle="Complete list of leads (Recent + Older)."
-          onBackToRecent={openRecentLeads}
-          actions={leadHeaderActions}
-        />
+    <div className="lead-list-page -mx-1 flex min-h-0 flex-1 flex-col gap-1.5 overflow-visible pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0 lg:overflow-hidden md:mx-0 xl:-mx-1">
+      <section className={`${panelClass} shrink-0 overflow-hidden px-2.5 py-2 sm:px-2.5 sm:py-1.5`}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h1 className="font-display text-[18px] font-extrabold leading-tight text-[#111827] sm:text-[20px]">Lead List</h1>
+          </div>
+          {leadHeaderActions}
+        </div>
 
         {/* Category filter — dropdown on phone, chips on desktop */}
-        <div className="mt-3 md:mt-1.5">
-          <label className="relative flex h-12 w-full items-center gap-2.5 rounded-[12px] border border-[#d9e4f2] bg-white px-3.5 shadow-sm md:hidden">
+        <div className="mt-1.5 md:mt-1">
+          <label className="relative flex h-10 w-full items-center gap-2.5 rounded-[10px] border border-[#d9e4f2] bg-white px-3 shadow-sm md:hidden">
             <Filter className="size-4 shrink-0 text-[#0b65e5]" />
             <select
               value={activeLeadCategory?.label || 'All'}
@@ -5725,7 +5733,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                 if (category) onNotify(`${category.label} filter applied`);
               }}
               aria-label="Lead category"
-              className="min-w-0 flex-1 cursor-pointer appearance-none bg-transparent py-2 pr-6 text-[14px] font-extrabold text-[#1e3261] outline-none"
+              className="min-w-0 flex-1 cursor-pointer appearance-none bg-transparent py-1.5 pr-6 text-[13px] font-extrabold text-[#1e3261] outline-none"
             >
               <option value="All">
                 All categories{categoryLeadCount ? ` (${Object.values(categoryLeadCount).reduce((sum, n) => sum + n, 0)})` : ''}
@@ -5737,10 +5745,10 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                 </option>
               ))}
             </select>
-            <ChevronDown className="pointer-events-none absolute right-3.5 size-4 text-[#7b88a2]" />
+            <ChevronDown className="pointer-events-none absolute right-3 size-4 text-[#7b88a2]" />
           </label>
 
-          <div className="hidden flex-wrap items-center gap-1.5 md:flex">
+          <div className="hidden flex-wrap items-center gap-1 md:flex">
             {leadCategoryTabs.map((category) => {
               const Icon = category.icon;
               const tone = leadCategoryToneClasses[category.tone];
@@ -5758,21 +5766,18 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                   }}
                   data-action={`open-${category.shortLabel.toLowerCase()}-leads`}
                   className={cx(
-                    'group inline-flex h-[38px] w-max shrink-0 items-center justify-between gap-2 rounded-[9px] border px-2.5 text-left shadow-[0_8px_16px_rgba(17,39,84,0.04)] transition hover:-translate-y-0.5 focus:border-blue-500 focus:ring-4 focus:ring-blue-100',
+                    'group inline-flex h-[32px] w-max shrink-0 items-center justify-between gap-1.5 rounded-[8px] border px-2 text-left shadow-[0_6px_12px_rgba(17,39,84,0.03)] transition hover:-translate-y-0.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100',
                     tone.button,
                     selected ? 'ring-2 ring-[#0b65e5] ring-offset-1 ring-offset-white' : '',
                   )}
                 >
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className={cx('grid size-6 shrink-0 place-items-center rounded-[7px]', tone.icon)}>
-                      <Icon className="size-[14px]" />
+                  <span className="inline-flex items-center gap-1">
+                    <span className={cx('grid size-5 shrink-0 place-items-center rounded-[6px]', tone.icon)}>
+                      <Icon className="size-[12px]" />
                     </span>
-                    <span>
-                      <span className="block whitespace-nowrap text-[11px] font-extrabold">{category.label}</span>
-                      <span className="block whitespace-nowrap text-[9px] font-bold opacity-75">{category.priority}</span>
-                    </span>
+                    <span className="whitespace-nowrap text-[11px] font-extrabold leading-none">{category.label}</span>
                   </span>
-                  <span className={cx('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-extrabold', tone.count)}>
+                  <span className={cx('shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-extrabold leading-none', tone.count)}>
                     {categoryLeadCount ? (categoryLeadCount[category.label] ?? 0) : '—'}
                   </span>
                 </button>
@@ -5784,20 +5789,20 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
 
       {/* z-20 stays under the sticky mobile header (z-50) so profile/language
           menus are never covered by this search/filter strip. */}
-      <section className={`${panelClass} relative z-20 shrink-0 overflow-visible p-3 sm:p-2.5`}>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <label className="flex h-11 flex-1 items-center gap-3 rounded-[12px] border border-black/15 bg-white px-3.5 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 md:rounded-[8px] md:border-black/20 md:px-4">
-            <Search className="size-4 shrink-0 text-[#7386a3]" />
+      <section className={`${panelClass} relative z-20 shrink-0 overflow-visible px-2.5 py-1.5 sm:px-2.5 sm:py-1.5`}>
+        <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
+          <label className="flex h-9 flex-1 items-center gap-2.5 rounded-[10px] border border-black/15 bg-white px-3 transition focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 md:rounded-[8px] md:border-black/20 md:px-3.5">
+            <Search className="size-3.5 shrink-0 text-[#7386a3]" />
             <input
               value={searchQuery}
               onChange={(event) => { setSearchQuery(event.target.value); setActivePage(1); }}
               type="search"
               placeholder="Search name, mobile, IVRS..."
-              className="min-w-0 flex-1 bg-transparent text-[14px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab] md:text-[13px]"
+              className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]"
             />
           </label>
 
-          <label className="relative inline-flex h-11 min-w-[200px] items-center gap-2 rounded-[12px] border border-black/15 bg-white px-3 text-[12px] font-extrabold text-[#284276] md:rounded-[8px] md:border-black/20">
+          <label className="relative inline-flex h-9 min-w-[220px] items-center gap-2 rounded-[10px] border border-black/15 bg-white px-2.5 text-[12px] font-extrabold text-[#284276] md:rounded-[8px] md:border-black/20">
             <span className="hidden whitespace-nowrap text-[#7386a3] sm:inline">Sort By:</span>
             <select
               value={sortOrdering}
@@ -5805,26 +5810,27 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
               aria-label="Sort leads"
               className="min-w-0 flex-1 cursor-pointer appearance-none bg-transparent pr-5 text-[12px] font-extrabold text-[#1e3261] outline-none"
             >
-              <option value={RECENT_ACTIVITY_ORDERING}>Last Activity (Recent First)</option>
-              <option value="-created_at">Created (Newest First)</option>
+              <option value="-last_activity_at">Last Activity (Recent First)</option>
+              <option value="-created_at">Added On (Newest First)</option>
+              <option value="created_at">Added On (Oldest First)</option>
               <option value="customer_name">Customer Name (A–Z)</option>
               <option value="-next_follow_up">Next Follow-up</option>
             </select>
             <ChevronDown className="pointer-events-none absolute right-2.5 size-3.5 text-[#7b88a2]" />
           </label>
 
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
+          <div className="grid grid-cols-2 gap-1.5 sm:flex sm:shrink-0">
             <button
               type="button"
               onClick={() => setMobileFiltersOpen((open) => !open)}
               className={cx(
-                'inline-flex h-11 items-center justify-center gap-2 rounded-[12px] border px-3 text-[13px] font-extrabold transition md:hidden',
+                'inline-flex h-9 items-center justify-center gap-1.5 rounded-[10px] border px-2.5 text-[12px] font-extrabold transition md:hidden',
                 mobileFiltersOpen || activeFilterCount > 0
                   ? 'border-[#0b65e5] bg-[#eef5ff] text-[#0b65e5]'
                   : 'border-black/15 bg-white text-[#284276]',
               )}
             >
-              <Filter className="size-4" />
+              <Filter className="size-3.5" />
               Filters
               {activeFilterCount > 0 ? (
                 <span className="inline-flex size-5 items-center justify-center rounded-full bg-[#0b65e5] text-[11px] font-extrabold text-white">{activeFilterCount}</span>
@@ -5834,9 +5840,9 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
               type="button"
               onClick={resetLeadFilters}
               data-action="lead-reset-filters"
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-[12px] border border-black/15 bg-white px-3 text-[13px] font-extrabold text-[#284276] transition active:bg-[#f8fbff] md:rounded-[8px] md:border-black/20 md:px-4 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[10px] border border-black/15 bg-white px-2.5 text-[12px] font-extrabold text-[#284276] transition active:bg-[#f8fbff] md:rounded-[8px] md:border-black/20 md:px-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             >
-              <RefreshCw className="size-4 text-[#0b65e5]" />
+              <RefreshCw className="size-3.5 text-[#0b65e5]" />
               <span className="truncate">Reset</span>
               {activeFilterCount > 0 ? (
                 <span className="inline-flex size-5 items-center justify-center rounded-full bg-[#0b65e5] text-[11px] font-extrabold text-white">{activeFilterCount}</span>
@@ -5895,19 +5901,9 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
           </div>
         ) : null}
 
-        <p className="mt-2 text-[11px] font-semibold text-[#8a98af] md:hidden">Tap a lead to open details. Use Filters for type / assignee.</p>
-        <p className="mt-1.5 hidden text-[11px] font-semibold text-[#8a98af] md:block">Double-click a row to view details. Use column arrows to filter.</p>
       </section>
 
-      <section ref={leadTableSectionRef} className={`${panelClass} lead-list-table-panel relative z-10 flex min-h-0 flex-1 flex-col overflow-visible lg:overflow-hidden p-2 sm:p-2`}>
-        {!isAllLeadsView ? (
-          <RecentRecordsSectionHeader
-            moduleLabel="Leads"
-            showing={Math.min(RECENT_LIST_LIMIT, visibleLeadRows.length || RECENT_LIST_LIMIT)}
-            total={totalLeadCount || null}
-          />
-        ) : null}
-
+      <section ref={leadTableSectionRef} className={`${panelClass} lead-list-table-panel relative z-10 flex min-h-0 flex-1 flex-col overflow-visible lg:overflow-hidden p-1.5 sm:p-1.5`}>
         {leadsLoading ? (
           <PageLoadingState message="Loading leads..." />
         ) : (
@@ -5972,7 +5968,8 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                       onChange={(v) => { setAssignedToFilter(v); setActivePage(1); }}
                     />
                   </th>
-                  <th title="Last Activity"><span className="block truncate">Last Activity</span></th>
+                  <th title="Last Activity (updates on follow-up / edit)"><span className="block truncate">Last Activity</span></th>
+                  <th title="Added On (first time — never changes)"><span className="block truncate">Added On</span></th>
                   <th title="Added By">
                     <TableHeaderFilter
                       label="Added By"
@@ -6014,7 +6011,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
               <tbody>
                 {pagedLeadRows.length === 0 ? (
                   <tr>
-                    <td colSpan={13} className="!p-0">
+                    <td colSpan={14} className="!p-0">
                       <LeadListEmptyState
                         hasFilters={hasLeadFilters}
                         filterLabels={activeFilterLabels}
@@ -6043,8 +6040,13 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                       </span>
                     </td>
                     <td title={lead.lastActivityLabel || '—'}>
-                      <span className="block truncate text-[12px] font-extrabold text-[#16a34a]">
+                      <span className="block truncate text-[12px] font-extrabold text-[#0b8f43]">
                         {lead.lastActivityLabel || '—'}
+                      </span>
+                    </td>
+                    <td title={lead.createdAtLabel || '—'}>
+                      <span className="block truncate text-[12px] font-extrabold text-[#0f172a]">
+                        {lead.createdAtLabel || '—'}
                       </span>
                     </td>
                     <td title={lead.createdByName}><span className="block truncate">{lead.createdByName}</span></td>
@@ -6110,11 +6112,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
           </>
         )}
 
-        {!leadsLoading && !isAllLeadsView ? (
-          <ViewAllRecordsButton label="View All Leads →" onClick={openAllLeads} />
-        ) : null}
-
-        {!leadsLoading && isAllLeadsView ? (
+        {!leadsLoading ? (
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-[#eef2f8] bg-white px-3 py-2 text-[13px] font-bold text-[#53647f]">
           <div className="flex flex-wrap items-center gap-2">
             <p>
@@ -10555,8 +10553,8 @@ function getModuleSubnavLabel(item) {
     return 'Overview';
   }
 
-  if (item === 'O&M Dashboard') {
-    return 'Dashboard';
+  if (item === 'O&M Dashboard' || item === 'O&M Dashboard & Plant List') {
+    return 'Dashboard & Plants';
   }
 
   if (item === 'Project Overview' || item === 'Inventory Overview' || item === 'Accounts Overview' || item === 'AMC Overview') {
@@ -13417,7 +13415,7 @@ function OmPage({ activeSection, onOpenSection, onNotify, loggedInUser, focus, o
   const section = OM_LEGACY_SECTIONS[activeSection] || activeSection;
   return (
     <OmHubPage
-      activeSection={section === 'O&M' ? 'O&M Dashboard' : section}
+      activeSection={section === 'O&M' || section === 'O&M Dashboard' ? 'O&M Dashboard & Plant List' : section}
       onOpenSection={onOpenSection}
       onNotify={onNotify}
       loggedInUser={loggedInUser}
@@ -33612,6 +33610,18 @@ function LeadFormModal({ mode = 'create', lead, projectContext = null, projectCr
                     Survey: {(detail || {}).site_survey?.status || 'Pending'}
                   </span>
                 ) : null}
+                {mode === 'edit' && ((detail || {}).created_at_display || (detail || {}).created_at) ? (
+                  <span
+                    className="inline-flex h-9 items-center rounded-full border border-[#dbeafe] bg-[#eff6ff] px-3 text-[12px] font-extrabold text-[#1d4ed8]"
+                    title="First-time lead add — never changes"
+                  >
+                    Added On:{' '}
+                    {(detail || {}).created_at_display
+                      || new Date((detail || {}).created_at).toLocaleString('en-IN', {
+                        day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+                      })}
+                  </span>
+                ) : null}
               </div>
             </div>
           ) : (
@@ -34322,7 +34332,23 @@ function LeadViewModal({ leadId, onClose, onEdit, onNotify }) {
                 <InfoCell large label="Assigned To" value={detail.assigned_to_detail?.name || 'Unassigned'} />
                 <InfoCell large label="Next Follow-up" value={detail.next_follow_up ? new Date(detail.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'} />
                 <InfoCell large label="Source" value={detail.source || '—'} />
+                <InfoCell
+                  large
+                  label="Lead Added On"
+                  value={
+                    detail.created_at_display
+                    || (detail.created_at
+                      ? new Date(detail.created_at).toLocaleString('en-IN', {
+                        day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+                      })
+                      : '—')
+                  }
+                />
+                <InfoCell large label="Added By" value={detail.created_by_name || '—'} />
               </div>
+              <p className="mt-2 text-[11px] font-semibold text-[#94a3b8]">
+                Lead Added On is set once when the lead is created and never changes on edit / follow-up.
+              </p>
               {detail.address ? (
                 <div className="mt-4"><InfoCell large label="Address" value={detail.address} /></div>
               ) : null}
@@ -39690,6 +39716,12 @@ function LeadListMobileRow({ lead, onOpenLead, onOpenSurvey, onAssign = null, on
             {lead.mobile || 'No mobile'}
             {lead.type ? ` · ${lead.type}` : ''}
           </span>
+          {lead.lastActivityLabel && lead.lastActivityLabel !== '—' ? (
+            <span className="mt-0.5 block text-[11px] font-extrabold text-[#0b8f43]">{lead.lastActivityLabel}</span>
+          ) : null}
+          {lead.createdAtLabel && lead.createdAtLabel !== '—' ? (
+            <span className="mt-0.5 block text-[11px] font-semibold text-[#64748b]">Added on {lead.createdAtLabel}</span>
+          ) : null}
           {lead.createdByName && lead.createdByName !== '—' ? (
             <span className="mt-0.5 block text-[11px] font-semibold text-[#a5b1c7]">Added by {lead.createdByName}</span>
           ) : null}

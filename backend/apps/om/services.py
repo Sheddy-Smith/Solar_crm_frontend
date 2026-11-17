@@ -132,6 +132,9 @@ def build_snapshot(project):
 
 def compute_om_status(plant, today=None):
     today = today or date.today()
+    # Staged plants stay Pending until commissioning complete activates them.
+    if not plant.is_active and plant.om_status == 'Commissioning Pending':
+        return 'Commissioning Pending'
     if plant.amc_contract_id:
         contract = plant.amc_contract
         if contract.status in ('Active', 'Expiring Soon') and (not contract.end_date or contract.end_date >= today):
@@ -146,6 +149,96 @@ def compute_om_status(plant, today=None):
     if (plant.free_service_end - today).days <= FREE_SERVICE_EXPIRING_DAYS:
         return 'Free Service Expiring Soon'
     return 'Free Service Active'
+
+
+CLEANING_VISITS_PER_YEAR = 18
+CLEANING_CHECKLIST = [
+    'Panel surface dust / bird droppings cleared',
+    'Chemical / cleaning solution used (if any)',
+    'Structure & rail wipe-down',
+    'Photos before / after captured',
+    'Customer acknowledgement',
+]
+
+
+@transaction.atomic
+def stage_plant_pending(project, user=None):
+    """When a commissioning engineer is assigned, stage the plant in O&M as Commissioning Pending.
+
+    Does not start free-service window or quarterly schedule — that happens on activate_plant.
+    """
+    if not project:
+        return None, False
+    snapshot = build_snapshot(project)
+    plant = OmPlant.objects.select_for_update().filter(project=project).first()
+    created = plant is None
+    if created:
+        customer = None
+        try:
+            from apps.accounts_module.services import get_or_create_party_for_project
+            customer = get_or_create_party_for_project(project)
+        except Exception:
+            logger.exception('O&M: could not link customer for pending plant project %s', project.pk)
+        plant = OmPlant(project=project, customer=customer, created_by=user, **snapshot)
+    else:
+        # Already activated plants must not be downgraded to Pending.
+        if plant.is_active and plant.om_status != 'Commissioning Pending':
+            return plant, False
+        for field, value in snapshot.items():
+            current = getattr(plant, field)
+            if current in (None, '') and value not in (None, ''):
+                setattr(plant, field, value)
+
+    plant.is_active = False
+    plant.om_status = 'Commissioning Pending'
+    plant.save()
+    return plant, created
+
+
+def ensure_cleaning_schedule(plant, user=None, visits_per_year=CLEANING_VISITS_PER_YEAR):
+    """Create annual panel-cleaning visit tasks (default 18 / year during free-service window)."""
+    if not plant or not plant.commissioning_date or not plant.free_service_end:
+        return 0
+    start = plant.commissioning_date
+    end = plant.free_service_end
+    if end <= start:
+        return 0
+    # Spread visits evenly across the free-service years.
+    years = max(1, (end.year - start.year) or 1)
+    total = visits_per_year * years
+    interval_days = max(1, int(round(365 / visits_per_year)))
+    existing = {
+        t.sequence_no: t
+        for t in plant.tasks.filter(source='Cleaning')
+    }
+    created = 0
+    for number in range(1, total + 1):
+        due = start + timedelta(days=interval_days * number)
+        if due > end:
+            break
+        task = existing.get(number)
+        if task is None:
+            OmMaintenanceTask.objects.create(
+                plant=plant,
+                project=plant.project,
+                title=f'Panel Cleaning {number}/{total}',
+                site=plant.plant_location,
+                source='Cleaning',
+                sequence_no=number,
+                task_type='Preventive',
+                priority='Medium',
+                due_date=due,
+                deadline=due + timedelta(days=7),
+                status='Scheduled',
+                checklist=[{'label': label, 'done': False} for label in CLEANING_CHECKLIST],
+                created_by=user,
+            )
+            created += 1
+        elif task.status == 'Scheduled' and task.due_date != due and not task.visits.exists():
+            task.due_date = due
+            task.deadline = due + timedelta(days=7)
+            task.save(update_fields=['due_date', 'deadline', 'updated_at'])
+    return created
 
 
 def ensure_quarterly_schedule(plant, user=None):
@@ -214,14 +307,14 @@ def activate_plant(project, commissioning_date=None, user=None):
     plant.om_status = compute_om_status(plant)
     plant.save()
     ensure_quarterly_schedule(plant, user=user)
+    ensure_cleaning_schedule(plant, user=user)
 
-    if created:
-        from apps.notifications.services import notify
-        notify(
-            f'plant-activated-{plant.pk}',
-            f'O&M activated: {plant.plant_name}',
-            message=f'{plant.plant_code} commissioned on {commissioning_date:%d-%m-%Y}. '
-                    f'Free service till {plant.free_service_end:%d-%m-%Y}.',
-            category='Service', severity='info', plant=plant, link=f'/om/plants?plant={plant.pk}',
-        )
+    from apps.notifications.services import notify
+    notify(
+        f'plant-activated-{plant.pk}',
+        f'O&M activated: {plant.plant_name}',
+        message=f'{plant.plant_code} commissioned on {commissioning_date:%d-%m-%Y}. '
+                f'Free service till {plant.free_service_end:%d-%m-%Y}.',
+        category='Service', severity='info', plant=plant, link=f'/om/plants?plant={plant.pk}',
+    )
     return plant, created

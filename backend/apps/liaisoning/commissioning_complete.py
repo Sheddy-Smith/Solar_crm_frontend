@@ -174,11 +174,32 @@ def complete_commissioning(commissioning, data, *, actor=None):
         project.status = 'Completed'
         project.save(update_fields=['status', 'updated_at'])
 
-    warranty_specs = (
+    warranty_specs = [
         ('Inverter', inv_years, inv_end),
         ('Panel', panel_years, panel_end),
         ('Service', service_years, service_end),
-    )
+    ]
+    # Structure / Battery from quote text when available (separate equipment warranties).
+    try:
+        quote = None
+        if project.lead_id:
+            quotes = project.lead.quotations.exclude(status='Cancelled')
+            quote = quotes.filter(status='Approved').order_by('-updated_at').first() or quotes.order_by('-updated_at').first()
+        if quote:
+            for asset_type, raw in (
+                ('Structure', getattr(quote, 'structure_warranty', None)),
+                ('Battery', getattr(quote, 'battery_warranty', None)),
+            ):
+                years = None
+                try:
+                    years = parse_warranty_years(raw) if raw not in (None, '') else None
+                except Exception:
+                    years = None
+                if years:
+                    warranty_specs.append((asset_type, years, add_years(commissioning_date, years)))
+    except Exception:
+        pass
+
     today = timezone.localdate()
     for asset_type, years, end in warranty_specs:
         existing = AmcWarranty.objects.filter(project=project, asset_type=asset_type).order_by('-id').first()

@@ -69,6 +69,8 @@ def plant_ids_for(key, today=None):
         return set(plants.filter(om_status__in=PAID_STATUSES).values_list('id', flat=True))
     if key == 'active':
         return set(plants.filter(is_active=True).values_list('id', flat=True))
+    if key == 'commissioning_pending':
+        return set(plants.filter(om_status='Commissioning Pending').values_list('id', flat=True))
     if key in ('insurance_active', 'insurance_expiring', 'insurance_expired'):
         wanted = key.split('_', 1)[1]
         return {pid for pid, state in insurance_states(today).items() if state == wanted}
@@ -225,6 +227,7 @@ def dashboard_summary(today=None):
     summary = {
         'total_plants': plants.count(),
         'active_plants': plants.filter(is_active=True).count(),
+        'commissioning_pending': count('commissioning_pending'),
         'under_service': under_service,
         'free_service_plants': count('free_service'),
         'expired_service_plants': count('free_expired'),
@@ -264,6 +267,7 @@ def dashboard_summary(today=None):
             {'key': 'service_due', 'label': f'Service due within {SERVICE_DUE_WINDOW_DAYS} days', 'count': summary['service_due']},
             {'key': 'insurance_expiring', 'label': f'Insurance expiry within {INSURANCE_EXPIRING_DAYS} days', 'count': summary['insurance_expiring']},
             {'key': 'free_expiring', 'label': f'Free service expiry within {FREE_SERVICE_ALERT_DAYS} days', 'count': count('free_expiring')},
+            {'key': 'commissioning_pending', 'label': 'Commissioning pending (awaiting activation)', 'count': summary['commissioning_pending']},
         ],
         'active': [
             {'key': 'free_service', 'label': 'Free service active', 'count': summary['free_service_plants']},

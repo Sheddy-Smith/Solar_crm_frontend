@@ -75,6 +75,7 @@ class OmPlant(models.Model):
         ('Off Grid', 'Off Grid'),
     ]
     OM_STATUS_CHOICES = [
+        ('Commissioning Pending', 'Commissioning Pending'),
         ('Free Service Active', 'Free Service Active'),
         ('Free Service Expiring Soon', 'Free Service Expiring Soon'),
         ('Free Service Expired', 'Free Service Expired'),
@@ -231,6 +232,8 @@ class OmMaintenanceTask(models.Model):
         ('Quarterly', 'Quarterly'),
         ('Ticket', 'Ticket'),
         ('Manual', 'Manual'),
+        ('Plan', 'Plan'),
+        ('Cleaning', 'Cleaning'),
     ]
     STATUS_CHOICES = [
         ('Scheduled', 'Scheduled'),

@@ -237,7 +237,7 @@ function InvModal({ title, onClose, children, footer, headerRight = null }) {
       <div className="max-h-[90vh] w-full max-w-2xl overflow-auto rounded-[14px] bg-white shadow-2xl">
         <div className="flex items-center justify-between gap-3 border-b border-[#e5eaf2] px-5 py-4">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
-            <h3 className="text-[16px] font-extrabold text-[#1e3261]">{title}</h3>
+          <h3 className="text-[16px] font-extrabold text-[#1e3261]">{title}</h3>
             {headerRight}
           </div>
           <button type="button" onClick={onClose} className="shrink-0 text-[#53647f]">✕</button>
@@ -411,7 +411,7 @@ export function InventoryOverviewPageEnhanced({ activeSection, onOpenSection, on
                   <div className="min-w-0">
                     <p className="text-[14px] font-extrabold text-[#92400e]">Alert · Low Stock</p>
                     <p className="text-[11px] font-semibold text-[#b45309]">At or below reorder level</p>
-                  </div>
+                </div>
                 </div>
                 <span className="inline-flex min-w-[36px] items-center justify-center rounded-full bg-[#f59e0b] px-2.5 py-1 text-[14px] font-extrabold text-white">{warningCount}</span>
               </div>
@@ -420,7 +420,7 @@ export function InventoryOverviewPageEnhanced({ activeSection, onOpenSection, on
                   <p className="rounded-[10px] bg-[#fffbeb] px-3 py-5 text-center text-[12px] font-bold text-[#92400e]/80">No low-stock items.</p>
                 ) : warning.map((item) => <StockAlertRow key={item.id} item={item} level="warning" />)}
               </div>
-            </section>
+          </section>
 
             <section className={cx('overflow-hidden rounded-[16px] border-2 border-[#16a34a]/45 bg-white shadow-[0_12px_28px_rgba(22,163,74,0.10)]', stableCount > 0 && 'ring-2 ring-[#bbf7d0]/80')}>
               <div className="flex items-center justify-between gap-3 border-b border-[#bbf7d0] bg-[linear-gradient(90deg,#f0fdf4_0%,#ecfdf5_100%)] px-4 py-3">
@@ -476,7 +476,7 @@ export function InventoryOverviewPageEnhanced({ activeSection, onOpenSection, on
                 >
                   <span className={cx('grid size-10 place-items-center rounded-[12px]', tone.iconWrap)}><action.icon className="size-5" /></span>
                   <span className={cx('text-[14px] font-extrabold', tone.valueClass)}>{action.label}</span>
-                </button>
+              </button>
               );
             })}
           </section>
@@ -619,7 +619,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
         setModal({ form: { ...defaultsForCategory(cat, categories) } });
         setProductFormTab('basic');
       } else {
-        setModal(null);
+      setModal(null);
         setAddAnother(false);
       }
       load({ showSpinner: false });
@@ -781,7 +781,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
 
   if (pageMode === 'adjust') {
     const unit = selectedAdjustItem?.unit || 'Nos';
-    return (
+  return (
       <div className="space-y-3">
         <div className="px-0.5">
           <p className="text-[12px] font-bold text-[#7a8fa6]">
@@ -795,7 +795,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
             <div>
               <h1 className="text-[22px] font-extrabold text-[#0f172a]">Adjust Item (Stock Adjustment)</h1>
               <p className="mt-0.5 text-[13px] font-semibold text-[#64748b]">Increase or decrease product stock with proper reason and record.</p>
-            </div>
+          </div>
             <button
               type="button"
               onClick={() => setPageMode('list')}
@@ -896,7 +896,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                     placeholder="Enter quantity"
                     className="min-w-0 flex-1 bg-transparent text-[13px] font-semibold outline-none"
                   />
-                </div>
+          </div>
               </label>
               <label className="block text-[12px] font-extrabold text-[#334155]">
                 Warehouse
@@ -910,9 +910,9 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                     <option value="">Select warehouse</option>
                     {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
                   </select>
-                </div>
+        </div>
               </label>
-            </div>
+                      </div>
 
             <label className="mt-3 block text-[12px] font-extrabold text-[#334155]">
               Adjustment Reason <span className="text-[#dc2626]">*</span>
@@ -1014,20 +1014,20 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                             <span className={cx('rounded-full px-2 py-0.5 text-[10px] font-extrabold', isIn ? 'bg-[#dcfce7] text-[#15803d]' : 'bg-[#fee2e2] text-[#b91c1c]')}>
                               {isIn ? 'IN' : 'OUT'}
                             </span>
-                          </td>
+                    </td>
                           <td className={cx('py-2.5 pr-2 font-extrabold', isIn ? 'text-[#16a34a]' : 'text-[#dc2626]')}>
                             {isIn ? '+' : '-'} {m.quantity}
                           </td>
                           <td className="py-2.5 font-semibold text-[#334155]">{m.reference_type || m.notes || '—'}</td>
-                        </tr>
+                  </tr>
                       );
                     })}
-                  </tbody>
-                </table>
-              </div>
+              </tbody>
+            </table>
+          </div>
             </div>
           </div>
-        </div>
+      </div>
         <DashboardFooter />
       </div>
     );
@@ -1140,7 +1140,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                       onChange={(e) => patchForm({ name: e.target.value })}
                     />
                   </label>
-                  <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2">
                     <label className="block text-[12px] font-extrabold text-[#334155]">
                       Item Code
                       <input
@@ -1162,7 +1162,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                         {unitsForCategory(selectedCategory, f.unit).map((u) => <option key={u} value={u}>{u}</option>)}
                       </select>
                     </label>
-                  </div>
+          </div>
                   <label className="block text-[12px] font-extrabold text-[#334155] sm:max-w-[240px]">
                     Reorder Level
                     <input
@@ -1221,7 +1221,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                           onChange={(e) => patchForm({ initial_stock: e.target.value })}
                         />
                       </label>
-                    ) : null}
+      ) : null}
                     <label className="block text-[12px] font-extrabold text-[#334155]">
                       Warehouse
                       <select
@@ -1245,7 +1245,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                     <div>
                       <p className="text-[14px] font-extrabold text-[#0f172a]">Additional Info</p>
                       <p className="text-[12px] font-semibold text-[#64748b]">Optional notes and specifications</p>
-                    </div>
+          </div>
                   </div>
                   <label className="block text-[12px] font-extrabold text-[#334155]">
                     Description
@@ -1697,7 +1697,7 @@ export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify
                     <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody>
+            <tbody>
                   {pageRows.map((r, i) => {
                     const thumb = categoryThumbClass(r.name);
                     const count = productCountByCategory[r.name] || 0;
@@ -1755,19 +1755,19 @@ export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify
                               </button>
                             ) : null}
                           </div>
-                        </td>
-                      </tr>
+                  </td>
+                </tr>
                     );
                   })}
-                </tbody>
-              </table>
+            </tbody>
+          </table>
             </div>
           </>
         )}
 
         <div className="border-t border-[#eef2f7] px-2 py-1">
           <TablePagination {...pagination} noun="entries" pageSizeOptions={[10, 20, 50, 100]} />
-        </div>
+      </div>
       </div>
 
       <DashboardFooter />

@@ -200,7 +200,7 @@ def _sync_amc_warranty_statuses(today):
 
 
 def _sync_warranties(today, counts):
-    """30-day advance alerts for inverter / panel / service warranty + next service."""
+    """30-day advance alerts for inverter / panel / service / AmcWarranty + next service."""
     _sync_amc_warranty_statuses(today)
     for plant in OmPlant.objects.filter(is_active=True):
         specs = (
@@ -238,6 +238,23 @@ def _sync_warranties(today, counts):
                     category='Service', severity='upcoming', plant=plant, link=_plant_link(plant),
                 )
                 counts['alerts'] += int(created)
+    try:
+        from apps.amc.models import AmcWarranty
+        for row in AmcWarranty.objects.filter(status='Expiring Soon', warranty_end__isnull=False):
+            days = (row.warranty_end - today).days
+            if days < 0 or days > 30:
+                continue
+            label = row.asset_type or 'Equipment'
+            _, created = notify(
+                f'amc-wty-30-{row.pk}-{row.warranty_end}',
+                f'{label} warranty in {days} days',
+                message=f'{label} • ends {row.warranty_end:%d-%m-%Y}'
+                        + (f' • {row.manufacturer}' if row.manufacturer else ''),
+                category='Warranty', severity='upcoming', link='/om/warranty',
+            )
+            counts['alerts'] += int(created)
+    except Exception:
+        logger.exception('AmcWarranty 30-day alert sync failed')
 
 
 def run_daily_sync(today=None):

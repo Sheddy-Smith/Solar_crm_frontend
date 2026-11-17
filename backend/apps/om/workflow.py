@@ -323,7 +323,7 @@ def complete_visit(data, files, user):
 
 
 def plant_history(plant):
-    """Lifetime service history: every visit plus complaints solved on phone."""
+    """Complete plant timeline: visits, tickets, job cards, cleaning/PM tasks, insurance."""
     rows = []
     for visit in plant.visits.select_related('assigned_engineer', 'ticket', 'task').order_by('-date', '-id'):
         rows.append({
@@ -346,5 +346,38 @@ def plant_history(plant):
             'problem': ticket.subject, 'action': ticket.resolution, 'status': ticket.status,
             'final_status': '', 'ticket': f'BD-{ticket.id:04d}', 'task': '',
         })
-    rows.sort(key=lambda r: (r['date'] or date.min, r['id']), reverse=True)
+    try:
+        for card in plant.job_cards.select_related('assigned_technician').order_by('-updated_at', '-id')[:40]:
+            when = card.completed_at or card.updated_at or card.created_at
+            rows.append({
+                'kind': 'job_card', 'id': card.id,
+                'ref': card.job_card_no or f'JC-{card.id:04d}',
+                'date': when.date() if when else None,
+                'type': 'Job Card', 'engineer': _user_label(card.assigned_technician),
+                'problem': card.work_description or card.diagnosis or '',
+                'action': card.work_performed or card.completion_remarks or '',
+                'status': card.status,
+                'final_status': '', 'ticket': '', 'task': '',
+            })
+    except Exception:
+        pass
+    for task in plant.tasks.filter(source__in=('Quarterly', 'Cleaning', 'Plan')).order_by('-due_date', '-id')[:40]:
+        if task.status not in ('Completed', 'Cancelled'):
+            continue
+        rows.append({
+            'kind': 'task', 'id': task.id, 'ref': f'MT-{task.id:04d}', 'date': task.due_date,
+            'type': task.source, 'engineer': _user_label(task.assigned_engineer) or task.engineer,
+            'problem': task.title, 'action': '', 'status': task.status,
+            'final_status': '', 'ticket': '', 'task': f'MT-{task.id:04d}',
+        })
+    for policy in plant.insurances.all().order_by('-expiry_date', '-id')[:20]:
+        rows.append({
+            'kind': 'insurance', 'id': policy.id, 'ref': f'INS-{policy.id:04d}',
+            'date': policy.expiry_date or getattr(policy, 'start_date', None),
+            'type': 'Insurance', 'engineer': '',
+            'problem': getattr(policy, 'company', '') or getattr(policy, 'policy_number', ''),
+            'action': f'{policy.status}' + (f' · till {policy.expiry_date:%d-%m-%Y}' if policy.expiry_date else ''),
+            'status': policy.status, 'final_status': '', 'ticket': '', 'task': '',
+        })
+    rows.sort(key=lambda r: (r['date'] or date.min, r['id'] or 0), reverse=True)
     return rows

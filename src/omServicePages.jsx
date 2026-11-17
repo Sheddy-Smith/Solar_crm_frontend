@@ -1135,9 +1135,9 @@ function TaskDetailModal({ task, caps, onClose, onNotify, onAction }) {
   );
 }
 
-function taskChips(quarterly) {
+function taskChips(quarterly, cleaning = false) {
   const today = todayIso();
-  if (quarterly) {
+  if (quarterly || cleaning) {
     return [
       { value: 'due30', label: 'Due in 30 days', params: { open: 1, due_to: addDaysIso(30) } },
       { value: 'overdue', label: 'Overdue', params: { overdue: 1 } },
@@ -1157,18 +1157,21 @@ function taskChips(quarterly) {
   ];
 }
 
-export function ServiceTasksList({ quarterly = false, plant, caps, onNotify, embedded, focusId, onFocusConsumed }) {
-  const chips = useMemo(() => taskChips(quarterly), [quarterly]);
-  const [chip, setChip] = useState(plant ? (quarterly ? 'all' : 'open') : chips[0].value);
+export function ServiceTasksList({
+  quarterly = false, cleaning = false, plant, caps, onNotify, embedded, focusId, onFocusConsumed,
+}) {
+  const chips = useMemo(() => taskChips(quarterly, cleaning), [quarterly, cleaning]);
+  const [chip, setChip] = useState(plant ? ((quarterly || cleaning) ? 'all' : 'open') : chips[0].value);
   const [search, setSearch] = useState('');
   const [engineer, setEngineer] = useState('');
   const [source, setSource] = useState('');
   const [modal, setModal] = useState(null);
   const engineers = useEngineers();
   const chipParams = chips.find((c) => c.value === chip)?.params || {};
+  const lockedSource = cleaning ? 'Cleaning' : quarterly ? 'Quarterly' : source;
   const params = {
-    page_size: 25, ordering: quarterly || plant ? 'due_date' : '-created_at', ...chipParams,
-    source: quarterly ? 'Quarterly' : source, assigned_engineer: engineer, plant: plant?.id || '',
+    page_size: 25, ordering: quarterly || cleaning || plant ? 'due_date' : '-created_at', ...chipParams,
+    source: lockedSource, assigned_engineer: engineer, plant: plant?.id || '',
   };
   const key = JSON.stringify(params);
   const { rows, loading, reload } = useRows(() => omMaintenanceApi.list(params), [key]);
@@ -1206,8 +1209,8 @@ export function ServiceTasksList({ quarterly = false, plant, caps, onNotify, emb
   const columns = [
     { label: 'Task', render: (r) => <div><p className="font-extrabold text-[#0b65e5]">{r.record_no}</p>{r.ticket_no ? <p className="text-[11px] text-[#7c3aed]">{r.ticket_no}</p> : null}</div> },
     ...(plant ? [] : [{ label: 'Plant / Customer', render: (r) => <div><p className="font-bold">{r.customer_name || r.site || '—'}</p><p className="text-[11px] text-[#8a98af]">{[r.plant_code, r.customer_mobile].filter(Boolean).join(' · ')}</p></div> }]),
-    { label: 'Title', render: (r) => <div className="max-w-[260px]"><p className="font-bold">{r.title}</p>{!quarterly ? <Pill className="mt-1">{r.source}</Pill> : null}</div> },
-    { label: quarterly ? 'Due Date' : 'Due / Visit', render: (r) => <div><p className={cx(r.is_overdue && 'font-extrabold text-[#dc2626]')}>{fmtDate(when(r))}</p>{r.is_overdue ? <p className="text-[11px] font-bold text-[#dc2626]">Overdue</p> : null}</div> },
+    { label: 'Title', render: (r) => <div className="max-w-[260px]"><p className="font-bold">{r.title}</p>{!(quarterly || cleaning) ? <Pill className="mt-1">{r.source}</Pill> : null}</div> },
+    { label: (quarterly || cleaning) ? 'Due Date' : 'Due / Visit', render: (r) => <div><p className={cx(r.is_overdue && 'font-extrabold text-[#dc2626]')}>{fmtDate(when(r))}</p>{r.is_overdue ? <p className="text-[11px] font-bold text-[#dc2626]">Overdue</p> : null}</div> },
     { label: 'Engineer', render: (r) => r.assigned_engineer_name || <span className="text-[#8a98af]">Unassigned</span> },
     { label: 'Priority', render: (r) => <Pill>{r.priority}</Pill> },
     { label: 'Status', render: (r) => <Pill>{r.status}</Pill> },
@@ -1228,19 +1231,19 @@ export function ServiceTasksList({ quarterly = false, plant, caps, onNotify, emb
         <SearchBox value={search} onChange={setSearch} placeholder="Search task, customer, PLT, engineer..." />
         <div className="grid grid-cols-2 gap-2 lg:flex">
           <SelectInput value={engineer} onChange={setEngineer} placeholder="All engineers" options={engineers.map((u) => ({ value: String(u.id), label: u.name }))} className="lg:w-[170px]" />
-          {!quarterly ? <SelectInput value={source} onChange={setSource} placeholder="All sources" options={['Quarterly', 'Ticket', 'Manual']} className="lg:w-[140px]" /> : null}
+          {!(quarterly || cleaning) ? <SelectInput value={source} onChange={setSource} placeholder="All sources" options={['Quarterly', 'Cleaning', 'Ticket', 'Manual']} className="lg:w-[140px]" /> : null}
         </div>
-        {!quarterly && caps.add ? <button type="button" className={BTN_PRIMARY} onClick={() => setModal({ form: true })}><Plus className="size-4" /> New Task</button> : null}
+        {!(quarterly || cleaning) && caps.add ? <button type="button" className={BTN_PRIMARY} onClick={() => setModal({ form: true })}><Plus className="size-4" /> New Task</button> : null}
       </div>
       <FilterChips options={chips.map(({ value, label }) => ({ value, label }))} value={chip} onChange={setChip} />
       <DataList
         rows={visible}
         columns={columns}
         loading={loading}
-        storageKey={quarterly ? 'om-quarterly' : 'om-tasks'}
+        storageKey={cleaning ? 'om-cleaning' : quarterly ? 'om-quarterly' : 'om-tasks'}
         resetKey={`${key}|${search}`}
         emptyIcon={ClipboardList}
-        emptyTitle={quarterly ? 'No quarterly services in this view' : 'No tasks'}
+        emptyTitle={cleaning ? 'No panel cleaning visits in this view' : quarterly ? 'No quarterly services in this view' : 'No tasks'}
         onRowClick={(r) => setModal({ detail: r })}
         rowClassName={(r) => (r.is_overdue ? 'bg-[#fff7f7]' : '')}
         renderCard={(r) => (
@@ -1473,7 +1476,7 @@ export function OmListPage({ title, Subnav, activeSection, onOpenSection, childr
     <div className="space-y-3">
       <OmHeading
         title={title}
-        crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'O&M', onClick: () => onOpenSection('O&M Dashboard') }, { label: title }]}
+        crumbs={[{ label: 'Dashboard', onClick: () => onOpenSection('Dashboard') }, { label: 'O&M', onClick: () => onOpenSection('O&M Dashboard & Plant List') }, { label: title }]}
         actions={actions}
       />
       {Subnav ? <Subnav activeSection={activeSection} onOpenSection={onOpenSection} /> : null}

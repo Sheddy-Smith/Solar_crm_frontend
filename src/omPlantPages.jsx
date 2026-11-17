@@ -18,15 +18,13 @@ import {
   VisitDetailModal, omCaps,
 } from './omServicePages.jsx';
 
-// O&M hub — exactly 6 sidebar categories. Re-exported for App.jsx compat.
-export {
-  OM_HUB_ROUTES as OM_SECTION_ROUTES,
-  OM_HUB_SECTIONS as OM_MODULE_SECTIONS,
-  OM_LEGACY_TO_SECTION as OM_LEGACY_SECTIONS,
-} from './omHubPages.jsx';
-
-const OM_STATUSES = ['Free Service Active', 'Free Service Expiring Soon', 'Free Service Expired', 'Paid O&M', 'AMC Active', 'AMC Expired'];
+const OM_STATUSES = [
+  'Commissioning Pending',
+  'Free Service Active', 'Free Service Expiring Soon', 'Free Service Expired',
+  'Paid O&M', 'AMC Active', 'AMC Expired',
+];
 const PLANT_FILTERS = [
+  { value: 'commissioning_pending', label: 'Commissioning pending' },
   { value: 'service_due', label: 'Service due (15 days)' },
   { value: 'service_overdue', label: 'Service overdue' },
   { value: 'open_tickets', label: 'Open complaints' },
@@ -81,20 +79,21 @@ function FreeServiceText({ plant }) {
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
 const TILES = [
-  { key: 'total_plants', label: 'Total Plants', icon: Sun, tone: 'blue', go: ['Plants', { filter: '' }] },
-  { key: 'active_plants', label: 'Active Plants', icon: Zap, tone: 'green', go: ['Plants', { filter: 'active' }] },
-  { key: 'free_service_plants', label: 'Free Service Plants', icon: BadgeCheck, tone: 'teal', go: ['Plants', { filter: 'free_service' }] },
-  { key: 'expired_service_plants', label: 'Free Service Expired', icon: Clock, tone: 'red', go: ['Plants', { filter: 'free_expired' }] },
-  { key: 'paid_plants', label: 'Paid O&M / AMC', icon: Building2, tone: 'purple', go: ['Plants', { filter: 'paid' }] },
-  { key: 'service_due', label: 'Service Due (15 days)', icon: Calendar, tone: 'amber', go: ['Plants', { filter: 'service_due' }] },
-  { key: 'service_overdue', label: 'Service Overdue', icon: AlertTriangle, tone: 'red', go: ['Plants', { filter: 'service_overdue' }] },
-  { key: 'open_tickets', label: 'Open Complaints', icon: Siren, tone: 'purple', go: ['Complaint Tickets', {}] },
-  { key: 'critical_complaints', label: 'Critical Complaints', icon: ShieldAlert, tone: 'red', go: ['Plants', { filter: 'critical_tickets' }] },
-  { key: 'todays_tasks', label: "Today's Tasks", icon: ClipboardList, tone: 'blue', go: ['Service Tasks', {}] },
-  { key: 'upcoming_visits', label: 'Upcoming Visits (7 days)', icon: Wrench, tone: 'teal', go: ['Service Tasks', {}] },
-  { key: 'insurance_active', label: 'Insurance Active', icon: ShieldCheck, tone: 'green', go: ['Insurance', { alert: 'active' }] },
-  { key: 'insurance_expiring', label: 'Insurance Expiring', icon: ShieldAlert, tone: 'amber', go: ['Insurance', { alert: 'expiring' }] },
-  { key: 'insurance_expired', label: 'Insurance Expired', icon: ShieldX, tone: 'red', go: ['Insurance', { alert: 'expired' }] },
+  { key: 'total_plants', label: 'Total Plants', icon: Sun, tone: 'blue', go: ['O&M Dashboard & Plant List', { filter: '', tab: 'Plant List' }] },
+  { key: 'commissioning_pending', label: 'Commissioning Pending', icon: Clock, tone: 'amber', go: ['O&M Dashboard & Plant List', { filter: 'commissioning_pending', tab: 'Plant List' }] },
+  { key: 'active_plants', label: 'Active Plants', icon: Zap, tone: 'green', go: ['O&M Dashboard & Plant List', { filter: 'active', tab: 'Plant List' }] },
+  { key: 'free_service_plants', label: 'Free Service Plants', icon: BadgeCheck, tone: 'teal', go: ['O&M Dashboard & Plant List', { filter: 'free_service', tab: 'Plant List' }] },
+  { key: 'expired_service_plants', label: 'Free Service Expired', icon: Clock, tone: 'red', go: ['O&M Dashboard & Plant List', { filter: 'free_expired', tab: 'Plant List' }] },
+  { key: 'paid_plants', label: 'Paid O&M / AMC', icon: Building2, tone: 'purple', go: ['Paid AMC Management', {}] },
+  { key: 'service_due', label: 'Service Due (15 days)', icon: Calendar, tone: 'amber', go: ['Quarterly Preventive Maintenance', {}] },
+  { key: 'service_overdue', label: 'Service Overdue', icon: AlertTriangle, tone: 'red', go: ['Quarterly Preventive Maintenance', {}] },
+  { key: 'open_tickets', label: 'Open Complaints', icon: Siren, tone: 'purple', go: ['Service Tickets & Complaints', {}] },
+  { key: 'critical_complaints', label: 'Critical Complaints', icon: ShieldAlert, tone: 'red', go: ['Service Tickets & Complaints', {}] },
+  { key: 'todays_tasks', label: "Today's Tasks", icon: ClipboardList, tone: 'blue', go: ['Service Tickets & Complaints', {}] },
+  { key: 'upcoming_visits', label: 'Upcoming Visits (7 days)', icon: Wrench, tone: 'teal', go: ['Service Tickets & Complaints', {}] },
+  { key: 'insurance_active', label: 'Insurance Active', icon: ShieldCheck, tone: 'green', go: ['Insurance Management', { alert: 'active' }] },
+  { key: 'insurance_expiring', label: 'Insurance Expiring', icon: ShieldAlert, tone: 'amber', go: ['Insurance Management', { alert: 'expiring' }] },
+  { key: 'insurance_expired', label: 'Insurance Expired', icon: ShieldX, tone: 'red', go: ['Insurance Management', { alert: 'expired' }] },
 ];
 
 function AlertCard({ title, tone, icon: Icon, items, onOpen }) {
@@ -123,7 +122,9 @@ function AlertCard({ title, tone, icon: Icon, items, onOpen }) {
   );
 }
 
-function OmDashboardPage({ Subnav, activeSection, onOpenSection, onNavigate, onNotify }) {
+export function OmDashboardPage({
+  Subnav, activeSection, onOpenSection, onNavigate, onNotify, embedded = false,
+}) {
   const [data, setData] = useState(null);
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -134,16 +135,15 @@ function OmDashboardPage({ Subnav, activeSection, onOpenSection, onNavigate, onN
     return () => { alive = false; };
   }, [tick, onNotify]);
   const s = data?.summary || {};
-  const openPlants = (key) => onNavigate('Plants', { filter: key });
+  const openPlants = (key) => onNavigate('O&M Dashboard & Plant List', { filter: key, tab: 'Plant List' });
 
-  return (
-    <OmListPage
-      title="O&M Dashboard"
-      Subnav={Subnav}
-      activeSection={activeSection}
-      onOpenSection={onOpenSection}
-      actions={<button type="button" className={BTN_OUTLINE} onClick={() => { setData(null); setTick((t) => t + 1); }}><RefreshCw className="size-4" /> Refresh</button>}
-    >
+  const body = (
+    <>
+      <div className="mb-2 flex justify-end">
+        <button type="button" className={BTN_OUTLINE} onClick={() => { setData(null); setTick((t) => t + 1); }}>
+          <RefreshCw className="size-4" /> Refresh
+        </button>
+      </div>
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-7">
         {TILES.map((t) => (
           <CounterTile key={t.key} label={t.label} value={data ? (s[t.key] ?? 0) : '…'} icon={t.icon} tone={t.tone} onClick={() => onNavigate(t.go[0], t.go[1])} />
@@ -155,6 +155,18 @@ function OmDashboardPage({ Subnav, activeSection, onOpenSection, onNavigate, onN
         <AlertCard title="Active Status" tone="green" icon={CheckCircle2} items={data?.alerts?.active || []} onOpen={openPlants} />
       </div>
       {data?.generated_on ? <p className="text-right text-[11px] font-semibold text-[#8a98af]">Updated {fmtDate(data.generated_on)} · alerts refresh automatically every day</p> : null}
+    </>
+  );
+
+  if (embedded) return <div className="space-y-3">{body}</div>;
+  return (
+    <OmListPage
+      title="O&M Dashboard"
+      Subnav={Subnav}
+      activeSection={activeSection}
+      onOpenSection={onOpenSection}
+    >
+      {body}
     </OmListPage>
   );
 }
@@ -208,7 +220,7 @@ function ActivatePlantModal({ onClose, onSaved, onNotify }) {
   );
 }
 
-function PlantsPage({ caps, Subnav, activeSection, onOpenSection, onNotify, focus, onFocusConsumed, onOpenPlant }) {
+export function PlantsPage({ caps, Subnav, activeSection, onOpenSection, onNotify, focus, onFocusConsumed, onOpenPlant, embedded = false }) {
   const engineers = useEngineers();
   const [search, setSearch] = useState('');
   const [debounced, setDebounced] = useState('');
@@ -282,14 +294,8 @@ function PlantsPage({ caps, Subnav, activeSection, onOpenSection, onNotify, focu
     { label: 'Complaints', render: (p) => (p.open_tickets ? <Pill tone="purple">{p.open_tickets} open</Pill> : <span className="text-[#8a98af]">None</span>) },
   ];
 
-  return (
-    <OmListPage
-      title="Plants"
-      Subnav={Subnav}
-      activeSection={activeSection}
-      onOpenSection={onOpenSection}
-      actions={caps.add ? <button type="button" className={BTN_PRIMARY} onClick={() => setActivate(true)}><Plus className="size-4" /> Activate Plant</button> : null}
-    >
+  const body = (
+    <>
       <div className={cx(PANEL, 'flex flex-col gap-3 p-3 sm:p-4')}>
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
           <SearchBox value={search} onChange={setSearch} placeholder="Search customer, mobile, PLT-/LD-/CUS- code, invoice, serial, city..." />
@@ -298,6 +304,11 @@ function PlantsPage({ caps, Subnav, activeSection, onOpenSection, onNotify, focu
             <button type="button" className={cx(BTN_OUTLINE, 'h-11 sm:h-9')} onClick={() => setShowMore((v) => !v)}>
               <SlidersHorizontal className="size-4" /> Filters{activeCount ? ` (${activeCount})` : ''}
             </button>
+            {caps.add ? (
+              <button type="button" className={BTN_PRIMARY} onClick={() => setActivate(true)}>
+                <Plus className="size-4" /> Activate Plant
+              </button>
+            ) : null}
           </div>
         </div>
         {showMore ? (
@@ -329,7 +340,7 @@ function PlantsPage({ caps, Subnav, activeSection, onOpenSection, onNotify, focu
           resetKey={key}
           emptyIcon={Sun}
           emptyTitle="No plants found"
-          emptyHint="Plants appear automatically when Liaisoning → Commissioning is Completed."
+          emptyHint="Plants appear when Commissioning Engineer is assigned (Pending) or commissioning is Completed (Active)."
           onRowClick={(p) => onOpenPlant(p.id)}
           renderCard={(p) => (
             <MobileRecordCard
@@ -355,6 +366,19 @@ function PlantsPage({ caps, Subnav, activeSection, onOpenSection, onNotify, focu
         />
       </div>
       {activate ? <ActivatePlantModal onClose={() => setActivate(false)} onSaved={(p) => { setActivate(false); setTick((t) => t + 1); onOpenPlant(p.id); }} onNotify={onNotify} /> : null}
+    </>
+  );
+
+  if (embedded) return body;
+  return (
+    <OmListPage
+      title="Plants"
+      Subnav={Subnav}
+      activeSection={activeSection}
+      onOpenSection={onOpenSection}
+      actions={caps.add ? <button type="button" className={BTN_PRIMARY} onClick={() => setActivate(true)}><Plus className="size-4" /> Activate Plant</button> : null}
+    >
+      {body}
     </OmListPage>
   );
 }
@@ -602,7 +626,7 @@ const DETAIL_TABS = [
   { value: 'documents', label: 'Documents', icon: FileText },
 ];
 
-function PlantDetailPage({ plantId, caps, onBack, onNotify, onOpenSection }) {
+export function PlantDetailPage({ plantId, caps, onBack, onNotify, onOpenSection }) {
   const [plant, setPlant] = useState(null);
   const [tab, setTab] = useState('profile');
   const [edit, setEdit] = useState(false);
@@ -763,7 +787,7 @@ const INSURANCE_CHIPS = [
   { value: 'expired', label: 'Expired' },
 ];
 
-function InsuranceList({ plant, caps, onNotify, onChanged, initialAlert = '', focusId, onFocusConsumed }) {
+export function InsuranceList({ plant, caps, onNotify, onChanged, initialAlert = '', focusId, onFocusConsumed }) {
   const [alert, setAlert] = useState(initialAlert);
   const [search, setSearch] = useState('');
   const [rows, setRows] = useState([]);
@@ -870,7 +894,7 @@ function InsuranceList({ plant, caps, onNotify, onChanged, initialAlert = '', fo
  */
 export function OmModulePage({ activeSection, onOpenSection, onNotify, loggedInUser, Subnav, focus, onFocusConsumed, onNavigate }) {
   const caps = useMemo(() => omCaps(loggedInUser), [loggedInUser]);
-  const section = OM_LEGACY_SECTIONS[activeSection] || activeSection;
+  const section = activeSection;
   const [plantId, setPlantId] = useState(null);
   const consume = useCallback(() => onFocusConsumed?.(), [onFocusConsumed]);
 
@@ -890,7 +914,7 @@ export function OmModulePage({ activeSection, onOpenSection, onNotify, loggedInU
   if (caps.fieldOnly || section === 'My Tasks') {
     return <OmMyTasksPage {...shared} Subnav={caps.fieldOnly ? null : Subnav} focus={focus} onFocusConsumed={consume} />;
   }
-  if (section === 'O&M Dashboard') {
+  if (section === 'O&M Dashboard' || section === 'O&M Dashboard & Plant List') {
     return <OmDashboardPage {...shared} onNavigate={onNavigate} />;
   }
   if (section === 'Plants') {

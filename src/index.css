@@ -1089,13 +1089,14 @@ html.dark .crm-table tbody tr:hover td.crm-col-sticky-right {
 
 /* Lead List — tighter row height / less whitespace between leads */
 .crm-table.crm-table--lead-dense th {
-  padding: 5px 8px;
-  font-size: 12px;
+  padding: 4px 7px;
+  font-size: 11px;
 }
 
 .crm-table.crm-table--lead-dense td {
-  padding: 4px 8px;
-  font-size: 13px;
+  padding: 3px 7px;
+  font-size: 12.5px;
+  line-height: 1.25;
   vertical-align: middle;
 }
 

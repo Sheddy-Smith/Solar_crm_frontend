@@ -1,6 +1,5 @@
 /**
- * O&M Hub — exactly 6 sidebar categories; related features live in internal tabs.
- * Reuses existing om/amc APIs and list components; no duplicate masters.
+ * O&M Hub — Task 11: 8 sidebar sections; reuses existing om/amc APIs & DB FKs.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -17,6 +16,9 @@ import { normalizeApiRows } from './lib/utils.js';
 import {
   ComplaintTicketsList, ServiceTasksList, ServiceVisitsList, omCaps,
 } from './omServicePages.jsx';
+import {
+  InsuranceList, OmDashboardPage, PlantDetailPage, PlantsPage,
+} from './omPlantPages.jsx';
 import { BTN_OUTLINE, BTN_PRIMARY, PANEL, Pill, SearchBox, fmtDate, fmtMoney } from './omUi.jsx';
 import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
 import { UnderlineTabs } from './components/UnderlineTabs.jsx';
@@ -28,85 +30,88 @@ const amcWarrantyApi = amcModuleApi.warranties;
 const amcRenewalApi = amcModuleApi.renewals;
 const amcClaimApi = amcModuleApi.claims;
 
-/** Exactly 6 main O&M sidebar categories. */
+/** Exactly 8 main O&M sidebar categories (Task 11). */
 export const OM_HUB_ROUTES = {
-  'O&M Dashboard': '/om/dashboard',
-  'AMC & Warranty': '/om/amc-warranty',
-  'Service & Complaints': '/om/service-complaints',
-  'Job Cards & Site Visits': '/om/job-visits',
-  'Plant Monitoring & Reports': '/om/monitoring-reports',
-  'O&M Settings': '/om/settings',
+  'O&M Dashboard & Plant List': '/om/dashboard',
+  'Service Tickets & Complaints': '/om/service-tickets',
+  'Quarterly Preventive Maintenance': '/om/quarterly-pm',
+  'Panel Cleaning Management': '/om/panel-cleaning',
+  'Warranty Management': '/om/warranty',
+  'Insurance Management': '/om/insurance',
+  'Paid AMC Management': '/om/paid-amc',
+  'Service History & Reports': '/om/history-reports',
 };
 
 export const OM_HUB_SECTIONS = Object.keys(OM_HUB_ROUTES);
 
 /** Deep-link aliases → category (+ optional default tab). */
 export const OM_NAV_RESOLVE = {
-  'O&M Dashboard': { section: 'O&M Dashboard' },
-  'O&M Overview': { section: 'O&M Dashboard' },
-  Plants: { section: 'O&M Dashboard' },
-  'AMC & Warranty': { section: 'AMC & Warranty', tab: 'AMC Contracts' },
-  'AMC Management': { section: 'AMC & Warranty', tab: 'AMC Contracts' },
-  'AMC Overview': { section: 'AMC & Warranty', tab: 'AMC Contracts' },
-  'AMC Contracts': { section: 'AMC & Warranty', tab: 'AMC Contracts' },
-  Renewals: { section: 'AMC & Warranty', tab: 'AMC Renewals' },
-  Warranties: { section: 'AMC & Warranty', tab: 'Warranty Management' },
-  'Warranty Management': { section: 'AMC & Warranty', tab: 'Warranty Management' },
-  Insurance: { section: 'AMC & Warranty', tab: 'Warranty Management' },
-  Claims: { section: 'AMC & Warranty', tab: 'Warranty Claims' },
-  'Equipment & Replacement': { section: 'AMC & Warranty', tab: 'Equipment Replacement' },
-  'Asset Management': { section: 'AMC & Warranty', tab: 'Equipment Replacement' },
-  'Service & Complaints': { section: 'Service & Complaints', tab: 'Service Requests' },
-  'Service Requests': { section: 'Service & Complaints', tab: 'Service Requests' },
-  'My Tasks': { section: 'Service & Complaints', tab: 'Service Requests' },
-  'Complaint Management': { section: 'Service & Complaints', tab: 'Customer Complaints' },
-  'Complaint Tickets': { section: 'Service & Complaints', tab: 'Customer Complaints' },
-  'Breakdown Tickets': { section: 'Service & Complaints', tab: 'Breakdown Management' },
-  'Preventive Maintenance': { section: 'Service & Complaints', tab: 'Preventive Maintenance' },
-  'Quarterly Services': { section: 'Service & Complaints', tab: 'Preventive Maintenance' },
-  'Service Tasks': { section: 'Service & Complaints', tab: 'Preventive Maintenance' },
-  'Maintenance Tasks': { section: 'Service & Complaints', tab: 'Preventive Maintenance' },
-  'Job Cards & Site Visits': { section: 'Job Cards & Site Visits', tab: 'Job Cards' },
-  'Job Cards': { section: 'Job Cards & Site Visits', tab: 'Job Cards' },
-  'Site Visits': { section: 'Job Cards & Site Visits', tab: 'Site Visits' },
-  'Service Visits': { section: 'Job Cards & Site Visits', tab: 'Site Visits' },
-  'Service Inventory': { section: 'Job Cards & Site Visits', tab: 'Material Requests' },
-  'Spare Parts': { section: 'Job Cards & Site Visits', tab: 'Material Requests' },
-  'Plant Monitoring & Reports': { section: 'Plant Monitoring & Reports', tab: 'Plant Performance' },
-  'Plant Performance': { section: 'Plant Monitoring & Reports', tab: 'Plant Performance' },
-  'Energy Performance': { section: 'Plant Monitoring & Reports', tab: 'Generation Records' },
-  'Service Reports': { section: 'Plant Monitoring & Reports', tab: 'Service Reports' },
-  'O&M Reports': { section: 'Plant Monitoring & Reports', tab: 'Service Reports' },
-  Reports: { section: 'Plant Monitoring & Reports', tab: 'Service Reports' },
-  'Customer Feedback': { section: 'Plant Monitoring & Reports', tab: 'Customer Feedback' },
-  'O&M Settings': { section: 'O&M Settings', tab: 'O&M Configuration' },
+  'O&M Dashboard & Plant List': { section: 'O&M Dashboard & Plant List', tab: 'Dashboard' },
+  'O&M Dashboard': { section: 'O&M Dashboard & Plant List', tab: 'Dashboard' },
+  'O&M Overview': { section: 'O&M Dashboard & Plant List', tab: 'Dashboard' },
+  Plants: { section: 'O&M Dashboard & Plant List', tab: 'Plant List' },
+  'Service Tickets & Complaints': { section: 'Service Tickets & Complaints', tab: 'Complaint Tickets' },
+  'Service & Complaints': { section: 'Service Tickets & Complaints', tab: 'Complaint Tickets' },
+  'Service Requests': { section: 'Service Tickets & Complaints', tab: 'Service Requests' },
+  'My Tasks': { section: 'Service Tickets & Complaints', tab: 'Site Visits' },
+  'Complaint Management': { section: 'Service Tickets & Complaints', tab: 'Complaint Tickets' },
+  'Complaint Tickets': { section: 'Service Tickets & Complaints', tab: 'Complaint Tickets' },
+  'Breakdown Tickets': { section: 'Service Tickets & Complaints', tab: 'Complaint Tickets' },
+  'Job Cards & Site Visits': { section: 'Service Tickets & Complaints', tab: 'Job Cards' },
+  'Job Cards': { section: 'Service Tickets & Complaints', tab: 'Job Cards' },
+  'Site Visits': { section: 'Service Tickets & Complaints', tab: 'Site Visits' },
+  'Service Visits': { section: 'Service Tickets & Complaints', tab: 'Site Visits' },
+  'Spare Parts': { section: 'Service Tickets & Complaints', tab: 'Material Requests' },
+  'Quarterly Preventive Maintenance': { section: 'Quarterly Preventive Maintenance' },
+  'Preventive Maintenance': { section: 'Quarterly Preventive Maintenance' },
+  'Quarterly Services': { section: 'Quarterly Preventive Maintenance' },
+  'Service Tasks': { section: 'Quarterly Preventive Maintenance' },
+  'Maintenance Tasks': { section: 'Quarterly Preventive Maintenance' },
+  'Panel Cleaning Management': { section: 'Panel Cleaning Management' },
+  Cleaning: { section: 'Panel Cleaning Management' },
+  'Warranty Management': { section: 'Warranty Management', tab: 'Equipment Warranties' },
+  Warranties: { section: 'Warranty Management', tab: 'Equipment Warranties' },
+  Claims: { section: 'Warranty Management', tab: 'Warranty Claims' },
+  'Equipment & Replacement': { section: 'Warranty Management', tab: 'Equipment Replacement' },
+  'Asset Management': { section: 'Warranty Management', tab: 'Equipment Replacement' },
+  'Insurance Management': { section: 'Insurance Management' },
+  Insurance: { section: 'Insurance Management' },
+  'Paid AMC Management': { section: 'Paid AMC Management', tab: 'AMC Contracts' },
+  'AMC & Warranty': { section: 'Paid AMC Management', tab: 'AMC Contracts' },
+  'AMC Management': { section: 'Paid AMC Management', tab: 'AMC Contracts' },
+  'AMC Overview': { section: 'Paid AMC Management', tab: 'AMC Contracts' },
+  'AMC Contracts': { section: 'Paid AMC Management', tab: 'AMC Contracts' },
+  Renewals: { section: 'Paid AMC Management', tab: 'AMC Renewals' },
+  'Service History & Reports': { section: 'Service History & Reports', tab: 'Service Reports' },
+  'Plant Monitoring & Reports': { section: 'Service History & Reports', tab: 'Plant Performance' },
+  'Plant Performance': { section: 'Service History & Reports', tab: 'Plant Performance' },
+  'Energy Performance': { section: 'Service History & Reports', tab: 'Generation Records' },
+  'Service Reports': { section: 'Service History & Reports', tab: 'Service Reports' },
+  'O&M Reports': { section: 'Service History & Reports', tab: 'Service Reports' },
+  Reports: { section: 'Service History & Reports', tab: 'Service Reports' },
+  'Customer Feedback': { section: 'Service History & Reports', tab: 'Customer Feedback' },
+  'O&M Settings': { section: 'Service History & Reports', tab: 'Service Reports' },
 };
 
-/** Sidebar highlight map (legacy → one of 6). */
+/** Sidebar highlight map (legacy → one of 8). */
 export const OM_LEGACY_TO_SECTION = Object.fromEntries(
   Object.entries(OM_NAV_RESOLVE).map(([k, v]) => [k, v.section]),
 );
 
 const CATEGORY_TABS = {
-  'AMC & Warranty': [
+  'O&M Dashboard & Plant List': ['Dashboard', 'Plant List'],
+  'Service Tickets & Complaints': [
+    'Complaint Tickets', 'Service Requests', 'Job Cards', 'Site Visits', 'Material Requests',
+  ],
+  'Warranty Management': [
+    'Equipment Warranties', 'Warranty Claims', 'Equipment Replacement',
+  ],
+  'Paid AMC Management': [
     'AMC Contracts', 'AMC Renewals', 'AMC Expiry',
-    'Warranty Management', 'Warranty Claims', 'Equipment Replacement',
   ],
-  'Service & Complaints': [
-    'Service Requests', 'Customer Complaints', 'Breakdown Management',
-    'Preventive Maintenance', 'Service Scheduling', 'Follow-ups',
-  ],
-  'Job Cards & Site Visits': [
-    'Job Cards', 'Technician Assignment', 'Site Visits',
-    'Work Checklist', 'Material Requests', 'Work Completion', 'Service History',
-  ],
-  'Plant Monitoring & Reports': [
-    'Generation Records', 'Plant Performance', 'Maintenance Reports',
-    'Customer Feedback', 'Service Reports', 'PDF / Excel Export',
-  ],
-  'O&M Settings': [
-    'Service Categories', 'AMC Plans', 'Maintenance Schedules',
-    'Checklist Configuration', 'Notification Rules', 'O&M Configuration',
+  'Service History & Reports': [
+    'Generation Records', 'Plant Performance', 'Service Reports',
+    'Customer Feedback', 'Job Card History',
   ],
 };
 
@@ -116,7 +121,7 @@ function resolveOmNav(activeSection) {
   if (OM_HUB_SECTIONS.includes(activeSection)) {
     return { section: activeSection, tab: CATEGORY_TABS[activeSection]?.[0] };
   }
-  return { section: 'O&M Dashboard' };
+  return { section: 'O&M Dashboard & Plant List', tab: 'Dashboard' };
 }
 
 function errMsg(e, fb) {
@@ -754,53 +759,43 @@ function SettingsHint({ title, note }) {
 
 /* ─── Category pages ──────────────────────────────────────────────────────── */
 
-function OmHubDashboard({ Subnav, activeSection, onOpenSection, onNotify }) {
-  const [data, setData] = useState(null);
-  const [amcRows, setAmcRows] = useState([]);
-  const [loading, setLoading] = useState(true);
+function DashboardAndPlants({
+  Subnav, activeSection, onOpenSection, onNotify, onNavigate, caps, focus, onFocusConsumed, initialTab,
+}) {
+  const tabs = CATEGORY_TABS['O&M Dashboard & Plant List'];
+  const [tab, setTab] = useState(() => (tabs.includes(initialTab) ? initialTab : 'Dashboard'));
+  const [plantId, setPlantId] = useState(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [dash, contracts] = await Promise.all([
-        omDashboardApi.get().catch(() => null),
-        amcContractApi.list({ page_size: 200 }).catch(() => []),
-      ]);
-      setData(dash);
-      setAmcRows(normalizeApiRows(contracts));
-    } catch (e) {
-      onNotify?.(errMsg(e, 'Failed to load O&M dashboard'), 'error');
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (tabs.includes(initialTab)) setTab(initialTab);
+  }, [initialTab, tabs]);
+
+  useEffect(() => {
+    if (focus?.filter !== undefined || focus?.tab === 'Plant List') setTab('Plant List');
+    if (focus?.plant) {
+      setPlantId(Number(focus.plant));
+      setTab('Plant List');
+      onFocusConsumed?.();
     }
-  }, [onNotify]);
+  }, [focus, onFocusConsumed]);
 
-  useEffect(() => { load(); }, [load]);
-
-  const s = data?.summary || data || {};
-  const activeAmc = s.active_amc ?? amcRows.filter((r) => r.status === 'Active' || r.status === 'Expiring Soon').length;
-  const recentTickets = s.recent_tickets || [];
-  const upcomingAlerts = s.upcoming_alerts || [];
-  const expiringCount = s.expiring_30_days ?? s.warranty_expiring ?? 0;
-
-  const kpis = [
-    { label: 'Total Plants', value: s.total_plants ?? 0, icon: Shield, tone: 'slate' },
-    { label: 'Active', value: s.active_plants ?? 0, icon: CheckCircle2, tone: 'green' },
-    { label: 'Under Service', value: s.under_service ?? 0, icon: ClipboardList, tone: 'blue' },
-    { label: 'AMC Active', value: activeAmc, icon: Shield, tone: 'green' },
-    { label: 'Warranty Active', value: s.warranty_active ?? 0, icon: Shield, tone: 'green' },
-    { label: 'Expiring (30 Days)', value: expiringCount, icon: AlertTriangle, tone: 'red' },
-  ];
-
-  const ticketStatusTone = (status) => {
-    if (status === 'Closed' || status === 'Resolved') return 'green';
-    if (status === 'In Progress' || status === 'Assigned' || status === 'Site Visit') return 'blue';
-    return 'amber';
-  };
+  if (plantId) {
+    return (
+      <HubShell title="Plant Profile" Subnav={Subnav} activeSection={activeSection} onOpenSection={onOpenSection}>
+        <PlantDetailPage
+          plantId={plantId}
+          caps={caps}
+          onBack={() => setPlantId(null)}
+          onNotify={onNotify}
+          onOpenSection={onOpenSection}
+        />
+      </HubShell>
+    );
+  }
 
   return (
     <HubShell
-      title="Operation & Maintenance (O&M)"
+      title="O&M Dashboard & Plant List"
       Subnav={Subnav}
       activeSection={activeSection}
       onOpenSection={onOpenSection}
@@ -808,125 +803,47 @@ function OmHubDashboard({ Subnav, activeSection, onOpenSection, onNotify }) {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => onOpenSection?.('Service & Complaints')}
-            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[9px] bg-[#16a34a] px-4 text-[13px] font-extrabold text-white hover:bg-[#15803d]"
+            onClick={() => onOpenSection?.('Service Tickets & Complaints')}
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[9px] bg-[#0b8f43] px-4 text-[13px] font-extrabold text-white hover:bg-[#097a39]"
           >
             <Plus className="size-4" /> Raise Ticket
           </button>
-          <button
-            type="button"
-            onClick={() => onOpenSection?.('Service & Complaints')}
-            className={BTN_OUTLINE}
-          >
-            View Tickets
-          </button>
-          <button type="button" onClick={load} className={BTN_OUTLINE} title="Refresh">
-            <RefreshCw className="size-4" />
+          <button type="button" onClick={() => setTab('Plant List')} className={BTN_OUTLINE}>
+            Plant List
           </button>
         </div>
       )}
     >
-      {loading ? <EmptyHint text="Loading dashboard…" /> : (
-        <>
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
-            {kpis.map((k) => (
-              <article
-                key={k.label}
-                className={`${PANEL} p-4 ${k.tone === 'red' ? 'border-[#fecaca] bg-[#fff5f5]' : ''}`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <p className={`text-[11px] font-bold ${k.tone === 'red' ? 'text-[#b91c1c]' : 'text-[#64748b]'}`}>{k.label}</p>
-                  <k.icon className={`size-4 shrink-0 ${k.tone === 'red' ? 'text-[#dc2626]' : k.tone === 'blue' ? 'text-[#0b65e5]' : 'text-[#0b8f43]'}`} />
-                </div>
-                <p className={`mt-2 text-[24px] font-extrabold leading-none ${k.tone === 'red' ? 'text-[#dc2626]' : 'text-[#1e3261]'}`}>{k.value}</p>
-              </article>
-            ))}
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-5">
-            <div className="lg:col-span-3 space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <h3 className="text-[14px] font-extrabold text-[#111827]">Service Tickets (Recent)</h3>
-                <button
-                  type="button"
-                  className="text-[12px] font-bold text-[#0b65e5] hover:underline"
-                  onClick={() => onOpenSection?.('Service & Complaints')}
-                >
-                  View All
-                </button>
-              </div>
-              <SimpleTable
-                empty="No service tickets yet. Use Raise Ticket to create one."
-                columns={[
-                  { key: 'record_no', label: 'Ticket #' },
-                  { key: 'project_or_customer', label: 'Project / Customer' },
-                  { key: 'subject', label: 'Issue', render: (r) => r.subject || '—' },
-                  { key: 'assigned_to_name', label: 'Assigned To' },
-                  {
-                    key: 'status',
-                    label: 'Status',
-                    render: (r) => <Pill tone={ticketStatusTone(r.status)}>{r.status}</Pill>,
-                  },
-                ]}
-                rows={recentTickets}
-              />
-            </div>
-
-            <div className="lg:col-span-2 space-y-2">
-              <h3 className="text-[14px] font-extrabold text-[#111827]">Upcoming & Alerts</h3>
-              <div className={`${PANEL} divide-y divide-[#edf2f8]`}>
-                {upcomingAlerts.length ? upcomingAlerts.slice(0, 8).map((a, i) => (
-                  <div key={`${a.label}-${a.plant_code || a.plant_name}-${i}`} className="flex items-start gap-3 px-3.5 py-3">
-                    <span className={`mt-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-full ${a.days <= 7 ? 'bg-[#fee2e2] text-[#dc2626]' : 'bg-[#fff7ed] text-[#ea580c]'}`}>
-                      <AlertTriangle className="size-3.5" />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-extrabold text-[#1e3261]">
-                        {a.label} – {a.days} Days
-                      </p>
-                      <p className="truncate text-[12px] font-semibold text-[#64748b]">
-                        {a.plant_name}
-                        {a.capacity_kwp != null ? ` - ${Number(a.capacity_kwp).toFixed(2)} kWp` : ''}
-                      </p>
-                    </div>
-                  </div>
-                )) : (
-                  <p className="px-3 py-6 text-center text-[13px] font-semibold text-[#8a98af]">
-                    No warranty / AMC / service alerts in the next 30 days.
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <h3 className="text-[14px] font-extrabold text-[#111827]">Quick Actions</h3>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-              {[
-                ['Raise Service Ticket', 'Service & Complaints', Ticket, '#ecfdf5', '#16a34a'],
-                ['Schedule Service', 'Service & Complaints', Calendar, '#eff6ff', '#2563eb'],
-                ['Ticket List', 'Service & Complaints', ClipboardList, '#f5f3ff', '#7c3aed'],
-                ['AMC & Warranty', 'AMC & Warranty', Shield, '#fff7ed', '#ea580c'],
-                ['Service Reports', 'Plant Monitoring & Reports', CheckCircle2, '#ecfeff', '#0891b2'],
-              ].map(([label, sec, Icon, bg, fg]) => (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => onOpenSection?.(sec)}
-                  className={`${PANEL} flex min-h-[72px] items-center gap-3 px-4 py-4 text-left transition hover:border-[#0b8f43] hover:shadow-md`}
-                >
-                  <span
-                    className="inline-flex size-11 items-center justify-center rounded-[12px]"
-                    style={{ background: bg, color: fg }}
-                  >
-                    <Icon className="size-5" />
-                  </span>
-                  <span className="text-[13px] font-extrabold text-[#1e3261]">{label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </>
+      <HubInnerTabs tabs={tabs} value={tab} onChange={setTab} />
+      {tab === 'Dashboard' ? (
+        <OmDashboardPage
+          embedded
+          Subnav={null}
+          activeSection={activeSection}
+          onOpenSection={onOpenSection}
+          onNavigate={(sec, payload) => {
+            if (sec === 'O&M Dashboard & Plant List' || sec === 'Plants') {
+              setTab('Plant List');
+              onNavigate?.(sec, { ...payload, tab: 'Plant List' });
+              return;
+            }
+            onOpenSection?.(sec);
+            onNavigate?.(sec, payload);
+          }}
+          onNotify={onNotify}
+        />
+      ) : (
+        <PlantsPage
+          embedded
+          caps={caps}
+          Subnav={null}
+          activeSection={activeSection}
+          onOpenSection={onOpenSection}
+          onNotify={onNotify}
+          focus={focus}
+          onFocusConsumed={onFocusConsumed}
+          onOpenPlant={setPlantId}
+        />
       )}
     </HubShell>
   );
@@ -951,30 +868,99 @@ function CategoryPage({
 }
 
 /**
- * Main O&M router — exactly 6 sidebar categories.
+ * Main O&M router — Task 11: 8 sidebar sections.
  */
 export function OmHubPage({
   activeSection, onOpenSection, onNotify, loggedInUser, Subnav, focus, onFocusConsumed, onNavigate,
 }) {
-  const nav = resolveOmNav(activeSection === 'O&M' ? 'O&M Dashboard' : activeSection);
+  const nav = resolveOmNav(
+    activeSection === 'O&M' || activeSection === 'O&M Dashboard'
+      ? 'O&M Dashboard & Plant List'
+      : activeSection,
+  );
   const section = nav.section;
   const tab = nav.tab;
   const caps = useMemo(() => omCaps(loggedInUser), [loggedInUser]);
   const shared = { Subnav, onOpenSection, onNotify };
 
-  if (section === 'O&M Dashboard') {
-    return <OmHubDashboard {...shared} activeSection={section} onNavigate={onNavigate} />;
+  if (section === 'O&M Dashboard & Plant List') {
+    return (
+      <DashboardAndPlants
+        {...shared}
+        activeSection={section}
+        onNavigate={onNavigate}
+        caps={caps}
+        focus={focus}
+        onFocusConsumed={onFocusConsumed}
+        initialTab={tab || focus?.tab || 'Dashboard'}
+      />
+    );
   }
 
-  if (section === 'AMC & Warranty') {
-    const tabs = CATEGORY_TABS['AMC & Warranty'];
+  if (section === 'Service Tickets & Complaints') {
+    const tabs = CATEGORY_TABS['Service Tickets & Complaints'];
     return (
-      <CategoryPage title="AMC & Warranty" section={section} tabs={tabs} initialTab={tab} {...shared}>
+      <CategoryPage title="Service Tickets & Complaints" section={section} tabs={tabs} initialTab={tab} {...shared}>
         {(t) => {
-          if (t === 'AMC Contracts') return <AmcContractsPanel onNotify={onNotify} />;
-          if (t === 'AMC Renewals') return <AmcRenewalsPanel onNotify={onNotify} />;
-          if (t === 'AMC Expiry') return <AmcContractsPanel onNotify={onNotify} expiryOnly />;
-          if (t === 'Warranty Management') return <WarrantyPanel onNotify={onNotify} />;
+          if (t === 'Complaint Tickets') {
+            return (
+              <ComplaintTicketsList
+                caps={caps}
+                onNotify={onNotify}
+                focusId={focus?.ticket}
+                onFocusConsumed={onFocusConsumed}
+                embedded
+              />
+            );
+          }
+          if (t === 'Service Requests') return <ServiceRequestsPanel onNotify={onNotify} />;
+          if (t === 'Job Cards') return <JobCardsPanel onNotify={onNotify} mode="all" />;
+          if (t === 'Site Visits') return <ServiceVisitsList caps={caps} onNotify={onNotify} embedded />;
+          if (t === 'Material Requests') return <MaterialRequestsPanel onNotify={onNotify} />;
+          return null;
+        }}
+      </CategoryPage>
+    );
+  }
+
+  if (section === 'Quarterly Preventive Maintenance') {
+    return (
+      <HubShell title="Quarterly Preventive Maintenance" Subnav={Subnav} activeSection={section} onOpenSection={onOpenSection}>
+        <TabNote text="20 quarterly services across 5-year free O&M window — scheduled on plant activation." />
+        <ServiceTasksList
+          quarterly
+          caps={caps}
+          onNotify={onNotify}
+          focusId={focus?.task}
+          onFocusConsumed={onFocusConsumed}
+          embedded
+        />
+      </HubShell>
+    );
+  }
+
+  if (section === 'Panel Cleaning Management') {
+    return (
+      <HubShell title="Panel Cleaning Management" Subnav={Subnav} activeSection={section} onOpenSection={onOpenSection}>
+        <TabNote text="Default plan: 18 free cleanings / year during warranty. Source=`Cleaning` tasks — chemicals, photos & expenses via service visit form." />
+        <ServiceTasksList
+          cleaning
+          caps={caps}
+          onNotify={onNotify}
+          focusId={focus?.task}
+          onFocusConsumed={onFocusConsumed}
+          embedded
+        />
+      </HubShell>
+    );
+  }
+
+  if (section === 'Warranty Management') {
+    const tabs = CATEGORY_TABS['Warranty Management'];
+    return (
+      <CategoryPage title="Warranty Management" section={section} tabs={tabs} initialTab={tab} {...shared}>
+        {(t) => {
+          if (t === 'Equipment Warranties') return <WarrantyPanel onNotify={onNotify} />;
           if (t === 'Warranty Claims') return <WarrantyClaimsPanel onNotify={onNotify} />;
           if (t === 'Equipment Replacement') return <EquipmentPanel onNotify={onNotify} />;
           return null;
@@ -983,96 +969,60 @@ export function OmHubPage({
     );
   }
 
-  if (section === 'Service & Complaints') {
-    const tabs = CATEGORY_TABS['Service & Complaints'];
+  if (section === 'Insurance Management') {
     return (
-      <CategoryPage title="Service & Complaints" section={section} tabs={tabs} initialTab={tab} {...shared}>
+      <HubShell title="Insurance Management" Subnav={Subnav} activeSection={section} onOpenSection={onOpenSection}>
+        <TabNote text="Yearly / multi-year policies with renewal & 30-day expiry alerts. Linked to OmPlant (no duplicate customer master)." />
+        <InsuranceList
+          caps={caps}
+          onNotify={onNotify}
+          initialAlert={focus?.alert || ''}
+          focusId={focus?.policy}
+          onFocusConsumed={onFocusConsumed}
+        />
+      </HubShell>
+    );
+  }
+
+  if (section === 'Paid AMC Management') {
+    const tabs = CATEGORY_TABS['Paid AMC Management'];
+    return (
+      <CategoryPage title="Paid AMC Management" section={section} tabs={tabs} initialTab={tab} {...shared}>
         {(t) => {
-          if (t === 'Service Requests') return <ServiceRequestsPanel onNotify={onNotify} />;
-          if (t === 'Customer Complaints' || t === 'Breakdown Management') {
-            return (
-              <ComplaintTicketsList caps={caps} onNotify={onNotify} focusId={focus?.ticket} onFocusConsumed={onFocusConsumed} embedded />
-            );
-          }
-          if (t === 'Preventive Maintenance' || t === 'Service Scheduling' || t === 'Follow-ups') {
-            return (
-              <ServiceTasksList
-                quarterly={t === 'Preventive Maintenance' || t === 'Service Scheduling'}
-                caps={caps}
-                onNotify={onNotify}
-                focusId={focus?.task}
-                onFocusConsumed={onFocusConsumed}
-                embedded
-              />
-            );
-          }
+          if (t === 'AMC Contracts') return <AmcContractsPanel onNotify={onNotify} />;
+          if (t === 'AMC Renewals') return <AmcRenewalsPanel onNotify={onNotify} />;
+          if (t === 'AMC Expiry') return <AmcContractsPanel onNotify={onNotify} expiryOnly />;
           return null;
         }}
       </CategoryPage>
     );
   }
 
-  if (section === 'Job Cards & Site Visits') {
-    const tabs = CATEGORY_TABS['Job Cards & Site Visits'];
+  if (section === 'Service History & Reports') {
+    const tabs = CATEGORY_TABS['Service History & Reports'];
     return (
-      <CategoryPage title="Job Cards & Site Visits" section={section} tabs={tabs} initialTab={tab} {...shared}>
-        {(t) => {
-          if (t === 'Job Cards') return <JobCardsPanel onNotify={onNotify} mode="all" />;
-          if (t === 'Technician Assignment') return <JobCardsPanel onNotify={onNotify} mode="assignment" />;
-          if (t === 'Work Checklist') return <JobCardsPanel onNotify={onNotify} mode="checklist" />;
-          if (t === 'Work Completion') return <JobCardsPanel onNotify={onNotify} mode="completion" />;
-          if (t === 'Service History') return <JobCardsPanel onNotify={onNotify} mode="history" />;
-          if (t === 'Material Requests') return <MaterialRequestsPanel onNotify={onNotify} />;
-          if (t === 'Site Visits') {
-            return <ServiceVisitsList caps={caps} onNotify={onNotify} embedded />;
-          }
-          return null;
-        }}
-      </CategoryPage>
-    );
-  }
-
-  if (section === 'Plant Monitoring & Reports') {
-    const tabs = CATEGORY_TABS['Plant Monitoring & Reports'];
-    return (
-      <CategoryPage title="Plant Monitoring & Reports" section={section} tabs={tabs} initialTab={tab} {...shared}>
+      <CategoryPage title="Service History & Reports" section={section} tabs={tabs} initialTab={tab} {...shared}>
         {(t) => {
           if (t === 'Generation Records') return <GenerationPanel onNotify={onNotify} />;
           if (t === 'Plant Performance') return <PlantPerformancePanel onNotify={onNotify} />;
-          if (t === 'Maintenance Reports' || t === 'Service Reports') return <ServiceReportsPanel onNotify={onNotify} />;
+          if (t === 'Service Reports') return <ServiceReportsPanel onNotify={onNotify} />;
           if (t === 'Customer Feedback') return <FeedbackPanel onNotify={onNotify} />;
-          if (t === 'PDF / Excel Export') {
-            return (
-              <div className="space-y-3">
-                <TabNote text="Use existing CRM export patterns on report rows. PDF/CSV download from report file when attached." />
-                <ServiceReportsPanel onNotify={onNotify} />
-              </div>
-            );
-          }
+          if (t === 'Job Card History') return <JobCardsPanel onNotify={onNotify} mode="history" />;
           return null;
         }}
       </CategoryPage>
     );
   }
 
-  if (section === 'O&M Settings') {
-    const tabs = CATEGORY_TABS['O&M Settings'];
-    return (
-      <CategoryPage title="O&M Settings" section={section} tabs={tabs} initialTab={tab} {...shared}>
-        {(t) => {
-          const notes = {
-            'Service Categories': 'Complaint / service category masters via `/om/settings/` key `service_categories`.',
-            'AMC Plans': 'AMC plan templates — configure via settings key `amc_plans` (reuse AmcContract types).',
-            'Maintenance Schedules': 'Frequencies & OmMaintenancePlan defaults — settings key `maintenance_schedules`.',
-            'Checklist Configuration': 'Job Card / visit checklist templates — settings key `job_card_checklists`.',
-            'Notification Rules': 'Uses existing CRM notification infrastructure — settings key `notification_rules`.',
-            'O&M Configuration': 'SLA windows, warranty alert days, assignment rules — `/om/settings/` JSON keys.',
-          };
-          return <SettingsHint title={t} note={notes[t] || 'Configurable via /om/settings/ API.'} />;
-        }}
-      </CategoryPage>
-    );
-  }
-
-  return <OmHubDashboard {...shared} activeSection="O&M Dashboard" onNavigate={onNavigate} />;
+  return (
+    <DashboardAndPlants
+      {...shared}
+      activeSection="O&M Dashboard & Plant List"
+      onNavigate={onNavigate}
+      caps={caps}
+      focus={focus}
+      onFocusConsumed={onFocusConsumed}
+      initialTab="Dashboard"
+    />
+  );
 }

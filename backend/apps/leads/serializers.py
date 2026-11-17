@@ -362,7 +362,10 @@ class LeadListSerializer(serializers.ModelSerializer):
         return _user_name(obj.created_by)
 
     def get_created_at_display(self, obj):
-        return obj.created_at.strftime('%d %b %Y') if obj.created_at else '—'
+        # Immutable first-add timestamp (auto_now_add) — date + time, never rewritten on edit.
+        if not obj.created_at:
+            return '—'
+        return obj.created_at.strftime('%d %b %Y, %I:%M %p')
 
     def get_survey_status(self, obj):
         from apps.projects.survey_lead_sync import resolve_lead_survey_status
@@ -387,7 +390,10 @@ class LeadDetailSerializer(serializers.ModelSerializer):
         return _user_name(obj.created_by)
 
     def get_created_at_display(self, obj):
-        return obj.created_at.strftime('%d %b %Y') if obj.created_at else '—'
+        # First-time lead add timestamp — fixed forever (not last_activity / updated_at).
+        if not obj.created_at:
+            return '—'
+        return obj.created_at.strftime('%d %b %Y, %I:%M %p')
 
     def get_follow_ups(self, obj):
         qs = obj.follow_ups.filter(is_deleted=False)

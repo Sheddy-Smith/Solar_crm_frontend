@@ -147,6 +147,12 @@ class LiaisonCommissioningSerializer(serializers.ModelSerializer):
             validated_data['status'] = 'In Progress'
         obj = super().create(validated_data)
         sync_commissioning_tasks(obj, actor=actor)
+        if obj.assigned_employee_id and obj.status != 'Completed':
+            try:
+                from apps.om.services import stage_plant_pending
+                stage_plant_pending(obj.project, user=actor)
+            except Exception:
+                pass
         return obj
 
     def update(self, instance, validated_data):
@@ -158,6 +164,12 @@ class LiaisonCommissioningSerializer(serializers.ModelSerializer):
             validated_data['engineer'] = employee.name
         obj = super().update(instance, validated_data)
         sync_commissioning_tasks(obj, actor=actor)
+        if obj.assigned_employee_id and obj.status != 'Completed':
+            try:
+                from apps.om.services import stage_plant_pending
+                stage_plant_pending(obj.project, user=actor)
+            except Exception:
+                pass
         return obj
 
     class Meta:
