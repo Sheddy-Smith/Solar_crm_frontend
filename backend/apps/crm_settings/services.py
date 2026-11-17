@@ -312,6 +312,16 @@ def organization_snapshot():
             'status': active_fy.status,
             'is_current': active_fy.is_current,
         }
+    logo_url = ''
+    if profile.logo:
+        try:
+            logo_url = profile.logo.url
+        except ValueError:
+            logo_url = ''
+    # Keep company JSON consumers in sync (quotations / headers).
+    if logo_url and isinstance(company, dict):
+        company = {**company, 'logoUrl': logo_url}
+
     return {
         'company': company,
         'business': business,
@@ -319,6 +329,7 @@ def organization_snapshot():
         'branches': branches,
         'display_name': display_name,
         'gstin': company.get('gstNumber') or business.get('gst') or business.get('gstin') or '',
+        'logo_url': logo_url,
         'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
     }
 

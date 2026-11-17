@@ -22,6 +22,11 @@ export function organizationDisplayName() {
   return snapshot?.display_name || FALLBACK.display_name;
 }
 
+/** Uploaded company logo path/URL from Settings → Company Profile (empty if none). */
+export function organizationLogoUrl() {
+  return snapshot?.logo_url || snapshot?.company?.logoUrl || '';
+}
+
 export function organizationFinancialYearLabel() {
   const label = snapshot?.financial_year?.label;
   return label ? (String(label).startsWith('FY') ? label : `FY ${label}`) : 'FY —';
@@ -34,6 +39,7 @@ export function quotationCompanyFromOrganization(defaults) {
     .filter(Boolean);
   const phone = [company.phone, company.secondaryPhone].filter(Boolean).join(', ');
   const website = String(company.website || business.website || defaults.web || '').replace(/^https?:\/\//, '');
+  const logoUrl = snapshot?.logo_url || company.logoUrl || defaults.logoUrl;
   return {
     ...defaults,
     name: company.companyName || business.businessName || defaults.name,
@@ -49,6 +55,7 @@ export function quotationCompanyFromOrganization(defaults) {
     bankAccount: company.accountNumber || defaults.bankAccount,
     bankIfsc: company.ifsc || defaults.bankIfsc,
     bankName: [company.bankName, company.branch].filter(Boolean).join(', ') || defaults.bankName,
+    logoUrl: logoUrl || defaults.logoUrl,
   };
 }
 

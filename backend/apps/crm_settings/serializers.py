@@ -15,10 +15,27 @@ from .models import (
 
 
 class CompanyProfileSerializer(serializers.ModelSerializer):
+    logo_url = serializers.SerializerMethodField()
+
     class Meta:
         model = CompanyProfile
-        fields = ['data', 'updated_at']
-        read_only_fields = ['updated_at']
+        fields = ['data', 'logo', 'logo_url', 'updated_at']
+        read_only_fields = ['updated_at', 'logo_url']
+        extra_kwargs = {
+            'logo': {'required': False, 'allow_null': True},
+        }
+
+    def get_logo_url(self, obj):
+        if not obj.logo:
+            return ''
+        request = self.context.get('request')
+        try:
+            url = obj.logo.url
+        except ValueError:
+            return ''
+        if request is not None:
+            return request.build_absolute_uri(url)
+        return url
 
 
 class AppSettingSerializer(serializers.ModelSerializer):

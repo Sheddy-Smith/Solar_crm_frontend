@@ -44,7 +44,8 @@ import {
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
 import { cx } from './lib/utils.js';
-import { authApi, leadApi, followUpApi } from './api.js';
+import { authApi, leadApi, followUpApi, getMediaUrl } from './api.js';
+import { organizationDisplayName, organizationLogoUrl, subscribeOrganization } from './lib/organization.js';
 import { fetchEveryPage, mergeFollowUpRows, rowsOf } from './lib/listQuery.js';
 import { PwaInstallBanner, PwaInstallIconButton } from './components/mobile/PwaInstallControls.jsx';
 import { ReportProblemButton } from './components/ReportProblemButton.jsx';
@@ -126,42 +127,74 @@ const BRAND_MARK_SRC = '/brand/malwa-logo-mark-light.png';
 const BRAND_MARK_DARK_SRC = '/brand/malwa-logo-mark-dark.png';
 
 function TeleBrandLockup() {
+  const [orgLogo, setOrgLogo] = useState(() => organizationLogoUrl());
+  useEffect(() => {
+    const sync = () => setOrgLogo(organizationLogoUrl());
+    sync();
+    return subscribeOrganization(sync);
+  }, []);
+  const customSrc = orgLogo ? getMediaUrl(orgLogo) : '';
+  const alt = organizationDisplayName() || 'Company logo';
   return (
     <div className="sidebar-brand-lockup relative -mt-0.5 flex w-full min-w-0 flex-col items-center justify-start">
-      <img
-        src={BRAND_LOGO_SRC}
-        alt="Malwa Solar Energy"
-        className="h-auto w-[92%] max-h-[48px] -translate-y-0.5 select-none object-contain dark:hidden"
-        draggable={false}
-      />
-      <img
-        src={BRAND_LOGO_DARK_SRC}
-        alt="Malwa Solar Energy"
-        className="hidden h-auto w-[92%] max-h-[48px] -translate-y-0.5 select-none object-contain dark:block"
-        draggable={false}
-      />
+      {customSrc ? (
+        <img
+          src={customSrc}
+          alt={alt}
+          className="h-auto w-[92%] max-h-[48px] -translate-y-0.5 select-none object-contain"
+          draggable={false}
+        />
+      ) : (
+        <>
+          <img
+            src={BRAND_LOGO_SRC}
+            alt={alt}
+            className="h-auto w-[92%] max-h-[48px] -translate-y-0.5 select-none object-contain dark:hidden"
+            draggable={false}
+          />
+          <img
+            src={BRAND_LOGO_DARK_SRC}
+            alt={alt}
+            className="hidden h-auto w-[92%] max-h-[48px] -translate-y-0.5 select-none object-contain dark:block"
+            draggable={false}
+          />
+        </>
+      )}
       <p className="mt-1 text-[9px] font-extrabold uppercase tracking-[0.18em] text-[#1d4ed8]">Tele Executive</p>
     </div>
   );
 }
 
 function TeleBrandMark({ size = 'md' }) {
+  const [orgLogo, setOrgLogo] = useState(() => organizationLogoUrl());
+  useEffect(() => {
+    const sync = () => setOrgLogo(organizationLogoUrl());
+    sync();
+    return subscribeOrganization(sync);
+  }, []);
+  const customSrc = orgLogo ? getMediaUrl(orgLogo) : '';
   const boxClass = size === 'lg' ? 'size-[52px]' : size === 'sm' ? 'size-12' : 'size-[46px]';
   const imgClass = size === 'lg' ? 'size-12' : size === 'sm' ? 'size-11' : 'size-10';
   return (
     <div className={cx('sidebar-brand-mark relative grid shrink-0 place-items-center overflow-visible bg-transparent', boxClass)} aria-hidden="true">
-      <img
-        src={BRAND_MARK_SRC}
-        alt=""
-        className={cx(imgClass, 'select-none object-contain dark:hidden')}
-        draggable={false}
-      />
-      <img
-        src={BRAND_MARK_DARK_SRC}
-        alt=""
-        className={cx(imgClass, 'hidden select-none object-contain dark:block')}
-        draggable={false}
-      />
+      {customSrc ? (
+        <img src={customSrc} alt="" className={cx(imgClass, 'select-none object-contain')} draggable={false} />
+      ) : (
+        <>
+          <img
+            src={BRAND_MARK_SRC}
+            alt=""
+            className={cx(imgClass, 'select-none object-contain dark:hidden')}
+            draggable={false}
+          />
+          <img
+            src={BRAND_MARK_DARK_SRC}
+            alt=""
+            className={cx(imgClass, 'hidden select-none object-contain dark:block')}
+            draggable={false}
+          />
+        </>
+      )}
     </div>
   );
 }
@@ -912,7 +945,7 @@ export function AuthBrandHeader() {
     <div className="flex items-center gap-3">
       <TeleBrandMark size="lg" />
       <div>
-        <p className="font-display text-[18px] font-extrabold leading-tight text-[#0d9f4a] sm:text-[22px]">Malwa Solar Energy</p>
+        <p className="font-display text-[18px] font-extrabold leading-tight text-[#0d9f4a] sm:text-[22px]">{organizationDisplayName() || 'Malwa Solar Energy'}</p>
         <div className="mt-1 flex max-w-[210px] items-center gap-2">
           <span className="h-px flex-1 bg-[#0d9f4a]/55" />
           <p className="text-[10px] font-extrabold uppercase tracking-[0.22em] text-[#123c8f] sm:text-[11px]">ERP System</p>

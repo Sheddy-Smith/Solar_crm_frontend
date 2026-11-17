@@ -1,5 +1,6 @@
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
@@ -71,17 +72,47 @@ class OrganizationSnapshotView(APIView):
 
 
 class CompanyProfileView(SettingsPermissionMixin, APIView):
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
     def get(self, request):
         profile = CompanyProfile.get_solo()
-        return Response(CompanyProfileSerializer(profile).data)
+        return Response(CompanyProfileSerializer(profile, context={'request': request}).data)
 
     def patch(self, request):
         profile = CompanyProfile.get_solo()
-        serializer = CompanyProfileSerializer(profile, data=request.data, partial=True)
+        payload = request.data
+        # Multipart logo upload may arrive without wrapping `data` JSON.
+        if hasattr(payload, 'dict'):
+            payload = payload.dict()
+            # Keep uploaded file object (dict() drops files).
+            if request.FILES.get('logo') is not None:
+                payload['logo'] = request.FILES['logo']
+        logo_file = payload.get('logo') if isinstance(payload, dict) else None
+        if logo_file is not None and hasattr(logo_file, 'size'):
+            if logo_file.size > 2 * 1024 * 1024:
+                return Response(
+                    {'logo': ['Logo must be 2 MB or smaller.']},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            name = (getattr(logo_file, 'name', '') or '').lower()
+            if not name.endswith(('.jpg', '.jpeg', '.png', '.webp')):
+                return Response(
+                    {'logo': ['Upload a JPG, PNG, or WEBP image.']},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        serializer = CompanyProfileSerializer(
+            profile, data=payload, partial=True, context={'request': request},
+        )
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        sync_company_to_business(serializer.instance.data)
-        log_user_activity(request, 'Update', 'Settings', 'Company profile updated')
+        if isinstance(serializer.instance.data, dict) and serializer.instance.data:
+            sync_company_to_business(serializer.instance.data)
+        log_user_activity(
+            request,
+            'Update',
+            'Settings',
+            'Company logo updated' if logo_file is not None else 'Company profile updated',
+        )
         return Response(serializer.data)
 
 

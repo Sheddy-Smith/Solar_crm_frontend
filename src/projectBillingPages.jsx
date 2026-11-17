@@ -2,9 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronRight, Eye, FilePlus2, FileText, Hammer, Pencil, Plus, Printer, ReceiptText, RefreshCw, RotateCcw, Save, Search, Trash2, Truck, X,
 } from 'lucide-react';
-import { materialPlanApi, projectApi, projectInvoiceApi, projectSalesChallanApi, settingsApi } from './api.js';
+import { getMediaUrl, materialPlanApi, projectApi, projectInvoiceApi, projectSalesChallanApi, settingsApi } from './api.js';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
+import { organizationLogoUrl } from './lib/organization.js';
 
 const PANEL = 'rounded-[14px] border border-[#e7eef7] bg-white shadow-[0_10px_24px_rgba(17,39,84,0.05)]';
 const CELL_INPUT = 'h-8 w-full rounded-[6px] border border-transparent bg-transparent px-1.5 text-[13px] font-semibold text-[#1e3261] outline-none transition hover:border-[#dce6f3] focus:border-[#86b7fe] focus:bg-white disabled:hover:border-transparent';
@@ -354,7 +355,10 @@ function fmtAmount(n) {
 function printChallan(doc, company) {
   const c = { ...COMPANY_FALLBACK, ...(company || {}) };
   const origin = window.location.origin;
-  const logo = `${origin}/quotation-brand/logo.png`;
+  const orgLogo = organizationLogoUrl() || c.logoUrl || '';
+  const logo = orgLogo
+    ? (orgLogo.startsWith('http') ? getMediaUrl(orgLogo) : new URL(getMediaUrl(orgLogo), origin).href)
+    : `${origin}/quotation-brand/logo.png`;
   const lines = doc.lines || [];
   const main = lines.filter((l) => !isAdditional(l));
   const extra = lines.filter(isAdditional);

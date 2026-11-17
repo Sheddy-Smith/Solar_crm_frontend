@@ -24,6 +24,7 @@ import {
   getOrganization,
   organizationDisplayName,
   organizationFinancialYearLabel,
+  organizationLogoUrl,
   quotationCompanyFromOrganization,
   refreshOrganization,
   subscribeOrganization,
@@ -9979,7 +9980,11 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
   };
 
   const [form, setForm] = useState(defaultCompanyForm);
+  const [logoUrl, setLogoUrl] = useState('');
+  const [logoPreview, setLogoPreview] = useState('');
   const [saving, setSaving] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const logoInputRef = useRef(null);
 
   useEffect(() => {
     settingsApi.company.get()
@@ -9987,14 +9992,21 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
         if (res?.data && Object.keys(res.data).length) {
           setForm((current) => ({ ...current, ...res.data }));
         }
+        const nextLogo = res?.logo_url || res?.data?.logoUrl || '';
+        setLogoUrl(nextLogo);
       })
       .catch(() => onNotify('Could not load company profile.', 'error'));
-  }, []);  
+  }, []);
+
+  useEffect(() => () => {
+    if (logoPreview) URL.revokeObjectURL(logoPreview);
+  }, [logoPreview]);
 
   const saveProfile = async () => {
     setSaving(true);
     try {
-      await settingsApi.company.update({ data: form });
+      const { logo, logoUrl: _logoUrl, logo_url: _logo_url, ...profileData } = form;
+      await settingsApi.company.update({ data: profileData });
       await refreshOrganization({ force: true }).catch(() => {});
       onNotify('Company profile saved');
     } catch {
@@ -10004,7 +10016,38 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
     }
   };
 
+  const handleLogoPick = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!/\.(jpe?g|png|webp)$/i.test(file.name) && !/^image\/(jpeg|png|webp)$/i.test(file.type || '')) {
+      onNotify('Upload a JPG, PNG, or WEBP image.', 'error');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      onNotify('Logo must be 2 MB or smaller.', 'error');
+      return;
+    }
+    const preview = URL.createObjectURL(file);
+    setLogoPreview(preview);
+    setUploadingLogo(true);
+    try {
+      const res = await settingsApi.company.uploadLogo(file);
+      const nextLogo = res?.logo_url || res?.data?.logoUrl || '';
+      setLogoUrl(nextLogo);
+      await refreshOrganization({ force: true }).catch(() => {});
+      onNotify('Company logo updated across CRM', 'success');
+    } catch (err) {
+      onNotify(err?.message || 'Logo upload failed.', 'error');
+    } finally {
+      setUploadingLogo(false);
+      setLogoPreview('');
+      URL.revokeObjectURL(preview);
+    }
+  };
+
   const updateField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const displayLogo = logoPreview || (logoUrl ? getMediaUrl(logoUrl) : '');
   const summaryItems = [
     { label: 'Company Type', value: form.companyType, icon: BadgeCheck, tone: 'bg-[#e8f2ff] text-[#0b65e5]' },
     { label: 'GST Number', value: form.gstNumber, icon: ReceiptText, tone: 'bg-[#e9f8ec] text-[#0d9f4a]' },
@@ -10049,8 +10092,12 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
           <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
             <div className="grid gap-4 xl:grid-cols-[minmax(280px,0.78fr)_minmax(0,1.22fr)] xl:items-center">
               <div className="flex min-w-0 items-start gap-4">
-                <div className="grid size-16 shrink-0 place-items-center rounded-[18px] bg-[#e9f8ec] text-[#0d9f4a] shadow-[inset_0_0_0_1px_rgba(13,159,74,0.08)]">
-                  <Leaf className="size-8" />
+                <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-[18px] bg-[#e9f8ec] text-[#0d9f4a] shadow-[inset_0_0_0_1px_rgba(13,159,74,0.08)]">
+                  {displayLogo ? (
+                    <img src={displayLogo} alt="" className="size-full object-contain p-1.5" />
+                  ) : (
+                    <Leaf className="size-8" />
+                  )}
                 </div>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -10090,16 +10137,29 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
             <div className="grid items-start gap-5 xl:grid-cols-[270px_minmax(0,1fr)]">
               <div className="rounded-[14px] border border-[#e7eef7] bg-[#fbfdff] p-4">
                 <div className="flex min-w-0 items-center gap-3">
-                  <div className="grid size-16 shrink-0 place-items-center rounded-full bg-[#effbf3] text-[#0d9f4a]">
-                    <Leaf className="size-8" />
+                  <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-full bg-[#effbf3] text-[#0d9f4a]">
+                    {displayLogo ? (
+                      <img src={displayLogo} alt="Company logo" className="size-full object-contain p-1.5" />
+                    ) : (
+                      <Leaf className="size-8" />
+                    )}
                   </div>
                   <div className="min-w-0">
                     <p className="text-[14px] font-extrabold text-[#14853a]">{form.shortName || form.companyName}</p>
                     <p className="mt-1 text-[12px] font-bold text-[#7585a2]">Current logo</p>
                   </div>
                 </div>
-                <div className="mt-4 rounded-[10px] bg-white p-3 text-[12px] font-bold leading-5 text-[#7585a2]">Upload new logo in JPG or PNG format. Maximum file size 2MB.</div>
-                <button type="button" onClick={() => onNotify('Company logo upload opened')} className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff]"><Upload className="size-4" />Choose File</button>
+                <div className="mt-4 rounded-[10px] bg-white p-3 text-[12px] font-bold leading-5 text-[#7585a2]">Upload new logo in JPG or PNG format. Maximum file size 2MB. Updates sidebar and documents across CRM.</div>
+                <input ref={logoInputRef} type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" className="hidden" onChange={handleLogoPick} />
+                <button
+                  type="button"
+                  disabled={uploadingLogo}
+                  onClick={() => logoInputRef.current?.click()}
+                  className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#1e3261] transition hover:bg-[#f8fbff] disabled:opacity-60"
+                >
+                  <Upload className="size-4" />
+                  {uploadingLogo ? 'Uploading…' : 'Choose File'}
+                </button>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
@@ -35049,9 +35109,21 @@ function quotationPrintLogoSvg() {
 function buildQuotationPrintHtml(detail) {
   const company = quotationCompanyFromOrganization(QUOTATION_PRINT_COMPANY);
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const logoSrc = `${origin}${company.logoUrl}`;
-  const heroSrc = `${origin}${company.heroUrl}`;
-  const qrSrc = `${origin}${company.qrUrl}`;
+  const resolvePrintAsset = (url, fallbackPath) => {
+    const raw = url || fallbackPath || '';
+    if (!raw) return '';
+    if (/^https?:\/\//i.test(raw) || raw.startsWith('/media/')) {
+      try {
+        return new URL(getMediaUrl(raw), origin || undefined).href;
+      } catch {
+        return getMediaUrl(raw) || raw;
+      }
+    }
+    return `${origin}${raw.startsWith('/') ? raw : `/${raw}`}`;
+  };
+  const logoSrc = resolvePrintAsset(company.logoUrl, '/quotation-brand/logo.png');
+  const heroSrc = resolvePrintAsset(company.heroUrl, '/quotation-brand/hero.png');
+  const qrSrc = resolvePrintAsset(company.qrUrl, '/quotation-brand/qr.png');
 
   const ink = '#102033';
   const navy = '#0B1F36';
@@ -40413,17 +40485,37 @@ function SurveyStatusBadge({ status }) {
 }
 
 function BrandLockup() {
+  const [orgLogo, setOrgLogo] = useState(() => organizationLogoUrl());
+  useEffect(() => {
+    const sync = () => setOrgLogo(organizationLogoUrl());
+    sync();
+    return subscribeOrganization(sync);
+  }, []);
+  const customSrc = orgLogo ? getMediaUrl(orgLogo) : '';
+  const alt = organizationDisplayName() || 'Company logo';
+  if (customSrc) {
+    return (
+      <div className="sidebar-brand-lockup relative -mt-0.5 flex w-full min-w-0 items-center justify-center">
+        <img
+          src={customSrc}
+          alt={alt}
+          className="h-auto w-[92%] max-h-[48px] -translate-y-0.5 select-none object-contain"
+          draggable={false}
+        />
+      </div>
+    );
+  }
   return (
     <div className="sidebar-brand-lockup relative -mt-0.5 flex w-full min-w-0 items-center justify-center">
       <img
         src={BRAND_LOGO_SRC}
-        alt="Malwa Solar Energy"
+        alt={alt}
         className="h-auto w-[92%] max-h-[48px] -translate-y-0.5 select-none object-contain dark:hidden"
         draggable={false}
       />
       <img
         src={BRAND_LOGO_DARK_SRC}
-        alt="Malwa Solar Energy"
+        alt={alt}
         className="hidden h-auto w-[92%] max-h-[48px] -translate-y-0.5 select-none object-contain dark:block"
         draggable={false}
       />
@@ -40432,6 +40524,13 @@ function BrandLockup() {
 }
 
 function MiniBrandMark({ compact = false, plain = false }) {
+  const [orgLogo, setOrgLogo] = useState(() => organizationLogoUrl());
+  useEffect(() => {
+    const sync = () => setOrgLogo(organizationLogoUrl());
+    sync();
+    return subscribeOrganization(sync);
+  }, []);
+  const customSrc = orgLogo ? getMediaUrl(orgLogo) : '';
   return (
     <div
       className={cx(
@@ -40441,18 +40540,29 @@ function MiniBrandMark({ compact = false, plain = false }) {
       )}
       aria-hidden="true"
     >
-      <img
-        src={BRAND_MARK_SRC}
-        alt=""
-        className={cx('select-none object-contain dark:hidden', compact ? 'size-11' : 'size-12')}
-        draggable={false}
-      />
-      <img
-        src={BRAND_MARK_DARK_SRC}
-        alt=""
-        className={cx('hidden select-none object-contain dark:block', compact ? 'size-11' : 'size-12')}
-        draggable={false}
-      />
+      {customSrc ? (
+        <img
+          src={customSrc}
+          alt=""
+          className={cx('select-none object-contain', compact ? 'size-11' : 'size-12')}
+          draggable={false}
+        />
+      ) : (
+        <>
+          <img
+            src={BRAND_MARK_SRC}
+            alt=""
+            className={cx('select-none object-contain dark:hidden', compact ? 'size-11' : 'size-12')}
+            draggable={false}
+          />
+          <img
+            src={BRAND_MARK_DARK_SRC}
+            alt=""
+            className={cx('hidden select-none object-contain dark:block', compact ? 'size-11' : 'size-12')}
+            draggable={false}
+          />
+        </>
+      )}
     </div>
   );
 }

@@ -1155,6 +1155,11 @@ export const settingsApi = {
   company: {
     get: () => request('/settings/company/'),
     update: (data) => request('/settings/company/', { method: 'PATCH', body: data }),
+    uploadLogo: (file) => {
+      const fd = new FormData();
+      fd.append('logo', file);
+      return request('/settings/company/', { method: 'PATCH', body: fd });
+    },
   },
   category: (name) => ({
     get: () => request(`/settings/category/${name}/`),

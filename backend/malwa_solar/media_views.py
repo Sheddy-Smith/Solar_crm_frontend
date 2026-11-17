@@ -60,10 +60,14 @@ _MEDIA_MODULE_PREFIXES = (
     ('workforce', 'Employee'),
     ('bug_reports', 'Settings'),
     ('backups', 'Settings'),
+    # Org branding — module label unused; any authenticated user may view.
+    ('company_logos', 'Dashboard'),
 )
 
 # Folders that are settings/ops only — no Lead ownership required after module check.
-_NO_LEAD_OWNERSHIP_FOLDERS = frozenset({'backups', 'bug_reports', 'workforce'})
+_NO_LEAD_OWNERSHIP_FOLDERS = frozenset({'backups', 'bug_reports', 'workforce', 'company_logos'})
+# Branding assets visible to every signed-in role (sidebar / prints).
+_ORG_BRANDING_FOLDERS = frozenset({'company_logos'})
 
 
 class _RangedFile:
@@ -411,11 +415,14 @@ def secure_media_serve(request, path):
     if not normalized:
         return HttpResponseForbidden('Invalid media path.')
 
+    folder = _top_folder(normalized)
     module = _module_for_media_path(normalized)
-    if not _user_can_view_module(user, module):
-        return HttpResponseForbidden('You do not have permission to access this file.')
-    if not _user_can_access_media_object(user, normalized):
-        return HttpResponseForbidden('You do not have permission to access this file.')
+    # Company logo is org-wide branding — any authenticated user can load it.
+    if folder not in _ORG_BRANDING_FOLDERS:
+        if not _user_can_view_module(user, module):
+            return HttpResponseForbidden('You do not have permission to access this file.')
+        if not _user_can_access_media_object(user, normalized):
+            return HttpResponseForbidden('You do not have permission to access this file.')
 
     try:
         fullpath = safe_join(str(settings.MEDIA_ROOT), normalized)

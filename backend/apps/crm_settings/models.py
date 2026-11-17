@@ -6,6 +6,7 @@ class CompanyProfile(models.Model):
     """Singleton company profile stored as JSON matching the frontend form."""
 
     data = models.JSONField(default=dict, blank=True)
+    logo = models.ImageField(upload_to='company_logos/', null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
