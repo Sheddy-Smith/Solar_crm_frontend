@@ -1,24 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeftRight,
-  Check,
   ChevronDown,
   ChevronLeft,
   Search,
 } from 'lucide-react';
 import { cx } from '../lib/utils.js';
+import { UnderlineTabs } from './UnderlineTabs.jsx';
+import { MobileSubnavSelect } from './mobile/MobileSubnavSelect.jsx';
 
-/** Visual workflow order matching the Material Planning mockup (Job Sheet stays in sidebar only). */
+/** All Project Management sub-categories — horizontal underline tabs (mockup style). */
 export const PM_WORKFLOW_STEPS = [
+  { key: 'Project List', label: 'Project List', short: 'List' },
   { key: 'Project Site Survey', label: 'Site Survey', short: 'Survey' },
   { key: 'Project Material Planning', label: 'Material Planning', short: 'Planning' },
+  { key: 'Project Job Sheet', label: 'Job Sheet', short: 'Job Sheet' },
   { key: 'Project Dispatch', label: 'Dispatch', short: 'Dispatch' },
   { key: 'Project Installation', label: 'Installation', short: 'Install' },
 ];
 
 const NEXT_BY_SECTION = {
   'Project Site Survey': { section: 'Project Material Planning', label: 'Next: Material Planning →' },
-  'Project Material Planning': { section: 'Project Dispatch', label: 'Next: Dispatch →' },
+  'Project Material Planning': { section: 'Project Job Sheet', label: 'Next: Job Sheet →' },
   'Project Job Sheet': { section: 'Project Dispatch', label: 'Next: Dispatch →' },
   'Project Dispatch': { section: 'Project Installation', label: 'Next: Installation →' },
   'Project Installation': { section: 'Liaisoning & Commissioning', label: 'Next: Liaisoning →' },
@@ -32,75 +35,40 @@ const DONE_LABEL_BY_SECTION = {
   'Project Installation': 'Mark Installation Done',
 };
 
+/** @deprecated stepper states removed — kept for any external imports */
 export function workflowStepState(activeSection, stepKey) {
-  const keys = PM_WORKFLOW_STEPS.map((s) => s.key);
-  // Job Sheet sits between Planning and Dispatch in pipeline — treat as planning-complete for stepper.
-  const normalized = activeSection === 'Project Job Sheet' ? 'Project Dispatch' : activeSection;
-  const activeIdx = keys.indexOf(normalized);
-  const stepIdx = keys.indexOf(stepKey);
-  if (activeIdx < 0 || stepIdx < 0) return 'pending';
-  if (stepIdx < activeIdx) return 'done';
-  if (stepIdx === activeIdx) return 'active';
-  return 'pending';
+  return activeSection === stepKey ? 'active' : 'pending';
 }
 
+/**
+ * Horizontal sub-category strip — same style as CRM module tabs:
+ * plain labels + green underline on active (Project List … Installation).
+ */
 export function ProjectWorkflowStepper({
   activeSection = 'Project Material Planning',
   onOpenSection,
 }) {
+  const items = PM_WORKFLOW_STEPS.map((s) => ({ value: s.key, label: s.label }));
+  const value = items.some((i) => i.value === activeSection)
+    ? activeSection
+    : 'Project Material Planning';
+
   return (
-    <div className="flex flex-wrap items-center gap-0">
-      {PM_WORKFLOW_STEPS.map((s, i) => {
-        const state = workflowStepState(activeSection, s.key);
-        return (
-          <div key={s.key} className="flex items-center">
-            <button
-              type="button"
-              onClick={() => onOpenSection?.(s.key)}
-              className="flex items-center gap-2"
-            >
-              <span
-                className={cx(
-                  'flex size-8 items-center justify-center rounded-full text-[12px] font-extrabold ring-4 ring-white',
-                  state === 'done' && 'bg-[#16a34a] text-white',
-                  state === 'active' && 'bg-[#2563eb] text-white',
-                  state === 'pending' && 'bg-[#e2e8f0] text-[#64748b]',
-                )}
-              >
-                {state === 'done' ? <Check className="size-4" strokeWidth={3} /> : i + 1}
-              </span>
-              <span
-                className={cx(
-                  'hidden text-[12px] font-extrabold lg:inline',
-                  state === 'done' && 'text-[#16a34a]',
-                  state === 'active' && 'text-[#2563eb]',
-                  state === 'pending' && 'text-[#94a3b8]',
-                )}
-              >
-                {s.label}
-              </span>
-              <span
-                className={cx(
-                  'hidden text-[11px] font-extrabold sm:inline lg:hidden',
-                  state === 'done' && 'text-[#16a34a]',
-                  state === 'active' && 'text-[#2563eb]',
-                  state === 'pending' && 'text-[#94a3b8]',
-                )}
-              >
-                {s.short}
-              </span>
-            </button>
-            {i < PM_WORKFLOW_STEPS.length - 1 ? (
-              <span
-                className={cx(
-                  'mx-1.5 hidden h-[3px] w-6 rounded-full sm:block md:mx-2 md:w-10',
-                  state === 'done' ? 'bg-[#86efac]' : 'bg-[#e2e8f0]',
-                )}
-              />
-            ) : null}
-          </div>
-        );
-      })}
+    <div className="w-full">
+      <MobileSubnavSelect
+        items={items}
+        value={value}
+        onChange={(key) => onOpenSection?.(key)}
+        label="Category"
+        tone="green"
+      />
+      <UnderlineTabs
+        items={items}
+        value={value}
+        onChange={(key) => onOpenSection?.(key)}
+        tone="green"
+        className="hidden md:flex"
+      />
     </div>
   );
 }
@@ -269,32 +237,33 @@ export function ProjectWorkflowShell({
           onChangeProject={onChangeProject}
           onChangeProjectList={onBack}
         />
-        <div className="flex flex-col items-end gap-3">
-          <ProjectWorkflowStepper activeSection={activeSection} onOpenSection={onOpenSection} />
-          {hideActions ? null : (
-            <div className="flex flex-wrap justify-end gap-2">
-              {onMarkDone ? (
-                <button
-                  type="button"
-                  disabled={markDoneDisabled}
-                  onClick={onMarkDone}
-                  className="inline-flex h-10 items-center rounded-[9px] bg-[#16a34a] px-4 text-[13px] font-extrabold text-white shadow-sm hover:bg-[#15803d] disabled:opacity-60"
-                >
-                  {resolvedDoneLabel}
-                </button>
-              ) : null}
-              {resolvedNextSection ? (
-                <button
-                  type="button"
-                  onClick={() => onOpenSection?.(resolvedNextSection)}
-                  className="inline-flex h-10 items-center rounded-[9px] bg-[#2563eb] px-4 text-[13px] font-extrabold text-white shadow-sm hover:bg-[#1d4ed8]"
-                >
-                  {resolvedNextLabel}
-                </button>
-              ) : null}
-            </div>
-          )}
-        </div>
+        {hideActions ? null : (
+          <div className="flex flex-wrap justify-end gap-2">
+            {onMarkDone ? (
+              <button
+                type="button"
+                disabled={markDoneDisabled}
+                onClick={onMarkDone}
+                className="inline-flex h-10 items-center rounded-[9px] bg-[#16a34a] px-4 text-[13px] font-extrabold text-white shadow-sm hover:bg-[#15803d] disabled:opacity-60"
+              >
+                {resolvedDoneLabel}
+              </button>
+            ) : null}
+            {resolvedNextSection ? (
+              <button
+                type="button"
+                onClick={() => onOpenSection?.(resolvedNextSection)}
+                className="inline-flex h-10 items-center rounded-[9px] bg-[#2563eb] px-4 text-[13px] font-extrabold text-white shadow-sm hover:bg-[#1d4ed8]"
+              >
+                {resolvedNextLabel}
+              </button>
+            ) : null}
+          </div>
+        )}
+      </div>
+
+      <div className="px-4 pt-1 sm:px-5">
+        <ProjectWorkflowStepper activeSection={activeSection} onOpenSection={onOpenSection} />
       </div>
 
       {children}

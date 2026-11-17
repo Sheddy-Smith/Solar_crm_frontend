@@ -73,7 +73,11 @@ import {
 } from './projectOpsPages.jsx';
 import { ProjectJobSheetPage as OpsJobSheetPage } from './projectJobSheetPage.jsx';
 import { MaterialPlanningBomPage } from './materialPlanningBomPage.jsx';
-import { CommissioningCompleteModal } from './commissioningCompleteModal.jsx';
+import {
+  CommissioningCompleteModal,
+  COMMISSIONING_CHECKLIST_TEMPLATE,
+  normalizeCommissioningChecklist,
+} from './commissioningCompleteModal.jsx';
 import { OmPendingFlowPage, OM_PENDING_SECTIONS, OM_PENDING_STEPS } from './omPendingPages.jsx';
 import { OM_LEGACY_SECTIONS, OM_MODULE_SECTIONS, OM_SECTION_ROUTES } from './omPlantPages.jsx';
 import { OmHubPage } from './omHubPages.jsx';
@@ -10889,11 +10893,19 @@ function LcDocumentsSection({ moduleName, relatedId, projectId, onNotify, docApi
   );
 }
 
-function LcChecklistSection({ record, api, onNotify, onSaved }) {
-  const [items, setItems] = useState(record.checklist || []);
+function LcChecklistSection({ record, api, onNotify, onSaved, commissioningStyle = false }) {
+  const initialItems = commissioningStyle
+    ? normalizeCommissioningChecklist(record.checklist)
+    : (record.checklist || []);
+  const [items, setItems] = useState(initialItems);
   const [remarks, setRemarks] = useState(record.remarks || '');
   const [saving, setSaving] = useState(false);
   const [openModal, setOpenModal] = useState(false);
+
+  useEffect(() => {
+    setItems(commissioningStyle ? normalizeCommissioningChecklist(record.checklist) : (record.checklist || []));
+    setRemarks(record.remarks || '');
+  }, [record?.id, record?.checklist, record?.remarks, commissioningStyle]);
 
   const isPlantOnline = (it) => it?.type === 'plant_online' || /plant online/i.test(it?.label || '');
 
@@ -10932,47 +10944,55 @@ function LcChecklistSection({ record, api, onNotify, onSaved }) {
   }
 
   if (!items.length) return null;
-  const doneCount = items.filter((it) => (isPlantOnline(it) ? it.value === 'done' || it.value === 'later' : it.done)).length;
+  const doneCount = items.filter((it) => (
+    isPlantOnline(it) ? it.value === 'done' || it.value === 'later' : it.done
+  )).length;
 
   const listBody = (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       {items.map((it, i) => (
         isPlantOnline(it) ? (
-          <div key={i} className="rounded-[8px] border border-[#e5eaf2] px-3 py-2.5">
-            <p className="mb-2 text-[13px] font-bold text-[#1e2a38]">{it.label || 'Plant Online Status'}</p>
-            <div className="flex flex-col gap-1.5 text-[12px] font-semibold text-[#334155]">
+          <div key={i} className="rounded-[10px] border border-[#e5eaf2] bg-[#f8fafc] px-3 py-3">
+            <p className="mb-2 text-[13px] font-extrabold text-[#1e2a38]">Plant Online Status:</p>
+            <div className="flex flex-col gap-2 text-[13px] font-semibold text-[#334155]">
               {[
                 ['done', 'Plant Online Done'],
                 ['later', 'Will Online Later (Wi-Fi Not Available)'],
-                ['not_done', 'Not Done'],
               ].map(([val, label]) => (
-                <label key={val} className="flex cursor-pointer items-center gap-2">
+                <label key={val} className="flex cursor-pointer items-center gap-2.5">
                   <input
                     type="radio"
                     name={`plant-online-${record.id}-${i}`}
-                    checked={(it.value || 'not_done') === val}
+                    checked={(it.value || '') === val}
                     onChange={() => setPlantOnline(i, val)}
-                    className="accent-[#0b65e5]"
+                    className="size-4 accent-[#0b65e5]"
                   />
-                  {label}
+                  <span>{label}</span>
                 </label>
               ))}
             </div>
           </div>
         ) : (
-          <label key={i} className="flex cursor-pointer items-center gap-2 rounded-[8px] border border-[#e5eaf2] px-3 py-2 text-[13px] hover:bg-[#f8fafc]">
-            <input type="checkbox" checked={!!it.done} onChange={() => toggle(i)} className="size-4 accent-[#16a34a]" />
-            <span className={it.done ? 'font-semibold text-[#16a34a]' : 'text-[#1e2a38]'}>{it.label}</span>
-          </label>
+          <button
+            key={i}
+            type="button"
+            onClick={() => toggle(i)}
+            className="flex w-full items-center gap-3 rounded-[10px] border border-[#e5eaf2] bg-white px-3 py-2.5 text-left hover:bg-[#f8fafc]"
+          >
+            <span className={`inline-flex size-6 shrink-0 items-center justify-center rounded-full ${it.done ? 'bg-[#16a34a] text-white' : 'border-2 border-[#cbd5e1] bg-white text-transparent'}`}>
+              <CheckCircle2 className="size-4" />
+            </span>
+            <span className={`text-[13px] font-semibold ${it.done ? 'text-[#16a34a]' : 'text-[#1e2a38]'}`}>{it.label}</span>
+          </button>
         )
       ))}
-      <label className="mt-2 grid gap-1 text-[11px] font-bold text-[#7a8fa6]">
+      <label className="mt-1 grid gap-1 text-[11px] font-bold text-[#7a8fa6]">
         Remarks (Optional)
         <textarea
-          className="min-h-[64px] w-full rounded-[8px] border border-[#e5eaf2] px-3 py-2 text-[13px] font-semibold text-[#1e2a38] outline-none focus:border-[#0b65e5]"
+          className="min-h-[72px] w-full rounded-[8px] border border-[#e5eaf2] px-3 py-2 text-[13px] font-semibold text-[#1e2a38] outline-none placeholder:text-[#94a3b8] focus:border-[#0b65e5]"
           value={remarks}
           onChange={(e) => setRemarks(e.target.value)}
-          placeholder="Any notes for handover / O&M team"
+          placeholder="Enter remarks..."
         />
       </label>
     </div>
@@ -10992,34 +11012,34 @@ function LcChecklistSection({ record, api, onNotify, onSaved }) {
           Open Checklist
         </button>
       </div>
-      {listBody}
-      <div className="mt-3 flex justify-end">
-        <button
-          type="button"
-          disabled={saving}
-          onClick={saveChecklist}
-          className="h-9 rounded-[8px] bg-[#0b65e5] px-3 text-[12px] font-extrabold text-white disabled:opacity-60"
-        >
-          {saving ? 'Saving…' : 'Save Checklist'}
-        </button>
+      <div className="rounded-[10px] border border-[#e5eaf2] bg-[#f8fafc] px-3 py-3 text-[12px] font-semibold text-[#64748b]">
+        {doneCount} of {items.length} items done
+        {items.find(isPlantOnline)?.value === 'done' ? ' · Plant Online Done' : ''}
+        {items.find(isPlantOnline)?.value === 'later' ? ' · Online Later (Wi-Fi)' : ''}
       </div>
 
       {openModal ? (
         <div className="fixed inset-0 z-[85] flex items-center justify-center bg-black/40 p-4">
           <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[14px] bg-white shadow-2xl">
             <div className="flex items-start justify-between border-b border-[#edf2f8] px-5 py-4">
-              <div>
-                <h2 className="text-[16px] font-extrabold text-[#0f172a]">
-                  {record.record_no || 'Commissioning'} — Commissioning Checklist
-                </h2>
-                <p className="text-[12px] font-semibold text-[#64748b]">{record.project_name || record.customer_name || ''}</p>
-              </div>
-              <button type="button" onClick={() => setOpenModal(false)} className="rounded p-1 hover:bg-[#f1f5f9]">✕</button>
+              <h2 className="text-[16px] font-extrabold text-[#0f172a]">
+                {record.record_no || 'Commissioning'} — Commissioning Checklist
+              </h2>
+              <button type="button" onClick={() => setOpenModal(false)} className="rounded p-1 text-[#94a3b8] hover:bg-[#f1f5f9]">
+                <X className="size-4" />
+              </button>
             </div>
             <div className="px-5 py-4">{listBody}</div>
             <div className="flex justify-end gap-2 border-t border-[#edf2f8] px-5 py-4">
-              <button type="button" onClick={() => setOpenModal(false)} className="h-10 rounded-[8px] border border-[#d9e4f2] px-4 text-[13px] font-bold text-[#475569]">Cancel</button>
-              <button type="button" disabled={saving} onClick={saveChecklist} className="h-10 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">
+              <button type="button" onClick={() => setOpenModal(false)} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#475569]">
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={saveChecklist}
+                className="h-10 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white hover:bg-[#084fc0] disabled:opacity-60"
+              >
                 {saving ? 'Saving…' : 'Save Checklist'}
               </button>
             </div>
@@ -11120,11 +11140,13 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
       body[name] = v;
     });
     if (config.checklistItems && !f.id) {
-      body.checklist = config.checklistItems.map((item) => (
-        typeof item === 'string'
-          ? { label: item, done: false }
-          : { done: false, ...item }
-      ));
+      body.checklist = config.checklistItems === COMMISSIONING_CHECKLIST_TEMPLATE
+        ? normalizeCommissioningChecklist([])
+        : config.checklistItems.map((item) => (
+          typeof item === 'string'
+            ? { label: item, done: false }
+            : { done: false, ...item }
+        ));
     }
     if (config.fixedFields) {
       Object.entries(config.fixedFields).forEach(([k, v]) => { body[k] = v; });
@@ -11525,6 +11547,7 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
                 api={config.api}
                 onNotify={onNotify}
                 onSaved={(checklist) => setViewItem((v) => ({ ...v, checklist }))}
+                commissioningStyle={config.checklistItems === COMMISSIONING_CHECKLIST_TEMPLATE}
               />
             )}
 
@@ -11839,16 +11862,7 @@ function getLiaisonStepBaseConfig(stepKey, project) {
       requiresCompleteForm: true,
       statuses,
       searchKeys: ['engineer', 'assigned_employee_name'],
-      checklistItems: [
-        'Inverter Configure & Start',
-        'Panel Connected & Tested',
-        'Earthing Verified (OK)',
-        'Net Meter Check & Confirm',
-        'Plant Check – All Connections & All Parameters Verified',
-        'Generation Test Completed',
-        { label: 'Plant Online Status', type: 'plant_online', value: 'not_done', done: false },
-        'Handover Document Done',
-      ],
+      checklistItems: COMMISSIONING_CHECKLIST_TEMPLATE,
       columns: [
         noCol('Commission No'),
         { label: 'Engineer', render: (r) => r.assigned_employee_name || r.engineer || '—' },

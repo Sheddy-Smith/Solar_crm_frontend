@@ -7,6 +7,17 @@ export const DEFAULT_SOLAR_APPS = [
   'Sungrow iSolarCloud', 'GoodWe SEMS',
 ];
 
+export const COMMISSIONING_CHECKLIST_TEMPLATE = [
+  'Inverter Configure & Start',
+  'Panel Connected & Tested',
+  'Earthing Verified (OK)',
+  'Net Meter Check & Confirm',
+  'Plant Check – All Connections & All Parameters Verified',
+  'Generation Test Completed',
+  { label: 'Plant Online Status', type: 'plant_online', value: '', done: false },
+  'Handover Document Done',
+];
+
 const SOLAR_PLATFORMS_KEY = 'solar_monitoring_platforms';
 
 function cx(...parts) {
@@ -14,12 +25,12 @@ function cx(...parts) {
 }
 
 const inputCls = 'h-10 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-semibold text-[#0f172a] outline-none focus:border-[#2563eb]';
+const labelCls = 'grid gap-1 text-[11px] font-bold text-[#64748b]';
 
 function addMonths(isoDate, months) {
   const d = new Date(`${isoDate}T00:00:00`);
   const day = d.getDate();
   d.setMonth(d.getMonth() + months);
-  // Clamp overflow (e.g. Jan 31 + 1 month)
   if (d.getDate() < day) d.setDate(0);
   return d.toISOString().slice(0, 10);
 }
@@ -38,6 +49,49 @@ function platformsFromSettings(raw) {
         ? value.items
         : [];
   return list.map((x) => (typeof x === 'string' ? x : x?.name)).filter(Boolean);
+}
+
+/** Normalize legacy checklist rows to Task-12 mockup items (preserve done/value by label). */
+export function normalizeCommissioningChecklist(existing) {
+  const prev = Array.isArray(existing) ? existing : [];
+  const byLabel = new Map(
+    prev.map((it) => [String(it?.label || '').trim().toLowerCase(), it]),
+  );
+  const legacyMap = {
+    'inverter installed & configured': 'Inverter Configure & Start',
+    'panels connected & tested': 'Panel Connected & Tested',
+    'earthing verified': 'Earthing Verified (OK)',
+    'net meter synchronized': 'Net Meter Check & Confirm',
+    'generation test completed': 'Generation Test Completed',
+    'handover documentation done': 'Handover Document Done',
+  };
+
+  return COMMISSIONING_CHECKLIST_TEMPLATE.map((item) => {
+    const base = typeof item === 'string'
+      ? { label: item, done: false }
+      : { done: false, ...item };
+    const key = base.label.toLowerCase();
+    let hit = byLabel.get(key);
+    if (!hit) {
+      const legacyKey = Object.keys(legacyMap).find((k) => legacyMap[k].toLowerCase() === key);
+      if (legacyKey) hit = byLabel.get(legacyKey);
+    }
+    if (base.type === 'plant_online') {
+      const online = prev.find((it) => it?.type === 'plant_online' || /plant online/i.test(it?.label || ''));
+      return {
+        ...base,
+        ...(online || {}),
+        label: 'Plant Online Status',
+        type: 'plant_online',
+        value: online?.value || '',
+        done: online?.value === 'done',
+      };
+    }
+    return {
+      ...base,
+      done: Boolean(hit?.done),
+    };
+  });
 }
 
 export function CommissioningCompleteModal({
@@ -114,13 +168,20 @@ export function CommissioningCompleteModal({
       const nextList = [...platforms];
       if (!nextList.some((x) => x.toLowerCase() === name.toLowerCase())) nextList.push(name);
       try {
+        const existing = await omSettingsApi.get(SOLAR_PLATFORMS_KEY).catch(() => null);
+        const prevDesc = existing?.value?.descriptions || {};
+        const descriptions = { ...prevDesc };
+        if (customDesc.trim()) descriptions[name] = customDesc.trim();
         await omSettingsApi.update(SOLAR_PLATFORMS_KEY, {
-          value: { platforms: nextList },
+          value: { platforms: nextList, descriptions },
         });
       } catch {
         await omSettingsApi.create({
           key: SOLAR_PLATFORMS_KEY,
-          value: { platforms: nextList },
+          value: {
+            platforms: nextList,
+            descriptions: customDesc.trim() ? { [name]: customDesc.trim() } : {},
+          },
         });
       }
       setPlatforms(nextList);
@@ -130,7 +191,6 @@ export function CommissioningCompleteModal({
       setCustomDesc('');
       onNotify?.(`Saved “${name}” for CRM-wide reuse`, 'success');
     } catch (e) {
-      // Still select locally even if settings write fails (offline / permission).
       setPlatforms((prev) => (prev.includes(name) ? prev : [...prev, name]));
       setForm((p) => ({ ...p, solar_app_platform: name }));
       setCustomOpen(false);
@@ -182,8 +242,7 @@ export function CommissioningCompleteModal({
 
   const projectLabel = [
     commissioning?.project_name,
-    commissioning?.project_id || commissioning?.project_code,
-    commissioning?.customer_name,
+    commissioning?.project_id || commissioning?.project_code || commissioning?.record_no,
   ].filter(Boolean).join(' — ') || 'Project';
 
   return (
@@ -194,23 +253,23 @@ export function CommissioningCompleteModal({
             <h2 className="text-[18px] font-extrabold text-[#0f172a]">Complete Commissioning</h2>
             <p className="mt-0.5 text-[12px] font-semibold text-[#64748b]">{projectLabel}</p>
           </div>
-          <button type="button" onClick={onClose} className="rounded p-1 hover:bg-[#f1f5f9]">
+          <button type="button" onClick={onClose} className="rounded p-1 text-[#94a3b8] hover:bg-[#f1f5f9] hover:text-[#0f172a]">
             <X className="size-4" />
           </button>
         </div>
 
-        <div className="grid gap-5 px-5 py-4 md:grid-cols-2">
+        <div className="grid gap-6 px-5 py-5 md:grid-cols-2">
           <section>
-            <h3 className="mb-3 text-[12px] font-extrabold uppercase tracking-[0.04em] text-[#94a3b8]">
+            <h3 className="mb-3 text-[12px] font-extrabold uppercase tracking-[0.06em] text-[#94a3b8]">
               Warranty &amp; Service Details
             </h3>
             <div className="grid gap-3">
               {[
-                ['inverter_warranty', 'Inverter Warranty (Years) *'],
-                ['panel_warranty', 'Panel Warranty (Years) *'],
-                ['service_warranty', 'Service Warranty (Years) *'],
+                ['inverter_warranty', 'Inverter Warranty (Years)'],
+                ['panel_warranty', 'Panel Warranty (Years)'],
+                ['service_warranty', 'Service Warranty (Years)'],
               ].map(([key, label]) => (
-                <label key={key} className="grid gap-1 text-[11px] font-bold text-[#64748b]">
+                <label key={key} className={labelCls}>
                   {label}
                   <div className="relative">
                     <input
@@ -225,30 +284,27 @@ export function CommissioningCompleteModal({
                   </div>
                 </label>
               ))}
-              <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
-                Next Service Due *
+              <label className={labelCls}>
+                Next Service Due
                 <input type="date" className={inputCls} value={form.next_service_due} onChange={set('next_service_due')} />
               </label>
-              <div className="rounded-[10px] border border-[#bfdbfe] bg-[#eff6ff] px-3 py-2 text-[11px] font-semibold leading-relaxed text-[#1d4ed8]">
+              <div className="rounded-[10px] border border-[#bfdbfe] bg-[#eff6ff] px-3 py-2.5 text-[11px] font-semibold leading-relaxed text-[#1d4ed8]">
                 Default: Inverter 10 Years, Panel 30 Years, Service 5 Years, Next Service = Today + 3 Months (Editable).
               </div>
             </div>
           </section>
 
           <section>
-            <h3 className="mb-3 text-[12px] font-extrabold uppercase tracking-[0.04em] text-[#94a3b8]">
+            <h3 className="mb-3 text-[12px] font-extrabold uppercase tracking-[0.06em] text-[#94a3b8]">
               System Login Details
             </h3>
-            <p className="mb-2 text-[11px] font-semibold text-[#b45309]">
-              Passwords are encrypted at rest and never shown in reports/PDF.
-            </p>
             <div className="grid gap-3">
-              <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
-                Wi-Fi ID (Site) *
+              <label className={labelCls}>
+                Wi-Fi ID (Site)
                 <input className={inputCls} value={form.wifi_ssid} onChange={set('wifi_ssid')} placeholder="e.g. Juned_Home" />
               </label>
-              <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
-                Wi-Fi Password *
+              <label className={labelCls}>
+                Wi-Fi Password
                 <div className="relative">
                   <input
                     type={showWifi ? 'text' : 'password'}
@@ -262,19 +318,19 @@ export function CommissioningCompleteModal({
                   </button>
                 </div>
               </label>
-              <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
-                Solar App / Platform *
+              <label className={labelCls}>
+                Solar App / Platform
                 <select className={inputCls} value={form.solar_app_platform} onChange={onPlatformChange}>
                   {platforms.map((o) => <option key={o} value={o}>{o}</option>)}
                   <option value="__other__">Other</option>
                 </select>
               </label>
-              <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
-                Customer App ID (Username) *
+              <label className={labelCls}>
+                Customer App ID (Username)
                 <input className={inputCls} value={form.solar_app_username} onChange={set('solar_app_username')} placeholder="email / username" />
               </label>
-              <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
-                Customer App Password *
+              <label className={labelCls}>
+                Customer App Password
                 <div className="relative">
                   <input
                     type={showApp ? 'text' : 'password'}
@@ -293,14 +349,14 @@ export function CommissioningCompleteModal({
         </div>
 
         <div className="flex justify-end gap-2 border-t border-[#edf2f8] px-5 py-4">
-          <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] px-4 text-[13px] font-bold text-[#475569]">
+          <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#475569]">
             Cancel
           </button>
           <button
             type="button"
             disabled={saving}
             onClick={submit}
-            className="h-10 rounded-[8px] bg-[#16a34a] px-4 text-[13px] font-extrabold text-white disabled:opacity-60"
+            className="h-10 rounded-[8px] bg-[#16a34a] px-4 text-[13px] font-extrabold text-white hover:bg-[#15803d] disabled:opacity-60"
           >
             {saving ? 'Saving…' : 'Complete & Move to O&M →'}
           </button>
@@ -309,14 +365,13 @@ export function CommissioningCompleteModal({
 
       {customOpen ? (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-[14px] bg-white p-5 shadow-2xl">
-            <h3 className="text-[16px] font-extrabold text-[#0f172a]">Add Custom Solar App / Platform</h3>
-            <p className="mt-1 text-[12px] font-semibold text-[#64748b]">
-              Saved names are reused across the CRM (commissioning + O&amp;M).
-            </p>
-            <div className="mt-4 grid gap-3">
-              <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
-                Application Name *
+          <div className="w-full max-w-md rounded-[14px] bg-white shadow-2xl">
+            <div className="border-b border-[#edf2f8] px-5 py-4">
+              <h3 className="text-[16px] font-extrabold text-[#0f172a]">Add Custom Solar App / Platform</h3>
+            </div>
+            <div className="grid gap-3 px-5 py-4">
+              <label className={labelCls}>
+                Application Name
                 <input
                   autoFocus
                   className={inputCls}
@@ -325,21 +380,21 @@ export function CommissioningCompleteModal({
                   placeholder="e.g. Aadhar Solar Portal"
                 />
               </label>
-              <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
+              <label className={labelCls}>
                 Description (Optional)
                 <textarea
-                  className="min-h-[72px] w-full rounded-[8px] border border-[#d9e4f2] px-3 py-2 text-[13px] font-semibold outline-none focus:border-[#2563eb]"
+                  className="min-h-[80px] w-full rounded-[8px] border border-[#d9e4f2] px-3 py-2 text-[13px] font-semibold outline-none focus:border-[#2563eb]"
                   value={customDesc}
                   onChange={(e) => setCustomDesc(e.target.value)}
-                  placeholder="Brief note for your team"
+                  placeholder="e.g. Government Aadhar based solar monitoring portal"
                 />
               </label>
             </div>
-            <div className="mt-4 flex justify-end gap-2">
+            <div className="flex justify-end gap-2 border-t border-[#edf2f8] px-5 py-4">
               <button
                 type="button"
                 onClick={() => { setCustomOpen(false); setCustomName(''); setCustomDesc(''); }}
-                className="h-10 rounded-[8px] border border-[#d9e4f2] px-4 text-[13px] font-bold text-[#475569]"
+                className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#475569]"
               >
                 Cancel
               </button>
@@ -347,7 +402,7 @@ export function CommissioningCompleteModal({
                 type="button"
                 disabled={savingCustom}
                 onClick={saveCustomPlatform}
-                className="h-10 rounded-[8px] bg-[#2563eb] px-4 text-[13px] font-extrabold text-white disabled:opacity-60"
+                className="h-10 rounded-[8px] bg-[#16a34a] px-4 text-[13px] font-extrabold text-white hover:bg-[#15803d] disabled:opacity-60"
               >
                 {savingCustom ? 'Saving…' : 'Save & Select'}
               </button>

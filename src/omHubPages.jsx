@@ -809,7 +809,7 @@ function OmHubDashboard({ Subnav, activeSection, onOpenSection, onNotify }) {
           <button
             type="button"
             onClick={() => onOpenSection?.('Service & Complaints')}
-            className={BTN_PRIMARY}
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[9px] bg-[#16a34a] px-4 text-[13px] font-extrabold text-white hover:bg-[#15803d]"
           >
             <Plus className="size-4" /> Raise Ticket
           </button>
@@ -820,34 +820,36 @@ function OmHubDashboard({ Subnav, activeSection, onOpenSection, onNotify }) {
           >
             View Tickets
           </button>
-          <button type="button" onClick={load} className={BTN_OUTLINE}><RefreshCw className="size-4" /></button>
+          <button type="button" onClick={load} className={BTN_OUTLINE} title="Refresh">
+            <RefreshCw className="size-4" />
+          </button>
         </div>
       )}
     >
       {loading ? <EmptyHint text="Loading dashboard…" /> : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
             {kpis.map((k) => (
               <article
                 key={k.label}
-                className={`${PANEL} p-4 ${k.tone === 'red' ? 'border-[#fecaca] bg-[#fef2f2]' : ''}`}
+                className={`${PANEL} p-4 ${k.tone === 'red' ? 'border-[#fecaca] bg-[#fff5f5]' : ''}`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className={`text-[11px] font-bold ${k.tone === 'red' ? 'text-[#b91c1c]' : 'text-[#64748b]'}`}>{k.label}</p>
-                  <k.icon className={`size-4 ${k.tone === 'red' ? 'text-[#dc2626]' : 'text-[#0b8f43]'}`} />
+                  <k.icon className={`size-4 shrink-0 ${k.tone === 'red' ? 'text-[#dc2626]' : k.tone === 'blue' ? 'text-[#0b65e5]' : 'text-[#0b8f43]'}`} />
                 </div>
-                <p className={`mt-2 text-[22px] font-extrabold ${k.tone === 'red' ? 'text-[#b91c1c]' : 'text-[#1e3261]'}`}>{k.value}</p>
+                <p className={`mt-2 text-[24px] font-extrabold leading-none ${k.tone === 'red' ? 'text-[#dc2626]' : 'text-[#1e3261]'}`}>{k.value}</p>
               </article>
             ))}
           </div>
 
           <div className="grid gap-4 lg:grid-cols-5">
-            <div className="lg:col-span-3">
-              <div className="mb-2 flex items-center justify-between gap-2">
+            <div className="lg:col-span-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
                 <h3 className="text-[14px] font-extrabold text-[#111827]">Service Tickets (Recent)</h3>
                 <button
                   type="button"
-                  className="text-[12px] font-bold text-[#0b65e5]"
+                  className="text-[12px] font-bold text-[#0b65e5] hover:underline"
                   onClick={() => onOpenSection?.('Service & Complaints')}
                 >
                   View All
@@ -870,19 +872,21 @@ function OmHubDashboard({ Subnav, activeSection, onOpenSection, onNotify }) {
               />
             </div>
 
-            <div className="lg:col-span-2">
-              <h3 className="mb-2 text-[14px] font-extrabold text-[#111827]">Upcoming & Alerts</h3>
+            <div className="lg:col-span-2 space-y-2">
+              <h3 className="text-[14px] font-extrabold text-[#111827]">Upcoming & Alerts</h3>
               <div className={`${PANEL} divide-y divide-[#edf2f8]`}>
                 {upcomingAlerts.length ? upcomingAlerts.slice(0, 8).map((a, i) => (
-                  <div key={`${a.label}-${a.plant_code || a.plant_name}-${i}`} className="flex items-start gap-3 px-3 py-3">
-                    <AlertTriangle className={`mt-0.5 size-4 shrink-0 ${a.days <= 7 ? 'text-[#dc2626]' : 'text-[#d97706]'}`} />
+                  <div key={`${a.label}-${a.plant_code || a.plant_name}-${i}`} className="flex items-start gap-3 px-3.5 py-3">
+                    <span className={`mt-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-full ${a.days <= 7 ? 'bg-[#fee2e2] text-[#dc2626]' : 'bg-[#fff7ed] text-[#ea580c]'}`}>
+                      <AlertTriangle className="size-3.5" />
+                    </span>
                     <div className="min-w-0">
                       <p className="text-[13px] font-extrabold text-[#1e3261]">
-                        {a.label} — {a.days} Days
+                        {a.label} – {a.days} Days
                       </p>
                       <p className="truncate text-[12px] font-semibold text-[#64748b]">
                         {a.plant_name}
-                        {a.capacity_kwp != null ? ` · ${Number(a.capacity_kwp).toFixed(2)} kWp` : ''}
+                        {a.capacity_kwp != null ? ` - ${Number(a.capacity_kwp).toFixed(2)} kWp` : ''}
                       </p>
                     </div>
                   </div>
@@ -895,23 +899,26 @@ function OmHubDashboard({ Subnav, activeSection, onOpenSection, onNotify }) {
             </div>
           </div>
 
-          <div>
-            <h3 className="mb-2 text-[14px] font-extrabold text-[#111827]">Quick Actions</h3>
+          <div className="space-y-2">
+            <h3 className="text-[14px] font-extrabold text-[#111827]">Quick Actions</h3>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
               {[
-                ['Raise Service Ticket', 'Service & Complaints', Ticket],
-                ['Schedule Service', 'Service & Complaints', Calendar],
-                ['Ticket List', 'Service & Complaints', ClipboardList],
-                ['AMC & Warranty', 'AMC & Warranty', Shield],
-                ['Service Reports', 'Plant Monitoring & Reports', CheckCircle2],
-              ].map(([label, sec, Icon]) => (
+                ['Raise Service Ticket', 'Service & Complaints', Ticket, '#ecfdf5', '#16a34a'],
+                ['Schedule Service', 'Service & Complaints', Calendar, '#eff6ff', '#2563eb'],
+                ['Ticket List', 'Service & Complaints', ClipboardList, '#f5f3ff', '#7c3aed'],
+                ['AMC & Warranty', 'AMC & Warranty', Shield, '#fff7ed', '#ea580c'],
+                ['Service Reports', 'Plant Monitoring & Reports', CheckCircle2, '#ecfeff', '#0891b2'],
+              ].map(([label, sec, Icon, bg, fg]) => (
                 <button
                   key={label}
                   type="button"
                   onClick={() => onOpenSection?.(sec)}
-                  className={`${PANEL} flex items-center gap-3 px-4 py-4 text-left transition hover:border-[#0b8f43]`}
+                  className={`${PANEL} flex min-h-[72px] items-center gap-3 px-4 py-4 text-left transition hover:border-[#0b8f43] hover:shadow-md`}
                 >
-                  <span className="inline-flex size-10 items-center justify-center rounded-[10px] bg-[#ecfdf5] text-[#0b8f43]">
+                  <span
+                    className="inline-flex size-11 items-center justify-center rounded-[12px]"
+                    style={{ background: bg, color: fg }}
+                  >
                     <Icon className="size-5" />
                   </span>
                   <span className="text-[13px] font-extrabold text-[#1e3261]">{label}</span>
