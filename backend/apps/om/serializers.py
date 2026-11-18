@@ -164,7 +164,7 @@ class OmPlantSerializer(serializers.ModelSerializer):
         model = OmPlant
         fields = '__all__'
         read_only_fields = [
-            'project', 'lead', 'commissioning_date', 'free_service_start', 'free_service_end',
+            'project', 'lead', 'free_service_start', 'free_service_end',
             'created_by', 'created_at', 'updated_at',
             'wifi_password_encrypted', 'solar_app_password_encrypted',
         ]

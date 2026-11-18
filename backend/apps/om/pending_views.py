@@ -20,7 +20,8 @@ class PendingFlowViewSet(viewsets.ViewSet):
     """O&M pending-work lists: Work Orders → Quotations → Dispatch →
     Installation → Invoice, plus short-listed (short) material."""
     permission_classes = [HasModulePermission]
-    permission_module = 'O&M'
+    # Tracker is the sidebar category; O&M kept as fallback for older role matrices.
+    permission_modules = ('Tracker', 'O&M')
     permission_action_map = {
         'summary': 'can_view',
         'work_orders': 'can_view',

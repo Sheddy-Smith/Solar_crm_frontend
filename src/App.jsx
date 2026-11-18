@@ -956,14 +956,15 @@ function permissionModuleForSection(section) {
   if (section === 'Project Management' || projectRelatedPages.includes(section)) return 'Project Management';
   if (section === 'Liaisoning & Commissioning' || liaisonRelatedPages.includes(section)) return 'Liaisoning & Commissioning';
   if (section === OM_FIELD_WORK_SECTION) return 'O&M Field Work';
-  if (omRelatedPages.includes(section) || omPendingRelatedPages.includes(section)) return 'O&M';
+  if (section === 'Tracker' || omPendingRelatedPages.includes(section)) return 'Tracker';
+  if (omRelatedPages.includes(section)) return 'O&M';
   if (section === 'AMC & Warranty' || amcRelatedPages.includes(section)) return 'AMC & Warranty';
   if (section === 'Accounts' || accountsRelatedPages.includes(section)) return 'Accounts';
   if (section === 'Inventory' || inventoryRelatedPages.includes(section)) return 'Inventory';
   if (section === 'Employee' || employeeRelatedPages.includes(section)) return 'Employee';
   if (section === 'Insights' || insightsRelatedPages.includes(section)) return 'Insights';
   if (dailyTasksRelatedPages.includes(section)) return 'Daily Tasks';
-  if (section === 'Sync, Share & Backup' || syncShareBackupRelatedPages.includes(section)) return 'Settings';
+  if (section === 'Sync, Share & Backup' || syncShareBackupRelatedPages.includes(section)) return 'Sync, Share & Backup';
   if (section === 'Settings' || settingsRelatedPages.includes(section) || legacyEmployeeAdminPages.includes(section)) return 'Settings';
   return SIDEBAR_MODULE_BY_LABEL[section] || null;
 }
@@ -1010,6 +1011,9 @@ function canAccessSection(user, section) {
   if (!mod) return true;
   if (hasAnyModuleAccess(user, mod)) return true;
   if (mod === 'O&M Field Work' && hasAnyModuleAccess(user, 'O&M')) return true;
+  // Legacy matrices before Tracker / Sync modules were split out.
+  if (mod === 'Tracker' && hasAnyModuleAccess(user, 'O&M')) return true;
+  if (mod === 'Sync, Share & Backup' && hasAnyModuleAccess(user, 'Settings')) return true;
   if (omRelatedPages.includes(section) && isOmFieldOnlyUser(user)) return true;
   return false;
 }
@@ -28187,19 +28191,21 @@ function createSettingsRolePermissions(roleName) {
     { module: 'Dashboard', description: 'View dashboard and analytics' },
     { module: 'Lead', description: 'Leads, follow-ups, IVRS and approvals' },
     { module: 'Quotation', description: 'Create and manage quotations' },
+    { module: 'Customer', description: 'Customer details, ledger and credit settle' },
+    { module: 'Vendors', description: 'Vendor details, ledger and payments' },
     { module: 'Project Management', description: 'Create and manage solar projects' },
     { module: 'Liaisoning & Commissioning', description: 'LC applications and approvals' },
     { module: 'O&M', description: 'Operation and maintenance activities' },
     { module: 'O&M Field Work', description: 'Engineer app: My Tasks and the service form only' },
+    { module: 'Tracker', description: 'Pending work tracker (WO → Invoice)' },
     { module: 'Accounts', description: 'Invoices, payments and accounting' },
-    { module: 'Customer', description: 'Customer details, ledger and credit settle' },
-    { module: 'Vendors', description: 'Vendor details, ledger and payments' },
-    { module: 'Supplier', description: 'Supplier details, ledger and payments' },
     { module: 'Inventory', description: 'Stock and warehouse management' },
     { module: 'Employee', description: 'Employees, attendance and payroll' },
+    { module: 'Supplier', description: 'Supplier details, ledger and payments' },
     { module: 'Insights', description: 'Reports and analytics' },
     { module: 'Daily Tasks', description: 'Assign tasks and track Completed / Not Completed' },
     { module: 'AMC & Warranty', description: 'AMC contracts and warranty claims' },
+    { module: 'Sync, Share & Backup', description: 'Sync, share links and backup / restore' },
     { module: 'Settings', description: 'System configuration' },
     { module: 'User Management', description: 'Manage users and roles' },
   ];
@@ -28214,15 +28220,17 @@ function createSettingsRolePermissions(roleName) {
     'Liaisoning & Commissioning': { View: true, Add: true, Edit: true, Delete: false, Export: false, Assign: false },
     'O&M': { View: true, Add: true, Edit: true, Delete: false, Export: true, Assign: false },
     'O&M Field Work': { View: true, Add: true, Edit: true, Delete: false, Export: false, Assign: false },
+    Tracker: { View: true, Add: true, Edit: true, Delete: false, Export: true, Assign: false },
     Accounts: { View: true, Add: true, Edit: false, Delete: false, Export: true, Assign: false },
+    Inventory: { View: true, Add: true, Edit: true, Delete: false, Export: true, Assign: false },
+    Employee: { View: true, Add: true, Edit: true, Delete: false, Export: true, Assign: false },
     Customer: { View: true, Add: true, Edit: true, Delete: false, Export: true, Assign: false },
     Vendors: { View: true, Add: true, Edit: true, Delete: false, Export: true, Assign: false },
     Supplier: { View: true, Add: true, Edit: true, Delete: false, Export: true, Assign: false },
-    Inventory: { View: true, Add: true, Edit: true, Delete: false, Export: true, Assign: false },
-    Employee: { View: true, Add: true, Edit: true, Delete: false, Export: true, Assign: false },
     Insights: { View: true, Add: false, Edit: false, Delete: false, Export: true, Assign: false },
     'Daily Tasks': { View: true, Add: true, Edit: true, Delete: false, Export: true, Assign: false },
     'AMC & Warranty': { View: true, Add: true, Edit: true, Delete: false, Export: true, Assign: false },
+    'Sync, Share & Backup': { View: true, Add: false, Edit: false, Delete: false, Export: false, Assign: false },
     Settings: { View: true, Add: false, Edit: false, Delete: false, Export: false, Assign: false },
     'User Management': { View: false, Add: false, Edit: false, Delete: false, Export: false, Assign: false },
   };

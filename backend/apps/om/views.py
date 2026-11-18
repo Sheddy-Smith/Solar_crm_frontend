@@ -105,6 +105,45 @@ class OmPlantViewSet(OmBaseViewSet):
         data = self.get_serializer(self.get_queryset().get(pk=plant.pk)).data
         return Response(data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
+    @action(detail=False, methods=['get'], url_path='prefill')
+    def prefill(self, request):
+        """Prefill Add Existing Plant form from a CRM project (+ commissioning if any)."""
+        from apps.projects.models import Project
+        from .services import build_registration_prefill
+        project = Project.objects.filter(pk=request.query_params.get('project'), is_deleted=False).first()
+        if not project:
+            raise ValidationError({'project': 'Select a project.'})
+        return Response(build_registration_prefill(project))
+
+    @action(detail=False, methods=['post'], url_path='register-existing')
+    def register_existing(self, request):
+        """Full existing-plant registration (draft or activate). Idempotent per project."""
+        from apps.projects.models import Project
+        from .services import register_existing_plant
+        project = Project.objects.filter(pk=request.data.get('project'), is_deleted=False).first()
+        if not project:
+            raise ValidationError({'project': 'Select a project.'})
+        customer_name = (request.data.get('customer_name') or '').strip()
+        plant_name = (request.data.get('plant_name') or '').strip()
+        if not customer_name:
+            raise ValidationError({'customer_name': 'Customer name is required.'})
+        if not plant_name:
+            raise ValidationError({'plant_name': 'Plant / project name is required.'})
+        draft = str(request.data.get('draft', '')).lower() in ('1', 'true', 'yes')
+        if not draft and not request.data.get('commissioning_date'):
+            # Prefer installation date as commissioning fallback for old plants
+            if not request.data.get('panel_installation_date') and not request.data.get('installation_date'):
+                raise ValidationError({
+                    'commissioning_date': 'Commissioning or installation date is required to activate O&M.',
+                })
+        plant, created = register_existing_plant(
+            project, request.data, user=request.user, draft=draft,
+        )
+        data = self.get_serializer(self.get_queryset().get(pk=plant.pk)).data
+        data['created'] = created
+        data['is_draft'] = plant.is_draft
+        return Response(data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
     @action(detail=True, methods=['get'])
     def history(self, request, pk=None):
         from .workflow import plant_history
@@ -141,6 +180,8 @@ class OmPlantViewSet(OmBaseViewSet):
         'history': 'can_view',
         'refresh': 'can_edit',
         'reveal_credentials': 'can_edit',
+        'prefill': 'can_view',
+        'register_existing': 'can_add',
     }
 
 

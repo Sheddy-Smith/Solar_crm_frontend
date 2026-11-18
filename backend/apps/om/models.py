@@ -114,10 +114,13 @@ class OmPlant(models.Model):
     panel_wattage_w = models.CharField(max_length=20, blank=True)
     panel_count = models.CharField(max_length=20, blank=True)
     panel_serials = models.TextField(blank=True)
+    panel_installation_date = models.DateField(null=True, blank=True)
     inverter_brand = models.CharField(max_length=100, blank=True)
     inverter_model = models.CharField(max_length=100, blank=True)
     inverter_capacity_kw = models.CharField(max_length=20, blank=True)
-    inverter_serial = models.CharField(max_length=200, blank=True)
+    inverter_count = models.CharField(max_length=20, blank=True)
+    inverter_serial = models.TextField(blank=True)  # multi-serial paste supported
+    inverter_installation_date = models.DateField(null=True, blank=True)
     structure_type = models.CharField(max_length=100, blank=True)
     acdb_details = models.CharField(max_length=255, blank=True)
     dcdb_details = models.CharField(max_length=255, blank=True)
@@ -125,18 +128,35 @@ class OmPlant(models.Model):
     net_meter_details = models.TextField(blank=True)
     warranty_details = models.TextField(blank=True)
 
+    data_logger_brand = models.CharField(max_length=100, blank=True, default='')
+    data_logger_model = models.CharField(max_length=100, blank=True, default='')
+    data_logger_serial = models.CharField(max_length=120, blank=True, default='')
+
     inverter_warranty_years = models.PositiveSmallIntegerField(null=True, blank=True)
     panel_warranty_years = models.PositiveSmallIntegerField(null=True, blank=True)
+    panel_performance_warranty_years = models.PositiveSmallIntegerField(null=True, blank=True)
     service_warranty_years = models.PositiveSmallIntegerField(null=True, blank=True)
+    panel_warranty_start = models.DateField(null=True, blank=True)
+    inverter_warranty_start = models.DateField(null=True, blank=True)
+    service_warranty_start = models.DateField(null=True, blank=True)
     inverter_warranty_end = models.DateField(null=True, blank=True)
     panel_warranty_end = models.DateField(null=True, blank=True)
     service_warranty_end = models.DateField(null=True, blank=True)
     next_service_due = models.DateField(null=True, blank=True)
+    free_service_included = models.BooleanField(default=True)
+    service_frequency = models.CharField(max_length=40, blank=True, default='Quarterly')
+
     wifi_ssid = models.CharField(max_length=120, blank=True, default='')
     wifi_password_encrypted = models.TextField(blank=True, default='')
     solar_app_platform = models.CharField(max_length=80, blank=True, default='')
+    solar_app_type = models.CharField(max_length=80, blank=True, default='')
     solar_app_username = models.CharField(max_length=120, blank=True, default='')
     solar_app_password_encrypted = models.TextField(blank=True, default='')
+    account_created = models.BooleanField(default=False)
+    plant_online = models.BooleanField(default=False)
+    data_logger_connected = models.BooleanField(default=False)
+    monitoring_status = models.CharField(max_length=40, blank=True, default='')
+    last_online_date = models.DateField(null=True, blank=True)
 
     free_service_start = models.DateField(null=True, blank=True)
     free_service_end = models.DateField(null=True, blank=True)
@@ -145,6 +165,8 @@ class OmPlant(models.Model):
         'amc.AmcContract', on_delete=models.SET_NULL, null=True, blank=True, related_name='om_plants',
     )
     is_active = models.BooleanField(default=True, db_index=True)
+    is_draft = models.BooleanField(default=False, db_index=True)
+    registration_source = models.CharField(max_length=40, blank=True, default='')  # Existing Project / Manual
     remarks = models.TextField(blank=True)
 
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='om_plants_created')
@@ -527,6 +549,8 @@ class OmDocument(models.Model):
         ('Before', 'Before'),
         ('After', 'After'),
         ('Policy', 'Policy'),
+        ('Photo', 'Photo'),
+        ('Document', 'Document'),
         ('General', 'General'),
     ]
 

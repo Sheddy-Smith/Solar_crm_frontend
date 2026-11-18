@@ -318,3 +318,278 @@ def activate_plant(project, commissioning_date=None, user=None):
         category='Service', severity='info', plant=plant, link=f'/om/plants?plant={plant.pk}',
     )
     return plant, created
+
+
+def _parse_date(value):
+    if value in (None, ''):
+        return None
+    if isinstance(value, date):
+        return value
+    return date.fromisoformat(str(value)[:10])
+
+
+def _parse_int(value, default=None):
+    if value in (None, ''):
+        return default
+    try:
+        return int(Decimal(str(value)))
+    except Exception:
+        return default
+
+
+def _add_years(start, years):
+    from apps.liaisoning.commissioning_complete import add_years
+    if not start or not years:
+        return None
+    return add_years(start, int(years))
+
+
+def sync_plant_amc_warranties(plant, user=None):
+    """Upsert AmcWarranty rows from plant warranty fields (no duplicates per asset type)."""
+    if not plant or not plant.project_id:
+        return
+    from apps.amc.models import AmcWarranty
+    from apps.liaisoning.commissioning_complete import warranty_status_for
+    from django.utils import timezone
+
+    today = timezone.localdate()
+    specs = [
+        ('Panel', plant.panel_warranty_start or plant.commissioning_date, plant.panel_warranty_end, plant.panel_warranty_years, plant.panel_brand, plant.panel_serials),
+        ('Inverter', plant.inverter_warranty_start or plant.commissioning_date, plant.inverter_warranty_end, plant.inverter_warranty_years, plant.inverter_brand, plant.inverter_serial),
+        ('Service', plant.service_warranty_start or plant.commissioning_date, plant.service_warranty_end, plant.service_warranty_years, 'Company', ''),
+    ]
+    for asset_type, start, end, years, manufacturer, serial in specs:
+        if not end and not years:
+            continue
+        existing = AmcWarranty.objects.filter(project=plant.project, asset_type=asset_type).order_by('-id').first()
+        payload = {
+            'asset_type': asset_type,
+            'manufacturer': (manufacturer or '')[:100],
+            'serial_number': str(serial or '')[:100],
+            'warranty_start': start,
+            'warranty_end': end,
+            'status': warranty_status_for(end, today) if end else 'Active',
+            'coverage_details': f'{years} Years' if years else '',
+            'created_by': user,
+        }
+        if existing:
+            for k, v in payload.items():
+                if k == 'created_by':
+                    continue
+                setattr(existing, k, v)
+            existing.save()
+        else:
+            AmcWarranty.objects.create(project=plant.project, **payload)
+
+
+PLANT_REGISTER_FIELDS = [
+    'customer_name', 'mobile_number', 'alternate_mobile', 'email', 'address', 'city', 'state',
+    'contact_person', 'customer_type',
+    'plant_name', 'plant_location', 'capacity_kw', 'plant_type', 'system_type',
+    'installation_date', 'commissioning_date', 'handover_date',
+    'panel_brand', 'panel_model', 'panel_wattage_w', 'panel_count', 'panel_serials',
+    'panel_installation_date',
+    'inverter_brand', 'inverter_model', 'inverter_capacity_kw', 'inverter_count', 'inverter_serial',
+    'inverter_installation_date',
+    'structure_type', 'acdb_details', 'dcdb_details', 'earthing_details', 'net_meter_details',
+    'data_logger_brand', 'data_logger_model', 'data_logger_serial',
+    'panel_warranty_years', 'panel_performance_warranty_years', 'inverter_warranty_years',
+    'service_warranty_years',
+    'panel_warranty_start', 'inverter_warranty_start', 'service_warranty_start',
+    'next_service_due', 'free_service_included', 'service_frequency',
+    'wifi_ssid', 'solar_app_platform', 'solar_app_type', 'solar_app_username',
+    'account_created', 'plant_online', 'data_logger_connected', 'monitoring_status', 'last_online_date',
+    'remarks', 'registration_source',
+]
+
+DATE_FIELDS = {
+    'installation_date', 'commissioning_date', 'handover_date',
+    'panel_installation_date', 'inverter_installation_date',
+    'panel_warranty_start', 'inverter_warranty_start', 'service_warranty_start',
+    'next_service_due', 'last_online_date',
+}
+BOOL_FIELDS = {
+    'free_service_included', 'account_created', 'plant_online',
+    'data_logger_connected', 'is_draft',
+}
+INT_FIELDS = {
+    'panel_warranty_years', 'panel_performance_warranty_years',
+    'inverter_warranty_years', 'service_warranty_years',
+}
+
+
+@transaction.atomic
+def register_existing_plant(project, payload, user=None, draft=False):
+    """Register or update an existing/old plant into O&M without creating duplicates.
+
+    Uses the project's OneToOne OmPlant. Prefer this over a second plant row when
+    commissioning already staged/activated the plant.
+    """
+    from malwa_solar.encryption import encrypt_value
+    from apps.notifications.services import notify
+
+    if not project:
+        raise ValueError('project is required')
+
+    snapshot = build_snapshot(project)
+    plant = OmPlant.objects.select_for_update().filter(project=project).first()
+    created = plant is None
+
+    if created:
+        customer = None
+        try:
+            from apps.accounts_module.services import get_or_create_party_for_project
+            customer = get_or_create_party_for_project(project)
+        except Exception:
+            logger.exception('O&M: could not link customer for register plant project %s', project.pk)
+        plant = OmPlant(
+            project=project,
+            customer=customer,
+            created_by=user,
+            customer_name=snapshot.get('customer_name') or project.customer_name or 'Customer',
+            plant_name=snapshot.get('plant_name') or project.project_name or 'Plant',
+        )
+        for field, value in snapshot.items():
+            if hasattr(plant, field) and value not in (None, ''):
+                setattr(plant, field, value)
+
+    data = dict(payload or {})
+    for field in PLANT_REGISTER_FIELDS:
+        if field not in data:
+            continue
+        value = data[field]
+        if field in DATE_FIELDS:
+            value = _parse_date(value)
+        elif field in BOOL_FIELDS:
+            if isinstance(value, str):
+                value = value.strip().lower() in ('1', 'true', 'yes', 'y')
+            else:
+                value = bool(value)
+        elif field in INT_FIELDS:
+            value = _parse_int(value)
+        elif field == 'capacity_kw':
+            if value in (None, ''):
+                value = None
+            else:
+                try:
+                    value = Decimal(str(value))
+                except Exception:
+                    value = None
+        elif isinstance(value, str):
+            value = value.strip()
+        setattr(plant, field, value)
+
+    # Plaintext passwords from registration form → encrypted storage
+    wifi_pw = data.get('wifi_password')
+    if wifi_pw not in (None, ''):
+        plant.wifi_password_encrypted = encrypt_value(str(wifi_pw))
+    app_pw = data.get('solar_app_password')
+    if app_pw not in (None, ''):
+        plant.solar_app_password_encrypted = encrypt_value(str(app_pw))
+
+    # Auto Warranty Till = start + years
+    panel_start = plant.panel_warranty_start or plant.panel_installation_date or plant.commissioning_date
+    inv_start = plant.inverter_warranty_start or plant.inverter_installation_date or plant.commissioning_date
+    svc_start = plant.service_warranty_start or plant.commissioning_date
+    if plant.panel_warranty_years and panel_start:
+        plant.panel_warranty_start = panel_start
+        plant.panel_warranty_end = _add_years(panel_start, plant.panel_warranty_years)
+    if plant.inverter_warranty_years and inv_start:
+        plant.inverter_warranty_start = inv_start
+        plant.inverter_warranty_end = _add_years(inv_start, plant.inverter_warranty_years)
+    if plant.service_warranty_years and svc_start:
+        plant.service_warranty_start = svc_start
+        plant.service_warranty_end = _add_years(svc_start, plant.service_warranty_years)
+
+    if not plant.commissioning_date:
+        plant.commissioning_date = (
+            plant.panel_installation_date
+            or plant.inverter_installation_date
+            or plant.installation_date
+        )
+    if plant.commissioning_date and plant.free_service_included:
+        plant.free_service_start = plant.commissioning_date
+        plant.free_service_end = free_service_end(plant.commissioning_date, FREE_SERVICE_YEARS)
+
+    lines = []
+    if plant.panel_warranty_years and plant.panel_warranty_end:
+        lines.append(f'Panel: {plant.panel_warranty_years}Y till {plant.panel_warranty_end:%d-%m-%Y}')
+    if plant.inverter_warranty_years and plant.inverter_warranty_end:
+        lines.append(f'Inverter: {plant.inverter_warranty_years}Y till {plant.inverter_warranty_end:%d-%m-%Y}')
+    if plant.service_warranty_years and plant.service_warranty_end:
+        lines.append(f'Service: {plant.service_warranty_years}Y till {plant.service_warranty_end:%d-%m-%Y}')
+    if lines:
+        plant.warranty_details = '\n'.join(lines)
+
+    plant.is_draft = bool(draft)
+    if draft:
+        plant.is_active = False
+        if plant.om_status != 'Commissioning Pending':
+            plant.om_status = 'Commissioning Pending'
+    else:
+        plant.is_active = True
+        plant.is_draft = False
+        plant.om_status = compute_om_status(plant)
+
+    if not plant.lead_id and project.lead_id:
+        plant.lead_id = project.lead_id
+
+    plant.save()
+
+    if not draft:
+        if plant.commissioning_date:
+            ensure_quarterly_schedule(plant, user=user)
+            ensure_cleaning_schedule(plant, user=user)
+        sync_plant_amc_warranties(plant, user=user)
+        notify(
+            f'plant-registered-{plant.pk}',
+            f'Existing plant added to O&M: {plant.plant_name}',
+            message=f'{plant.plant_code} registered'
+                    + (f' · commissioned {plant.commissioning_date:%d-%m-%Y}' if plant.commissioning_date else ''),
+            category='Service', severity='info', plant=plant, link=f'/om/plants?plant={plant.pk}',
+        )
+    return plant, created
+
+
+def build_registration_prefill(project):
+    """Payload used by Add Existing Plant → Add from Existing Project."""
+    snap = build_snapshot(project)
+    commissioning = project.lc_commissionings.order_by('-created_at').first() if hasattr(project, 'lc_commissionings') else None
+    plant = getattr(project, 'om_plant', None)
+    data = {
+        **{k: ('' if v is None else v) for k, v in snap.items() if k != 'lead'},
+        'project': project.id,
+        'project_code': project.project_id,
+        'project_name': project.project_name,
+        'has_existing_plant': bool(plant and plant.pk),
+        'existing_plant_id': plant.pk if plant else None,
+        'existing_plant_active': bool(plant and plant.is_active and not plant.is_draft),
+    }
+    if commissioning:
+        data['commissioning_date'] = commissioning.date or data.get('commissioning_date')
+        if commissioning.inverter_warranty_years:
+            data['inverter_warranty_years'] = commissioning.inverter_warranty_years
+        if commissioning.panel_warranty_years:
+            data['panel_warranty_years'] = commissioning.panel_warranty_years
+        if commissioning.service_warranty_years:
+            data['service_warranty_years'] = commissioning.service_warranty_years
+        if commissioning.next_service_due:
+            data['next_service_due'] = commissioning.next_service_due
+        if commissioning.solar_app_platform:
+            data['solar_app_platform'] = commissioning.solar_app_platform
+        if commissioning.solar_app_username:
+            data['solar_app_username'] = commissioning.solar_app_username
+        if commissioning.wifi_ssid:
+            data['wifi_ssid'] = commissioning.wifi_ssid
+    if plant:
+        for field in PLANT_REGISTER_FIELDS:
+            val = getattr(plant, field, None)
+            if val not in (None, ''):
+                data[field] = val
+    # Serialize dates
+    for key, val in list(data.items()):
+        if isinstance(val, date):
+            data[key] = val.isoformat()
+        elif isinstance(val, Decimal):
+            data[key] = str(val)
+    return data

@@ -1027,6 +1027,8 @@ export const omPlantApi = {
   history: (id) => request(`/om/plants/${id}/history/`),
   refresh: (id, commissioningDate) => omPost(`plants/${id}/refresh/`, commissioningDate ? { commissioning_date: commissioningDate } : {}),
   revealCredentials: (id) => omPost(`plants/${id}/reveal-credentials/`),
+  prefill: (projectId) => request(`/om/plants/prefill/?project=${projectId}`),
+  registerExisting: (data) => omPost('plants/register-existing/', data),
 };
 export const omInsuranceApi = omCrud('insurance');
 export const omVisitPartApi = omCrud('visit-parts');

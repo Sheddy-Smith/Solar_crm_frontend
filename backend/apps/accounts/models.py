@@ -33,24 +33,28 @@ class RolePermission(models.Model):
     # Ordered to match the main CRM sidebar so Roles & Permissions UI is
     # easy to understand. Lead covers follow-ups / IVRS / approvals APIs.
     # User Management stays separate (Users & Roles under Settings).
+    # Order matches the main CRM sidebar categories first, then extra modules
+    # that are nested (Quotation) or specialty (Field Work / AMC / User Mgmt).
     MODULE_CHOICES = [
         ('Dashboard', 'Dashboard'),
         ('Lead', 'Lead'),
         ('Quotation', 'Quotation'),
+        ('Customer', 'Customer'),
+        ('Vendors', 'Vendors'),
         ('Project Management', 'Project Management'),
         ('Liaisoning & Commissioning', 'Liaisoning & Commissioning'),
         ('O&M', 'O&M'),
         # Engineers: only "My Tasks" + the mobile service form, not the full O&M module.
         ('O&M Field Work', 'O&M Field Work'),
+        ('Tracker', 'Tracker'),
         ('Accounts', 'Accounts'),
-        ('Customer', 'Customer'),
-        ('Vendors', 'Vendors'),
-        ('Supplier', 'Supplier'),
         ('Inventory', 'Inventory'),
         ('Employee', 'Employee'),
+        ('Supplier', 'Supplier'),
         ('Insights', 'Insights'),
         ('Daily Tasks', 'Daily Tasks'),
         ('AMC & Warranty', 'AMC & Warranty'),
+        ('Sync, Share & Backup', 'Sync, Share & Backup'),
         ('Settings', 'Settings'),
         ('User Management', 'User Management'),
     ]

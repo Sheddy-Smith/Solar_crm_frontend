@@ -17,6 +17,7 @@ import {
   ComplaintTicketsList, OmListPage, OmMyTasksPage, ServiceFormWizard, ServiceTasksList, ServiceVisitsList,
   VisitDetailModal, omCaps,
 } from './omServicePages.jsx';
+import { AddExistingPlantForm } from './omExistingPlantForm.jsx';
 
 const OM_STATUSES = [
   'Commissioning Pending',
@@ -25,6 +26,7 @@ const OM_STATUSES = [
 ];
 const PLANT_FILTERS = [
   { value: 'commissioning_pending', label: 'Commissioning pending' },
+  { value: 'drafts', label: 'Registration drafts' },
   { value: 'service_due', label: 'Service due (15 days)' },
   { value: 'service_overdue', label: 'Service overdue' },
   { value: 'open_tickets', label: 'Open complaints' },
@@ -35,6 +37,7 @@ const PLANT_FILTERS = [
   { value: 'free_expired', label: 'Free service expired' },
   { value: 'paid', label: 'Paid O&M / AMC' },
   { value: 'active', label: 'Active plants' },
+  { value: 'warranty_expiring', label: 'Warranty expiring (30 days)' },
   { value: 'insurance_active', label: 'Insurance active' },
   { value: 'insurance_expiring', label: 'Insurance expiring (30 days)' },
   { value: 'insurance_expired', label: 'Insurance expired' },
@@ -230,6 +233,7 @@ export function PlantsPage({ caps, Subnav, activeSection, onOpenSection, onNotif
   const [loading, setLoading] = useState(true);
   const [tick, setTick] = useState(0);
   const [activate, setActivate] = useState(false);
+  const [addExisting, setAddExisting] = useState(false);
 
   useEffect(() => {
     if (focus?.filter !== undefined) {
@@ -276,7 +280,13 @@ export function PlantsPage({ caps, Subnav, activeSection, onOpenSection, onNotif
     { label: 'Panel Wty', render: (p) => warrantyCell(p.warranty_alerts?.rows?.find((r) => r.label === 'Panel')) },
     { label: 'Service Wty', render: (p) => warrantyCell(p.warranty_alerts?.rows?.find((r) => r.label === 'Service')) },
     { label: 'Next Service', render: (p) => (p.next_service ? <div><p className={cx(p.next_service.overdue && 'font-extrabold text-[#dc2626]')}>{fmtDate(p.next_service.due_date)}</p><p className="text-[11px] text-[#8a98af]">{p.next_service.title.replace('Quarterly Service ', 'Q ')}</p></div> : '—') },
-    { label: 'Status', render: (p) => <Pill>{p.om_status}</Pill> },
+    { label: 'Status', render: (p) => (
+      <div className="flex flex-col gap-1">
+        <Pill>{p.om_status}</Pill>
+        {p.is_draft ? <Pill tone="amber">Draft</Pill> : null}
+        {p.registration_source ? <span className="text-[10px] font-bold text-[#8a98af]">{p.registration_source}</span> : null}
+      </div>
+    ) },
     {
       label: 'Alerts',
       render: (p) => {
@@ -305,9 +315,14 @@ export function PlantsPage({ caps, Subnav, activeSection, onOpenSection, onNotif
               <SlidersHorizontal className="size-4" /> Filters{activeCount ? ` (${activeCount})` : ''}
             </button>
             {caps.add ? (
-              <button type="button" className={BTN_PRIMARY} onClick={() => setActivate(true)}>
-                <Plus className="size-4" /> Activate Plant
-              </button>
+              <>
+                <button type="button" className={BTN_PRIMARY} onClick={() => setAddExisting(true)}>
+                  <Plus className="size-4" /> Add Existing Plant
+                </button>
+                <button type="button" className={BTN_OUTLINE} onClick={() => setActivate(true)}>
+                  Activate Plant
+                </button>
+              </>
             ) : null}
           </div>
         </div>
@@ -366,6 +381,13 @@ export function PlantsPage({ caps, Subnav, activeSection, onOpenSection, onNotif
         />
       </div>
       {activate ? <ActivatePlantModal onClose={() => setActivate(false)} onSaved={(p) => { setActivate(false); setTick((t) => t + 1); onOpenPlant(p.id); }} onNotify={onNotify} /> : null}
+      {addExisting ? (
+        <AddExistingPlantForm
+          onClose={() => setAddExisting(false)}
+          onNotify={onNotify}
+          onSaved={(p) => { setAddExisting(false); setTick((t) => t + 1); if (p?.id) onOpenPlant(p.id); }}
+        />
+      ) : null}
     </>
   );
 
@@ -376,7 +398,14 @@ export function PlantsPage({ caps, Subnav, activeSection, onOpenSection, onNotif
       Subnav={Subnav}
       activeSection={activeSection}
       onOpenSection={onOpenSection}
-      actions={caps.add ? <button type="button" className={BTN_PRIMARY} onClick={() => setActivate(true)}><Plus className="size-4" /> Activate Plant</button> : null}
+      actions={caps.add ? (
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className={BTN_PRIMARY} onClick={() => setAddExisting(true)}>
+            <Plus className="size-4" /> Add Existing Plant
+          </button>
+          <button type="button" className={BTN_OUTLINE} onClick={() => setActivate(true)}>Activate Plant</button>
+        </div>
+      ) : null}
     >
       {body}
     </OmListPage>
@@ -394,29 +423,51 @@ const PROFILE_GROUPS = [
   ['Plant', [
     ['plant_name', 'Plant Name'], ['capacity_kw', 'Capacity (kW)', 'number'], ['plant_type', 'Plant Type'],
     ['system_type', 'System Type', ['On Grid', 'Hybrid', 'Off Grid']], ['installation_date', 'Installation Date', 'date'],
+    ['panel_installation_date', 'Panel Installation Date', 'date'],
+    ['inverter_installation_date', 'Inverter Installation Date', 'date'],
     ['handover_date', 'Handover Date', 'date'], ['plant_location', 'Plant Location', 'textarea'],
   ]],
   ['Equipment', [
     ['panel_brand', 'Panel Brand'], ['panel_model', 'Panel Model'], ['panel_wattage_w', 'Panel Wattage (W)'], ['panel_count', 'Panel Count'],
     ['inverter_brand', 'Inverter Brand'], ['inverter_model', 'Inverter Model'], ['inverter_capacity_kw', 'Inverter Capacity (kW)'],
-    ['inverter_serial', 'Inverter Serial'], ['structure_type', 'Structure Type'], ['acdb_details', 'ACDB'], ['dcdb_details', 'DCDB'],
+    ['inverter_count', 'Inverter Count'], ['inverter_serial', 'Inverter Serial', 'textarea'],
+    ['data_logger_brand', 'Data Logger Brand'], ['data_logger_model', 'Data Logger Model'], ['data_logger_serial', 'Data Logger Serial'],
+    ['structure_type', 'Structure Type'], ['acdb_details', 'ACDB'], ['dcdb_details', 'DCDB'],
     ['panel_serials', 'Panel Serial Numbers', 'textarea'], ['earthing_details', 'Earthing', 'textarea'],
     ['net_meter_details', 'Net Meter', 'textarea'], ['warranty_details', 'Warranty', 'textarea'],
   ]],
+  ['Monitoring', [
+    ['solar_app_platform', 'Monitoring App'], ['solar_app_type', 'App Type'], ['solar_app_username', 'Login ID / Email'],
+    ['account_created', 'Account Created', ['Yes', 'No']],
+    ['plant_online', 'Plant Online', ['Yes', 'No']],
+    ['data_logger_connected', 'Data Logger Connected', ['Yes', 'No']],
+    ['monitoring_status', 'Monitoring Status', ['Active', 'Inactive', 'Offline', 'Unknown']],
+    ['last_online_date', 'Last Online Date', 'date'], ['wifi_ssid', 'Wi-Fi SSID'],
+  ]],
   ['O&M', [
-    ['om_status', 'O&M Status', OM_STATUSES], ['remarks', 'Remarks', 'textarea'],
+    ['om_status', 'O&M Status', OM_STATUSES],
+    ['service_frequency', 'Service Frequency', ['Monthly', 'Quarterly', 'Half-Yearly', 'Yearly']],
+    ['next_service_due', 'Next Service Due', 'date'],
+    ['remarks', 'Remarks', 'textarea'],
   ]],
 ];
 
 function PlantEditModal({ plant, onClose, onSaved, onNotify }) {
-  const [form, setForm] = useState(() => Object.fromEntries(PROFILE_GROUPS.flatMap(([, fields]) => fields.map(([k]) => [k, plant[k] ?? '']))));
+  const [form, setForm] = useState(() => Object.fromEntries(PROFILE_GROUPS.flatMap(([, fields]) => fields.map(([k]) => {
+    const v = plant[k];
+    if (typeof v === 'boolean') return [k, v ? 'Yes' : 'No'];
+    return [k, v ?? ''];
+  }))));
   const [commissioning, setCommissioning] = useState(plant.commissioning_date || '');
   const [isActive, setIsActive] = useState(plant.is_active !== false);
   const [saving, setSaving] = useState(false);
   const save = async () => {
     if (!form.customer_name || !form.plant_name) { onNotify?.('Customer and plant name are required.', 'error'); return; }
     const body = { ...form, is_active: isActive };
-    ['capacity_kw', 'installation_date', 'handover_date'].forEach((k) => { if (body[k] === '') body[k] = null; });
+    ['capacity_kw', 'installation_date', 'handover_date', 'panel_installation_date', 'inverter_installation_date', 'next_service_due', 'last_online_date'].forEach((k) => { if (body[k] === '') body[k] = null; });
+    ['account_created', 'plant_online', 'data_logger_connected'].forEach((k) => {
+      body[k] = body[k] === 'Yes' || body[k] === true;
+    });
     setSaving(true);
     try {
       let saved = await omPlantApi.update(plant.id, body);

@@ -71,7 +71,8 @@ export function moduleCaps(user, moduleName) {
   };
 }
 
-/** Sidebar label → RolePermission.module name (Settings → Roles & Permissions). */
+/** Sidebar label → RolePermission.module name (Settings → Roles & Permissions).
+ * Every top-level sidebar category has a matching permission module. */
 export const SIDEBAR_MODULE_BY_LABEL = {
   Dashboard: 'Dashboard',
   Lead: 'Lead',
@@ -82,7 +83,7 @@ export const SIDEBAR_MODULE_BY_LABEL = {
   'Project Management': 'Project Management',
   'Liaisoning & Commissioning': 'Liaisoning & Commissioning',
   'O&M': 'O&M',
-  Tracker: 'O&M',
+  Tracker: 'Tracker',
   Accounts: 'Accounts',
   Inventory: 'Inventory',
   Employee: 'Employee',
@@ -90,7 +91,7 @@ export const SIDEBAR_MODULE_BY_LABEL = {
   Insights: 'Insights',
   'Daily Tasks': 'Daily Tasks',
   'AMC & Warranty': 'AMC & Warranty',
-  'Sync, Share & Backup': 'Settings',
+  'Sync, Share & Backup': 'Sync, Share & Backup',
   Settings: 'Settings',
 };
 
