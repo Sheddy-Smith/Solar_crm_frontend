@@ -100,6 +100,24 @@ function matchInventoryIndexed(index, items, name) {
   return matchInventory(items, name);
 }
 
+function resolveLineInventory(line, items) {
+  if (!line) return null;
+  if (line.inventory_item) {
+    const byId = items.find((i) => String(i.id) === String(line.inventory_item));
+    if (byId) return byId;
+  }
+  return matchInventory(items, line.material_name);
+}
+
+function inventorySearchToken(name) {
+  return String(name || '')
+    .replace(/[^\w\s./x×-]/gi, ' ')
+    .trim()
+    .split(/\s+/)
+    .slice(0, 3)
+    .join(' ');
+}
+
 /** Run async work over a list with bounded concurrency (faster than serial awaits). */
 async function mapPool(items, concurrency, worker) {
   const list = Array.isArray(items) ? items : [];
@@ -224,6 +242,17 @@ export function MaterialPlanningBomPage({
   const loadSeq = useRef(0);
   const inventoryLoadedRef = useRef(false);
 
+  const mergeInventoryItems = useCallback((extra) => {
+    if (!extra?.length) return;
+    setInventoryItems((prev) => {
+      const map = new Map(prev.map((i) => [String(i.id), i]));
+      for (const item of extra) {
+        if (item?.id != null) map.set(String(item.id), item);
+      }
+      return [...map.values()];
+    });
+  }, []);
+
   const loadInventoryLite = useCallback(async () => {
     if (inventoryLoadedRef.current) return;
     inventoryLoadedRef.current = true;
@@ -234,6 +263,40 @@ export function MaterialPlanningBomPage({
     } catch {
       inventoryLoadedRef.current = false;
     }
+  }, []);
+
+  /** Pull matching inventory rows for template names (search API, bounded). */
+  const hydrateInventoryForNames = useCallback(async (names, currentItems) => {
+    const index = buildInventoryNameIndex(currentItems);
+    const missing = [...new Set((names || []).map((n) => String(n || '').trim()).filter(Boolean))]
+      .filter((name) => !matchInventoryIndexed(index, currentItems, name));
+    if (!missing.length) return currentItems;
+
+    const found = [];
+    await mapPool(missing, 4, async (name) => {
+      const q = inventorySearchToken(name);
+      if (!q) return;
+      try {
+        const data = await inventoryApi.items.list({ search: q, page: 1, page_size: 25, is_active: true });
+        found.push(...rowsOf(data).filter((item) => item?.is_active !== false));
+      } catch {
+        /* ignore per-name miss */
+      }
+    });
+    if (!found.length) return currentItems;
+    mergeInventoryItems(found);
+    const map = new Map((currentItems || []).map((i) => [String(i.id), i]));
+    for (const item of found) map.set(String(item.id), item);
+    return [...map.values()];
+  }, [mergeInventoryItems]);
+
+  const linkLinesToInventory = useCallback((rows, items) => {
+    const index = buildInventoryNameIndex(items);
+    return (rows || []).map((line) => {
+      if (line.inventory_item) return line;
+      const inv = matchInventoryIndexed(index, items, line.material_name);
+      return inv ? { ...line, inventory_item: inv.id, unit: line.unit || inv.unit || line.unit } : line;
+    });
   }, []);
 
   const load = useCallback(async () => {
@@ -375,8 +438,7 @@ export function MaterialPlanningBomPage({
       : [];
 
     const invIndex = buildInventoryNameIndex(inventoryItems);
-    const next = [];
-    const toCreate = [];
+    let next = [];
 
     for (const row of tpl.lines) {
       const kept = keepByName.get(norm(row.material_name));
@@ -402,8 +464,6 @@ export function MaterialPlanningBomPage({
         inventory_item: inv?.id || '',
       });
       next.push(draft);
-      // Persist only positive planned qty — zero rows stay local drafts.
-      if (num(row.qty) > 0) toCreate.push(draft);
     }
 
     for (const leftover of keepByName.values()) next.push(leftover);
@@ -411,18 +471,29 @@ export function MaterialPlanningBomPage({
     // Instant paint from in-memory 3/5/10 kW templates (no API wait).
     setLines(next);
     onNotify?.(`${tpl.label} loaded`);
-    setSyncNote('Syncing BOM to server…');
+    setSyncNote('Matching inventory stock…');
     setSaving(true);
 
     try {
+      // Resolve inventory stock for template names, then show Stock column quantities.
+      const hydrated = await hydrateInventoryForNames(
+        next.map((l) => l.material_name),
+        inventoryItems,
+      );
+      if (seq !== templateApplySeq.current) return;
+      next = linkLinesToInventory(next, hydrated);
+      setLines(next);
+      setSyncNote('Syncing BOM to server…');
+
       // Light concurrency so API/list stays responsive.
       await mapPool(toDelete, 4, (id) => materialPlanApi.delete(id).catch(() => null));
       if (seq !== templateApplySeq.current) return;
 
-      const savedRows = await mapPool(toCreate, 4, async (draft) => {
+      const createPayloads = next.filter((l) => num(l.planned_qty) > 0 && !l.id);
+      const savedRows = await mapPool(createPayloads, 4, async (draft) => {
         const saved = await saveOne(draft);
         return saved
-          ? { key: draft._key, line: lineFromPlan({ ...saved, inventory_item: draft.inventory_item }, inventoryItems) }
+          ? { key: draft._key, line: lineFromPlan({ ...saved, inventory_item: draft.inventory_item }, hydrated) }
           : { key: draft._key, line: draft };
       });
       if (seq !== templateApplySeq.current) return;
@@ -813,6 +884,7 @@ export function MaterialPlanningBomPage({
                   <th className="px-3 py-3">Material Name</th>
                   <th className="px-3 py-3">Specification</th>
                   <th className="px-3 py-3">Unit</th>
+                  <th className="px-3 py-3">Stock (Inventory)</th>
                   <th className="px-3 py-3">Qty (Planned)</th>
                   <th className="px-3 py-3">Qty (Dispatched)</th>
                   <th className="px-3 py-3">Qty (Balance)</th>
@@ -824,6 +896,8 @@ export function MaterialPlanningBomPage({
                   const isEditing = Boolean(editLine && editLine._key === line._key);
                   const row = isEditing ? editLine : line;
                   const bal = balanceOf(row);
+                  const inv = resolveLineInventory(row, inventoryItems);
+                  const stockQty = stockOf(inv);
                   const cellInput = 'h-9 w-full min-w-[72px] rounded-[8px] border border-[#93c5fd] bg-white px-2 text-[13px] font-semibold text-[#0f172a] outline-none focus:border-[#2563eb]';
                   const rowClass = isEditing
                     ? 'border-t border-[#edf2f8] bg-[#eff6ff]'
@@ -875,6 +949,15 @@ export function MaterialPlanningBomPage({
                             </select>
                           </td>
                           <td className="px-2 py-2 align-top">
+                            {inv ? (
+                              <span className={cx('inline-flex min-w-[2.75rem] justify-center rounded-[8px] px-2.5 py-1.5 text-[12px] font-extrabold', stockQty > 0 ? 'bg-[#dcfce7] text-[#15803d]' : 'bg-[#fee2e2] text-[#b91c1c]')}>
+                                {stockQty}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] font-semibold text-[#94a3b8]">Not in inventory</span>
+                            )}
+                          </td>
+                          <td className="px-2 py-2 align-top">
                             <input
                               type="number"
                               min="0"
@@ -897,9 +980,25 @@ export function MaterialPlanningBomPage({
                         </>
                       ) : (
                         <>
-                          <td className="px-3 py-2.5 font-bold text-[#0f172a]">{line.material_name || '—'}</td>
+                          <td className="px-3 py-2.5 font-bold text-[#0f172a]">
+                            {line.material_name || '—'}
+                            {inv ? (
+                              <span className="mt-0.5 block text-[10px] font-semibold text-[#64748b]">
+                                INV: {inv.item_code || inv.record_no || `#${inv.id}`}
+                              </span>
+                            ) : null}
+                          </td>
                           <td className="px-3 py-2.5 text-[#475569]">{line.specification || '—'}</td>
                           <td className="px-3 py-2.5 font-semibold text-[#334155]">{line.unit}</td>
+                          <td className="px-3 py-2.5">
+                            {inv ? (
+                              <span className={cx('inline-flex min-w-[2.75rem] justify-center rounded-[8px] px-2.5 py-1.5 text-[12px] font-extrabold', stockQty > 0 ? 'bg-[#dcfce7] text-[#15803d]' : 'bg-[#fee2e2] text-[#b91c1c]')}>
+                                {stockQty}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] font-semibold text-[#94a3b8]">Not in inventory</span>
+                            )}
+                          </td>
                           <td className="px-3 py-2.5">
                             <input
                               type="number"
@@ -979,7 +1078,7 @@ export function MaterialPlanningBomPage({
                 })}
                 {!visibleLines.length ? (
                   <tr>
-                    <td colSpan={9} className="px-3 py-14 text-center text-[13px] font-semibold text-[#94a3b8]">
+                    <td colSpan={10} className="px-3 py-14 text-center text-[13px] font-semibold text-[#94a3b8]">
                       No BOM items — pick a template, add manually, or import from inventory
                     </td>
                   </tr>
