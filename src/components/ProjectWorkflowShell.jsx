@@ -15,15 +15,13 @@ export const PM_WORKFLOW_STEPS = [
   { key: 'Project List', label: 'Project List', short: 'List' },
   { key: 'Project Site Survey', label: 'Site Survey', short: 'Survey' },
   { key: 'Project Material Planning', label: 'Material Planning', short: 'Planning' },
-  { key: 'Project Job Sheet', label: 'Job Sheet', short: 'Job Sheet' },
   { key: 'Project Dispatch', label: 'Dispatch', short: 'Dispatch' },
   { key: 'Project Installation', label: 'Installation', short: 'Install' },
 ];
 
 const NEXT_BY_SECTION = {
   'Project Site Survey': { section: 'Project Material Planning', label: 'Next: Material Planning →' },
-  'Project Material Planning': { section: 'Project Job Sheet', label: 'Next: Job Sheet →' },
-  'Project Job Sheet': { section: 'Project Dispatch', label: 'Next: Dispatch →' },
+  'Project Material Planning': { section: 'Project Dispatch', label: 'Next: Dispatch →' },
   'Project Dispatch': { section: 'Project Installation', label: 'Next: Installation →' },
   'Project Installation': { section: 'Liaisoning & Commissioning', label: 'Next: Liaisoning →' },
 };
@@ -31,7 +29,6 @@ const NEXT_BY_SECTION = {
 const DONE_LABEL_BY_SECTION = {
   'Project Site Survey': 'Mark Site Survey Done',
   'Project Material Planning': 'Mark Material Planning Done',
-  'Project Job Sheet': 'Mark Job Sheet Done',
   'Project Dispatch': 'Mark Dispatch Done',
   'Project Installation': 'Mark Installation Done',
 };

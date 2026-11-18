@@ -862,9 +862,11 @@ class PmPipelineViewSet(viewsets.ReadOnlyModelViewSet):
                 {'detail': f'Project is already at "{current}".', 'pm_stage': current},
                 status=status.HTTP_409_CONFLICT,
             )
-        # Legacy Quotation stage was removed from PM — treat as Site Survey for advance.
+        # Legacy stages removed from PM — remap before advancing.
         if current == 'Quotation':
             current = 'Site Survey'
+        if current == 'Job Sheet':
+            current = 'Material Planning'
         if current not in PM_STAGES:
             return Response({'detail': 'All project stages are already completed.'}, status=status.HTTP_400_BAD_REQUEST)
         idx = PM_STAGES.index(current)
@@ -877,6 +879,8 @@ class PmPipelineViewSet(viewsets.ReadOnlyModelViewSet):
         new_stage = request.data.get('stage')
         if new_stage == 'Quotation':
             new_stage = 'Material Planning'
+        if new_stage == 'Job Sheet':
+            new_stage = 'Dispatch'
         if new_stage not in [*PM_STAGES, PM_STAGE_COMPLETED]:
             return Response({'detail': 'Invalid stage.'}, status=status.HTTP_400_BAD_REQUEST)
         if new_stage == project.pm_stage:

@@ -113,7 +113,13 @@ export function Modal({ title, subtitle, onClose, footer, children, size = 'md' 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
-  const width = size === 'lg' ? 'sm:max-w-[920px]' : size === 'sm' ? 'sm:max-w-[440px]' : 'sm:max-w-[640px]';
+  const width = size === 'xl'
+    ? 'sm:max-w-[1120px]'
+    : size === 'lg'
+      ? 'sm:max-w-[920px]'
+      : size === 'sm'
+        ? 'sm:max-w-[440px]'
+        : 'sm:max-w-[640px]';
   return (
     <div className="fixed inset-0 z-[80] flex items-stretch justify-center bg-[#0f172a]/45 sm:items-center sm:p-4" role="dialog" aria-modal="true">
       <div className={cx('flex h-full w-full flex-col bg-white sm:h-auto sm:max-h-[92vh] sm:rounded-[16px] sm:shadow-[0_24px_60px_rgba(15,23,42,0.28)]', width)}>
@@ -127,7 +133,7 @@ export function Modal({ title, subtitle, onClose, footer, children, size = 'md' 
           </button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">{children}</div>
-        {footer ? <div className="flex flex-wrap justify-end gap-2 border-t border-[#eef2f8] px-4 py-3 sm:px-5">{footer}</div> : null}
+        {footer ? <div className="flex flex-wrap justify-end gap-2 border-t border-[#eef2f8] bg-white px-4 py-3 sm:px-5">{footer}</div> : null}
       </div>
     </div>
   );

@@ -73,7 +73,6 @@ import {
   ProjectDispatchPanel,
   ProjectInstallationPanel,
 } from './projectOpsPages.jsx';
-import { ProjectJobSheetPage as OpsJobSheetPage } from './projectJobSheetPage.jsx';
 import { MaterialPlanningBomPage } from './materialPlanningBomPage.jsx';
 import {
   CommissioningCompleteModal,
@@ -644,7 +643,7 @@ const projectSubItems = [
   'Project Site Survey',
   'Project Material Planning',
   // BOM Master UI removed — backend BOM automation + bomApi kept for Quotation/MP.
-  'Project Job Sheet',
+  // Job Sheet removed from Material Planning / PM pipeline (Dispatch follows Planning).
   'Project Dispatch',
   'Project Installation',
 ];
@@ -717,7 +716,6 @@ const liaisonSubItems = ['Liaison Projects', ...LIAISON_STAGE_STEPS.map((s) => s
 const PM_STAGE_STEPS = [
   { key: 'Project Site Survey', stage: 'Site Survey' },
   { key: 'Project Material Planning', stage: 'Material Planning' },
-  { key: 'Project Job Sheet', stage: 'Job Sheet' },
   { key: 'Project Dispatch', stage: 'Dispatch' },
   { key: 'Project Installation', stage: 'Installation' },
 ];
@@ -1120,7 +1118,6 @@ const projectSubRoutes = {
   'Project Installation': '/projects/installation',
   'Project Dispatch': '/projects/dispatch',
   'Project Material Planning': '/projects/material-planning',
-  'Project Job Sheet': '/projects/job-sheet',
   'Subsidy': '/projects/subsidy/:projectId',
   'Project Work Orders': '/projects/work-orders/:projectId',
   'Project Work Order Create': '/projects/work-orders/create/:projectId',
@@ -1326,6 +1323,14 @@ function resolveSectionFromPath(pathname) {
   // Legacy BOM Master UI route — redirect to Material Planning (automation unchanged).
   if (path === '/projects/bom-master') {
     return { section: 'Project Material Planning', params: {} };
+  }
+  // Job Sheet removed from PM pipeline — land on Material Planning.
+  if (path === '/projects/job-sheet' || path.startsWith('/projects/job-sheet/')) {
+    const jobSheetMatch = path.match(/^\/projects\/job-sheet(?:\/(?<projectId>[^/]+))?$/);
+    return {
+      section: 'Project Material Planning',
+      params: { projectId: jobSheetMatch?.groups?.projectId },
+    };
   }
   if (REMOVED_INVENTORY_PATHS.includes(path)) {
     return { section: 'Inventory Overview', params: {} };
@@ -2294,6 +2299,8 @@ function App() {
     if (preferred === 'Inspection Placed') return 'Inspection';
     // BOM Master UI removed — land on Material Planning instead.
     if (preferred === 'BOM Master') return 'Project Material Planning';
+    // Job Sheet removed from PM pipeline.
+    if (preferred === 'Project Job Sheet') return 'Project Material Planning';
     return preferred;
   });
   const setActiveSidebarItem = useCallback((next) => {
@@ -2301,6 +2308,7 @@ function App() {
       const resolved = typeof next === 'function' ? next(prev) : next;
       let target = resolved === 'Inspection Placed' ? 'Inspection' : resolved;
       if (target === 'BOM Master') target = 'Project Material Planning';
+      if (target === 'Project Job Sheet') target = 'Project Material Planning';
       if (prev && target && prev !== target) {
         navHistoryRef.current = [...navHistoryRef.current.slice(-39), prev];
       }
@@ -4717,7 +4725,7 @@ function AppHeader({
       onOpenLink={onOpenNotificationLink}
       onChanged={onNotificationsChanged}
       onViewAll={() => (hasAnyModuleAccess(loggedInUser, 'O&M')
-        ? openDashboardSection('O&M Dashboard & Plant List', 'O&M alerts opened')
+        ? openDashboardSection('Dashboard & Plants', 'O&M alerts opened')
         : openDashboardSection(OM_FIELD_WORK_SECTION, 'My Tasks opened'))}
     />
   );
@@ -10685,10 +10693,6 @@ function getModuleSubnavLabel(item) {
     return 'Material Planning';
   }
 
-  if (item === 'Project Job Sheet') {
-    return 'Job Sheet';
-  }
-
   if (item === 'Subsidy' || item === 'Liaison Subsidy') {
     return 'Subsidy';
   }
@@ -13221,7 +13225,6 @@ function ProjectPipelineHub({
       section === 'Project Material Planning'
       || section === 'Project Dispatch'
       || section === 'Project Installation'
-      || section === 'Project Job Sheet'
     )
   );
 
@@ -13461,8 +13464,6 @@ function ProjectPipelineHub({
           onBomOpenChange={setMpBomOpen}
         />
       );
-    } else if (section === 'Project Job Sheet') {
-      legacy = <OpsJobSheetPage embedded activeSection={section} onOpenSection={openPipelineSection} onNotify={onNotify} initialProjectId={carriedProjectId} />;
     } else if (section === 'Project Dispatch') {
       legacy = <OpsDispatchPage embedded activeSection={section} onOpenSection={openPipelineSection} onNotify={onNotify} initialProjectId={carriedProjectId} />;
     } else if (section === 'Project Installation') {
@@ -13520,8 +13521,6 @@ function ProjectPipelineHub({
         onChangeProject={(p) => openProject(p)}
       />
     );
-  } else if (section === 'Project Job Sheet') {
-    content = <OpsJobSheetPage key={selected.id} embedded lockedProjectId={selected.id} activeSection={section} onOpenSection={openPipelineSection} onNotify={onNotify} />;
   } else if (section === 'Project Dispatch') {
     content = (
       <ProjectDispatchPanel
@@ -13823,9 +13822,14 @@ function LiaisonApprovalSubmittedBy({ user }) {
 
 function OmPage({ activeSection, onOpenSection, onNotify, loggedInUser, focus, onFocusConsumed, onNavigate }) {
   const section = OM_LEGACY_SECTIONS[activeSection] || activeSection;
+  const hubSection = (
+    section === 'O&M'
+    || section === 'O&M Dashboard'
+    || section === 'O&M Dashboard & Plant List'
+  ) ? 'Dashboard & Plants' : section;
   return (
     <OmHubPage
-      activeSection={section === 'O&M' || section === 'O&M Dashboard' ? 'O&M Dashboard & Plant List' : section}
+      activeSection={hubSection}
       onOpenSection={onOpenSection}
       onNotify={onNotify}
       loggedInUser={loggedInUser}

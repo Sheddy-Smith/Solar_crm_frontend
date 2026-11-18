@@ -1030,9 +1030,9 @@ class ProjectApprovalDocument(models.Model):
 # Project Management pipeline. Order matters: "Mark Done" advances a project to
 # the next entry. Names must match the frontend PM_STAGE_STEPS (src/App.jsx).
 # Quotation stays a Lead-module business feature — not part of the PM pipeline.
-PM_STAGES = ['Site Survey', 'Material Planning', 'Job Sheet', 'Dispatch', 'Installation']
-# Legacy stage kept for reading old tracker rows / history only.
-PM_LEGACY_STAGES = ['Quotation']
+PM_STAGES = ['Site Survey', 'Material Planning', 'Dispatch', 'Installation']
+# Legacy stages kept for reading old tracker rows / history only.
+PM_LEGACY_STAGES = ['Quotation', 'Job Sheet']
 PM_STAGE_COMPLETED = 'Completed'
 
 

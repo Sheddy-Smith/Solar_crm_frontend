@@ -29,6 +29,16 @@ function todayIso() {
   return `${y}-${m}-${d}`;
 }
 
+/** Fixed preview length for list/table; full text opens in View modal. */
+const DESCRIPTION_PREVIEW_CHARS = 80;
+
+function truncateText(value, max = DESCRIPTION_PREVIEW_CHARS) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!text) return '—';
+  if (text.length <= max) return text;
+  return `${text.slice(0, max).trimEnd()}...`;
+}
+
 function StatusBadge({ status }) {
   const done = status === 'Completed';
   return (
@@ -79,7 +89,7 @@ function TaskDetailBody({ task }) {
       {rows.map(([label, value]) => (
         <div key={label}>
           <dt className="text-[11px] font-extrabold uppercase tracking-wide text-[#8a98af]">{label}</dt>
-          <dd className="mt-1 text-[14px] font-semibold text-[#102446]">{value}</dd>
+          <dd className={cx('mt-1 text-[14px] font-semibold text-[#102446]', label === 'Description' && 'whitespace-pre-wrap break-words')}>{value}</dd>
         </div>
       ))}
     </dl>
@@ -250,7 +260,7 @@ export function TeleDailyTasksPage({ me, onNotify, variant = 'tele' }) {
                 { label: 'Assigned To', value: task.assigned_to_name || '—' },
                 { label: 'Assigned By', value: task.assigned_by_name || '—' },
                 task.due_date ? { label: 'Due Date', value: formatDate(task.due_date) } : null,
-                task.description ? { label: 'Description', value: task.description, wide: true } : null,
+                task.description ? { label: 'Description', value: truncateText(task.description), wide: true } : null,
               ]}
               onOpen={() => setViewTask(task)}
               actions={[
@@ -293,7 +303,9 @@ export function TeleDailyTasksPage({ me, onNotify, variant = 'tele' }) {
               ) : pageRows.map((task) => (
                 <tr key={task.id} className="border-t border-[#edf2f8]">
                   <td className="px-4 py-3 font-extrabold text-[#102446]">{task.title}</td>
-                  <td className="max-w-[240px] px-4 py-3 font-semibold text-[#53647f]">{task.description || '—'}</td>
+                  <td className="max-w-[260px] px-4 py-3 font-semibold text-[#53647f]" title={task.description || ''}>
+                    {truncateText(task.description)}
+                  </td>
                   <td className="px-4 py-3 font-semibold text-[#33456b]">{task.assigned_by_name || '—'}</td>
                   <td className="px-4 py-3 font-semibold text-[#33456b]">{task.assigned_to_name || '—'}</td>
                   <td className="px-4 py-3 font-semibold text-[#33456b]">{task.assigned_to_user_id || task.assigned_to || '—'}</td>

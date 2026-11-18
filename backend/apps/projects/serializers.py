@@ -741,6 +741,8 @@ class PmPipelineProjectSerializer(serializers.ModelSerializer):
         stage = getattr(obj, 'pm_stage', PM_STAGES[0])
         if stage == 'Quotation':
             stage = 'Site Survey'
+        if stage == 'Job Sheet':
+            stage = 'Dispatch'
         return PM_STAGES.index(stage) if stage in PM_STAGES else len(PM_STAGES)
 
     def get_stage_history(self, obj):
@@ -766,7 +768,6 @@ class PmPipelineProjectSerializer(serializers.ModelSerializer):
             'Site Survey': getattr(obj, 'survey_state', None) or 'Not started',
             'Quotation': n(getattr(obj, 'quotations_count', 0), 'quotation'),
             'Material Planning': n(materials, 'BOM item'),
-            'Job Sheet': getattr(obj, 'job_sheet_state', None) or 'Not created',
             'Dispatch': f'{dispatched}/{materials} dispatched' if materials else 'No BOM yet',
             'Installation': obj.installation_status or 'Not Done',
         }

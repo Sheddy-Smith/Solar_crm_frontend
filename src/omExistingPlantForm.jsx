@@ -1,13 +1,14 @@
 /**
- * Task 14 — Add Existing Plant (O&M) registration wizard.
+ * Task 14 — Add Existing Plant (O&M) registration wizard (modal popup).
  * Modes: Add from Existing Project (prefill) | Manual / Quick Add.
  */
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Eye, EyeOff, FileText, Image as ImageIcon, Plus, Save, Sun, Upload, X,
+  Eye, EyeOff, FileText, Image as ImageIcon, Plus, Save, Sun, Upload,
 } from 'lucide-react';
 import { getMediaUrl, omDocumentApi, omPlantApi, projectApi } from './api.js';
 import { normalizeApiRows } from './lib/utils.js';
+import { Modal } from './omUi.jsx';
 
 const YEARS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '12', '15', '20', '25'];
 const PLANT_TYPES = ['On-Grid', 'Hybrid', 'Off-Grid', 'On Grid', 'Off Grid'];
@@ -279,38 +280,44 @@ export function AddExistingPlantForm({ onClose, onSaved, onNotify }) {
   const documents = docs.filter((d) => !photos.includes(d));
 
   return (
-    <div className="fixed inset-0 z-[70] overflow-y-auto bg-[#f4f7fb]">
-      <div className="mx-auto max-w-6xl px-3 py-4 sm:px-5 sm:py-6">
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-[12px] font-bold text-[#7b88a2]">Dashboard / O&amp;M / Add Existing Plant</p>
-            <h1 className="mt-1 text-[22px] font-extrabold text-[#1e3261]">Add Existing Plant (O&amp;M)</h1>
-            <p className="mt-1 max-w-2xl text-[13px] font-semibold text-[#64748b]">
-              Add old/previous solar project to O&amp;M and manage warranty, service and monitoring details.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => { setMode('project'); set({ registration_source: 'Existing Project' }); }}
-              className={cx('inline-flex h-10 items-center rounded-[9px] px-3.5 text-[13px] font-extrabold', mode === 'project' ? 'bg-[#0b8f43] text-white' : 'border border-[#d9e4f2] bg-white text-[#1e3261]')}
-            >
-              Add from Existing Project
-            </button>
-            <button
-              type="button"
-              onClick={() => { setMode('manual'); set({ registration_source: 'Manual' }); }}
-              className={cx('inline-flex h-10 items-center rounded-[9px] px-3.5 text-[13px] font-extrabold', mode === 'manual' ? 'bg-[#0b8f43] text-white' : 'border border-[#d9e4f2] bg-white text-[#1e3261]')}
-            >
-              Manual / Quick Add
-            </button>
-            <button type="button" onClick={onClose} className="grid size-10 place-items-center rounded-[9px] border border-[#d9e4f2] bg-white text-[#64748b]">
-              <X className="size-4" />
-            </button>
-          </div>
+    <Modal
+      size="xl"
+      title="Add Existing Plant (O&M)"
+      subtitle="Add old/previous solar project to O&M and manage warranty, service and monitoring details."
+      onClose={onClose}
+      footer={(
+        <>
+          <button type="button" onClick={onClose} className="h-10 rounded-[9px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#53647f]">Cancel</button>
+          <button type="button" disabled={busy} onClick={() => save(true)} className="inline-flex h-10 items-center gap-1.5 rounded-[9px] border border-[#0b65e5] bg-white px-4 text-[13px] font-extrabold text-[#0b65e5] disabled:opacity-60">
+            <Save className="size-4" /> Save as Draft
+          </button>
+          <button type="button" disabled={busy} onClick={() => save(false)} className="inline-flex h-10 items-center gap-1.5 rounded-[9px] bg-[#0b8f43] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">
+            <Sun className="size-4" /> {busy ? 'Saving…' : 'Save & Add to O&M'}
+          </button>
+        </>
+      )}
+    >
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[12px] font-bold text-[#7b88a2]">Dashboard / O&amp;M / Add Existing Plant</p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => { setMode('project'); set({ registration_source: 'Existing Project' }); }}
+            className={cx('inline-flex h-9 items-center rounded-[9px] px-3 text-[12px] font-extrabold', mode === 'project' ? 'bg-[#0b8f43] text-white' : 'border border-[#d9e4f2] bg-white text-[#1e3261]')}
+          >
+            Add from Existing Project
+          </button>
+          <button
+            type="button"
+            onClick={() => { setMode('manual'); set({ registration_source: 'Manual' }); }}
+            className={cx('inline-flex h-9 items-center rounded-[9px] px-3 text-[12px] font-extrabold', mode === 'manual' ? 'bg-[#0b8f43] text-white' : 'border border-[#d9e4f2] bg-white text-[#1e3261]')}
+          >
+            Manual / Quick Add
+          </button>
         </div>
+      </div>
 
-        <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+      <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
           <div className="space-y-4">
             <Section n={1} title="Customer & Project Information">
               <Field label="Select Project" required className="sm:col-span-2">
@@ -566,19 +573,8 @@ export function AddExistingPlantForm({ onClose, onSaved, onNotify }) {
               </Field>
             </Section>
           </div>
-        </div>
-
-        <div className="sticky bottom-0 mt-4 flex flex-wrap justify-end gap-2 border-t border-[#e6edf6] bg-[#f4f7fb]/py-3">
-          <button type="button" onClick={onClose} className="h-10 rounded-[9px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-bold text-[#53647f]">Cancel</button>
-          <button type="button" disabled={busy} onClick={() => save(true)} className="inline-flex h-10 items-center gap-1.5 rounded-[9px] border border-[#0b65e5] bg-white px-4 text-[13px] font-extrabold text-[#0b65e5] disabled:opacity-60">
-            <Save className="size-4" /> Save as Draft
-          </button>
-          <button type="button" disabled={busy} onClick={() => save(false)} className="inline-flex h-10 items-center gap-1.5 rounded-[9px] bg-[#0b8f43] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">
-            <Sun className="size-4" /> {busy ? 'Saving…' : 'Save & Add to O&M'}
-          </button>
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 

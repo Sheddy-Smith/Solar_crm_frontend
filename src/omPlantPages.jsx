@@ -539,13 +539,27 @@ function PlantProfile({ plant }) {
     ]],
     ['Equipment', [
       ['Panels', [plant.panel_brand, plant.panel_model, plant.panel_wattage_w ? `${plant.panel_wattage_w} W` : '', plant.panel_count ? `× ${plant.panel_count}` : ''].filter(Boolean).join(' ')],
+      ['Panel Serials', plant.panel_serials, true],
       ['Inverter', [plant.inverter_brand, plant.inverter_model, plant.inverter_capacity_kw ? `${plant.inverter_capacity_kw} kW` : ''].filter(Boolean).join(' ')],
-      ['Inverter Serial', plant.inverter_serial], ['Structure', plant.structure_type], ['ACDB', plant.acdb_details], ['DCDB', plant.dcdb_details],
-      ['Panel Serials', plant.panel_serials, true], ['Earthing', plant.earthing_details, true], ['Net Meter', plant.net_meter_details, true], ['Warranty', plant.warranty_details, true],
+      ['Inverter Serial', plant.inverter_serial],
+      ['Data Logger', [plant.data_logger_brand, plant.data_logger_model].filter(Boolean).join(' · ') || '—'],
+      ['Data Logger Serial', plant.data_logger_serial],
+      ['Structure', plant.structure_type], ['ACDB', plant.acdb_details], ['DCDB', plant.dcdb_details],
+      ['Earthing', plant.earthing_details, true], ['Net Meter', plant.net_meter_details, true],
+    ]],
+    ['Coverage & Monitoring', [
+      ['Free Service', `${fmtDate(plant.free_service_start)} → ${fmtDate(plant.free_service_end)}`],
+      ['Panel Warranty Till', fmtDate(plant.panel_warranty_end)],
+      ['Inverter Warranty Till', fmtDate(plant.inverter_warranty_end)],
+      ['Service Warranty Till', fmtDate(plant.service_warranty_end)],
+      ['Monitoring App', plant.solar_app_platform || '—'],
+      ['Plant Online', plant.plant_online ? 'Yes' : 'No'],
+      ['Insurance', plant.insurance?.company || plant.insurance?.status || '—'],
+      ['AMC Status', plant.om_status || '—'],
     ]],
   ];
   return (
-    <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+    <div className="grid grid-cols-1 gap-3 xl:grid-cols-2 2xl:grid-cols-4">
       {groups.map(([title, rows]) => (
         <section key={title} className={cx(PANEL, 'p-4')}>
           <h3 className="mb-3 text-[14px] font-extrabold text-[#1e3261]">{title}</h3>
@@ -668,13 +682,15 @@ function PlantDocuments({ plant, caps, onNotify }) {
 }
 
 const DETAIL_TABS = [
-  { value: 'profile', label: 'Profile', icon: Sun },
-  { value: 'schedule', label: 'Service Schedule', icon: Calendar },
+  { value: 'profile', label: 'Overview', icon: Sun },
+  { value: 'commissioning', label: 'Installation & Commissioning', icon: Calendar },
+  { value: 'warranty', label: 'Warranty Details', icon: ShieldCheck },
+  { value: 'monitoring', label: 'Online Monitoring', icon: Gauge },
+  { value: 'documents', label: 'Photos & Documents', icon: FileText },
+  { value: 'history', label: 'Service History', icon: History },
+  { value: 'schedule', label: 'Service Schedule', icon: ClipboardList },
   { value: 'tickets', label: 'Tickets', icon: Siren },
-  { value: 'tasks', label: 'Tasks', icon: ClipboardList },
-  { value: 'history', label: 'Visit History', icon: History },
-  { value: 'insurance', label: 'Insurance', icon: ShieldCheck },
-  { value: 'documents', label: 'Documents', icon: FileText },
+  { value: 'insurance', label: 'AMC & Insurance', icon: BadgeCheck },
 ];
 
 export function PlantDetailPage({ plantId, caps, onBack, onNotify, onOpenSection }) {
@@ -708,7 +724,7 @@ export function PlantDetailPage({ plantId, caps, onBack, onNotify, onOpenSection
     <div className="space-y-3">
       <OmHeading
         title={plant.customer_name}
-        crumbs={[{ label: 'O&M', onClick: () => onOpenSection('O&M Dashboard') }, { label: 'Plants', onClick: onBack }, { label: plant.plant_code }]}
+        crumbs={[{ label: 'O&M', onClick: () => onOpenSection?.('Dashboard & Plants') }, { label: 'Plants', onClick: onBack }, { label: plant.plant_code }]}
         actions={<>
           <button type="button" className={BTN_OUTLINE} onClick={onBack}><ArrowLeft className="size-4" /> Plants</button>
           {caps.edit ? <button type="button" className={BTN_OUTLINE} disabled={refreshing} onClick={refresh}><RefreshCw className={cx('size-4', refreshing && 'animate-spin')} /> Sync from project</button> : null}
@@ -732,9 +748,82 @@ export function PlantDetailPage({ plantId, caps, onBack, onNotify, onOpenSection
       <MobileSubnavSelect items={DETAIL_TABS.map((t) => ({ value: t.value, label: t.label }))} value={tab} onChange={setTab} label="Plant section" tone="amber" />
 
       {tab === 'profile' ? <PlantProfile plant={plant} /> : null}
+      {tab === 'commissioning' ? (
+        <section className={cx(PANEL, 'p-4')}>
+          <h3 className="mb-3 text-[14px] font-extrabold text-[#1e3261]">Installation & Commissioning</h3>
+          <DetailGrid rows={[
+            ['Panel Installation', fmtDate(plant.panel_installation_date)],
+            ['Inverter Installation', fmtDate(plant.inverter_installation_date)],
+            ['Commissioning Date', fmtDate(plant.commissioning_date)],
+            ['Handover Date', fmtDate(plant.handover_date)],
+            ['Free Service Start', fmtDate(plant.free_service_start)],
+            ['Free Service Till', fmtDate(plant.free_service_end)],
+            ['Next Service Due', plant.next_service_due ? fmtDate(plant.next_service_due) : (plant.next_service ? fmtDate(plant.next_service.due_date) : '—')],
+            ['Service Frequency', plant.service_frequency || 'Quarterly'],
+          ]} />
+        </section>
+      ) : null}
+      {tab === 'warranty' ? (
+        <section className={cx(PANEL, 'p-4 space-y-3')}>
+          <h3 className="text-[14px] font-extrabold text-[#1e3261]">Warranty Details</h3>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-[13px]">
+              <thead className="bg-[#f8fbff] text-[11px] font-extrabold uppercase text-[#7a8fa6]">
+                <tr>
+                  <th className="px-3 py-2">Coverage</th>
+                  <th className="px-3 py-2">Years</th>
+                  <th className="px-3 py-2">Start</th>
+                  <th className="px-3 py-2">Till</th>
+                  <th className="px-3 py-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(plant.warranty_alerts?.rows || [
+                  { label: 'Panel', years: plant.panel_warranty_years, end: plant.panel_warranty_end, status: '—' },
+                  { label: 'Inverter', years: plant.inverter_warranty_years, end: plant.inverter_warranty_end, status: '—' },
+                  { label: 'Service', years: plant.service_warranty_years, end: plant.service_warranty_end, status: '—' },
+                ]).map((row) => (
+                  <tr key={row.label} className="border-t border-[#edf2f8]">
+                    <td className="px-3 py-2 font-extrabold text-[#1e3261]">{row.label}</td>
+                    <td className="px-3 py-2">{row.years != null ? `${row.years}Y` : '—'}</td>
+                    <td className="px-3 py-2">
+                      {fmtDate(
+                        row.label === 'Panel' ? plant.panel_warranty_start
+                          : row.label === 'Inverter' ? plant.inverter_warranty_start
+                            : plant.service_warranty_start,
+                      )}
+                    </td>
+                    <td className="px-3 py-2">{fmtDate(row.end)}</td>
+                    <td className="px-3 py-2"><Pill tone={row.status === 'Expired' ? 'red' : row.status === 'Expiring Soon' ? 'amber' : 'green'}>{row.status || '—'}</Pill></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {plant.warranty_details ? <p className="whitespace-pre-wrap text-[12px] font-semibold text-[#53647f]">{plant.warranty_details}</p> : null}
+        </section>
+      ) : null}
+      {tab === 'monitoring' ? (
+        <section className={cx(PANEL, 'p-4')}>
+          <h3 className="mb-3 text-[14px] font-extrabold text-[#1e3261]">Online Monitoring</h3>
+          <DetailGrid rows={[
+            ['Application', plant.solar_app_platform || '—'],
+            ['Application Type', plant.solar_app_type || '—'],
+            ['Login ID / Email', plant.solar_app_username || '—'],
+            ['Account Created', plant.account_created ? 'Yes' : 'No'],
+            ['Plant Online', plant.plant_online ? 'Yes' : 'No'],
+            ['Data Logger Connected', plant.data_logger_connected ? 'Yes' : 'No'],
+            ['Monitoring Status', plant.monitoring_status || '—'],
+            ['Last Online Date', fmtDate(plant.last_online_date)],
+            ['Data Logger', [plant.data_logger_brand, plant.data_logger_model, plant.data_logger_serial].filter(Boolean).join(' · ') || '—'],
+            ['Wi-Fi SSID', plant.wifi_ssid || '—'],
+            ['Credentials on file', plant.has_site_credentials ? 'Yes (encrypted — Reveal from edit permission)' : 'No'],
+          ]} />
+          <p className="mt-3 text-[11px] font-semibold text-[#8a98af]">Live generation / inverter readings are not fabricated when an external monitoring API is unavailable.</p>
+        </section>
+      ) : null}
       {tab === 'schedule' ? <ServiceTasksList key="schedule" quarterly plant={plant} caps={caps} onNotify={onNotify} /> : null}
       {tab === 'tickets' ? <ComplaintTicketsList plant={plant} caps={caps} onNotify={onNotify} /> : null}
-      {tab === 'tasks' ? <ServiceTasksList key="tasks" plant={plant} caps={caps} onNotify={onNotify} /> : null}
       {tab === 'history' ? <PlantHistory plant={plant} caps={caps} onNotify={onNotify} /> : null}
       {tab === 'insurance' ? <InsuranceList plant={plant} caps={caps} onNotify={onNotify} onChanged={() => setTick((t) => t + 1)} /> : null}
       {tab === 'documents' ? <PlantDocuments plant={plant} caps={caps} onNotify={onNotify} /> : null}

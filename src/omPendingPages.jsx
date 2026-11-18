@@ -228,30 +228,27 @@ function WorkOrdersTable({ rows, startIndex = 0, caps, onOpenProject }) {
     <table className="crm-table crm-table--lead-dense w-full min-w-[920px]">
       <thead>
         <tr>
-          {['#', 'Project', 'Customer', 'Capacity', 'Job Sheet', 'Stage', 'Pending Since', 'Action'].map((h) => (
+          {['#', 'Project', 'Customer', 'Capacity', 'Stage', 'Pending Since', 'Action'].map((h) => (
             <th key={h} className={h === 'Action' ? 'crm-col-sticky-right' : undefined}>{h}</th>
           ))}
         </tr>
       </thead>
       <tbody>
-        {rows.length === 0 ? <EmptyState colSpan={8} message="Work orders generated for all projects" /> : rows.map((row, i) => (
+        {rows.length === 0 ? <EmptyState colSpan={7} message="Work orders generated for all projects" /> : rows.map((row, i) => (
           <tr key={row.id}>
             <td className="crm-col-index">{startIndex + i + 1}</td>
             <td><ProjectCell row={row} /></td>
             <td><CustomerCell row={row} /></td>
             <td className="font-semibold text-[#0b65e5]">{row.capacity_kwp > 0 ? `${row.capacity_kwp} kWp` : '—'}</td>
-            <td>{row.job_sheet_no ? <span className="font-semibold text-[#1e3261]">{row.job_sheet_no}</span> : <span className="text-[#8a98af]">Not created</span>}</td>
             <td>
-              <Pill tone={row.stage === 'Ready to Generate' ? 'green' : row.stage === 'Job Sheet Draft' ? 'amber' : 'slate'}>
-                {row.stage}{row.stage === 'Ready to Generate' ? ` · ${row.job_sheet_assigned_rows}` : ''}
-              </Pill>
+              <Pill tone="slate">{row.stage || 'No Work Order'}</Pill>
             </td>
             <td>{daysLabel(row.days_pending)}</td>
             <td className="crm-col-sticky-right">
               <div className="flex gap-1.5">
-                <button type="button" disabled={!caps.project} onClick={() => onOpenProject(row, 'Project Job Sheet')} className={BTN_PRIMARY}>
+                <button type="button" disabled={!caps.project} onClick={() => onOpenProject(row, 'Project Material Planning')} className={BTN_PRIMARY}>
                   <ClipboardList className="size-3.5" />
-                  {row.stage === 'Ready to Generate' ? 'Generate WO' : row.job_sheet_id ? 'Open Job Sheet' : 'Create Job Sheet'}
+                  Open Material Planning
                 </button>
               </div>
             </td>
@@ -694,23 +691,18 @@ function TrackerMobileCards({ section, rows, caps, busyKey, delayDays, onPack, o
             <MobileRecordCard
               key={row.id}
               {...base}
-              badges={(
-                <Pill tone={row.stage === 'Ready to Generate' ? 'green' : row.stage === 'Job Sheet Draft' ? 'amber' : 'slate'}>
-                  {row.stage}{row.stage === 'Ready to Generate' ? ` · ${row.job_sheet_assigned_rows}` : ''}
-                </Pill>
-              )}
+              badges={<Pill tone="slate">{row.stage || 'No Work Order'}</Pill>}
               details={[
-                { label: 'Job Sheet', value: row.job_sheet_no || 'Not created' },
                 { label: 'Pending Since', value: daysLabel(row.days_pending) },
               ]}
               actions={[
                 call,
                 {
-                  label: row.stage === 'Ready to Generate' ? 'Generate WO' : row.job_sheet_id ? 'Job Sheet' : 'Create Sheet',
+                  label: 'Material Planning',
                   icon: ClipboardList,
                   tone: 'blue',
                   disabled: !caps.project,
-                  onClick: () => onOpenProject(row, 'Project Job Sheet'),
+                  onClick: () => onOpenProject(row, 'Project Material Planning'),
                 },
               ]}
             />
@@ -838,10 +830,10 @@ const SEARCH_FIELDS = {
   'Pending Quotations': ['customer_name', 'mobile_number', 'ivrs_number', 'project_name', 'project_code', 'city', 'assigned_to_name'],
   'Short Listed Material': ['name', 'item_code', 'category', 'warehouse', 'status'],
 };
-const DEFAULT_SEARCH_FIELDS = ['project_name', 'project_id', 'customer_name', 'mobile_number', 'site', 'city', 'challan_no', 'job_sheet_no'];
+const DEFAULT_SEARCH_FIELDS = ['project_name', 'project_id', 'customer_name', 'mobile_number', 'site', 'city', 'challan_no'];
 
 const CHIP_CONFIG = {
-  'Pending Work Order': { get: (r) => r.stage, order: ['No Job Sheet', 'Job Sheet Draft', 'Ready to Generate'] },
+  'Pending Work Order': { get: (r) => r.stage, order: ['No Work Order'] },
   'Pending Dispatch': { get: (r) => r.stage, order: ['Delayed', 'Packed', 'Partial', 'Pending'] },
   'Pending Installation': {
     get: (r) => {
@@ -856,7 +848,7 @@ const CHIP_CONFIG = {
 };
 
 const SECTION_HINT = {
-  'Pending Work Order': 'Won projects whose work order is not generated yet. Assign tasks in the Job Sheet and click Generate to clear them from this list.',
+  'Pending Work Order': 'Won projects with no work order yet. Open Material Planning / Work Orders to clear them from this list.',
   'Pending Quotations': 'Won leads without a quotation. They leave this list as soon as a quotation is created.',
   'Pending Dispatch': 'Planned material not yet dispatched. Click "Mark Packed" once material is packed — if it is still not dispatched after packing, it shows as Delayed.',
   'Pending Installation': 'Installation is Not Done by default. Projects leave this list once installation is marked Done.',

@@ -201,6 +201,10 @@ class OmBreakdownTicket(models.Model):
         ('Critical', 'Critical'),
     ]
     COMPLAINT_TYPE_CHOICES = [
+        ('Customer Complaint', 'Customer Complaint'),
+        ('General Service Request', 'General Service Request'),
+        ('Technical Fault', 'Technical Fault'),
+        ('Emergency Service', 'Emergency Service'),
         ('Inverter Error', 'Inverter Error'),
         ('Low Generation', 'Low Generation'),
         ('No Generation', 'No Generation'),

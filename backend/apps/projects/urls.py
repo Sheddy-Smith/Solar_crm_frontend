@@ -8,7 +8,7 @@ from .views import (
     ProjectChecklistItemViewSet, InstallationMaterialViewSet, MaterialPlanViewSet,
     SubsidyApplicationViewSet, SubsidyDocumentViewSet,
     ProjectApprovalViewSet, ProjectApprovalDocumentViewSet, SiteSurveyPhotoViewSet, SiteSurveyViewSet,
-    JobSheetViewSet, PmPipelineViewSet,
+    PmPipelineViewSet,
 )
 from .billing_views import ProjectSalesChallanViewSet, ProjectInvoiceViewSet
 from .bom_views import (
@@ -32,7 +32,6 @@ router.register('project-milestones', ProjectMilestoneViewSet, basename='project
 router.register('project-checklist-items', ProjectChecklistItemViewSet, basename='project-checklist-item')
 router.register('installation-materials', InstallationMaterialViewSet, basename='installation-material')
 router.register('material-plans', MaterialPlanViewSet, basename='material-plan')
-router.register('job-sheets', JobSheetViewSet, basename='job-sheet')
 router.register('project-sales-challans', ProjectSalesChallanViewSet, basename='project-sales-challan')
 router.register('project-invoices', ProjectInvoiceViewSet, basename='project-invoice')
 router.register('subsidy', SubsidyApplicationViewSet, basename='subsidy')

@@ -890,22 +890,6 @@ export const materialPlanApi = {
   }),
 };
 
-// ─── Job Sheets ─────────────────────────────────────────────────────────────────
-
-export const jobSheetApi = {
-  list: (params = {}) => {
-    const qs = new URLSearchParams(
-      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
-    ).toString();
-    return request(`/job-sheets/${qs ? '?' + qs : ''}`);
-  },
-  get: (id) => request(`/job-sheets/${id}/`),
-  create: (data) => request('/job-sheets/', { method: 'POST', body: data }),
-  update: (id, data) => request(`/job-sheets/${id}/`, { method: 'PATCH', body: data }),
-  delete: (id) => request(`/job-sheets/${id}/`, { method: 'DELETE' }),
-  generateWorkOrders: (id) => request(`/job-sheets/${id}/generate-work-orders/`, { method: 'POST', body: {} }),
-};
-
 // ─── Project Sales Challan / Invoice ────────────────────────────────────────────
 
 const projectDocCrud = (base) => ({

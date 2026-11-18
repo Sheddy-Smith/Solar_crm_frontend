@@ -85,30 +85,18 @@ def pending_work_orders(user):
         won_projects(user)
         .annotate(wo_count=Count('work_orders'))
         .filter(wo_count=0)
-        .select_related('lead', 'manager', 'job_sheet')
+        .select_related('lead', 'manager')
         .order_by('created_at')
     )
     rows = []
     for project in qs:
         row = _project_row(project, today)
-        sheet = getattr(project, 'job_sheet', None)
-        assigned = 0
-        if sheet:
-            assigned = sum(
-                1 for r in list(sheet.items or []) + list(sheet.extra_items or [])
-                if isinstance(r, dict) and r.get('work_order_type') and r.get('assignee_name')
-            )
-        if not sheet:
-            stage = 'No Job Sheet'
-        elif assigned:
-            stage = 'Ready to Generate'
-        else:
-            stage = 'Job Sheet Draft'
+        # Job Sheet removed from PM — pending WO is simply "no work orders yet".
         row.update({
-            'job_sheet_id': sheet.id if sheet else None,
-            'job_sheet_no': sheet.job_sheet_no if sheet else '',
-            'job_sheet_assigned_rows': assigned,
-            'stage': stage,
+            'job_sheet_id': None,
+            'job_sheet_no': '',
+            'job_sheet_assigned_rows': 0,
+            'stage': 'No Work Order',
         })
         rows.append(row)
     return rows

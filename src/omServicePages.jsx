@@ -12,7 +12,9 @@ import {
   fmtDate, fmtDateTime, fmtMoney, normalizeApiRows, todayIso, useEngineers, usePlantOptions,
 } from './omUi.jsx';
 
+/** Task 15 request types first; legacy technical types kept for existing tickets. */
 export const COMPLAINT_TYPES = [
+  'Customer Complaint', 'General Service Request', 'Technical Fault', 'Emergency Service',
   'Plant Not Working', 'Inverter Error', 'Low Generation', 'No Generation', 'Panel Damage', 'Panel Cleaning',
   'Wiring / Cable', 'Earthing', 'Meter / Net Meter', 'Structure', 'Monitoring / App', 'Other',
 ];
@@ -1158,10 +1160,16 @@ function taskChips(quarterly, cleaning = false) {
 }
 
 export function ServiceTasksList({
-  quarterly = false, cleaning = false, plant, caps, onNotify, embedded, focusId, onFocusConsumed,
+  quarterly = false, cleaning = false, plant, caps, onNotify, embedded, focusId, onFocusConsumed, initialChip,
 }) {
   const chips = useMemo(() => taskChips(quarterly, cleaning), [quarterly, cleaning]);
-  const [chip, setChip] = useState(plant ? ((quarterly || cleaning) ? 'all' : 'open') : chips[0].value);
+  const [chip, setChip] = useState(() => {
+    if (initialChip && chips.some((c) => c.value === initialChip)) return initialChip;
+    return plant ? ((quarterly || cleaning) ? 'all' : 'open') : chips[0].value;
+  });
+  useEffect(() => {
+    if (initialChip && chips.some((c) => c.value === initialChip)) setChip(initialChip);
+  }, [initialChip, chips]);
   const [search, setSearch] = useState('');
   const [engineer, setEngineer] = useState('');
   const [source, setSource] = useState('');
