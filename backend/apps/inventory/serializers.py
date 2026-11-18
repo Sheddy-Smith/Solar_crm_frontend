@@ -54,6 +54,23 @@ class InventoryItemSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 'warehouse': 'Select a warehouse when setting opening stock.',
             })
+        # Soft duplicate guard: same name + same specification (case-insensitive)
+        name = attrs.get('name')
+        if name is None and self.instance:
+            name = self.instance.name
+        spec = attrs.get('specification')
+        if spec is None and self.instance:
+            spec = self.instance.specification
+        name = (name or '').strip()
+        spec = (spec or '').strip()
+        if name:
+            qs = InventoryItem.objects.filter(name__iexact=name, specification__iexact=spec)
+            if self.instance:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError({
+                    'name': 'An inventory item with this name and specification already exists.',
+                })
         return attrs
 
     def _apply_pricing_defaults(self, validated_data):

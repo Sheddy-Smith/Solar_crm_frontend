@@ -43,7 +43,7 @@ class InventoryItemViewSet(InventoryBaseViewSet):
     queryset = InventoryItem.objects.select_related('warehouse').all()
     serializer_class = InventoryItemSerializer
     filterset_fields = ['category', 'warehouse', 'is_active']
-    search_fields = ['name', 'hsn_code', 'item_code', 'category']
+    search_fields = ['name', 'specification', 'hsn_code', 'item_code', 'category']
     ordering_fields = ['name', 'current_stock', 'created_at', 'item_code']
     permission_action_map = {'quick_adjust': 'can_edit'}
 

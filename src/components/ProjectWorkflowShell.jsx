@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeftRight,
+  Check,
   ChevronDown,
   ChevronLeft,
   Search,
@@ -94,18 +95,25 @@ export function ProjectPickerDropdown({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const digits = q.replace(/\D/g, '');
     const list = Array.isArray(projects) ? projects : [];
     if (!q) return list.slice(0, 40);
     return list
       .filter((p) => {
-        const hay = `${p.project_name || ''} ${p.customer_name || ''} ${p.project_id || ''}`.toLowerCase();
-        return hay.includes(q);
+        const mobile = String(p.mobile_number || p.lead_mobile_number || p.mobile || '');
+        const hay = `${p.project_name || ''} ${p.customer_name || ''} ${p.project_id || ''} ${mobile}`.toLowerCase();
+        if (hay.includes(q)) return true;
+        if (digits.length >= 3 && mobile.replace(/\D/g, '').includes(digits)) return true;
+        return false;
       })
       .slice(0, 40);
   }, [projects, query]);
 
   const title = project?.project_name || project?.customer_name || 'Select project';
-  const label = project?.project_id ? `${title} (${project.project_id})` : title;
+  const label = [
+    project?.project_id ? `${title} (${project.project_id})` : title,
+    project?.customer_name && project?.project_name ? `— Customer: ${project.customer_name}` : null,
+  ].filter(Boolean).join(' ');
 
   return (
     <div className="relative min-w-[260px] max-w-xl flex-1" ref={ref}>
@@ -129,7 +137,7 @@ export function ProjectPickerDropdown({
                 autoFocus
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search projects…"
+                placeholder="Search project by name, ID, customer, mobile…"
                 className="h-9 w-full bg-transparent text-[13px] font-semibold outline-none"
               />
             </div>
@@ -145,18 +153,26 @@ export function ProjectPickerDropdown({
                   if (String(p.id) !== String(project?.id)) onChangeProject?.(p);
                 }}
                 className={cx(
-                  'flex w-full flex-col items-start px-3 py-2.5 text-left hover:bg-[#f8fafc]',
+                  'flex w-full items-start gap-2 px-3 py-2.5 text-left hover:bg-[#f8fafc]',
                   String(p.id) === String(project?.id) && 'bg-[#eff6ff]',
                 )}
               >
-                <span className="text-[13px] font-bold text-[#0f172a]">
-                  {p.project_name || p.customer_name}
-                  {p.project_id ? ` (${p.project_id})` : ''}
+                <span className="mt-0.5 grid size-5 shrink-0 place-items-center">
+                  {String(p.id) === String(project?.id) ? (
+                    <Check className="size-3.5 text-[#16a34a]" />
+                  ) : null}
                 </span>
-                <span className="text-[11px] font-semibold text-[#64748b]">
-                  {p.capacity_kwp != null ? `${Number(p.capacity_kwp).toFixed(2)} kW` : '—'}
-                  {' · '}
-                  {p.system_type || p.project_type || '—'}
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-bold text-[#0f172a]">
+                    {p.project_name || 'Untitled'}
+                    {p.project_id ? ` (${p.project_id})` : ''}
+                  </span>
+                  <span className="block text-[11px] font-semibold text-[#64748b]">
+                    Customer: {p.customer_name || '—'}
+                    {p.mobile_number || p.lead_mobile_number || p.mobile
+                      ? ` · ${p.mobile_number || p.lead_mobile_number || p.mobile}`
+                      : ''}
+                  </span>
                 </span>
               </button>
             ))}

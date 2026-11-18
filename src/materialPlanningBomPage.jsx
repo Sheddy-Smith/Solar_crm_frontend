@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Check,
   CheckCircle2,
   Clock3,
   Eye,
+  Package,
   Pencil,
   Plus,
   Printer,
@@ -26,6 +27,16 @@ import {
 const C_CHANNEL_SIZES = ['41×41 mm', '40×40 mm', '52×52 mm', 'Other'];
 const POLE_SIZES = ['60×60 mm', '50×50 mm', '75×75 mm', 'Other'];
 const POLE_HEIGHTS = ['6', '7', '8', '9', '10', '12'];
+const INV_UNITS = ['Nos', 'pcs', 'Meter', 'Kg', 'Ltr', 'Roll', 'Set', 'Unit', 'Packet', 'Bundels', 'kW'];
+const INV_CATEGORY_OPTIONS = [
+  ...DISPATCH_CATEGORIES,
+  'Structure & Mounting',
+  'Solar Panel',
+  'Cable & Wire',
+  'Hardware',
+  'Electrical',
+  'Other',
+];
 
 function cx(...parts) {
   return parts.filter(Boolean).join(' ');
@@ -52,6 +63,12 @@ function stockOf(item) {
   return 0;
 }
 
+function invSpecification(item) {
+  if (!item) return '';
+  if (item.specification) return String(item.specification);
+  return [item.capacity, item.product_type, item.location].filter(Boolean).join(' / ');
+}
+
 function norm(s) {
   return String(s || '')
     .toLowerCase()
@@ -67,6 +84,34 @@ function matchInventory(items, name) {
   if (hit) return hit;
   hit = items.find((i) => norm(i.name).includes(target) || target.includes(norm(i.name)));
   return hit || null;
+}
+
+function filterInventoryItems(items, query) {
+  const q = norm(query);
+  if (!q) return items.slice(0, 12);
+  return items
+    .filter((item) => {
+      const hay = norm([
+        item.name,
+        invSpecification(item),
+        item.item_code,
+        item.category,
+        item.hsn_code,
+        item.unit,
+      ].join(' '));
+      return hay.includes(q);
+    })
+    .slice(0, 12);
+}
+
+function linePatchFromInventory(item) {
+  return {
+    category: item.category || 'Other',
+    material_name: String(item.name || '').slice(0, 50),
+    specification: invSpecification(item),
+    unit: item.unit || 'Nos',
+    inventory_item: item.id,
+  };
 }
 
 function makeLine(partial = {}) {
@@ -138,6 +183,9 @@ export function MaterialPlanningBomPage({
   const [importOpen, setImportOpen] = useState(false);
   const [importQuery, setImportQuery] = useState('');
   const [editLine, setEditLine] = useState(null);
+  const [addInvOpen, setAddInvOpen] = useState(false);
+  const [addInvSeed, setAddInvSeed] = useState({ name: '', specification: '' });
+  const [addInvTarget, setAddInvTarget] = useState('toolbar'); // 'toolbar' | 'edit'
   const [specs, setSpecs] = useState({
     c_channel_length: '20',
     c_channel_size: '41×41 mm',
@@ -178,13 +226,8 @@ export function MaterialPlanningBomPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id]);
 
-  const visibleLines = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return lines;
-    return lines.filter((l) =>
-      [l.material_name, l.specification, l.category, l.unit].join(' ').toLowerCase().includes(q),
-    );
-  }, [lines, search]);
+  // Toolbar search drives inventory autocomplete (add), not row filtering.
+  const visibleLines = lines;
 
   const totals = useMemo(() => {
     return lines.reduce(
@@ -353,28 +396,63 @@ export function MaterialPlanningBomPage({
     setEditLine(draft);
   };
 
-  const importInventoryItem = async (item) => {
+  const openAddInventory = (seed = {}, target = 'toolbar') => {
+    setAddInvSeed({
+      name: seed.name || seed.material_name || '',
+      specification: seed.specification || '',
+    });
+    setAddInvTarget(target);
+    setAddInvOpen(true);
+  };
+
+  const applyInventoryToEditLine = (item) => {
+    if (!item || !editLine) return;
+    setEditLine((p) => ({
+      ...p,
+      ...linePatchFromInventory(item),
+      planned_qty: p.planned_qty || '1',
+    }));
+  };
+
+  const importInventoryItem = async (item, { closeImport = true } = {}) => {
     if (!item) return;
     const draft = makeLine({
-      category: item.category || 'Other',
-      material_name: String(item.name || '').slice(0, 50),
-      specification: item.hsn_code ? `HSN ${item.hsn_code}` : '',
-      unit: item.unit || 'Nos',
+      ...linePatchFromInventory(item),
       planned_qty: '1',
-      inventory_item: item.id,
     });
     setSaving(true);
     try {
       const saved = await saveOne(draft);
       if (!saved) return;
-      setLines((prev) => [...prev, lineFromPlan({ ...saved, inventory_item: item.id }, inventoryItems)]);
-      onNotify?.(`Imported ${item.name} (stock ${stockOf(item)})`);
+      const nextItems = inventoryItems.some((i) => String(i.id) === String(item.id))
+        ? inventoryItems
+        : [...inventoryItems, item];
+      setInventoryItems(nextItems);
+      setLines((prev) => [...prev, lineFromPlan({ ...saved, inventory_item: item.id }, nextItems)]);
+      onNotify?.(`Added ${item.name} (stock ${stockOf(item)})`);
       onPlansChanged?.();
-      setImportOpen(false);
-      setImportQuery('');
+      if (closeImport) {
+        setImportOpen(false);
+        setImportQuery('');
+      }
+      setSearch('');
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleInventoryCreated = async (item) => {
+    setInventoryItems((prev) => {
+      if (prev.some((i) => String(i.id) === String(item.id))) return prev;
+      return [...prev, item];
+    });
+    setAddInvOpen(false);
+    if (addInvTarget === 'edit' && editLine) {
+      applyInventoryToEditLine(item);
+      onNotify?.(`${item.name} saved to inventory and selected`);
+      return;
+    }
+    await importInventoryItem(item, { closeImport: false });
   };
 
   const persistEdit = async () => {
@@ -682,13 +760,15 @@ export function MaterialPlanningBomPage({
 
       {/* 4. Table toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-5">
-        <div className="flex h-10 min-w-[220px] flex-1 items-center gap-2 rounded-[9px] border border-[#d5e0ef] bg-white px-3">
-          <Search className="size-4 text-[#94a3b8]" />
-          <input
+        <div className="min-w-[240px] flex-1">
+          <InventorySuggestField
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search item..."
-            className="w-full text-[13px] font-semibold outline-none placeholder:text-[#94a3b8]"
+            onChange={setSearch}
+            items={inventoryItems}
+            placeholder="Search material by name, specification…"
+            onPick={(item) => importInventoryItem(item)}
+            onAddMissing={(q) => openAddInventory({ name: q }, 'toolbar')}
+            disabled={saving}
           />
         </div>
         <div className="flex flex-wrap gap-2">
@@ -882,14 +962,27 @@ export function MaterialPlanningBomPage({
                 onClick={() => importInventoryItem(item)}
                 className="flex w-full items-center justify-between rounded-[8px] border border-[#edf2f8] px-3 py-2 text-left hover:bg-[#f8fafc]"
               >
-                <span>
+                <span className="min-w-0">
                   <span className="block text-[13px] font-bold text-[#0f172a]">{item.name}</span>
-                  <span className="text-[11px] font-semibold text-[#64748b]">{item.category || '—'} · {item.unit || 'Nos'}</span>
+                  <span className="block text-[11px] font-semibold text-[#64748b]">
+                    {invSpecification(item) || '—'} · {item.unit || 'Nos'} · {item.item_code || item.record_no || `INV-${item.id}`}
+                  </span>
                 </span>
-                <span className="text-[11px] font-bold text-[#2563eb]">Stock {stockOf(item)}</span>
+                <span className="shrink-0 text-[11px] font-bold text-[#2563eb]">Stock {stockOf(item)}</span>
               </button>
             ))}
-            {!importHits.length ? <p className="py-6 text-center text-[12px] font-semibold text-[#94a3b8]">No inventory items</p> : null}
+            {!importHits.length ? (
+              <div className="space-y-2 py-4 text-center">
+                <p className="text-[12px] font-semibold text-[#94a3b8]">No inventory items</p>
+                <button
+                  type="button"
+                  onClick={() => openAddInventory({ name: importQuery }, 'toolbar')}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-[#2563eb] px-3 text-[12px] font-extrabold text-white"
+                >
+                  <Plus className="size-3.5" /> Add to Inventory
+                </button>
+              </div>
+            ) : null}
           </div>
         </ModalShell>
       ) : null}
@@ -899,10 +992,14 @@ export function MaterialPlanningBomPage({
           <div className="grid gap-3">
             <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
               Material Name
-              <input
+              <InventorySuggestField
                 value={editLine.material_name}
-                onChange={(e) => setEditLine((p) => ({ ...p, material_name: e.target.value }))}
-                className="h-10 rounded-[8px] border border-[#d9e4f2] px-3 text-[13px] font-semibold outline-none"
+                onChange={(v) => setEditLine((p) => ({ ...p, material_name: v, inventory_item: '' }))}
+                items={inventoryItems}
+                placeholder="Type material name…"
+                onPick={applyInventoryToEditLine}
+                onAddMissing={(q) => openAddInventory({ name: q, specification: editLine.specification }, 'edit')}
+                disabled={saving}
               />
             </label>
             <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
@@ -910,6 +1007,7 @@ export function MaterialPlanningBomPage({
               <input
                 value={editLine.specification}
                 onChange={(e) => setEditLine((p) => ({ ...p, specification: e.target.value }))}
+                placeholder="e.g., 3900mm / GI / 2mm"
                 className="h-10 rounded-[8px] border border-[#d9e4f2] px-3 text-[13px] font-semibold outline-none"
               />
             </label>
@@ -921,18 +1019,20 @@ export function MaterialPlanningBomPage({
                   onChange={(e) => setEditLine((p) => ({ ...p, category: e.target.value }))}
                   className="h-10 rounded-[8px] border border-[#d9e4f2] px-2 text-[13px] font-semibold"
                 >
-                  {[...DISPATCH_CATEGORIES, 'Other', 'Cable & Wire', 'Solar Panel', 'Hardware'].map((c) => (
+                  {[...new Set(INV_CATEGORY_OPTIONS)].map((c) => (
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
               </label>
               <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
                 Unit
-                <input
+                <select
                   value={editLine.unit}
                   onChange={(e) => setEditLine((p) => ({ ...p, unit: e.target.value }))}
-                  className="h-10 rounded-[8px] border border-[#d9e4f2] px-3 text-[13px] font-semibold outline-none"
-                />
+                  className="h-10 rounded-[8px] border border-[#d9e4f2] px-2 text-[13px] font-semibold"
+                >
+                  {INV_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                </select>
               </label>
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -959,29 +1059,13 @@ export function MaterialPlanningBomPage({
                 />
               </label>
             </div>
-            <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
-              Link Inventory Item (optional)
-              <select
-                value={editLine.inventory_item || ''}
-                onChange={(e) => {
-                  const id = e.target.value;
-                  const inv = inventoryItems.find((i) => String(i.id) === String(id));
-                  setEditLine((p) => ({
-                    ...p,
-                    inventory_item: id,
-                    material_name: inv ? String(inv.name).slice(0, 50) : p.material_name,
-                    unit: inv?.unit || p.unit,
-                    category: inv?.category || p.category,
-                  }));
-                }}
-                className="h-10 rounded-[8px] border border-[#d9e4f2] px-2 text-[13px] font-semibold"
-              >
-                <option value="">— Manual entry (no inventory link) —</option>
-                {inventoryItems.map((i) => (
-                  <option key={i.id} value={i.id}>{i.name} (stock {stockOf(i)})</option>
-                ))}
-              </select>
-            </label>
+            {editLine.inventory_item ? (
+              <p className="rounded-[8px] border border-[#dcfce7] bg-[#f0fdf4] px-3 py-2 text-[12px] font-semibold text-[#15803d]">
+                Linked inventory #{editLine.inventory_item}
+                {' · '}
+                Stock {stockOf(inventoryItems.find((i) => String(i.id) === String(editLine.inventory_item)))}
+              </p>
+            ) : null}
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setEditLine(null)} className="h-9 rounded-[8px] border border-[#d9e4f2] px-3 text-[12px] font-bold">Cancel</button>
               <button type="button" disabled={saving} onClick={persistEdit} className="h-9 rounded-[8px] bg-[#2563eb] px-3 text-[12px] font-extrabold text-white">
@@ -991,14 +1075,24 @@ export function MaterialPlanningBomPage({
           </div>
         </ModalShell>
       ) : null}
+
+      {addInvOpen ? (
+        <AddInventoryModal
+          seed={addInvSeed}
+          existingItems={inventoryItems}
+          onClose={() => setAddInvOpen(false)}
+          onNotify={onNotify}
+          onCreated={handleInventoryCreated}
+        />
+      ) : null}
     </ProjectWorkflowShell>
   );
 }
 
-function ModalShell({ title, onClose, children }) {
+function ModalShell({ title, onClose, children, wide }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[14px] bg-white p-4 shadow-2xl">
+      <div className={cx('max-h-[90vh] w-full overflow-y-auto rounded-[14px] bg-white p-4 shadow-2xl', wide ? 'max-w-xl' : 'max-w-lg')}>
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-[15px] font-extrabold text-[#0f172a]">{title}</h3>
           <button type="button" onClick={onClose} className="rounded p-1 hover:bg-[#f1f5f9]">
@@ -1008,6 +1102,269 @@ function ModalShell({ title, onClose, children }) {
         {children}
       </div>
     </div>
+  );
+}
+
+function InventorySuggestField({
+  value,
+  onChange,
+  items = [],
+  placeholder,
+  onPick,
+  onAddMissing,
+  disabled = false,
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+  const hits = useMemo(() => filterInventoryItems(items, value), [items, value]);
+  const q = String(value || '').trim();
+  const exact = hits.some((i) => norm(i.name) === norm(q));
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDoc = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={wrapRef}>
+      <div className="flex h-10 items-center gap-2 rounded-[9px] border border-[#d5e0ef] bg-white px-3 focus-within:border-[#2563eb]">
+        <Search className="size-4 shrink-0 text-[#94a3b8]" />
+        <input
+          value={value}
+          disabled={disabled}
+          onFocus={() => setOpen(true)}
+          onChange={(e) => {
+            onChange(e.target.value);
+            setOpen(true);
+          }}
+          placeholder={placeholder}
+          className="w-full text-[13px] font-semibold outline-none placeholder:text-[#94a3b8] disabled:opacity-60"
+        />
+      </div>
+      {open && q ? (
+        <div className="absolute z-40 mt-1 w-full overflow-hidden rounded-[12px] border border-[#d5e0ef] bg-white shadow-xl">
+          <div className="max-h-64 overflow-y-auto">
+            {hits.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                disabled={disabled}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onPick?.(item);
+                  setOpen(false);
+                }}
+                className="flex w-full items-start gap-2 border-b border-[#f1f5f9] px-3 py-2.5 text-left last:border-0 hover:bg-[#f8fafc]"
+              >
+                <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-[8px] bg-[#eff6ff] text-[#2563eb]">
+                  <Package className="size-3.5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-extrabold text-[#0f172a]">
+                    {item.name}
+                    {invSpecification(item) ? ` · ${invSpecification(item)}` : ''}
+                  </span>
+                  <span className="block text-[11px] font-semibold text-[#64748b]">
+                    {item.item_code || item.record_no || `INV-${item.id}`}
+                    {' · Unit: '}
+                    {item.unit || 'Nos'}
+                    {' · Stock: '}
+                    {stockOf(item)}
+                  </span>
+                </span>
+              </button>
+            ))}
+            {!hits.length ? (
+              <p className="px-3 py-3 text-center text-[12px] font-semibold text-[#94a3b8]">No matching inventory item</p>
+            ) : null}
+          </div>
+          {!exact ? (
+            <button
+              type="button"
+              disabled={disabled}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setOpen(false);
+                onAddMissing?.(q);
+              }}
+              className="flex w-full items-center gap-2 border-t border-[#dbeafe] bg-[#eff6ff] px-3 py-2.5 text-left text-[13px] font-extrabold text-[#2563eb] hover:bg-[#dbeafe]"
+            >
+              <Plus className="size-4" />
+              {`Add "${q}" to Inventory`}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function AddInventoryModal({ seed, existingItems = [], onClose, onNotify, onCreated }) {
+  const [form, setForm] = useState({
+    name: seed?.name || '',
+    specification: seed?.specification || '',
+    category: 'Structure & Mounting',
+    unit: 'Nos',
+    initial_stock: '0',
+    hsn_code: '',
+    warehouse: '',
+  });
+  const [warehouses, setWarehouses] = useState([]);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    inventoryApi.warehouses.list({ page_size: 100, is_active: true })
+      .then((r) => {
+        const rows = rowsOf(r).filter((w) => w.is_active !== false);
+        setWarehouses(rows);
+        if (rows[0]?.id) setForm((p) => (p.warehouse ? p : { ...p, warehouse: rows[0].id }));
+      })
+      .catch(() => setWarehouses([]));
+  }, []);
+
+  useEffect(() => {
+    setForm((p) => ({
+      ...p,
+      name: seed?.name || p.name,
+      specification: seed?.specification || p.specification,
+    }));
+  }, [seed?.name, seed?.specification]);
+
+  const save = async () => {
+    const name = String(form.name || '').trim();
+    if (!name) {
+      onNotify?.('Material name is required', 'error');
+      return;
+    }
+    const spec = String(form.specification || '').trim();
+    const dup = existingItems.find(
+      (i) => norm(i.name) === norm(name) && norm(invSpecification(i)) === norm(spec),
+    );
+    if (dup) {
+      onNotify?.('Item already exists in inventory — selecting it instead', 'error');
+      onCreated?.(dup);
+      return;
+    }
+    const opening = num(form.initial_stock);
+    if (opening > 0 && !form.warehouse) {
+      onNotify?.('Select a warehouse for opening stock', 'error');
+      return;
+    }
+    setBusy(true);
+    try {
+      const body = {
+        name: name.slice(0, 200),
+        specification: spec.slice(0, 200),
+        category: form.category || 'Other',
+        unit: form.unit || 'Nos',
+        hsn_code: String(form.hsn_code || '').trim(),
+        is_active: true,
+      };
+      if (form.warehouse) body.warehouse = form.warehouse;
+      if (opening > 0) body.initial_stock = opening;
+      const created = await inventoryApi.items.create(body);
+      onNotify?.(`${created.name || name} added to inventory`, 'success');
+      onCreated?.(created);
+    } catch (e) {
+      onNotify?.(e.message || 'Could not create inventory item', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <ModalShell title="Add Item to Inventory" onClose={onClose} wide>
+      <div className="grid gap-3">
+        <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
+          Material Name *
+          <input
+            value={form.name}
+            onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+            className="h-10 rounded-[8px] border border-[#d9e4f2] px-3 text-[13px] font-semibold outline-none focus:border-[#16a34a]"
+          />
+        </label>
+        <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
+          Specification
+          <input
+            value={form.specification}
+            onChange={(e) => setForm((p) => ({ ...p, specification: e.target.value }))}
+            placeholder="e.g., 3900mm / GI / 2mm"
+            className="h-10 rounded-[8px] border border-[#d9e4f2] px-3 text-[13px] font-semibold outline-none focus:border-[#16a34a]"
+          />
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
+            Category *
+            <select
+              value={form.category}
+              onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}
+              className="h-10 rounded-[8px] border border-[#d9e4f2] px-2 text-[13px] font-semibold"
+            >
+              {[...new Set(INV_CATEGORY_OPTIONS)].map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
+            Unit *
+            <select
+              value={form.unit}
+              onChange={(e) => setForm((p) => ({ ...p, unit: e.target.value }))}
+              className="h-10 rounded-[8px] border border-[#d9e4f2] px-2 text-[13px] font-semibold"
+            >
+              {INV_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+            </select>
+          </label>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
+            Opening Stock
+            <input
+              type="number"
+              min="0"
+              step="any"
+              value={form.initial_stock}
+              onChange={(e) => setForm((p) => ({ ...p, initial_stock: e.target.value }))}
+              className="h-10 rounded-[8px] border border-[#d9e4f2] px-3 text-[13px] font-semibold outline-none"
+            />
+          </label>
+          <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
+            HSN (GST)
+            <input
+              value={form.hsn_code}
+              onChange={(e) => setForm((p) => ({ ...p, hsn_code: e.target.value }))}
+              placeholder="730890"
+              className="h-10 rounded-[8px] border border-[#d9e4f2] px-3 text-[13px] font-semibold outline-none"
+            />
+          </label>
+        </div>
+        {num(form.initial_stock) > 0 ? (
+          <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
+            Warehouse *
+            <select
+              value={form.warehouse || ''}
+              onChange={(e) => setForm((p) => ({ ...p, warehouse: e.target.value }))}
+              className="h-10 rounded-[8px] border border-[#d9e4f2] px-2 text-[13px] font-semibold"
+            >
+              <option value="">Select warehouse…</option>
+              {warehouses.map((w) => (
+                <option key={w.id} value={w.id}>{w.name}</option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        <div className="flex justify-end gap-2 pt-2">
+          <button type="button" onClick={onClose} className="h-9 rounded-[8px] border border-[#d9e4f2] px-4 text-[13px] font-bold text-[#53647f]">Cancel</button>
+          <button type="button" disabled={busy} onClick={save} className="h-9 rounded-[8px] bg-[#16a34a] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">
+            {busy ? 'Saving…' : 'Save to Inventory'}
+          </button>
+        </div>
+      </div>
+    </ModalShell>
   );
 }
 

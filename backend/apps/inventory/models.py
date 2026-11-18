@@ -60,6 +60,7 @@ class InventoryItem(models.Model):
 
     item_code = models.CharField(max_length=30, unique=True, blank=True, null=True)
     name = models.CharField(max_length=200)
+    specification = models.CharField(max_length=200, blank=True, default='')
     category = models.CharField(max_length=100, default='Other')
     unit = models.CharField(max_length=20, choices=UNIT_CHOICES, default='Nos')
     product_type = models.CharField(max_length=100, blank=True, default='')

@@ -24763,7 +24763,7 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
 
   const filtered = projects.filter((p) => {
     const q = deferredQuery.trim().toLowerCase();
-    const hay = `${p.project_name || ''} ${p.customer_name || ''} ${p.project_id || ''} ${p.site || ''}`.toLowerCase();
+    const hay = `${p.project_name || ''} ${p.customer_name || ''} ${p.project_id || ''} ${p.site || ''} ${p.mobile_number || p.lead_mobile_number || p.mobile || ''}`.toLowerCase();
     if (q && !hay.includes(q)) return false;
     if (projectStatusFilter !== 'All' && (p.status || '') !== projectStatusFilter) return false;
     if (planStatusFilter !== 'All' && planStatusFor(p.id) !== planStatusFilter) return false;
