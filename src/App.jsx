@@ -3308,7 +3308,7 @@ function App() {
   return (
     <div
       className={cx(
-        'crm-density app-mobile-shell box-border min-h-dvh max-w-full overflow-x-hidden p-0 md:p-2 lg:h-dvh lg:overflow-hidden lg:p-2 xl:h-dvh xl:overflow-hidden xl:p-2',
+        'crm-density app-mobile-shell box-border flex min-h-dvh max-w-full flex-col overflow-x-hidden p-0 md:p-2 lg:h-dvh lg:overflow-hidden lg:p-2 xl:h-dvh xl:overflow-hidden xl:p-2',
         isDarkMode
           ? 'bg-[#07070d] text-[#c9cdd4]'
           : 'bg-[linear-gradient(180deg,#f8fbff_0%,#f3f7fb_56%,#eef4f8_100%)] text-[#20345f]',
@@ -3317,7 +3317,7 @@ function App() {
       <PinLockOverlay />
       <div
         className={cx(
-          'mx-auto flex w-full max-w-full xl:h-full xl:items-stretch',
+          'mx-auto flex min-h-0 w-full max-w-full flex-1 lg:h-full lg:min-h-0 lg:items-stretch xl:h-full xl:items-stretch',
           activeSidebarItem === 'Lead' || leadRelatedPages.includes(activeSidebarItem)
             ? 'gap-1.5'
             : 'gap-2 xl:gap-2.5',
@@ -4065,12 +4065,12 @@ function App() {
 
         <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col self-stretch">
         <main className={cx(
-          'main-scroll-area scroll-soft min-h-0 min-w-0 w-full flex-1 px-0 pb-[calc(5.75rem+env(safe-area-inset-bottom))] md:px-0 md:pb-2 xl:pr-0.5',
+          'main-scroll-area scroll-soft min-h-0 min-w-0 w-full flex-1 px-0 pb-[calc(5.75rem+env(safe-area-inset-bottom))] md:px-0 md:pb-0 xl:pr-0.5',
           fixedHeightPage ? 'flex flex-col overflow-visible lg:overflow-hidden' : 'overflow-visible lg:overflow-y-auto',
         )}>
           <div className={cx(
-            'w-full min-w-0 px-2 md:px-0 xl:pb-2',
-            fixedHeightPage ? 'flex min-h-0 flex-1 flex-col space-y-2 overflow-visible lg:overflow-hidden' : 'space-y-2',
+            'w-full min-w-0 px-2 md:px-0',
+            fixedHeightPage ? 'flex min-h-0 flex-1 flex-col gap-1.5 space-y-0 overflow-visible lg:overflow-hidden' : 'space-y-2 xl:pb-2',
           )}>
             <AppHeader
               notify={notify}
@@ -4754,7 +4754,7 @@ function AppHeader({
 
   return (
     <>
-    <header className={`${panelClass} header-toolbar app-mobile-topbar relative z-50 -mx-2 overflow-visible rounded-none border-x-0 border-t-0 px-3 py-1.5 md:mx-0 md:rounded-[14px] md:border md:px-3 md:py-1.5`}>
+    <header className={`${panelClass} header-toolbar app-mobile-topbar relative z-50 -mx-2 shrink-0 overflow-visible rounded-none border-x-0 border-t-0 px-3 py-1.5 md:mx-0 md:rounded-[14px] md:border md:px-3 md:py-1.5`}>
       <div className="grid items-center gap-2 lg:grid-cols-[36px_minmax(0,1fr)] xl:grid-cols-[36px_minmax(240px,300px)_minmax(0,1fr)_auto] xl:gap-3">
         <div className="flex items-center justify-between gap-2 lg:contents">
           <button
@@ -5741,17 +5741,17 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
   );
 
   return (
-    <div className="lead-list-page -mx-1 flex min-h-0 flex-1 flex-col gap-1.5 overflow-visible pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0 lg:overflow-hidden md:mx-0 xl:-mx-1">
-      <section className={`${panelClass} shrink-0 overflow-hidden px-2.5 py-2 sm:px-2.5 sm:py-1.5`}>
-        <div className="flex flex-wrap items-center justify-between gap-2">
+    <div className="lead-list-page -mx-1 flex min-h-0 flex-1 flex-col gap-1 overflow-visible pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0 lg:overflow-hidden md:mx-0 xl:-mx-1">
+      <section className={`${panelClass} shrink-0 overflow-hidden px-2.5 py-1.5 sm:px-2.5 sm:py-1`}>
+        <div className="flex flex-wrap items-center justify-between gap-1.5">
           <div>
-            <h1 className="font-display text-[18px] font-extrabold leading-tight text-[#111827] sm:text-[20px]">Lead List</h1>
+            <h1 className="font-display text-[17px] font-extrabold leading-tight text-[#111827] sm:text-[18px]">Lead List</h1>
           </div>
           {leadHeaderActions}
         </div>
 
         {/* Category filter — dropdown on phone, chips on desktop */}
-        <div className="mt-1.5 md:mt-1">
+        <div className="mt-1 md:mt-1">
           <label className="relative flex h-10 w-full items-center gap-2.5 rounded-[10px] border border-[#d9e4f2] bg-white px-3 shadow-sm md:hidden">
             <Filter className="size-4 shrink-0 text-[#0b65e5]" />
             <select
@@ -5824,9 +5824,9 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
 
       {/* z-20 stays under the sticky mobile header (z-50) so profile/language
           menus are never covered by this search/filter strip. */}
-      <section className={`${panelClass} relative z-20 shrink-0 overflow-visible px-2.5 py-1.5 sm:px-2.5 sm:py-1.5`}>
+      <section className={`${panelClass} relative z-20 shrink-0 overflow-visible px-2.5 py-1 sm:px-2.5 sm:py-1`}>
         <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
-          <label className="flex h-9 flex-1 items-center gap-2.5 rounded-[10px] border border-black/15 bg-white px-3 transition focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 md:rounded-[8px] md:border-black/20 md:px-3.5">
+          <label className="flex h-8 flex-1 items-center gap-2.5 rounded-[10px] border border-black/15 bg-white px-3 transition focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 md:rounded-[8px] md:border-black/20 md:px-3.5">
             <Search className="size-3.5 shrink-0 text-[#7386a3]" />
             <input
               value={searchQuery}
@@ -5837,7 +5837,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
             />
           </label>
 
-          <label className="relative inline-flex h-9 min-w-[220px] items-center gap-2 rounded-[10px] border border-black/15 bg-white px-2.5 text-[12px] font-extrabold text-[#284276] md:rounded-[8px] md:border-black/20">
+          <label className="relative inline-flex h-8 min-w-[220px] items-center gap-2 rounded-[10px] border border-black/15 bg-white px-2.5 text-[12px] font-extrabold text-[#284276] md:rounded-[8px] md:border-black/20">
             <span className="hidden whitespace-nowrap text-[#7386a3] sm:inline">Sort By:</span>
             <select
               value={sortOrdering}
@@ -5875,7 +5875,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
               type="button"
               onClick={resetLeadFilters}
               data-action="lead-reset-filters"
-              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[10px] border border-black/15 bg-white px-2.5 text-[12px] font-extrabold text-[#284276] transition active:bg-[#f8fbff] md:rounded-[8px] md:border-black/20 md:px-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-[10px] border border-black/15 bg-white px-2.5 text-[12px] font-extrabold text-[#284276] transition active:bg-[#f8fbff] md:rounded-[8px] md:border-black/20 md:px-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             >
               <RefreshCw className="size-3.5 text-[#0b65e5]" />
               <span className="truncate">Reset</span>
@@ -5938,7 +5938,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
 
       </section>
 
-      <section ref={leadTableSectionRef} className={`${panelClass} lead-list-table-panel relative z-10 flex min-h-0 flex-1 flex-col overflow-visible lg:overflow-hidden p-1.5 sm:p-1.5`}>
+      <section ref={leadTableSectionRef} className={`${panelClass} lead-list-table-panel relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden p-1 sm:p-1.5`}>
         {leadsLoading ? (
           <PageLoadingState message="Loading leads..." />
         ) : (
@@ -5967,7 +5967,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
           </div>
         </div>
 
-        <div className="lead-list-table-scroll hidden min-h-0 flex-1 overflow-auto rounded-[12px] border border-[#e7eef7] bg-white lg:flex lg:flex-col">
+        <div className="lead-list-table-scroll hidden min-h-0 flex-1 overflow-auto rounded-[12px] border border-[#e7eef7] bg-white lg:block">
           <table className="crm-table crm-table--lead-dense crm-table-sticky-head w-max">
               <thead>
                 <tr>
@@ -6148,7 +6148,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         )}
 
         {!leadsLoading ? (
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-[#eef2f8] bg-white px-3 py-2 text-[13px] font-bold text-[#53647f]">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-[#eef2f8] bg-white px-3 py-1.5 text-[12px] font-bold text-[#53647f]">
           <div className="flex flex-wrap items-center gap-2">
             <p>
               {visibleLeadRows.length > 0
