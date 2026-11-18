@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Check,
   CheckCircle2,
@@ -13,7 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { inventoryApi, materialPlanApi } from './api.js';
-import { fetchEveryPage, rowsOf } from './lib/listQuery.js';
+import { rowsOf } from './lib/listQuery.js';
 import {
   BOM_TEMPLATES,
   DISPATCH_CATEGORIES,
@@ -24,9 +24,6 @@ import {
   projectSummaryMeta,
 } from './components/ProjectWorkflowShell.jsx';
 
-const C_CHANNEL_SIZES = ['41×41 mm', '40×40 mm', '52×52 mm', 'Other'];
-const POLE_SIZES = ['60×60 mm', '50×50 mm', '75×75 mm', 'Other'];
-const POLE_HEIGHTS = ['6', '7', '8', '9', '10', '12'];
 const INV_UNITS = ['Nos', 'pcs', 'Meter', 'Kg', 'Ltr', 'Roll', 'Set', 'Unit', 'Packet', 'Bundels', 'kW'];
 const INV_CATEGORY_OPTIONS = [
   ...DISPATCH_CATEGORIES,
@@ -84,6 +81,41 @@ function matchInventory(items, name) {
   if (hit) return hit;
   hit = items.find((i) => norm(i.name).includes(target) || target.includes(norm(i.name)));
   return hit || null;
+}
+
+function buildInventoryNameIndex(items) {
+  const exact = new Map();
+  for (const item of items || []) {
+    const key = norm(item?.name);
+    if (key && !exact.has(key)) exact.set(key, item);
+  }
+  return exact;
+}
+
+function matchInventoryIndexed(index, items, name) {
+  const target = norm(name);
+  if (!target) return null;
+  const exact = index.get(target);
+  if (exact) return exact;
+  return matchInventory(items, name);
+}
+
+/** Run async work over a list with bounded concurrency (faster than serial awaits). */
+async function mapPool(items, concurrency, worker) {
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) return [];
+  const results = new Array(list.length);
+  let cursor = 0;
+  const run = async () => {
+    while (cursor < list.length) {
+      const idx = cursor;
+      cursor += 1;
+      results[idx] = await worker(list[idx], idx);
+    }
+  };
+  const n = Math.min(Math.max(1, concurrency), list.length);
+  await Promise.all(Array.from({ length: n }, () => run()));
+  return results;
 }
 
 function filterInventoryItems(items, query) {
@@ -186,42 +218,52 @@ export function MaterialPlanningBomPage({
   const [addInvOpen, setAddInvOpen] = useState(false);
   const [addInvSeed, setAddInvSeed] = useState({ name: '', specification: '' });
   const [addInvTarget, setAddInvTarget] = useState('toolbar'); // 'toolbar' | 'edit'
-  const [specs, setSpecs] = useState({
-    c_channel_length: '20',
-    c_channel_size: '41×41 mm',
-    pole_height: '7',
-    pole_size: '60×60 mm',
-  });
+  const [syncNote, setSyncNote] = useState('');
+  const templateApplySeq = useRef(0);
+  const templateBusyRef = useRef(false);
+  const loadSeq = useRef(0);
+  const inventoryLoadedRef = useRef(false);
 
-  const load = async () => {
+  const loadInventoryLite = useCallback(async () => {
+    if (inventoryLoadedRef.current) return;
+    inventoryLoadedRef.current = true;
+    try {
+      // One page only — full inventory crawl was freezing Material Planning.
+      const data = await inventoryApi.items.list({ page: 1, page_size: 100, is_active: true });
+      setInventoryItems(rowsOf(data).filter((item) => item?.is_active !== false));
+    } catch {
+      inventoryLoadedRef.current = false;
+    }
+  }, []);
+
+  const load = useCallback(async () => {
     if (!project?.id) {
       setLines([]);
       setLoading(false);
       return;
     }
+    const seq = ++loadSeq.current;
     setLoading(true);
     try {
-      const [planData, itemsData] = await Promise.all([
-        materialPlanApi.list({ project: project.id, page_size: 200 }),
-        fetchEveryPage((page, pageSize) =>
-          inventoryApi.items.list({ page, page_size: pageSize, is_active: true }),
-        ).catch(() => []),
-      ]);
-      const items = (Array.isArray(itemsData) ? itemsData : rowsOf(itemsData))
-        .filter((item) => item?.is_active !== false);
-      setInventoryItems(items);
-      const rows = rowsOf(planData).map((p) => lineFromPlan(p, items));
-      setLines(rows);
+      const planData = await materialPlanApi.list({ project: project.id, page_size: 200 });
+      if (seq !== loadSeq.current) return;
+      // Template apply owns the table while syncing — don't clobber instant UI.
+      if (templateBusyRef.current) return;
+      setLines(rowsOf(planData).map((p) => lineFromPlan(p, [])));
       setTemplateKey(suggestTemplateKey(project?.capacity_kwp));
     } catch (e) {
-      onNotify?.(e.message || 'Failed to load material planning', 'error');
-      setLines([]);
+      if (seq === loadSeq.current && !templateBusyRef.current) {
+        onNotify?.(e.message || 'Failed to load material planning', 'error');
+      }
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
-  };
+    loadInventoryLite();
+  }, [project?.id, project?.capacity_kwp, onNotify, loadInventoryLite]);
 
   useEffect(() => {
+    inventoryLoadedRef.current = false;
+    templateBusyRef.current = false;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id]);
@@ -297,8 +339,8 @@ export function MaterialPlanningBomPage({
   const applyTemplate = async (key, { replace = true } = {}) => {
     const tpl = BOM_TEMPLATES[key];
     if (!tpl) return;
-    setTemplateKey(key);
     if (key === 'other') {
+      setTemplateKey(key);
       onNotify?.('Other template — add materials manually or import from inventory');
       return;
     }
@@ -314,79 +356,91 @@ export function MaterialPlanningBomPage({
       if (!ok) return;
     }
 
-    setSaving(true);
-    try {
-      const keepByName = new Map();
-      lines.forEach((l) => {
-        if (l.id && parseDispatched(l.dispatched_qty) > 0) {
-          keepByName.set(norm(l.material_name), l);
-        }
-      });
+    const seq = ++templateApplySeq.current;
+    templateBusyRef.current = true;
+    setLoading(false);
+    setTemplateKey(key);
 
-      if (replace) {
-        for (const l of lines) {
-          if (!l.id) continue;
-          if (keepByName.has(norm(l.material_name))) continue;
-          try {
-            await materialPlanApi.delete(l.id);
-          } catch {
-            /* ignore */
-          }
-        }
+    const keepByName = new Map();
+    lines.forEach((l) => {
+      if (l.id && parseDispatched(l.dispatched_qty) > 0) {
+        keepByName.set(norm(l.material_name), l);
       }
+    });
 
-      const next = [];
-      for (const row of tpl.lines) {
-        if (!row.qty && replace) {
-          // Keep zero-qty optional rows as editable drafts (not saved until qty set)
-          next.push(
-            makeLine({
-              category: row.category,
-              material_name: row.material_name,
-              specification: row.specification || '',
-              unit: row.unit,
-              planned_qty: '0',
-              dispatched_qty: '0',
-            }),
-          );
-          continue;
-        }
-        const kept = keepByName.get(norm(row.material_name));
-        if (kept) {
-          next.push({
-            ...kept,
-            category: row.category,
-            specification: row.specification || kept.specification,
-            unit: row.unit || kept.unit,
-            planned_qty: String(row.qty),
-          });
-          keepByName.delete(norm(row.material_name));
-          continue;
-        }
-        const inv = matchInventory(inventoryItems, row.material_name);
-        const draft = makeLine({
+    const toDelete = replace
+      ? lines
+        .filter((l) => l.id && !keepByName.has(norm(l.material_name)))
+        .map((l) => l.id)
+      : [];
+
+    const invIndex = buildInventoryNameIndex(inventoryItems);
+    const next = [];
+    const toCreate = [];
+
+    for (const row of tpl.lines) {
+      const kept = keepByName.get(norm(row.material_name));
+      if (kept) {
+        next.push({
+          ...kept,
           category: row.category,
-          material_name: row.material_name.slice(0, 50),
-          specification: row.specification || '',
-          unit: row.unit,
+          specification: row.specification || kept.specification,
+          unit: row.unit || kept.unit,
           planned_qty: String(row.qty),
-          inventory_item: inv?.id || '',
         });
-        const saved = await saveOne(draft);
-        if (saved) next.push(lineFromPlan({ ...saved, inventory_item: draft.inventory_item }, inventoryItems));
-        else next.push(draft);
+        keepByName.delete(norm(row.material_name));
+        continue;
       }
 
-      // leftover dispatched-only lines
-      for (const leftover of keepByName.values()) next.push(leftover);
+      const inv = matchInventoryIndexed(invIndex, inventoryItems, row.material_name);
+      const draft = makeLine({
+        category: row.category,
+        material_name: String(row.material_name || '').slice(0, 50),
+        specification: row.specification || '',
+        unit: row.unit,
+        planned_qty: String(row.qty ?? 0),
+        inventory_item: inv?.id || '',
+      });
+      next.push(draft);
+      // Persist only positive planned qty — zero rows stay local drafts.
+      if (num(row.qty) > 0) toCreate.push(draft);
+    }
 
-      setLines(next);
-      onNotify?.(`${tpl.label} applied`);
+    for (const leftover of keepByName.values()) next.push(leftover);
+
+    // Instant paint from in-memory 3/5/10 kW templates (no API wait).
+    setLines(next);
+    onNotify?.(`${tpl.label} loaded`);
+    setSyncNote('Syncing BOM to server…');
+    setSaving(true);
+
+    try {
+      // Light concurrency so API/list stays responsive.
+      await mapPool(toDelete, 4, (id) => materialPlanApi.delete(id).catch(() => null));
+      if (seq !== templateApplySeq.current) return;
+
+      const savedRows = await mapPool(toCreate, 4, async (draft) => {
+        const saved = await saveOne(draft);
+        return saved
+          ? { key: draft._key, line: lineFromPlan({ ...saved, inventory_item: draft.inventory_item }, inventoryItems) }
+          : { key: draft._key, line: draft };
+      });
+      if (seq !== templateApplySeq.current) return;
+
+      const byKey = new Map(savedRows.map((r) => [r.key, r.line]));
+      setLines((prev) => prev.map((line) => byKey.get(line._key) || line));
       onPlansChanged?.();
+      setSyncNote('');
     } catch (e) {
-      onNotify?.(e.message || 'Template apply failed', 'error');
+      if (seq === templateApplySeq.current) {
+        setSyncNote('');
+        onNotify?.(e.message || 'Template save failed — rows are on screen; use Save & Update', 'error');
+      }
     } finally {
-      setSaving(false);
+      if (seq === templateApplySeq.current) {
+        templateBusyRef.current = false;
+        setSaving(false);
+      }
     }
   };
 
@@ -394,6 +448,19 @@ export function MaterialPlanningBomPage({
     const draft = makeLine({ category: 'Other', material_name: '', planned_qty: '1' });
     setLines((prev) => [...prev, draft]);
     setEditLine(draft);
+  };
+
+  const startInlineEdit = (line) => {
+    setEditLine({ ...line });
+  };
+
+  const cancelInlineEdit = () => {
+    if (!editLine) return;
+    const blankDraft = !editLine.id && !String(editLine.material_name || '').trim();
+    if (blankDraft) {
+      setLines((prev) => prev.filter((l) => l._key !== editLine._key));
+    }
+    setEditLine(null);
   };
 
   const openAddInventory = (seed = {}, target = 'toolbar') => {
@@ -622,8 +689,6 @@ export function MaterialPlanningBomPage({
             <b>Capacity:</b> ${escapeHtml(String(project?.capacity_kwp ?? ''))} kW &nbsp;|&nbsp;
             <b>Template:</b> ${escapeHtml(BOM_TEMPLATES[templateKey]?.label || '')}</div>
         <div><b>Date:</b> ${new Date().toLocaleDateString('en-IN')}</div>
-        <div><b>Specs:</b> C-Channel ${escapeHtml(specs.c_channel_length)} ft / ${escapeHtml(specs.c_channel_size)};
-            Pole ${escapeHtml(specs.pole_height)} ft / ${escapeHtml(specs.pole_size)}</div>
       </div>
       <table>
         <thead><tr>
@@ -684,77 +749,17 @@ export function MaterialPlanningBomPage({
             {projectMeta || 'Select a won project'}
           </p>
         </div>
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div className="min-w-[240px] flex-1">
-            <p className="mb-1.5 text-[12px] font-bold text-[#334155]">Select BOM Template</p>
-            <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={templateKey}
-                onChange={(e) => applyTemplate(e.target.value)}
-                className="h-10 min-w-[200px] rounded-[9px] border border-[#d5e0ef] bg-white px-3 text-[13px] font-bold text-[#0f172a]"
-              >
-                {Object.values(BOM_TEMPLATES).map((t) => (
-                  <option key={t.key} value={t.key}>{t.label}</option>
-                ))}
-              </select>
-              {['3', '5', '10', 'other'].map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  disabled={saving}
-                  onClick={() => applyTemplate(k)}
-                  className={cx(
-                    'h-10 min-w-[64px] rounded-[9px] px-3 text-[13px] font-extrabold transition',
-                    templateKey === k
-                      ? 'bg-[#2563eb] text-white shadow-sm'
-                      : 'border border-[#d5e0ef] bg-white text-[#334155] hover:bg-[#f8fafc]',
-                  )}
-                >
-                  {k === 'other' ? 'Other' : `${k} kW`}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
-              C-Channel Length (Ft)
-              <input
-                value={specs.c_channel_length}
-                onChange={(e) => setSpecs((p) => ({ ...p, c_channel_length: e.target.value }))}
-                className="h-10 w-full min-w-[110px] rounded-[9px] border border-[#d5e0ef] bg-white px-2.5 text-[13px] font-semibold text-[#0f172a] outline-none focus:border-[#2563eb]"
-              />
-            </label>
-            <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
-              C-Channel Size
-              <select
-                value={specs.c_channel_size}
-                onChange={(e) => setSpecs((p) => ({ ...p, c_channel_size: e.target.value }))}
-                className="h-10 w-full min-w-[110px] rounded-[9px] border border-[#d5e0ef] bg-white px-2.5 text-[13px] font-semibold text-[#0f172a] outline-none focus:border-[#2563eb]"
-              >
-                {C_CHANNEL_SIZES.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-              </select>
-            </label>
-            <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
-              Pole Height (Ft)
-              <select
-                value={specs.pole_height}
-                onChange={(e) => setSpecs((p) => ({ ...p, pole_height: e.target.value }))}
-                className="h-10 w-full min-w-[110px] rounded-[9px] border border-[#d5e0ef] bg-white px-2.5 text-[13px] font-semibold text-[#0f172a] outline-none focus:border-[#2563eb]"
-              >
-                {POLE_HEIGHTS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-              </select>
-            </label>
-            <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
-              Pole Size
-              <select
-                value={specs.pole_size}
-                onChange={(e) => setSpecs((p) => ({ ...p, pole_size: e.target.value }))}
-                className="h-10 w-full min-w-[110px] rounded-[9px] border border-[#d5e0ef] bg-white px-2.5 text-[13px] font-semibold text-[#0f172a] outline-none focus:border-[#2563eb]"
-              >
-                {POLE_SIZES.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-              </select>
-            </label>
-          </div>
+        <div className="min-w-[240px] max-w-md">
+          <p className="mb-1.5 text-[12px] font-bold text-[#334155]">Select BOM Template</p>
+          <select
+            value={templateKey}
+            onChange={(e) => applyTemplate(e.target.value)}
+            className="h-10 w-full min-w-[200px] rounded-[9px] border border-[#d5e0ef] bg-white px-3 text-[13px] font-bold text-[#0f172a]"
+          >
+            {Object.values(BOM_TEMPLATES).map((t) => (
+              <option key={t.key} value={t.key}>{t.label}</option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -786,7 +791,10 @@ export function MaterialPlanningBomPage({
 
       {/* 5. BOM table */}
       <div className="px-4 pb-3 sm:px-5">
-        {loading ? (
+        {syncNote ? (
+          <p className="mb-2 text-[12px] font-semibold text-[#2563eb]">{syncNote}</p>
+        ) : null}
+        {loading && lines.length === 0 ? (
           <p className="py-16 text-center text-[13px] font-bold text-[#94a3b8]">Loading material planning…</p>
         ) : (
           <div className="overflow-x-auto rounded-[12px] border border-[#dbe3ee] shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
@@ -813,44 +821,110 @@ export function MaterialPlanningBomPage({
               </thead>
               <tbody>
                 {visibleLines.map((line, idx) => {
-                  const bal = balanceOf(line);
+                  const isEditing = Boolean(editLine && editLine._key === line._key);
+                  const row = isEditing ? editLine : line;
+                  const bal = balanceOf(row);
+                  const cellInput = 'h-9 w-full min-w-[72px] rounded-[8px] border border-[#93c5fd] bg-white px-2 text-[13px] font-semibold text-[#0f172a] outline-none focus:border-[#2563eb]';
+                  const rowClass = isEditing
+                    ? 'border-t border-[#edf2f8] bg-[#eff6ff]'
+                    : 'border-t border-[#edf2f8] hover:bg-[#fbfdff]';
                   return (
-                    <tr key={line._key} className="border-t border-[#edf2f8] hover:bg-[#fbfdff]">
-                      <td className="px-3 py-2.5">
+                    <tr
+                      key={line._key}
+                      className={rowClass}
+                    >
+                      <td className="px-3 py-2.5 align-top">
                         <input
                           type="checkbox"
                           checked={Boolean(line.selected)}
                           onChange={(e) => patchLine(line._key, { selected: e.target.checked })}
                           className="size-4 rounded border-[#cbd5e1] accent-[#2563eb]"
+                          disabled={isEditing}
                         />
                       </td>
-                      <td className="px-2 py-2.5 font-bold text-[#64748b]">{idx + 1}</td>
-                      <td className="px-3 py-2.5 font-bold text-[#0f172a]">{line.material_name || '—'}</td>
-                      <td className="px-3 py-2.5 text-[#475569]">{line.specification || '—'}</td>
-                      <td className="px-3 py-2.5 font-semibold text-[#334155]">{line.unit}</td>
-                      <td className="px-3 py-2.5">
-                        <input
-                          type="number"
-                          min="0"
-                          step="any"
-                          value={line.planned_qty}
-                          onChange={(e) => patchLine(line._key, { planned_qty: e.target.value })}
-                          onBlur={() => line.id && saveOne({ ...line }, { includeDispatch: false }).then(() => onPlansChanged?.())}
-                          className="h-9 w-[72px] rounded-[8px] border border-[#e2e8f0] bg-white px-2 text-center font-bold outline-none focus:border-[#2563eb]"
-                        />
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <input
-                          type="number"
-                          min="0"
-                          step="any"
-                          value={line.dispatched_qty}
-                          onChange={(e) => patchLine(line._key, { dispatched_qty: e.target.value })}
-                          onBlur={(e) => updateDispatched(line, e.target.value)}
-                          className="h-9 w-[72px] rounded-[8px] border border-[#e2e8f0] bg-white px-2 text-center font-bold outline-none focus:border-[#2563eb]"
-                        />
-                      </td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-2 py-2.5 align-top font-bold text-[#64748b]">{idx + 1}</td>
+                      {isEditing ? (
+                        <>
+                          <td className="relative z-20 min-w-[200px] px-2 py-2 align-top">
+                            <InventorySuggestField
+                              value={row.material_name}
+                              onChange={(v) => setEditLine((p) => ({ ...p, material_name: v, inventory_item: '' }))}
+                              items={inventoryItems}
+                              placeholder="Material name…"
+                              onPick={applyInventoryToEditLine}
+                              onAddMissing={(q) => openAddInventory({ name: q, specification: row.specification }, 'edit')}
+                              disabled={saving}
+                              compact
+                            />
+                          </td>
+                          <td className="min-w-[140px] px-2 py-2 align-top">
+                            <input
+                              value={row.specification}
+                              onChange={(e) => setEditLine((p) => ({ ...p, specification: e.target.value }))}
+                              placeholder="Specification"
+                              className={cellInput}
+                            />
+                          </td>
+                          <td className="px-2 py-2 align-top">
+                            <select
+                              value={row.unit}
+                              onChange={(e) => setEditLine((p) => ({ ...p, unit: e.target.value }))}
+                              className={cellInput}
+                            >
+                              {INV_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                            </select>
+                          </td>
+                          <td className="px-2 py-2 align-top">
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={row.planned_qty}
+                              onChange={(e) => setEditLine((p) => ({ ...p, planned_qty: e.target.value }))}
+                              className={`${cellInput} text-center`}
+                            />
+                          </td>
+                          <td className="px-2 py-2 align-top">
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={row.dispatched_qty}
+                              onChange={(e) => setEditLine((p) => ({ ...p, dispatched_qty: e.target.value }))}
+                              className={`${cellInput} text-center`}
+                            />
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-3 py-2.5 font-bold text-[#0f172a]">{line.material_name || '—'}</td>
+                          <td className="px-3 py-2.5 text-[#475569]">{line.specification || '—'}</td>
+                          <td className="px-3 py-2.5 font-semibold text-[#334155]">{line.unit}</td>
+                          <td className="px-3 py-2.5">
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={line.planned_qty}
+                              onChange={(e) => patchLine(line._key, { planned_qty: e.target.value })}
+                              onBlur={() => line.id && saveOne({ ...line }, { includeDispatch: false }).then(() => onPlansChanged?.())}
+                              className="h-9 w-[72px] rounded-[8px] border border-[#e2e8f0] bg-white px-2 text-center font-bold outline-none focus:border-[#2563eb]"
+                            />
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={line.dispatched_qty}
+                              onChange={(e) => patchLine(line._key, { dispatched_qty: e.target.value })}
+                              onBlur={(e) => updateDispatched(line, e.target.value)}
+                              className="h-9 w-[72px] rounded-[8px] border border-[#e2e8f0] bg-white px-2 text-center font-bold outline-none focus:border-[#2563eb]"
+                            />
+                          </td>
+                        </>
+                      )}
+                      <td className="px-3 py-2.5 align-top">
                         <span
                           className={cx(
                             'inline-flex min-w-[2.75rem] justify-center rounded-[8px] px-2.5 py-1.5 text-[13px] font-extrabold',
@@ -862,15 +936,43 @@ export function MaterialPlanningBomPage({
                           {bal}
                         </span>
                       </td>
-                      <td className="px-3 py-2.5">
-                        <div className="flex gap-1">
-                          <button type="button" onClick={() => setEditLine({ ...line })} className="rounded-[8px] p-1.5 text-[#2563eb] hover:bg-[#eff6ff]" title="Edit">
-                            <Pencil className="size-4" />
-                          </button>
-                          <button type="button" onClick={() => deleteLine(line)} className="rounded-[8px] p-1.5 text-[#e11d48] hover:bg-[#fef2f2]" title="Delete">
-                            <Trash2 className="size-4" />
-                          </button>
-                        </div>
+                      <td className="px-3 py-2.5 align-top">
+                        {isEditing ? (
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              disabled={saving}
+                              onClick={persistEdit}
+                              className="rounded-[8px] p-1.5 text-[#16a34a] hover:bg-[#dcfce7] disabled:opacity-50"
+                              title="Save"
+                            >
+                              <Check className="size-4" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={saving}
+                              onClick={cancelInlineEdit}
+                              className="rounded-[8px] p-1.5 text-[#64748b] hover:bg-[#f1f5f9] disabled:opacity-50"
+                              title="Cancel"
+                            >
+                              <X className="size-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              onClick={() => startInlineEdit(line)}
+                              className="rounded-[8px] p-1.5 text-[#2563eb] hover:bg-[#eff6ff]"
+                              title="Edit"
+                            >
+                              <Pencil className="size-4" />
+                            </button>
+                            <button type="button" onClick={() => deleteLine(line)} className="rounded-[8px] p-1.5 text-[#e11d48] hover:bg-[#fef2f2]" title="Delete">
+                              <Trash2 className="size-4" />
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );
@@ -987,95 +1089,6 @@ export function MaterialPlanningBomPage({
         </ModalShell>
       ) : null}
 
-      {editLine ? (
-        <ModalShell title={editLine.id ? 'Edit BOM Item' : 'Add BOM Item'} onClose={() => setEditLine(null)}>
-          <div className="grid gap-3">
-            <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
-              Material Name
-              <InventorySuggestField
-                value={editLine.material_name}
-                onChange={(v) => setEditLine((p) => ({ ...p, material_name: v, inventory_item: '' }))}
-                items={inventoryItems}
-                placeholder="Type material name…"
-                onPick={applyInventoryToEditLine}
-                onAddMissing={(q) => openAddInventory({ name: q, specification: editLine.specification }, 'edit')}
-                disabled={saving}
-              />
-            </label>
-            <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
-              Specification
-              <input
-                value={editLine.specification}
-                onChange={(e) => setEditLine((p) => ({ ...p, specification: e.target.value }))}
-                placeholder="e.g., 3900mm / GI / 2mm"
-                className="h-10 rounded-[8px] border border-[#d9e4f2] px-3 text-[13px] font-semibold outline-none"
-              />
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
-                Category
-                <select
-                  value={editLine.category}
-                  onChange={(e) => setEditLine((p) => ({ ...p, category: e.target.value }))}
-                  className="h-10 rounded-[8px] border border-[#d9e4f2] px-2 text-[13px] font-semibold"
-                >
-                  {[...new Set(INV_CATEGORY_OPTIONS)].map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
-                Unit
-                <select
-                  value={editLine.unit}
-                  onChange={(e) => setEditLine((p) => ({ ...p, unit: e.target.value }))}
-                  className="h-10 rounded-[8px] border border-[#d9e4f2] px-2 text-[13px] font-semibold"
-                >
-                  {INV_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-                </select>
-              </label>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
-                Qty Planned
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
-                  value={editLine.planned_qty}
-                  onChange={(e) => setEditLine((p) => ({ ...p, planned_qty: e.target.value }))}
-                  className="h-10 rounded-[8px] border border-[#d9e4f2] px-3 text-[13px] font-semibold outline-none"
-                />
-              </label>
-              <label className="grid gap-1 text-[11px] font-bold text-[#64748b]">
-                Qty Dispatched
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
-                  value={editLine.dispatched_qty}
-                  onChange={(e) => setEditLine((p) => ({ ...p, dispatched_qty: e.target.value }))}
-                  className="h-10 rounded-[8px] border border-[#d9e4f2] px-3 text-[13px] font-semibold outline-none"
-                />
-              </label>
-            </div>
-            {editLine.inventory_item ? (
-              <p className="rounded-[8px] border border-[#dcfce7] bg-[#f0fdf4] px-3 py-2 text-[12px] font-semibold text-[#15803d]">
-                Linked inventory #{editLine.inventory_item}
-                {' · '}
-                Stock {stockOf(inventoryItems.find((i) => String(i.id) === String(editLine.inventory_item)))}
-              </p>
-            ) : null}
-            <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setEditLine(null)} className="h-9 rounded-[8px] border border-[#d9e4f2] px-3 text-[12px] font-bold">Cancel</button>
-              <button type="button" disabled={saving} onClick={persistEdit} className="h-9 rounded-[8px] bg-[#2563eb] px-3 text-[12px] font-extrabold text-white">
-                Save Item
-              </button>
-            </div>
-          </div>
-        </ModalShell>
-      ) : null}
-
       {addInvOpen ? (
         <AddInventoryModal
           seed={addInvSeed}
@@ -1113,6 +1126,7 @@ function InventorySuggestField({
   onPick,
   onAddMissing,
   disabled = false,
+  compact = false,
 }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
@@ -1131,8 +1145,13 @@ function InventorySuggestField({
 
   return (
     <div className="relative" ref={wrapRef}>
-      <div className="flex h-10 items-center gap-2 rounded-[9px] border border-[#d5e0ef] bg-white px-3 focus-within:border-[#2563eb]">
-        <Search className="size-4 shrink-0 text-[#94a3b8]" />
+      <div
+        className={cx(
+          'flex items-center gap-2 rounded-[8px] border bg-white focus-within:border-[#2563eb]',
+          compact ? 'h-9 border-[#93c5fd] px-2' : 'h-10 border-[#d5e0ef] px-3 rounded-[9px]',
+        )}
+      >
+        {compact ? null : <Search className="size-4 shrink-0 text-[#94a3b8]" />}
         <input
           value={value}
           disabled={disabled}
@@ -1146,7 +1165,7 @@ function InventorySuggestField({
         />
       </div>
       {open && q ? (
-        <div className="absolute z-40 mt-1 w-full overflow-hidden rounded-[12px] border border-[#d5e0ef] bg-white shadow-xl">
+        <div className={cx('absolute z-50 mt-1 overflow-hidden rounded-[12px] border border-[#d5e0ef] bg-white shadow-xl', compact ? 'w-[min(420px,70vw)]' : 'w-full')}>
           <div className="max-h-64 overflow-y-auto">
             {hits.map((item) => (
               <button
