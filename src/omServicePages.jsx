@@ -6,6 +6,7 @@ import {
 import { getMediaUrl, omDocumentApi, omMaintenanceApi, omTicketApi, omVisitApi } from './api.js';
 import { moduleCaps } from './settingsHubPages.jsx';
 import { MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
+import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import {
   BTN_GREEN, BTN_OUTLINE, BTN_PRIMARY, BTN_SMALL, CounterTile, DataList, DetailGrid, Field, FilterChips, INPUT,
   Modal, OmHeading, PANEL, Pill, PlantPicker, SearchBox, SelectInput, TEXTAREA, addDaysIso, cx, daysText,
@@ -56,6 +57,20 @@ function useRows(loader, deps) {
 function stop(fn) {
   return (e) => { e.stopPropagation(); fn(); };
 }
+
+/** Lead-style column header filter; '' = no filter (shows the "All" option first). */
+function columnFilter(label, value, options, onChange, allLabel = 'All') {
+  return (
+    <TableHeaderFilter
+      label={label}
+      value={value}
+      active={Boolean(value)}
+      options={[{ value: '', label: allLabel }, ...options]}
+      onChange={onChange}
+    />
+  );
+}
+const engineerOptions = (engineers) => engineers.map((u) => ({ value: String(u.id), label: u.name }));
 
 function mapsUrl(text) {
   return text ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(text)}` : '';
@@ -930,8 +945,8 @@ export function ComplaintTicketsList({ plant, caps, onNotify, embedded, focusId,
   const columns = [
     { label: 'Ticket', render: (r) => <div><p className="font-extrabold text-[#0b65e5]">{r.record_no}</p><p className="text-[11px] text-[#8a98af]">{fmtDateTime(r.complaint_at || r.created_at)}</p></div> },
     ...(plant ? [] : [{ label: 'Plant / Customer', render: (r) => <div><p className="font-bold">{r.customer_name || r.site || '—'}</p><p className="text-[11px] text-[#8a98af]">{[r.plant_code, r.contact_number].filter(Boolean).join(' · ')}</p></div> }]),
-    { label: 'Complaint', render: (r) => <div className="max-w-[260px]"><p className="font-bold">{r.subject}</p><p className="text-[11px] text-[#8a98af]">{r.complaint_type}</p></div> },
-    { label: 'Priority', render: (r) => <Pill>{r.priority}</Pill> },
+    { label: 'Complaint', header: columnFilter('Complaint', type, COMPLAINT_TYPES, setType, 'All types'), render: (r) => <div className="max-w-[260px]"><p className="font-bold">{r.subject}</p><p className="text-[11px] text-[#8a98af]">{r.complaint_type}</p></div> },
+    { label: 'Priority', header: columnFilter('Priority', priority, PRIORITIES, setPriority, 'All priorities'), render: (r) => <Pill>{r.priority}</Pill> },
     { label: 'Engineer', render: (r) => <div><p>{r.assigned_to_name || '—'}</p>{r.expected_visit_date ? <p className={cx('text-[11px]', r.is_overdue ? 'font-extrabold text-[#dc2626]' : 'text-[#8a98af]')}>Visit {fmtDate(r.expected_visit_date)}</p> : null}</div> },
     { label: 'Status', render: (r) => <div className="flex flex-col items-start gap-1"><Pill>{r.status}</Pill>{r.is_overdue ? <Pill tone="red">Overdue</Pill> : null}</div> },
     ...(caps.edit ? [{ label: 'Actions', render: actions }] : []),
@@ -941,10 +956,6 @@ export function ComplaintTicketsList({ plant, caps, onNotify, embedded, focusId,
     <div className={cx(!embedded && PANEL, !embedded && 'p-3 sm:p-4', 'flex flex-col gap-3')}>
       <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
         <SearchBox value={search} onChange={setSearch} placeholder="Search ticket, customer, mobile, PLT..." />
-        <div className="grid grid-cols-2 gap-2 lg:flex">
-          <SelectInput value={priority} onChange={setPriority} options={PRIORITIES} placeholder="All priorities" className="lg:w-[150px]" />
-          <SelectInput value={type} onChange={setType} options={COMPLAINT_TYPES} placeholder="All types" className="lg:w-[170px]" />
-        </div>
         {caps.add ? <button type="button" className={BTN_PRIMARY} onClick={() => setModal({ form: true })}><Plus className="size-4" /> New Ticket</button> : null}
       </div>
       <FilterChips options={TICKET_CHIPS.map(({ value, label }) => ({ value, label }))} value={chip} onChange={setChip} />
@@ -1217,9 +1228,9 @@ export function ServiceTasksList({
   const columns = [
     { label: 'Task', render: (r) => <div><p className="font-extrabold text-[#0b65e5]">{r.record_no}</p>{r.ticket_no ? <p className="text-[11px] text-[#7c3aed]">{r.ticket_no}</p> : null}</div> },
     ...(plant ? [] : [{ label: 'Plant / Customer', render: (r) => <div><p className="font-bold">{r.customer_name || r.site || '—'}</p><p className="text-[11px] text-[#8a98af]">{[r.plant_code, r.customer_mobile].filter(Boolean).join(' · ')}</p></div> }]),
-    { label: 'Title', render: (r) => <div className="max-w-[260px]"><p className="font-bold">{r.title}</p>{!(quarterly || cleaning) ? <Pill className="mt-1">{r.source}</Pill> : null}</div> },
+    { label: 'Title', header: (quarterly || cleaning) ? undefined : columnFilter('Title', source, ['Quarterly', 'Cleaning', 'Ticket', 'Manual'], setSource, 'All sources'), render: (r) => <div className="max-w-[260px]"><p className="font-bold">{r.title}</p>{!(quarterly || cleaning) ? <Pill className="mt-1">{r.source}</Pill> : null}</div> },
     { label: (quarterly || cleaning) ? 'Due Date' : 'Due / Visit', render: (r) => <div><p className={cx(r.is_overdue && 'font-extrabold text-[#dc2626]')}>{fmtDate(when(r))}</p>{r.is_overdue ? <p className="text-[11px] font-bold text-[#dc2626]">Overdue</p> : null}</div> },
-    { label: 'Engineer', render: (r) => r.assigned_engineer_name || <span className="text-[#8a98af]">Unassigned</span> },
+    { label: 'Engineer', header: columnFilter('Engineer', engineer, engineerOptions(engineers), setEngineer, 'All engineers'), render: (r) => r.assigned_engineer_name || <span className="text-[#8a98af]">Unassigned</span> },
     { label: 'Priority', render: (r) => <Pill>{r.priority}</Pill> },
     { label: 'Status', render: (r) => <Pill>{r.status}</Pill> },
     {
@@ -1237,10 +1248,6 @@ export function ServiceTasksList({
     <div className={cx(!embedded && PANEL, !embedded && 'p-3 sm:p-4', 'flex flex-col gap-3')}>
       <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
         <SearchBox value={search} onChange={setSearch} placeholder="Search task, customer, PLT, engineer..." />
-        <div className="grid grid-cols-2 gap-2 lg:flex">
-          <SelectInput value={engineer} onChange={setEngineer} placeholder="All engineers" options={engineers.map((u) => ({ value: String(u.id), label: u.name }))} className="lg:w-[170px]" />
-          {!(quarterly || cleaning) ? <SelectInput value={source} onChange={setSource} placeholder="All sources" options={['Quarterly', 'Cleaning', 'Ticket', 'Manual']} className="lg:w-[140px]" /> : null}
-        </div>
         {!(quarterly || cleaning) && caps.add ? <button type="button" className={BTN_PRIMARY} onClick={() => setModal({ form: true })}><Plus className="size-4" /> New Task</button> : null}
       </div>
       <FilterChips options={chips.map(({ value, label }) => ({ value, label }))} value={chip} onChange={setChip} />
@@ -1304,8 +1311,8 @@ export function ServiceVisitsList({ plant, caps, onNotify, embedded }) {
   const columns = [
     { label: 'Visit', render: (r) => <div><p className="font-extrabold text-[#0b65e5]">{r.record_no}</p><p className="text-[11px] text-[#8a98af]">{fmtDate(r.date)}</p></div> },
     ...(plant ? [] : [{ label: 'Plant / Customer', render: (r) => <div><p className="font-bold">{r.customer_name || r.site || '—'}</p><p className="text-[11px] text-[#8a98af]">{r.plant_code}</p></div> }]),
-    { label: 'Type', render: (r) => <div className="flex flex-col items-start gap-1"><Pill>{r.service_type}</Pill>{r.ticket_no ? <span className="text-[11px] text-[#7c3aed]">{r.ticket_no}</span> : null}</div> },
-    { label: 'Engineer', render: (r) => r.assigned_engineer_name || r.engineer || '—' },
+    { label: 'Type', header: columnFilter('Type', type, SERVICE_TYPES, setType, 'All types'), render: (r) => <div className="flex flex-col items-start gap-1"><Pill>{r.service_type}</Pill>{r.ticket_no ? <span className="text-[11px] text-[#7c3aed]">{r.ticket_no}</span> : null}</div> },
+    { label: 'Engineer', header: columnFilter('Engineer', engineer, engineerOptions(engineers), setEngineer, 'All engineers'), render: (r) => r.assigned_engineer_name || r.engineer || '—' },
     { label: 'Work Done', render: (r) => <p className="line-clamp-2 max-w-[300px]">{r.work_done || r.purpose || '—'}</p> },
     { label: 'Parts', render: (r) => (r.parts?.length ? `${r.parts.length} · ${fmtMoney(r.spare_cost)}` : '—') },
     { label: 'Status', render: (r) => <div className="flex flex-col items-start gap-1"><Pill>{r.status}</Pill>{r.final_status ? <Pill>{r.final_status}</Pill> : null}</div> },
@@ -1315,10 +1322,6 @@ export function ServiceVisitsList({ plant, caps, onNotify, embedded }) {
     <div className={cx(!embedded && PANEL, !embedded && 'p-3 sm:p-4', 'flex flex-col gap-3')}>
       <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
         <SearchBox value={search} onChange={setSearch} placeholder="Search visit, customer, engineer, work..." />
-        <div className="grid grid-cols-2 gap-2 lg:flex">
-          <SelectInput value={type} onChange={setType} options={SERVICE_TYPES} placeholder="All types" className="lg:w-[150px]" />
-          <SelectInput value={engineer} onChange={setEngineer} placeholder="All engineers" options={engineers.map((u) => ({ value: String(u.id), label: u.name }))} className="lg:w-[170px]" />
-        </div>
         {caps.add || caps.field ? <button type="button" className={BTN_PRIMARY} onClick={() => setModal({ log: true })}><Plus className="size-4" /> Log Visit</button> : null}
       </div>
       <p className="text-[11px] font-semibold text-[#8a98af]">Service visits are permanent history — they can be cancelled but never deleted.</p>

@@ -15,6 +15,7 @@ import { followUpApi } from './api.js';
 import { exportNotifyCsv } from './lib/utils.js';
 import { fetchEveryPage, mergeFollowUpRows, rowsOf } from './lib/listQuery.js';
 import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
+import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import {
   RecentAllPageHeading,
   RecentRecordsSectionHeader,
@@ -84,8 +85,6 @@ function StatusPill({ value }) {
 const FOLLOW_UP_TYPES = ['Call', 'WhatsApp', 'Site Visit', 'Email', 'Note'];
 const STATUS_FILTERS = ['All Status', 'Pending', 'High Alert', 'Overdue', 'Completed', 'Missed'];
 
-const filterSelectClass = 'h-10 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-semibold text-[#1e3261] outline-none focus:border-[#0b65e5]';
-
 export function CrmFollowUpsPage({
   initialTab = 'today',
   onNotify,
@@ -119,14 +118,7 @@ export function CrmFollowUpsPage({
   const [typeFilter, setTypeFilter] = useState('All Types');
   const [dateFrom, setDateFrom] = useState(defaultFrom);
   const [dateTo, setDateTo] = useState(defaultTo);
-  const [draft, setDraft] = useState({
-    status: statusFilter,
-    assigned: assignedFilter,
-    addedBy: addedByFilter,
-    type: typeFilter,
-    from: defaultFrom,
-    to: defaultTo,
-  });
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [showAllMissedEmployees, setShowAllMissedEmployees] = useState(false);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
 
@@ -137,19 +129,15 @@ export function CrmFollowUpsPage({
     if (initialTab === 'overdue' || initialTab === 'missed') {
       setListTab('missed');
       setStatusFilter(initialTab === 'missed' ? 'Missed' : 'High Alert');
-      setDraft((d) => ({ ...d, status: initialTab === 'missed' ? 'Missed' : 'High Alert' }));
     } else if (initialTab === 'completed') {
       setListTab('list');
       setStatusFilter('Completed');
-      setDraft((d) => ({ ...d, status: 'Completed' }));
     } else if (initialTab === 'today') {
       setListTab('list');
       setStatusFilter('Pending');
-      setDraft((d) => ({ ...d, status: 'Pending' }));
     } else {
       setListTab('list');
       setStatusFilter('All Status');
-      setDraft((d) => ({ ...d, status: 'All Status' }));
     }
   }, [initialTab]);
 
@@ -308,40 +296,34 @@ export function CrmFollowUpsPage({
     ? (followUpListView.isAll ? followUpListView.pagination : null)
     : missedPaged.pagination;
 
-  const applyFilters = () => {
-    setStatusFilter(draft.status);
-    setAssignedFilter(draft.assigned);
-    setAddedByFilter(draft.addedBy);
-    setTypeFilter(draft.type);
-    setDateFrom(draft.from);
-    setDateTo(draft.to);
-    if (draft.status === 'Missed') setListTab('missed');
-    else if (listTab === 'missed' && draft.status !== 'Missed' && draft.status !== 'High Alert' && draft.status !== 'Overdue') {
+  const setStatusLive = (next) => {
+    setStatusFilter(next);
+    if (next === 'Missed') setListTab('missed');
+    else if (listTab === 'missed' && next !== 'Missed' && next !== 'High Alert' && next !== 'Overdue') {
       setListTab('list');
     }
-    onNotify?.('Filters applied', 'success');
   };
 
   const resetFilters = () => {
-    const next = {
-      status: 'All Status',
-      assigned: 'All Employees',
-      addedBy: 'All Employees',
-      type: 'All Types',
-      from: defaultFrom,
-      to: defaultTo,
-    };
-    setDraft(next);
-    setStatusFilter(next.status);
-    setAssignedFilter(next.assigned);
-    setAddedByFilter(next.addedBy);
-    setTypeFilter(next.type);
-    setDateFrom(next.from);
-    setDateTo(next.to);
+    setStatusFilter('All Status');
+    setAssignedFilter('All Employees');
+    setAddedByFilter('All Employees');
+    setTypeFilter('All Types');
+    setDateFrom(defaultFrom);
+    setDateTo(defaultTo);
     setSearch('');
     setListTab('list');
     setSelectedIds(new Set());
   };
+
+  const activeFilterCount = [
+    statusFilter !== 'All Status',
+    assignedFilter !== 'All Employees',
+    addedByFilter !== 'All Employees',
+    typeFilter !== 'All Types',
+    dateFrom !== defaultFrom,
+    dateTo !== defaultTo,
+  ].filter(Boolean).length;
 
   const handleCall = (item) => {
     const raw = String(item.lead_mobile_number || '').trim();
@@ -457,47 +439,9 @@ export function CrmFollowUpsPage({
       </div>
 
       <section className="rounded-[14px] border border-[#e2e9f3] bg-white p-3 shadow-sm sm:p-4">
-        <div className="grid gap-3 lg:grid-cols-6">
-          <label className="block min-w-0">
-            <span className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#64748b]">Follow-up Status</span>
-            <select className={filterSelectClass} value={draft.status} onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value }))}>
-              {STATUS_FILTERS.map((o) => <option key={o} value={o}>{o}</option>)}
-            </select>
-          </label>
-          <label className="block min-w-0">
-            <span className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#64748b]">Assigned To</span>
-            <select className={filterSelectClass} value={draft.assigned} onChange={(e) => setDraft((d) => ({ ...d, assigned: e.target.value }))}>
-              <option>All Employees</option>
-              {employeeOptions.map((name) => <option key={`a-${name}`} value={name}>{name}</option>)}
-            </select>
-          </label>
-          <label className="block min-w-0">
-            <span className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#64748b]">Added / Scheduled By</span>
-            <select className={filterSelectClass} value={draft.addedBy} onChange={(e) => setDraft((d) => ({ ...d, addedBy: e.target.value }))}>
-              <option>All Employees</option>
-              {employeeOptions.map((name) => <option key={`b-${name}`} value={name}>{name}</option>)}
-            </select>
-          </label>
-          <label className="block min-w-0">
-            <span className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#64748b]">Follow-up Type</span>
-            <select className={filterSelectClass} value={draft.type} onChange={(e) => setDraft((d) => ({ ...d, type: e.target.value }))}>
-              <option>All Types</option>
-              {FOLLOW_UP_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </label>
-          <label className="block min-w-0 lg:col-span-2">
-            <span className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-[#64748b]">Date Range</span>
-            <div className="grid grid-cols-2 gap-2">
-              <input type="date" className={filterSelectClass} value={draft.from} onChange={(e) => setDraft((d) => ({ ...d, from: e.target.value }))} />
-              <input type="date" className={filterSelectClass} value={draft.to} onChange={(e) => setDraft((d) => ({ ...d, to: e.target.value }))} />
-            </div>
-          </label>
-        </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button type="button" onClick={applyFilters} className="inline-flex h-10 items-center rounded-[8px] bg-[#12a54f] px-4 text-[13px] font-extrabold text-white">Apply</button>
-          <button type="button" onClick={resetFilters} className="inline-flex h-10 items-center rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276]">Reset</button>
-          <label className="relative ml-auto flex h-10 min-w-[220px] flex-1 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-3 sm:max-w-xs">
-            <Search className="size-4 text-[#94a3b8]" />
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <label className="relative flex h-10 min-w-0 flex-1 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-3">
+            <Search className="size-4 shrink-0 text-[#94a3b8]" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -505,7 +449,72 @@ export function CrmFollowUpsPage({
               className="min-w-0 flex-1 bg-transparent text-[13px] font-semibold text-[#1e3261] outline-none"
             />
           </label>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
+            <button
+              type="button"
+              onClick={() => setMobileFiltersOpen((open) => !open)}
+              className={cx(
+                'inline-flex h-10 items-center justify-center gap-1.5 rounded-[8px] border px-3 text-[13px] font-extrabold transition lg:hidden',
+                mobileFiltersOpen || activeFilterCount > 0
+                  ? 'border-[#0b65e5] bg-[#eef5ff] text-[#0b65e5]'
+                  : 'border-[#d9e4f2] bg-white text-[#284276]',
+              )}
+            >
+              Filters
+              {activeFilterCount > 0 ? (
+                <span className="inline-flex size-5 items-center justify-center rounded-full bg-[#0b65e5] text-[11px] font-extrabold text-white">{activeFilterCount}</span>
+              ) : null}
+            </button>
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-extrabold text-[#284276]"
+            >
+              Reset
+              {activeFilterCount > 0 ? (
+                <span className="inline-flex size-5 items-center justify-center rounded-full bg-[#0b65e5] text-[11px] font-extrabold text-white">{activeFilterCount}</span>
+              ) : null}
+            </button>
+          </div>
         </div>
+        {mobileFiltersOpen ? (
+          <div className="mt-3 grid gap-2 rounded-[12px] border border-[#e7eef7] bg-[#f8fafd] p-3 lg:hidden">
+            <label className="grid gap-1 text-[11px] font-extrabold uppercase tracking-wide text-[#7b88a2]">
+              Status
+              <select className="h-11 rounded-[10px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" value={statusFilter} onChange={(e) => setStatusLive(e.target.value)}>
+                {STATUS_FILTERS.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </label>
+            <label className="grid gap-1 text-[11px] font-extrabold uppercase tracking-wide text-[#7b88a2]">
+              Assigned To
+              <select className="h-11 rounded-[10px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" value={assignedFilter} onChange={(e) => setAssignedFilter(e.target.value)}>
+                <option>All Employees</option>
+                {employeeOptions.map((name) => <option key={`a-${name}`} value={name}>{name}</option>)}
+              </select>
+            </label>
+            <label className="grid gap-1 text-[11px] font-extrabold uppercase tracking-wide text-[#7b88a2]">
+              Added By
+              <select className="h-11 rounded-[10px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" value={addedByFilter} onChange={(e) => setAddedByFilter(e.target.value)}>
+                <option>All Employees</option>
+                {employeeOptions.map((name) => <option key={`b-${name}`} value={name}>{name}</option>)}
+              </select>
+            </label>
+            <label className="grid gap-1 text-[11px] font-extrabold uppercase tracking-wide text-[#7b88a2]">
+              Type
+              <select className="h-11 rounded-[10px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+                <option>All Types</option>
+                {FOLLOW_UP_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </label>
+            <label className="grid gap-1 text-[11px] font-extrabold uppercase tracking-wide text-[#7b88a2]">
+              Date range
+              <div className="grid grid-cols-2 gap-2">
+                <input type="date" className="h-11 rounded-[10px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+                <input type="date" className="h-11 rounded-[10px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+              </div>
+            </label>
+          </div>
+        ) : null}
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
@@ -516,8 +525,7 @@ export function CrmFollowUpsPage({
               key={card.id}
               type="button"
               onClick={() => {
-                setStatusFilter(card.filter);
-                setDraft((d) => ({ ...d, status: card.filter }));
+                setStatusLive(card.filter);
                 setListTab(card.list);
               }}
               className={cx(
@@ -554,8 +562,7 @@ export function CrmFollowUpsPage({
                 type="button"
                 onClick={() => {
                   setAssignedFilter(name);
-                  setDraft((d) => ({ ...d, assigned: name, status: 'Overdue' }));
-                  setStatusFilter('Overdue');
+                  setStatusLive('Overdue');
                   setListTab('list');
                 }}
                 className="inline-flex items-center gap-2 rounded-full border border-[#fecaca] bg-white px-3 py-1.5 text-[12px] font-extrabold text-[#7f1d1d] transition hover:bg-[#fff1f2]"
@@ -571,7 +578,7 @@ export function CrmFollowUpsPage({
         <div className="flex flex-wrap items-center gap-1 border-b border-[#edf2f8] px-3 pt-3 sm:px-4">
           <button
             type="button"
-            onClick={() => { setListTab('list'); if (statusFilter === 'Missed') { setStatusFilter('All Status'); setDraft((d) => ({ ...d, status: 'All Status' })); } }}
+            onClick={() => { setListTab('list'); if (statusFilter === 'Missed') setStatusLive('All Status'); }}
             className={cx(
               'rounded-t-[10px] px-4 py-2.5 text-[13px] font-extrabold',
               listTab === 'list' ? 'bg-[#f0fdf4] text-[#166534]' : 'text-[#64748b] hover:bg-[#f8fbff]',
@@ -581,7 +588,7 @@ export function CrmFollowUpsPage({
           </button>
           <button
             type="button"
-            onClick={() => { setListTab('missed'); setStatusFilter('Missed'); setDraft((d) => ({ ...d, status: 'Missed' })); }}
+            onClick={() => { setListTab('missed'); setStatusLive('Missed'); }}
             className={cx(
               'rounded-t-[10px] px-4 py-2.5 text-[13px] font-extrabold',
               listTab === 'missed' ? 'bg-[#fef2f2] text-[#b91c1c]' : 'text-[#64748b] hover:bg-[#f8fbff]',
@@ -655,9 +662,66 @@ export function CrmFollowUpsPage({
                           onChange={toggleSelectPage}
                         />
                       </th>
-                      {['Lead / Customer', 'Mobile', 'Follow-up Note', 'Follow-up Date & Time', 'Assigned To', 'Added By', 'Status', 'Actions'].map((h) => (
-                        <th key={h} className="px-3 py-3">{h}</th>
-                      ))}
+                      <th className="px-3 py-3">Lead / Customer</th>
+                      <th className="px-3 py-3">Mobile</th>
+                      <th className="px-3 py-3">
+                        <TableHeaderFilter
+                          label="Note / Type"
+                          value={typeFilter}
+                          active={typeFilter !== 'All Types'}
+                          options={['All Types', ...FOLLOW_UP_TYPES]}
+                          onChange={setTypeFilter}
+                        />
+                      </th>
+                      <th className="px-3 py-3">
+                        <div className="inline-flex flex-col gap-1 normal-case tracking-normal">
+                          <span className="uppercase tracking-wide">Follow-up Date</span>
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="date"
+                              value={dateFrom}
+                              onChange={(e) => setDateFrom(e.target.value)}
+                              className="h-7 rounded-[6px] border border-[#d9e4f2] bg-white px-1.5 text-[11px] font-bold text-[#1e3261]"
+                              aria-label="Date from"
+                            />
+                            <input
+                              type="date"
+                              value={dateTo}
+                              onChange={(e) => setDateTo(e.target.value)}
+                              className="h-7 rounded-[6px] border border-[#d9e4f2] bg-white px-1.5 text-[11px] font-bold text-[#1e3261]"
+                              aria-label="Date to"
+                            />
+                          </div>
+                        </div>
+                      </th>
+                      <th className="px-3 py-3">
+                        <TableHeaderFilter
+                          label="Assigned To"
+                          value={assignedFilter}
+                          active={assignedFilter !== 'All Employees'}
+                          options={['All Employees', ...employeeOptions]}
+                          onChange={setAssignedFilter}
+                        />
+                      </th>
+                      <th className="px-3 py-3">
+                        <TableHeaderFilter
+                          label="Added By"
+                          value={addedByFilter}
+                          active={addedByFilter !== 'All Employees'}
+                          options={['All Employees', ...employeeOptions]}
+                          onChange={setAddedByFilter}
+                        />
+                      </th>
+                      <th className="px-3 py-3">
+                        <TableHeaderFilter
+                          label="Status"
+                          value={statusFilter}
+                          active={statusFilter !== 'All Status'}
+                          options={STATUS_FILTERS}
+                          onChange={setStatusLive}
+                        />
+                      </th>
+                      <th className="px-3 py-3">Actions</th>
                     </tr>
                   </thead>
                   <tbody>

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ChevronRight, Eye, FilePlus2, FileText, Hammer, Pencil, Plus, Printer, ReceiptText, RefreshCw, RotateCcw, Save, Search, Trash2, Truck, X,
+  ChevronRight, Eye, FilePlus2, FileText, Hammer, Pencil, Plus, Printer, ReceiptText, RefreshCw, Save, Trash2, Truck, X,
 } from 'lucide-react';
 import { getMediaUrl, materialPlanApi, projectApi, projectInvoiceApi, projectSalesChallanApi, settingsApi } from './api.js';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
+import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
 import { organizationLogoUrl } from './lib/organization.js';
 
@@ -710,8 +711,16 @@ function ProjectBillingPage({ kind, activeSection, onOpenSection, onNotify, Subn
   const [docs, setDocs] = useState([]);
   const [listLoading, setListLoading] = useState(true);
   const emptyFilters = { project_code: '', customer: '', date_from: '', date_to: '', status: '' };
-  const [filterDraft, setFilterDraft] = useState(emptyFilters);
   const [filters, setFilters] = useState(emptyFilters);
+  // Text inputs keep a local value and are debounced into `filters` so the list live-filters without an Apply button.
+  const [textDraft, setTextDraft] = useState({ project_code: '', customer: '' });
+  useEffect(() => {
+    const t = setTimeout(() => setFilters((p) => (
+      p.project_code === textDraft.project_code && p.customer === textDraft.customer ? p : { ...p, ...textDraft }
+    )), 300);
+    return () => clearTimeout(t);
+  }, [textDraft]);
+  const setFilter = (key, value) => setFilters((p) => ({ ...p, [key]: value }));
   const [deleting, setDeleting] = useState(null);
   const { pageRows, pagination } = usePagedRows(docs, `project-${kind}-list`, {
     resetKey: `${filters.project_code}|${filters.customer}|${filters.date_from}|${filters.date_to}|${filters.status}`,
@@ -1311,42 +1320,23 @@ function ProjectBillingPage({ kind, activeSection, onOpenSection, onNotify, Subn
 
         {locked ? null : (
         <div className="mt-6 border-t border-[#edf2f8] pt-5">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <label className={LABEL}>
               Project No
-              <input value={filterDraft.project_code} onChange={(e) => setFilterDraft((p) => ({ ...p, project_code: e.target.value }))} placeholder="Search by project no" className={FIELD_INPUT} />
+              <input value={textDraft.project_code} onChange={(e) => setTextDraft((p) => ({ ...p, project_code: e.target.value }))} placeholder="Search by project no" className={FIELD_INPUT} />
             </label>
             <label className={LABEL}>
               Customer Name
-              <input value={filterDraft.customer} onChange={(e) => setFilterDraft((p) => ({ ...p, customer: e.target.value }))} placeholder="Search by customer name" className={FIELD_INPUT} />
-            </label>
-            <label className={LABEL}>
-              Status
-              <select value={filterDraft.status} onChange={(e) => setFilterDraft((p) => ({ ...p, status: e.target.value }))} className={FIELD_INPUT}>
-                <option value="">All Status</option>
-                {cfg.statuses.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <input value={textDraft.customer} onChange={(e) => setTextDraft((p) => ({ ...p, customer: e.target.value }))} placeholder="Search by customer name" className={FIELD_INPUT} />
             </label>
             <label className={LABEL}>
               Date From
-              <input type="date" value={filterDraft.date_from} onChange={(e) => setFilterDraft((p) => ({ ...p, date_from: e.target.value }))} className={FIELD_INPUT} />
+              <input type="date" value={filters.date_from} onChange={(e) => setFilter('date_from', e.target.value)} className={FIELD_INPUT} />
             </label>
             <label className={LABEL}>
               Date To
-              <input type="date" value={filterDraft.date_to} onChange={(e) => setFilterDraft((p) => ({ ...p, date_to: e.target.value }))} className={FIELD_INPUT} />
+              <input type="date" value={filters.date_to} onChange={(e) => setFilter('date_to', e.target.value)} className={FIELD_INPUT} />
             </label>
-          </div>
-          <div className="mt-3 flex gap-2">
-            <button type="button" onClick={() => setFilters({ ...filterDraft })} className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-[12px] bg-[#078c3e] px-4 text-[13px] font-bold text-white sm:h-9 sm:flex-none sm:rounded-[8px]">
-              <Search className="size-4" /> Search
-            </button>
-            <button
-              type="button"
-              onClick={() => { setFilterDraft(emptyFilters); setFilters(emptyFilters); }}
-              className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-[12px] border border-[#d5e0ef] bg-white px-4 text-[13px] font-semibold text-[#314a79] sm:h-9 sm:flex-none sm:rounded-[8px]"
-            >
-              <RotateCcw className="size-4" /> Reset
-            </button>
           </div>
         </div>
         )}
@@ -1414,7 +1404,17 @@ function ProjectBillingPage({ kind, activeSection, onOpenSection, onNotify, Subn
               <thead>
                 <tr className="bg-[#f6f8fb] text-[12px] font-bold text-[#1e3261]">
                   {headers.map((h) => (
-                    <th key={h} className={cx('px-3 py-2', numericCols.has(h) && 'text-right', h === 'Actions' && 'text-center')}>{h}</th>
+                    <th key={h} className={cx('px-3 py-2', numericCols.has(h) && 'text-right', h === 'Actions' && 'text-center')}>
+                      {h === 'Status' ? (
+                        <TableHeaderFilter
+                          label="Status"
+                          value={filters.status}
+                          active={Boolean(filters.status)}
+                          options={[{ value: '', label: 'All' }, ...cfg.statuses]}
+                          onChange={(v) => setFilter('status', v)}
+                        />
+                      ) : h}
+                    </th>
                   ))}
                 </tr>
               </thead>

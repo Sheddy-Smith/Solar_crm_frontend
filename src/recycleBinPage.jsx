@@ -191,7 +191,7 @@ export function SettingsRecycleBinPage({ onNotify, loggedInUser = null }) {
         <select
           value={entityFilter}
           onChange={(e) => setEntityFilter(e.target.value)}
-          className="h-10 w-full rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold outline-none sm:w-[160px]"
+          className="h-10 w-full rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold outline-none sm:w-[160px] lg:hidden"
         >
           {['All', 'Lead', 'Follow-up', 'Quotation', 'Project'].map((option) => (
             <option key={option} value={option}>{option === 'All' ? 'All types' : option}</option>

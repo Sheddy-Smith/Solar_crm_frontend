@@ -681,12 +681,12 @@ const accountsLegacyPages = ['Accounts List', 'Payment Received', 'Payment Made'
 const accountsSubItems = [
   'Accounts Overview',
   'Purchase Invoice',
-  'Voucher',
-  'Other Expenses',
-  'Sell Invoice',
   'Purchase Challan',
+  'Sell Invoice',
   'Sell Challan',
   'Cash Receipt',
+  'Voucher',
+  'Other Expenses',
   'GST Ledger',
 ];
 const accountsRelatedPages = [...new Set([...accountsSubItems, ...accountsLegacyPages])];
@@ -1154,12 +1154,12 @@ const projectActionPageTypes = {
 const accountsSubRoutes = {
   'Accounts Overview': '/accounts/overview',
   'Purchase Invoice': '/accounts/purchase-invoice',
-  Voucher: '/accounts/voucher',
-  'Other Expenses': '/accounts/other-expenses',
-  'Sell Invoice': '/accounts/sell-invoice',
   'Purchase Challan': '/accounts/purchase-challan',
+  'Sell Invoice': '/accounts/sell-invoice',
   'Sell Challan': '/accounts/sell-challan',
   'Cash Receipt': '/accounts/cash-receipt',
+  Voucher: '/accounts/voucher',
+  'Other Expenses': '/accounts/other-expenses',
   'GST Ledger': '/accounts/gst-ledger',
   'Accounts List': '/accounts/list',
   'Chart of Accounts': '/accounts/chart-of-accounts',
@@ -26066,14 +26066,6 @@ function ProjectApprovalsPage({ activeSection, onOpenSection, onNotify }) {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <select className="h-9 rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] focus:border-[#0b65e5] focus:outline-none" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-          <option value="">All Statuses</option>
-          {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <select className="h-9 rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-[13px] text-[#1e2a38] focus:border-[#0b65e5] focus:outline-none" value={filterProject} onChange={(e) => setFilterProject(e.target.value)}>
-          <option value="">All Projects</option>
-          {projects.map((p) => <option key={p.id} value={p.id}>{p.project_name}</option>)}
-        </select>
         {(search || filterStatus || filterProject) && (
           <button type="button" onClick={() => { setSearch(''); setFilterStatus(''); setFilterProject(''); }} className="h-9 rounded-[8px] border border-[#e5eaf2] bg-white px-3 text-[12px] font-bold text-[#ef4444] hover:bg-[#fef2f2]">Clear</button>
         )}
@@ -26083,7 +26075,7 @@ function ProjectApprovalsPage({ activeSection, onOpenSection, onNotify }) {
       <section className="overflow-hidden rounded-[12px] border border-[#e5eaf2] bg-white shadow-sm">
         {loading ? (
           <div className="flex items-center justify-center py-20 text-[14px] text-[#7a8fa6]">Loading approvals...</div>
-        ) : filtered.length === 0 ? (
+        ) : filtered.length === 0 && !filterStatus && !filterProject ? (
           <div className="flex flex-col items-center justify-center gap-3 py-20">
             <ClipboardPlus className="size-10 text-[#c7d4e0]" />
             <p className="text-[14px] font-bold text-[#7a8fa6]">No approvals found</p>
@@ -26097,11 +26089,32 @@ function ProjectApprovalsPage({ activeSection, onOpenSection, onNotify }) {
               <thead>
                 <tr className="border-b border-[#e5eaf2] bg-[#f8fafc]">
                   {['Approval ID', 'Project Name', 'Approval Type', 'Requested By', 'Date', 'Status', 'Actions'].map((h) => (
-                    <th key={h} className="px-4 py-3 text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6]">{h}</th>
+                    <th key={h} className="px-4 py-3 text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6]">
+                      {h === 'Project Name' ? (
+                        <TableHeaderFilter
+                          label="Project Name"
+                          value={filterProject}
+                          active={Boolean(filterProject)}
+                          options={[{ value: '', label: 'All Projects' }, ...projects.map((p) => ({ value: String(p.id), label: p.project_name || p.project_id || String(p.id) }))]}
+                          onChange={setFilterProject}
+                        />
+                      ) : h === 'Status' ? (
+                        <TableHeaderFilter
+                          label="Status"
+                          value={filterStatus}
+                          active={Boolean(filterStatus)}
+                          options={[{ value: '', label: 'All Statuses' }, ...STATUSES]}
+                          onChange={setFilterStatus}
+                        />
+                      ) : h}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#f1f5f9]">
+                {pageRows.length === 0 ? (
+                  <tr><td colSpan={7} className="px-4 py-16 text-center text-[13px] font-bold text-[#7a8fa6]">No approvals match the selected filters.</td></tr>
+                ) : null}
                 {pageRows.map((item) => (
                   <tr key={item.id} className="hover:bg-[#f8fafc]">
                     <td className="px-4 py-3 font-extrabold text-[#0b65e5]">{item.approval_id}</td>
@@ -27319,10 +27332,6 @@ function ProjectSubsidyPage({ activeSection, onOpenSection, onNotify, presetProj
             <Search className="size-4 shrink-0 text-[#7e8fab]" />
             <input value={query} onChange={(e) => setQuery(e.target.value)} type="search" placeholder="Search application no. or employee..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8a9ab4]" />
           </label>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-10 rounded-[10px] border border-[#dce6f3] bg-white px-3 text-[13px] font-extrabold text-[#284276]">
-            <option value="All">All Status</option>
-            {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
           {!embedded && (
             <button type="button" onClick={() => setProjectPickerOpen(true)} className={cx('inline-flex h-10 items-center gap-2 rounded-[10px] border px-3 text-[13px] font-extrabold transition', selectedProject ? 'border-[#0b65e5] bg-[#eff6ff] text-[#0b65e5]' : 'border-[#dce6f3] bg-white text-[#284276] hover:border-[#0b65e5]')}>
               <FolderKanban className="size-4" />{selectedProject ? selectedProject.project_name : 'Select Project'}
@@ -28512,14 +28521,14 @@ function SettingsUsersPage({ activeSection = 'Settings Users', onOpenSection, on
             </button>
           ) : null}
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-[minmax(260px,1.45fr)_minmax(150px,0.8fr)_minmax(150px,0.8fr)_minmax(170px,0.95fr)_auto_auto] 2xl:items-end">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-[minmax(260px,1.45fr)_auto_auto] 2xl:items-end">
           <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
             <Search className="size-4 text-[#7386a3]" />
             <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search users by name, email, phone..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
           </label>
-          <ReportSelect label="Role" value={role} onChange={setRole} options={['All Roles', ...new Set(users.map((user) => user.role))]} hideLabel />
-          <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Active', 'Inactive', 'Deleted']} hideLabel />
-          <ReportSelect label="Branch" value={branch} onChange={setBranch} options={['All Branches', ...new Set(users.map((user) => user.branch))]} hideLabel />
+          <ReportSelect label="Role" value={role} onChange={setRole} options={['All Roles', ...new Set(users.map((user) => user.role))]} hideLabel className="lg:hidden" />
+          <ReportSelect label="Status" value={status} onChange={setStatus} options={['All Status', 'Active', 'Inactive', 'Deleted']} hideLabel className="lg:hidden" />
+          <ReportSelect label="Branch" value={branch} onChange={setBranch} options={['All Branches', ...new Set(users.map((user) => user.branch))]} hideLabel className="lg:hidden" />
           <button type="button" onClick={() => onNotify(`Users exported: ${filteredUsers.length} rows`)} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button>
           <button type="button" onClick={() => onNotify(`Filters applied: ${filteredUsers.length} users`)} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#0b65e5]" />Filter</button>
         </div>
@@ -29472,10 +29481,10 @@ function SettingsUserActivityLogPage({ activeSection = 'Settings User Activity L
             <Search className="size-4 shrink-0 text-[#7386a3]" />
             <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search by user, action, module, ip..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
           </label>
-          <ReportSelect className="min-w-[140px] flex-1" label="User" value={user} onChange={setUser} options={['All Users', ...uniqueUsers]} hideLabel />
-          <ReportSelect className="min-w-[140px] flex-1" label="Action" value={action} onChange={setAction} options={['All Actions', ...uniqueActions]} hideLabel />
-          <ReportSelect className="min-w-[140px] flex-1" label="Module" value={moduleName} onChange={setModuleName} options={['All Modules', ...uniqueModules]} hideLabel />
-          <ReportSelect className="min-w-[140px] flex-1" label="Status" value={status} onChange={setStatus} options={['All Status', 'Success', 'Failed']} hideLabel />
+          <ReportSelect className="min-w-[140px] flex-1 lg:hidden" label="User" value={user} onChange={setUser} options={['All Users', ...uniqueUsers]} hideLabel />
+          <ReportSelect className="min-w-[140px] flex-1 lg:hidden" label="Action" value={action} onChange={setAction} options={['All Actions', ...uniqueActions]} hideLabel />
+          <ReportSelect className="min-w-[140px] flex-1 lg:hidden" label="Module" value={moduleName} onChange={setModuleName} options={['All Modules', ...uniqueModules]} hideLabel />
+          <ReportSelect className="min-w-[140px] flex-1 lg:hidden" label="Status" value={status} onChange={setStatus} options={['All Status', 'Success', 'Failed']} hideLabel />
           <label className="block min-w-[220px] flex-[1.1]">
             <input
               type="text"
@@ -30800,14 +30809,14 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify, logged
                 className="w-full bg-transparent text-[16px] font-medium text-[#1e3261] outline-none placeholder:text-[#8a98af]"
               />
             </label>
-            <label className="relative min-w-0">
+            <label className="relative min-w-0 lg:hidden">
               <Filter className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[#6f7f98]" />
               <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-[#6f7f98]" />
               <select value={skillFilter} onChange={(e) => setSkillFilter(e.target.value)} className="h-11 w-full min-w-0 appearance-none sm:h-10 sm:w-auto sm:min-w-[120px] rounded-[8px] border border-[#dce6f3] bg-white pl-8 pr-8 text-[15px] font-semibold text-[#284276] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10">
                 {skillOptions.map((option) => <option key={option} value={option}>{option}</option>)}
               </select>
             </label>
-            <label className="relative min-w-0">
+            <label className="relative min-w-0 lg:hidden">
               <Filter className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[#6f7f98]" />
               <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-[#6f7f98]" />
               <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-11 w-full min-w-0 appearance-none sm:h-10 sm:w-auto sm:min-w-[126px] rounded-[8px] border border-[#dce6f3] bg-white pl-8 pr-8 text-[15px] font-semibold text-[#284276] outline-none focus:border-[#0b65e5] focus:ring-4 focus:ring-[#0b65e5]/10">
@@ -31615,7 +31624,7 @@ function UserManagementPage({ onNotify, onOpenSection, loggedInUser }) {
       </section>
 
       <section className={`${panelClass} p-4 sm:p-5`}>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1.45fr_0.85fr_0.85fr_0.95fr_auto_auto] xl:items-end">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1.45fr_auto_auto] xl:items-end">
           <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
             <Search className="size-4 text-[#7386a3]" />
             <input
@@ -31626,9 +31635,9 @@ function UserManagementPage({ onNotify, onOpenSection, loggedInUser }) {
               className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]"
             />
           </label>
-          <ReportSelect label="Role" value={role} onChange={setRole} options={['All', 'Super Admin', 'Branch Manager', 'Team Leader', 'Sales Executive']} />
-          <ReportSelect label="Status" value={status} onChange={setStatus} options={['All', 'Active', 'Inactive']} />
-          <ReportSelect label="Assigned Branch" value={branch} onChange={setBranch} options={['All', 'Head Office', 'Indore Branch', 'Ujjain Branch', 'Dewas Branch']} />
+          <ReportSelect className="lg:hidden" label="Role" value={role} onChange={setRole} options={['All', 'Super Admin', 'Branch Manager', 'Team Leader', 'Sales Executive']} />
+          <ReportSelect className="lg:hidden" label="Status" value={status} onChange={setStatus} options={['All', 'Active', 'Inactive']} />
+          <ReportSelect className="lg:hidden" label="Assigned Branch" value={branch} onChange={setBranch} options={['All', 'Head Office', 'Indore Branch', 'Ujjain Branch', 'Dewas Branch']} />
           <button
             type="button"
             onClick={() => onNotify(`User filters applied: ${filteredUsers.length} results`)}
@@ -37102,7 +37111,7 @@ function FinalQuotationListPage({ onNotify, loggedInUser = null, onCreateQuotati
       </section>
 
       <article className={`${panelClass} relative z-30 overflow-visible p-3 sm:p-4`}>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_minmax(120px,150px)_minmax(160px,200px)_minmax(120px,140px)_auto] xl:items-end">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_minmax(160px,200px)_minmax(120px,140px)_auto] xl:items-end">
           <label className="flex h-11 min-w-0 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 sm:col-span-2 xl:col-span-1">
             <Search className="size-4 shrink-0 text-[#7386a3]" />
             <input
@@ -37122,6 +37131,7 @@ function FinalQuotationListPage({ onNotify, loggedInUser = null, onCreateQuotati
               capacityOptions.map((option) => [option, option === 'All' ? 'Capacity: All' : `Capacity: ${option}`]),
             )}
             hideLabel
+            className="lg:hidden"
           />
           <ReportDateRangePicker
             open={dateRangeOpen}
@@ -37543,7 +37553,7 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
       <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_280px]">
         <div className="min-w-0 space-y-3">
       <article className={`${panelClass} relative z-30 overflow-visible p-3 sm:p-4`}>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(140px,170px)_minmax(130px,150px)_minmax(180px,220px)_auto] xl:items-end">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(180px,220px)_auto] xl:items-end">
           <label className="flex h-11 min-w-0 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 sm:col-span-2 xl:col-span-1">
             <Search className="size-4 shrink-0 text-[#7386a3]" />
             <input
@@ -37560,6 +37570,7 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
             onChange={(value) => setTemplateFilter(value === 'All Templates' ? 'All' : value)}
             options={['All Templates', ...QUOTATION_TEMPLATE_OPTIONS]}
             hideLabel
+            className="lg:hidden"
           />
           <ReportSelect
             label="Status"
@@ -37574,6 +37585,7 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
             }}
             options={['All Status', 'Draft', 'Sent', 'Final Quotation', 'Previous Final', 'Rejected', 'Expired']}
             hideLabel
+            className="lg:hidden"
           />
           <ReportDateRangePicker
             open={dateRangeOpen}
@@ -37665,7 +37677,7 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
                       label="Status"
                       value={expiredFilter ? 'Expired' : statusFilter}
                       active={expiredFilter || statusFilter !== 'All'}
-                      options={['All', 'Draft', 'Sent', 'Accepted', 'Rejected', 'Expired']}
+                      options={['All', 'Draft', 'Sent', 'Final Quotation', 'Previous Final', 'Rejected', 'Expired']}
                       onChange={(value) => {
                         setExpiredFilter(false);
                         if (value === 'All') setStatusFilter('All');

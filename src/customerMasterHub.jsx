@@ -16,6 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import { accountsModuleApi, projectApi, quotationApi } from './api.js';
+import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import { normalizeApiRows } from './lib/utils.js';
 
 function fmtRs(v) {
@@ -667,7 +668,7 @@ export function CustomerMergeWizard({ onNotify, onClose }) {
           </span>
         )}
       >
-        <div className="mb-4 grid gap-3 sm:grid-cols-3">
+        <div className="mb-4 grid gap-3 sm:grid-cols-2">
           <Field label="Search audits">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#8a98af]" />
@@ -679,17 +680,6 @@ export function CustomerMergeWizard({ onNotify, onClose }) {
               />
             </div>
           </Field>
-          <Field label="Result">
-            <select
-              className={inputClass}
-              value={auditFilter.result}
-              onChange={(e) => setAuditFilter((f) => ({ ...f, result: e.target.value }))}
-            >
-              <option value="">All results</option>
-              <option value="completed">Completed</option>
-              <option value="failed">Failed</option>
-            </select>
-          </Field>
           <div className="flex items-end">
             <button type="button" onClick={() => setAuditFilter({ q: '', result: '' })} className={`${softBtnClass} w-full`}>Clear filters</button>
           </div>
@@ -699,7 +689,21 @@ export function CustomerMergeWizard({ onNotify, onClose }) {
             <thead className="bg-[#f8fbff] text-[11px] font-extrabold uppercase tracking-wide text-[#64748b]">
               <tr>
                 {['When', 'Source', 'Target', 'By', 'Result'].map((h) => (
-                  <th key={h} className="px-3 py-3">{h}</th>
+                  <th key={h} className="px-3 py-3">
+                    {h === 'Result' ? (
+                      <TableHeaderFilter
+                        label="Result"
+                        value={auditFilter.result}
+                        active={Boolean(auditFilter.result)}
+                        options={[
+                          { value: '', label: 'All results' },
+                          { value: 'completed', label: 'Completed' },
+                          { value: 'failed', label: 'Failed' },
+                        ]}
+                        onChange={(v) => setAuditFilter((f) => ({ ...f, result: v }))}
+                      />
+                    ) : h}
+                  </th>
                 ))}
               </tr>
             </thead>

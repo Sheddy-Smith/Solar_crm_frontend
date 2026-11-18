@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle, Boxes, CheckCircle2, Download, FileText, Hash, IndianRupee, Info, LayoutGrid, List,
-  Minus, Package, Pencil, Plus, RefreshCw, Search, SlidersHorizontal, Tags, Trash2, Upload, Warehouse, Zap,
+  Minus, Package, Pencil, Plus, RefreshCw, Search, Tags, Trash2, Upload, Warehouse, Zap,
 } from 'lucide-react';
 import { inventoryApi } from './api.js';
+import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { fetchEveryPage, rowsOf } from './lib/listQuery.js';
@@ -1579,16 +1580,15 @@ export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify
                 className="min-w-0 flex-1 bg-transparent text-[13px] font-semibold text-[#0f172a] outline-none placeholder:text-[#94a3b8]"
               />
             </label>
-            <select
-              value={formFilter}
-              onChange={(e) => setFormFilter(e.target.value)}
-              className="h-10 rounded-[10px] border border-[#dbe3ee] bg-white px-3 text-[12px] font-bold text-[#334155]"
-            >
-              <option value="">Form Design: All</option>
-              {FORM_TEMPLATE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
+            {formFilter ? (
+              <button
+                type="button"
+                onClick={() => setFormFilter('')}
+                className="inline-flex h-10 items-center gap-1.5 rounded-[10px] border border-[#dbe3ee] bg-white px-3 text-[12px] font-extrabold text-[#dc2626] hover:bg-[#fef2f2]"
+              >
+                Clear filter
+              </button>
+            ) : null}
             <div className="inline-flex overflow-hidden rounded-[10px] border border-[#dbe3ee]">
               <button
                 type="button"
@@ -1612,7 +1612,7 @@ export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify
 
         {loading ? (
           <p className="px-5 py-16 text-center text-[13px] font-bold text-[#94a3b8]">Loading categories…</p>
-        ) : filtered.length === 0 ? (
+        ) : filtered.length === 0 && (viewMode === 'grid' || !formFilter) ? (
           <div className="px-5 py-10">
             <MobileCardEmpty icon={Tags} title="No categories yet" />
           </div>
@@ -1690,7 +1690,15 @@ export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify
                   <tr>
                     <th className="px-4 py-3">#</th>
                     <th className="px-3 py-3">Category Name</th>
-                    <th className="px-3 py-3">Form Design</th>
+                    <th className="px-3 py-3">
+                      <TableHeaderFilter
+                        label="Form Design"
+                        value={formFilter}
+                        active={Boolean(formFilter)}
+                        options={[{ value: '', label: 'All' }, ...FORM_TEMPLATE_OPTIONS]}
+                        onChange={setFormFilter}
+                      />
+                    </th>
                     <th className="px-3 py-3">Description</th>
                     <th className="px-3 py-3">Products</th>
                     <th className="px-3 py-3">Status</th>
@@ -1698,6 +1706,11 @@ export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify
                   </tr>
                 </thead>
             <tbody>
+                  {pageRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-5 py-10 text-center text-[13px] font-bold text-[#94a3b8]">No categories match this filter.</td>
+                    </tr>
+                  ) : null}
                   {pageRows.map((r, i) => {
                     const thumb = categoryThumbClass(r.name);
                     const count = productCountByCategory[r.name] || 0;

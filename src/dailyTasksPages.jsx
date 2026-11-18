@@ -531,7 +531,7 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
 
       <section className={`${CARD} p-4 sm:p-5`}>
         <h2 className="text-[15px] font-extrabold text-[#1e3261]">Search Tasks</h2>
-        <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr] lg:gap-4">
+        <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-[1.4fr_0.8fr_0.8fr] lg:gap-4">
           <label className="col-span-2 block text-[12px] font-bold text-[#53647f] lg:col-span-1">
             Search Tasks
             <div className="relative mt-1.5">
@@ -539,7 +539,7 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
               <input type="search" placeholder="Search by project, site, vehicle, employee…" className="h-11 w-full rounded-[8px] border border-[#d9e2ec] pl-10 pr-3 text-[13px] font-semibold text-[#30466d]" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
           </label>
-          <label className="block text-[12px] font-bold text-[#53647f]">
+          <label className="block text-[12px] font-bold text-[#53647f] lg:hidden">
             Category
             <select className="mt-1.5 h-11 w-full rounded-[8px] border border-[#d9e2ec] px-3 text-[13px] font-semibold text-[#30466d]" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
               <option>All Categories</option>

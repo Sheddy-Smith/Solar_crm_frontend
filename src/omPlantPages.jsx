@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle, ArrowLeft, BadgeCheck, Building2, Calendar, CheckCircle2, ClipboardList, Clock, FileText,
-  Gauge, History, MapPin, Pencil, Phone, Plus, RefreshCw, ShieldAlert, ShieldCheck, ShieldX, Siren, SlidersHorizontal,
+  Gauge, History, MapPin, Pencil, Phone, Plus, RefreshCw, ShieldAlert, ShieldCheck, ShieldX, Siren,
   Sun, Upload, Wrench, Zap,
 } from 'lucide-react';
 import { getMediaUrl, omDashboardApi, omDocumentApi, omInsuranceApi, omPlantApi, projectApi } from './api.js';
 import { MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
+import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import { UnderlineTabs } from './components/UnderlineTabs.jsx';
 import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
 import {
-  BTN_OUTLINE, BTN_PRIMARY, BTN_SMALL, CounterTile, DataList, DetailGrid, Field, FilterChips, INPUT, Modal,
+  BTN_OUTLINE, BTN_PRIMARY, CounterTile, DataList, DetailGrid, Field, FilterChips, INPUT, Modal,
   OmHeading, PANEL, Pill, PlantPicker, SearchBox, SelectInput, TEXTAREA, cx, daysText, fmtDate, fmtDateTime,
   fmtMoney, normalizeApiRows, useEngineers, usePlantOptions,
 } from './omUi.jsx';
@@ -228,7 +229,6 @@ export function PlantsPage({ caps, Subnav, activeSection, onOpenSection, onNotif
   const [search, setSearch] = useState('');
   const [debounced, setDebounced] = useState('');
   const [filters, setFilters] = useState({ filter: '', om_status: '', engineer: '', date_from: '', date_to: '', capacity_min: '', capacity_max: '' });
-  const [showMore, setShowMore] = useState(false);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tick, setTick] = useState(0);
@@ -259,7 +259,7 @@ export function PlantsPage({ caps, Subnav, activeSection, onOpenSection, onNotif
   }, [key, tick, onNotify]);
 
   const setF = (k) => (v) => setFilters((f) => ({ ...f, [k]: v }));
-  const activeCount = Object.values(filters).filter(Boolean).length;
+  const columnFilterCount = [filters.om_status, filters.engineer].filter(Boolean).length;
 
   const warrantyCell = (row) => {
     if (!row?.end) return <span className="text-[#8a98af]">—</span>;
@@ -279,8 +279,24 @@ export function PlantsPage({ caps, Subnav, activeSection, onOpenSection, onNotif
     { label: 'Inverter Wty', render: (p) => warrantyCell(p.warranty_alerts?.rows?.find((r) => r.label === 'Inverter')) },
     { label: 'Panel Wty', render: (p) => warrantyCell(p.warranty_alerts?.rows?.find((r) => r.label === 'Panel')) },
     { label: 'Service Wty', render: (p) => warrantyCell(p.warranty_alerts?.rows?.find((r) => r.label === 'Service')) },
-    { label: 'Next Service', render: (p) => (p.next_service ? <div><p className={cx(p.next_service.overdue && 'font-extrabold text-[#dc2626]')}>{fmtDate(p.next_service.due_date)}</p><p className="text-[11px] text-[#8a98af]">{p.next_service.title.replace('Quarterly Service ', 'Q ')}</p></div> : '—') },
-    { label: 'Status', render: (p) => (
+    { label: 'Next Service', header: (
+      <TableHeaderFilter
+        label="Next Service"
+        value={filters.engineer}
+        active={Boolean(filters.engineer)}
+        options={[{ value: '', label: 'All engineers' }, ...engineers.map((u) => ({ value: String(u.id), label: u.name }))]}
+        onChange={setF('engineer')}
+      />
+    ), render: (p) => (p.next_service ? <div><p className={cx(p.next_service.overdue && 'font-extrabold text-[#dc2626]')}>{fmtDate(p.next_service.due_date)}</p><p className="text-[11px] text-[#8a98af]">{p.next_service.title.replace('Quarterly Service ', 'Q ')}</p></div> : '—') },
+    { label: 'Status', header: (
+      <TableHeaderFilter
+        label="Status"
+        value={filters.om_status}
+        active={Boolean(filters.om_status)}
+        options={[{ value: '', label: 'All' }, ...OM_STATUSES]}
+        onChange={setF('om_status')}
+      />
+    ), render: (p) => (
       <div className="flex flex-col gap-1">
         <Pill>{p.om_status}</Pill>
         {p.is_draft ? <Pill tone="amber">Draft</Pill> : null}
@@ -311,9 +327,11 @@ export function PlantsPage({ caps, Subnav, activeSection, onOpenSection, onNotif
           <SearchBox value={search} onChange={setSearch} placeholder="Search customer, mobile, PLT-/LD-/CUS- code, invoice, serial, city..." />
           <div className="grid grid-cols-2 gap-2 lg:flex">
             <SelectInput value={filters.filter} onChange={setF('filter')} options={PLANT_FILTERS} placeholder="All plants" className="lg:w-[220px]" />
-            <button type="button" className={cx(BTN_OUTLINE, 'h-11 sm:h-9')} onClick={() => setShowMore((v) => !v)}>
-              <SlidersHorizontal className="size-4" /> Filters{activeCount ? ` (${activeCount})` : ''}
-            </button>
+            {columnFilterCount ? (
+              <button type="button" className={cx(BTN_OUTLINE, 'h-11 text-[#dc2626] sm:h-9')} onClick={() => setFilters((f) => ({ ...f, om_status: '', engineer: '' }))}>
+                Clear column filters ({columnFilterCount})
+              </button>
+            ) : null}
             {caps.add ? (
               <>
                 <button type="button" className={BTN_PRIMARY} onClick={() => setAddExisting(true)}>
@@ -326,21 +344,6 @@ export function PlantsPage({ caps, Subnav, activeSection, onOpenSection, onNotif
             ) : null}
           </div>
         </div>
-        {showMore ? (
-          <div className="grid grid-cols-2 gap-2 rounded-[12px] bg-[#f8fafd] p-3 md:grid-cols-3 xl:grid-cols-6">
-            <Field label="O&M Status"><SelectInput value={filters.om_status} onChange={setF('om_status')} options={OM_STATUSES} placeholder="Any" /></Field>
-            <Field label="Engineer"><SelectInput value={filters.engineer} onChange={setF('engineer')} options={engineers.map((u) => ({ value: String(u.id), label: u.name }))} placeholder="Any" /></Field>
-            <Field label="Commissioned from"><input type="date" className={INPUT} value={filters.date_from} onChange={(e) => setF('date_from')(e.target.value)} /></Field>
-            <Field label="Commissioned to"><input type="date" className={INPUT} value={filters.date_to} onChange={(e) => setF('date_to')(e.target.value)} /></Field>
-            <Field label="Capacity min (kW)"><input type="number" className={INPUT} value={filters.capacity_min} onChange={(e) => setF('capacity_min')(e.target.value)} /></Field>
-            <Field label="Capacity max (kW)"><input type="number" className={INPUT} value={filters.capacity_max} onChange={(e) => setF('capacity_max')(e.target.value)} /></Field>
-            {activeCount ? (
-              <button type="button" className={cx(BTN_SMALL, 'col-span-2 justify-center text-[#dc2626] md:col-span-3 xl:col-span-6')} onClick={() => setFilters({ filter: '', om_status: '', engineer: '', date_from: '', date_to: '', capacity_min: '', capacity_max: '' })}>
-                Clear all filters
-              </button>
-            ) : null}
-          </div>
-        ) : null}
         {filters.filter ? (
           <div className="flex items-center gap-2 text-[12px] font-bold text-[#53647f]">
             Showing: <Pill tone="blue">{filterLabel(filters.filter)}</Pill>

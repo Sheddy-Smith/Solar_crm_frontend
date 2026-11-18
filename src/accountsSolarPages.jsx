@@ -451,7 +451,7 @@ export function AccountsLineDocumentPage({
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#9aaac0]" />
             <input className={cx(inputClass, 'pl-9')} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search no, party, project..." />
           </div>
-          <select className={cx(inputClass, 'w-full sm:w-44')} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <select className={cx(inputClass, 'w-full sm:w-44 lg:hidden')} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="">All Status</option>
             {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>

@@ -14,6 +14,7 @@ import { moduleCaps } from './settingsHubPages.jsx';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { LedgerMobileCards } from './components/mobile/LedgerMobileCards.jsx';
 import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
+import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
 import {
   RecentAllPageHeading,
@@ -2663,26 +2664,6 @@ function OverallCreditTab({ onNotify, onOpenSection }) {
               />
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={relationFilter}
-                onChange={(e) => setRelationFilter(e.target.value)}
-                className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-[13px] font-semibold text-slate-700 outline-none focus:border-green-500"
-              >
-                <option value="">All Relations</option>
-                {relations.map((rel) => (
-                  <option key={rel} value={rel}>{rel}</option>
-                ))}
-              </select>
-              <select
-                value={companyFilter}
-                onChange={(e) => setCompanyFilter(e.target.value)}
-                className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-[13px] font-semibold text-slate-700 outline-none focus:border-green-500"
-              >
-                <option value="">All Companies</option>
-                {companies.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
               <div className="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-[13px] font-semibold text-slate-600">
                 <CalendarDays className="size-4 text-slate-400" />
                 <input
@@ -2786,10 +2767,26 @@ function OverallCreditTab({ onNotify, onOpenSection }) {
                       aria-label="Select all"
                     />
                   </th>
-                  <th className="px-3 py-3">Customer / Company</th>
+                  <th className="px-3 py-3">
+                    <TableHeaderFilter
+                      label="Customer / Company"
+                      value={companyFilter}
+                      active={Boolean(companyFilter)}
+                      options={[{ value: '', label: 'All Companies' }, ...companies]}
+                      onChange={setCompanyFilter}
+                    />
+                  </th>
                   <th className="px-3 py-3">Phone</th>
                   <th className="px-3 py-3">Projects</th>
-                  <th className="px-3 py-3">Relation</th>
+                  <th className="px-3 py-3">
+                    <TableHeaderFilter
+                      label="Relation"
+                      value={relationFilter}
+                      active={Boolean(relationFilter)}
+                      options={[{ value: '', label: 'All Relations' }, ...relations]}
+                      onChange={setRelationFilter}
+                    />
+                  </th>
                   <th className="px-3 py-3">Yearly Transaction</th>
                   <th className="px-3 py-3">Debit</th>
                   <th className="px-3 py-3">Credit</th>

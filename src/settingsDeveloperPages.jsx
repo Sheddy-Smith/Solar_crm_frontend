@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { getMediaUrl, settingsApi } from './api.js';
 import { ReportProblemModal } from './components/ReportProblemButton.jsx';
+import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import { UnderlineTabs } from './components/UnderlineTabs.jsx';
 import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
 import { DEVELOPER_SETTINGS_TABS } from './hooks/useDeveloperMode.js';
@@ -447,14 +448,8 @@ export function DeveloperAuditLogsPage({ onNotify }) {
           </div>
         </div>
 
-        <div className="mt-4 grid gap-2 md:grid-cols-[minmax(0,1.4fr)_140px_140px_140px_140px]">
+        <div className="mt-4 grid gap-2 md:grid-cols-[minmax(0,1.4fr)_140px_140px]">
           <input className="h-11 rounded-[8px] border border-[#d9e2ec] px-3 text-[13px]" placeholder="Search user, branch, entity, description..." value={query} onChange={(e) => setQuery(e.target.value)} />
-          <select className="h-11 rounded-[8px] border border-[#d9e2ec] px-3 text-[13px] font-bold" value={action} onChange={(e) => setAction(e.target.value)}>
-            {['All', 'ADD', 'UPDATE', 'DELETE', 'CLEAR', 'SYNC'].map((opt) => <option key={opt} value={opt}>{opt === 'All' ? 'All Actions' : opt}</option>)}
-          </select>
-          <select className="h-11 rounded-[8px] border border-[#d9e2ec] px-3 text-[13px] font-bold" value={entity} onChange={(e) => setEntity(e.target.value)}>
-            {['All', 'audit_logs', 'bug_report', 'attendance_machine', 'whatsapp_message'].map((opt) => <option key={opt} value={opt}>{opt === 'All' ? 'All Entities' : opt}</option>)}
-          </select>
           <input type="date" className="h-11 rounded-[8px] border border-[#d9e2ec] px-3 text-[13px]" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
           <input type="date" className="h-11 rounded-[8px] border border-[#d9e2ec] px-3 text-[13px]" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
         </div>
@@ -480,7 +475,25 @@ export function DeveloperAuditLogsPage({ onNotify }) {
             <thead className="bg-[#f8fafc] text-[11px] font-extrabold tracking-wide text-[#7a8fa6] uppercase">
               <tr>
                 {['Date & Time', 'User', 'Branch', 'Action', 'Entity', 'Description', 'View'].map((h) => (
-                  <th key={h} className="px-3 py-3 whitespace-nowrap">{h}</th>
+                  <th key={h} className="px-3 py-3 whitespace-nowrap">
+                    {h === 'Action' ? (
+                      <TableHeaderFilter
+                        label="Action"
+                        value={action}
+                        active={action !== 'All'}
+                        options={['All', 'ADD', 'UPDATE', 'DELETE', 'CLEAR', 'SYNC'].map((opt) => ({ value: opt, label: opt === 'All' ? 'All Actions' : opt }))}
+                        onChange={setAction}
+                      />
+                    ) : h === 'Entity' ? (
+                      <TableHeaderFilter
+                        label="Entity"
+                        value={entity}
+                        active={entity !== 'All'}
+                        options={['All', 'audit_logs', 'bug_report', 'attendance_machine', 'whatsapp_message'].map((opt) => ({ value: opt, label: opt === 'All' ? 'All Entities' : opt }))}
+                        onChange={setEntity}
+                      />
+                    ) : h}
+                  </th>
                 ))}
               </tr>
             </thead>
@@ -827,21 +840,14 @@ export function DeveloperWhatsAppExtensionPage({ onNotify }) {
           ))}
         </div>
 
-        <div className="mt-4 grid gap-2 rounded-[10px] border border-[#e7eef7] bg-[#f8fafc] p-3 md:grid-cols-[minmax(0,1.3fr)_120px_130px_130px_130px_auto]">
+        <div className="mt-4 grid gap-2 rounded-[10px] border border-[#e7eef7] bg-[#f8fafc] p-3 md:grid-cols-[minmax(0,1.3fr)_130px_130px_auto]">
           <div className="relative">
             <Search className="pointer-events-none absolute top-3 left-3 size-4 text-[#94a3b8]" />
             <input className="h-11 w-full rounded-[8px] border border-[#d9e2ec] bg-white pr-3 pl-9 text-[13px]" placeholder="Search message, vehicle no, number..." value={query} onChange={(e) => setQuery(e.target.value)} />
           </div>
-          <select className="h-11 rounded-[8px] border border-[#d9e2ec] bg-white px-2 text-[12px] font-bold" value={status} onChange={(e) => setStatus(e.target.value)}>
-            {['All', 'Pending', 'Processed', 'Rejected'].map((s) => <option key={s}>{s}</option>)}
-          </select>
           <input type="date" className="h-11 rounded-[8px] border border-[#d9e2ec] bg-white px-2 text-[12px]" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
           <input type="date" className="h-11 rounded-[8px] border border-[#d9e2ec] bg-white px-2 text-[12px]" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-          <select className="h-11 rounded-[8px] border border-[#d9e2ec] bg-white px-2 text-[12px] font-bold" value={moduleFilter} onChange={(e) => setModuleFilter(e.target.value)}>
-            {['All Messages', 'Jobs', 'Accounts', 'Customer', 'Vendors', 'Inventory', 'O&M', 'Others'].map((s) => <option key={s}>{s}</option>)}
-          </select>
           <div className="flex gap-2">
-            <button type="button" className="inline-flex h-11 flex-1 items-center justify-center gap-1 rounded-[8px] bg-[#dc2626] px-3 text-[12px] font-extrabold text-white" onClick={load}><Search className="size-3.5" /> Search</button>
             <button type="button" className="inline-flex h-11 items-center justify-center rounded-[8px] border border-[#d9e2ec] bg-white px-3" onClick={() => { setQuery(''); setModuleFilter('All Messages'); setDateFrom(''); setDateTo(''); setStatus('All'); }}><X className="size-4" /></button>
           </div>
         </div>
@@ -862,7 +868,25 @@ export function DeveloperWhatsAppExtensionPage({ onNotify }) {
             <thead className="bg-[#f8fafc] text-[10px] font-extrabold tracking-wide text-[#7a8fa6] uppercase">
               <tr>
                 {['#', 'Date & Time', 'From Number', 'Sender Name', 'Group / Module', 'Vehicle No', 'Message', 'Status', 'Actions'].map((h) => (
-                  <th key={h} className="px-3 py-3 whitespace-nowrap">{h}</th>
+                  <th key={h} className="px-3 py-3 whitespace-nowrap">
+                    {h === 'Group / Module' ? (
+                      <TableHeaderFilter
+                        label="Group / Module"
+                        value={moduleFilter}
+                        active={moduleFilter !== 'All Messages'}
+                        options={['All Messages', 'Jobs', 'Accounts', 'Customer', 'Vendors', 'Inventory', 'O&M', 'Others']}
+                        onChange={setModuleFilter}
+                      />
+                    ) : h === 'Status' ? (
+                      <TableHeaderFilter
+                        label="Status"
+                        value={status}
+                        active={status !== 'All'}
+                        options={['All', 'Pending', 'Processed', 'Rejected']}
+                        onChange={setStatus}
+                      />
+                    ) : h}
+                  </th>
                 ))}
               </tr>
             </thead>

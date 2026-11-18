@@ -4,6 +4,7 @@ import {
   Search, Trash2, Warehouse,
 } from 'lucide-react';
 import { inventoryApi } from './api.js';
+import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
 import { fetchEveryPage } from './lib/listQuery.js';
 import { moduleCaps } from './settingsHubPages.jsx';
@@ -547,15 +548,15 @@ export function InventoryWarehousesPage({
                 className="min-w-0 flex-1 bg-transparent text-[13px] font-semibold outline-none placeholder:text-[#94a3b8]"
               />
             </label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-10 rounded-[10px] border border-[#dbe3ee] bg-white px-3 text-[12px] font-bold text-[#334155]"
-            >
-              <option value="">All Status</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-            </select>
+            {statusFilter ? (
+              <button
+                type="button"
+                onClick={() => setStatusFilter('')}
+                className="inline-flex h-10 items-center gap-1.5 rounded-[10px] border border-[#dbe3ee] bg-white px-3 text-[12px] font-extrabold text-[#dc2626] hover:bg-[#fef2f2]"
+              >
+                Clear filter
+              </button>
+            ) : null}
             <div className="inline-flex overflow-hidden rounded-[10px] border border-[#dbe3ee]">
               <button type="button" onClick={() => setViewMode('list')} className={cx('grid size-10 place-items-center', viewMode === 'list' ? 'bg-[#16a34a] text-white' : 'bg-white text-[#64748b]')} aria-label="List view"><List className="size-4" /></button>
               <button type="button" onClick={() => setViewMode('grid')} className={cx('grid size-10 place-items-center border-l border-[#dbe3ee]', viewMode === 'grid' ? 'bg-[#16a34a] text-white' : 'bg-white text-[#64748b]')} aria-label="Grid view"><LayoutGrid className="size-4" /></button>
@@ -565,7 +566,7 @@ export function InventoryWarehousesPage({
 
         {loading ? (
           <p className="px-5 py-16 text-center text-[13px] font-bold text-[#94a3b8]">Loading…</p>
-        ) : filtered.length === 0 ? (
+        ) : filtered.length === 0 && (viewMode === 'grid' || !statusFilter) ? (
           <p className="px-5 py-16 text-center text-[13px] font-bold text-[#94a3b8]">No warehouses found.</p>
         ) : viewMode === 'grid' ? (
           <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -605,11 +606,24 @@ export function InventoryWarehousesPage({
                   <th className="px-3 py-3">Code</th>
                   <th className="px-3 py-3">Warehouse Name</th>
                   <th className="px-3 py-3">Location</th>
-                  <th className="px-3 py-3">Status</th>
+                  <th className="px-3 py-3">
+                    <TableHeaderFilter
+                      label="Status"
+                      value={statusFilter}
+                      active={Boolean(statusFilter)}
+                      options={[{ value: '', label: 'All Status' }, 'Active', 'Inactive']}
+                      onChange={setStatusFilter}
+                    />
+                  </th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
+                {pageRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-5 py-10 text-center text-[13px] font-bold text-[#94a3b8]">No warehouses match this filter.</td>
+                  </tr>
+                ) : null}
                 {pageRows.map((r, i) => (
                   <tr key={r.id} className="border-t border-[#eef2f7] hover:bg-[#fafbfc]">
                     <td className="px-4 py-3 text-[13px] font-bold text-[#64748b]">{startIndex + i + 1}</td>

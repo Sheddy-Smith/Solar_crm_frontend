@@ -195,7 +195,8 @@ export function DetailGrid({ rows }) {
 
 /**
  * Desktop table (lg+) with a phone card list fallback and client-side paging.
- * columns: [{ label, render(row), className? }]
+ * columns: [{ label, render(row), className?, header? }]
+ * `header` (optional ReactNode) replaces the plain label in <th>, e.g. a <TableHeaderFilter />.
  */
 export function DataList({ rows, columns, renderCard, storageKey, resetKey, loading, emptyTitle = 'No records found', emptyHint, emptyIcon, onRowClick, rowClassName }) {
   const { pageRows, pagination, startIndex } = usePagedRows(rows, storageKey, { resetKey });
@@ -203,13 +204,38 @@ export function DataList({ rows, columns, renderCard, storageKey, resetKey, load
     return <p className="py-10 text-center text-[13px] font-semibold text-[#8a98af]">Loading...</p>;
   }
   if (!rows.length) {
+    // Keep the header row visible when columns carry header filters, so an active filter can always be cleared.
+    const hasHeaderFilters = columns.some((c) => c.header);
     return (
       <>
         <MobileCardEmpty icon={emptyIcon} title={emptyTitle} hint={emptyHint} />
-        <div className="hidden py-12 text-center lg:block">
-          <p className="text-[14px] font-extrabold text-[#53647f]">{emptyTitle}</p>
-          {emptyHint ? <p className="mt-1 text-[12px] font-semibold text-[#8a98af]">{emptyHint}</p> : null}
-        </div>
+        {hasHeaderFilters ? (
+          <div className="hidden overflow-x-auto rounded-[12px] border border-[#eef2f8] lg:block">
+            <table className="w-full min-w-[860px] border-collapse text-left">
+              <thead>
+                <tr className="bg-[#f8fafd]">
+                  <th className="w-10 px-3 py-2.5 text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">#</th>
+                  {columns.map((c) => (
+                    <th key={c.label} className={cx('px-3 py-2.5 text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]', c.className)}>{c.header ?? c.label}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td colSpan={columns.length + 1} className="py-12 text-center">
+                    <p className="text-[14px] font-extrabold text-[#53647f]">{emptyTitle}</p>
+                    {emptyHint ? <p className="mt-1 text-[12px] font-semibold text-[#8a98af]">{emptyHint}</p> : null}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="hidden py-12 text-center lg:block">
+            <p className="text-[14px] font-extrabold text-[#53647f]">{emptyTitle}</p>
+            {emptyHint ? <p className="mt-1 text-[12px] font-semibold text-[#8a98af]">{emptyHint}</p> : null}
+          </div>
+        )}
       </>
     );
   }
@@ -222,7 +248,7 @@ export function DataList({ rows, columns, renderCard, storageKey, resetKey, load
             <tr className="bg-[#f8fafd]">
               <th className="w-10 px-3 py-2.5 text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]">#</th>
               {columns.map((c) => (
-                <th key={c.label} className={cx('px-3 py-2.5 text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]', c.className)}>{c.label}</th>
+                <th key={c.label} className={cx('px-3 py-2.5 text-[11px] font-extrabold uppercase tracking-wide text-[#7386a3]', c.className)}>{c.header ?? c.label}</th>
               ))}
             </tr>
           </thead>

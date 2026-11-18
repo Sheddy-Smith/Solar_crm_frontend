@@ -223,7 +223,7 @@ export function TeleDailyTasksPage({ me, onNotify, variant = 'tele' }) {
           <select
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
-            className={cx('h-11 min-w-0 rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold text-[#33456b] sm:h-10', !canAssign && 'col-span-2')}
+            className={cx('h-11 min-w-0 rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[13px] font-bold text-[#33456b] sm:h-10 lg:hidden', !canAssign && 'col-span-2')}
           >
             <option value="All">All status</option>
             <option value="Not Completed">Not Completed</option>

@@ -1986,7 +1986,8 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, roleName = '', isSu
               className="w-full min-w-0 bg-transparent text-[14px] font-semibold text-[#1f2d44] outline-none placeholder:text-[#8a98af] sm:text-[13px]"
             />
           </label>
-          <div className="grid grid-cols-2 gap-2 sm:contents">
+          {/* Mobile/tablet only — desktop uses TableHeaderFilter in <th> */}
+          <div className="grid grid-cols-2 gap-2 sm:contents lg:hidden">
           <select
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}

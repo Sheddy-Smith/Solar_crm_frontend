@@ -12,10 +12,11 @@ import {
   Plus,
   RefreshCw,
   Search,
-  SlidersHorizontal,
   Trash2,
+  X,
   IndianRupee,
 } from 'lucide-react';
+import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import { TablePagination } from './components/TablePagination.jsx';
 import {
   RecentAllPageHeading,
@@ -333,34 +334,16 @@ export function InventoryProductsCatalog({
                 className="min-w-0 flex-1 bg-transparent text-[13px] font-semibold text-[#0f172a] outline-none placeholder:text-[#94a3b8]"
               />
             </label>
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="h-10 rounded-[10px] border border-[#dbe3ee] bg-white px-3 text-[12px] font-bold text-[#334155]"
-            >
-              <option value="">All Categories</option>
-              {categoryNames.map((name) => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-10 rounded-[10px] border border-[#dbe3ee] bg-white px-3 text-[12px] font-bold text-[#334155]"
-            >
-              <option value="">All</option>
-              <option value="In Stock">In Stock</option>
-              <option value="Low Stock">Low Stock</option>
-              <option value="Out of Stock">Out of Stock</option>
-            </select>
-            <button
-              type="button"
-              className="grid size-10 place-items-center rounded-[10px] border border-[#dbe3ee] text-[#64748b] hover:bg-[#f8fafc]"
-              aria-label="Filters"
-              title="Filters"
-            >
-              <SlidersHorizontal className="size-4" />
-            </button>
+            {categoryFilter || statusFilter ? (
+              <button
+                type="button"
+                onClick={() => { setCategoryFilter(''); setStatusFilter(''); }}
+                className="inline-flex h-10 items-center gap-1.5 rounded-[10px] border border-[#dbe3ee] bg-white px-3 text-[12px] font-extrabold text-[#dc2626] hover:bg-[#fef2f2]"
+              >
+                <X className="size-3.5" />
+                Clear filters
+              </button>
+            ) : null}
             <div className="inline-flex overflow-hidden rounded-[10px] border border-[#dbe3ee]">
               <button
                 type="button"
@@ -408,7 +391,7 @@ export function InventoryProductsCatalog({
 
         {loading ? (
           <p className="px-5 py-16 text-center text-[13px] font-bold text-[#94a3b8]">Loading products…</p>
-        ) : filtered.length === 0 ? (
+        ) : filtered.length === 0 && viewMode === 'grid' ? (
           <p className="px-5 py-16 text-center text-[13px] font-bold text-[#94a3b8]">No products found.</p>
         ) : viewMode === 'grid' ? (
           <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -450,16 +433,37 @@ export function InventoryProductsCatalog({
                     <input type="checkbox" checked={allPageSelected} onChange={toggleAllPage} className="size-4 accent-[#16a34a]" />
                   </th>
                   <th className="px-3 py-3">Product Name</th>
-                  <th className="px-3 py-3">Category</th>
+                  <th className="px-3 py-3">
+                    <TableHeaderFilter
+                      label="Category"
+                      value={categoryFilter}
+                      active={Boolean(categoryFilter)}
+                      options={[{ value: '', label: 'All Categories' }, ...categoryNames]}
+                      onChange={setCategoryFilter}
+                    />
+                  </th>
                   <th className="px-3 py-3">Unit</th>
                   <th className="px-3 py-3 text-right">Stock Qty</th>
                   <th className="px-3 py-3 text-right">Price/Unit (₹)</th>
                   <th className="px-3 py-3 text-right">Stock Value (₹)</th>
-                  <th className="px-3 py-3">Status</th>
+                  <th className="px-3 py-3">
+                    <TableHeaderFilter
+                      label="Status"
+                      value={statusFilter}
+                      active={Boolean(statusFilter)}
+                      options={[{ value: '', label: 'All' }, 'In Stock', 'Low Stock', 'Out of Stock']}
+                      onChange={setStatusFilter}
+                    />
+                  </th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
+                {pageRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="px-5 py-16 text-center text-[13px] font-bold text-[#94a3b8]">No products found.</td>
+                  </tr>
+                ) : null}
                 {pageRows.map((row) => {
                   const status = stockStatusOf(row);
                   const thumb = productThumb(row.name);
