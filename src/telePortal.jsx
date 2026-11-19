@@ -974,6 +974,10 @@ export function BuiltByCredit({ className = '' }) {
 }
 
 export function ProductFooter({ className = '' }) {
+  const [orgName, setOrgName] = useState(() => organizationDisplayName() || 'Company');
+  useEffect(() => subscribeOrganization(() => {
+    setOrgName(organizationDisplayName() || 'Company');
+  }), []);
   return (
     <footer
       className={cx(
@@ -981,7 +985,7 @@ export function ProductFooter({ className = '' }) {
         className,
       )}
     >
-      <p>Copyright {new Date().getFullYear()} Malwa Solar Energy. All rights reserved.</p>
+      <p>Copyright {new Date().getFullYear()} {orgName}. All rights reserved.</p>
       <BuiltByCredit className="sm:text-right" />
     </footer>
   );
@@ -1137,7 +1141,7 @@ export function TeleSignInPage({ onLogin, onBack, onNotify }) {
           <div className="relative z-10 flex items-center gap-3">
             <TeleBrandMark size="lg" />
             <div>
-              <p className="font-display text-[18px] font-extrabold leading-tight text-white">Malwa Solar Energy</p>
+              <p className="font-display text-[18px] font-extrabold leading-tight text-white">{organizationDisplayName() || 'Company'}</p>
               <p className="text-[10px] font-extrabold uppercase tracking-[0.24em] text-white/75">CRM System</p>
             </div>
           </div>
@@ -1628,7 +1632,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="app-mobile-topbar flex shrink-0 items-center justify-between gap-2 border-b border-[#e2e9f3] bg-white px-2.5 py-2 sm:px-3 sm:py-2.5 lg:pl-2">
           <div className="min-w-0">
-            <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#7585a2] lg:hidden">Malwa Solar</p>
+            <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#7585a2] lg:hidden">{organizationDisplayName() || 'Company'}</p>
             <h1 className="truncate font-display text-[17px] font-extrabold text-[#102446] sm:text-[20px]">
               {activeNav === 'Dashboard' ? 'Tele Dashboard' : activeNav}
             </h1>

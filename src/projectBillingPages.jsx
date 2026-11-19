@@ -2,11 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronRight, Eye, FilePlus2, FileText, Hammer, Pencil, Plus, Printer, ReceiptText, RefreshCw, Save, Trash2, Truck, X,
 } from 'lucide-react';
-import { getMediaUrl, materialPlanApi, projectApi, projectInvoiceApi, projectSalesChallanApi, settingsApi } from './api.js';
+import { getMediaUrl, materialPlanApi, projectApi, projectInvoiceApi, projectSalesChallanApi } from './api.js';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
-import { organizationLogoUrl } from './lib/organization.js';
+import {
+  crmCompanyProfile,
+  organizationLogoUrl,
+  refreshOrganization,
+  subscribeOrganization,
+} from './lib/organization.js';
 
 const PANEL = 'rounded-[14px] border border-[#e7eef7] bg-white shadow-[0_10px_24px_rgba(17,39,84,0.05)]';
 const CELL_INPUT = 'h-8 w-full rounded-[6px] border border-transparent bg-transparent px-1.5 text-[13px] font-semibold text-[#1e3261] outline-none transition hover:border-[#dce6f3] focus:border-[#86b7fe] focus:bg-white disabled:hover:border-transparent';
@@ -24,20 +29,10 @@ const GST_PRESETS = [
   { label: 'No GST — 0%', rate: 0 },
 ];
 
-const COMPANY_FALLBACK = {
-  companyName: 'MALWA SOLAR ENERGY',
-  gstNumber: '23CTTPM3966P1ZN',
-  phone: '822-3000-822',
-  email: 'malwasolarenergy@gmail.com',
-  address1: '11/4, Fawara Chowk',
-  city: 'Ujjain',
-  state: 'Madhya Pradesh',
-  pinCode: '456001',
-  bankName: 'AU SMALL FINANCE BANK LIMITED',
-  accountNumber: '2402231963220487',
-  ifsc: 'AUBL0002319',
-  branch: 'Freeganj, Ujjain',
-};
+/** Settings → Company Profile is the live letterhead source. */
+function resolveBillingCompany(company) {
+  return crmCompanyProfile(company || {});
+}
 
 const KINDS = {
   challan: {
@@ -252,7 +247,7 @@ function esc(value) {
 
 function printDocument(kind, doc, company) {
   const cfg = KINDS[kind];
-  const c = { ...COMPANY_FALLBACK, ...(company || {}) };
+  const c = resolveBillingCompany(company);
   const isInvoice = kind === 'invoice';
   const lines = doc.lines || [];
   const companyAddress = [c.address1, c.address2, c.city, c.state, c.pinCode].filter(Boolean).join(', ');
@@ -354,7 +349,7 @@ function fmtAmount(n) {
 
 // Same visual language as the quotation PDF (navy / gold, Cormorant + Manrope).
 function printChallan(doc, company) {
-  const c = { ...COMPANY_FALLBACK, ...(company || {}) };
+  const c = resolveBillingCompany(company);
   const origin = window.location.origin;
   const orgLogo = organizationLogoUrl() || c.logoUrl || '';
   const logo = orgLogo
@@ -733,9 +728,9 @@ function ProjectBillingPage({ kind, activeSection, onOpenSection, onNotify, Subn
     projectApi.list({ page_size: 25 })
       .then((data) => setProjects(rowsOf(data).filter((p) => p.lead_status === 'Won')))
       .catch(() => setProjects([]));
-    settingsApi.company.get()
-      .then((res) => setCompany(res?.data && Object.keys(res.data).length ? res.data : null))
-      .catch(() => setCompany(null));
+    const syncCompany = () => setCompany(crmCompanyProfile());
+    refreshOrganization().then(syncCompany).catch(syncCompany);
+    return subscribeOrganization(syncCompany);
   }, []);
 
   useEffect(() => {
@@ -971,8 +966,13 @@ function ProjectBillingPage({ kind, activeSection, onOpenSection, onNotify, Subn
     }
   };
 
-  const handlePrint = (row) => {
-    const opened = isInvoice ? printDocument(kind, row, company) : printChallan(row, company);
+  const handlePrint = async (row) => {
+    try {
+      await refreshOrganization({ force: true });
+      setCompany(crmCompanyProfile());
+    } catch { /* keep last company snapshot */ }
+    const letterhead = crmCompanyProfile(company || {});
+    const opened = isInvoice ? printDocument(kind, row, letterhead) : printChallan(row, letterhead);
     if (!opened) onNotify?.('Popup blocked — please allow popups in your browser', 'error');
   };
 

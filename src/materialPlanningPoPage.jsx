@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { inventoryApi, materialPlanApi, projectApi } from './api.js';
 import { fetchEveryPage, rowsOf } from './lib/listQuery.js';
-import { organizationDisplayName } from './lib/organization.js';
+import { organizationDisplayName, subscribeOrganization } from './lib/organization.js';
 
 const UOM_OPTIONS = ['Nos', 'Mtr', 'Set', 'Lot', 'Kg', 'Pair', 'Unit', 'Packet', 'Bundels', 'kW', 'pcs', 'Meter'];
 const PANEL = 'rounded-[14px] border border-[#e7eef7] bg-white shadow-[0_10px_24px_rgba(17,39,84,0.05)]';
@@ -319,8 +319,11 @@ export function MaterialPlanningPoPage({
     return () => document.removeEventListener('pointerdown', onPointerDown);
   }, [pickerKey]);
 
+  const [company, setCompany] = useState(() => organizationDisplayName() || 'Company');
+  useEffect(() => subscribeOrganization(() => {
+    setCompany(organizationDisplayName() || 'Company');
+  }), []);
   const partyLabel = project?.customer_name || project?.project_name || 'Select project party';
-  const company = organizationDisplayName() || 'Ecomalwa Solar Energy Private Limited';
 
   const patchLine = (key, patch) => {
     setLines((prev) => prev.map((line) => (line._key === key ? { ...line, ...patch } : line)));

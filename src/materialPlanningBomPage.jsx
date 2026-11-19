@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { inventoryApi, materialPlanApi } from './api.js';
 import { rowsOf } from './lib/listQuery.js';
+import { organizationDisplayName, refreshOrganization } from './lib/organization.js';
 import {
   BOM_TEMPLATES,
   DISPATCH_CATEGORIES,
@@ -718,7 +719,8 @@ export function MaterialPlanningBomPage({
     }
   };
 
-  const printChecklist = () => {
+  const printChecklist = async () => {
+    await refreshOrganization({ force: true }).catch(() => {});
     const win = window.open('', '_blank', 'noopener,noreferrer,width=900,height=1200');
     if (!win) {
       onNotify?.('Allow pop-ups to print checklist', 'error');
@@ -752,7 +754,7 @@ export function MaterialPlanningBomPage({
         @media print{button{display:none}}
       </style></head><body>
       <button onclick="window.print()">Print / Save PDF</button>
-      <h1>MALWA SOLAR ENERGY — B.O.M. FORM (STRUCTURE & ELECTRICAL)</h1>
+      <h1>${escapeHtml(organizationDisplayName() || 'Company').toUpperCase()} — B.O.M. FORM (STRUCTURE & ELECTRICAL)</h1>
       <h2>Material Planning Checklist</h2>
       <div class="meta">
         <div><b>Client / Project:</b> ${escapeHtml(project?.customer_name || project?.project_name || '')}</div>

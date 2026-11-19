@@ -10000,40 +10000,41 @@ function BusinessInformationSettingsPage({ onOpenSection, onNotify }) {
 }
 
 function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
+  // Empty defaults — live values always come from Settings API / organization snapshot.
   const defaultCompanyForm = {
-    companyName: 'MALWA SOLAR ENERGY',
-    shortName: 'Malwa Solar Energy',
+    companyName: '',
+    shortName: '',
     companyType: 'Proprietorship',
-    gstNumber: '23CTTPM3966P1ZN',
-    panNumber: 'CTTPM3966P',
+    gstNumber: '',
+    panNumber: '',
     tanNumber: '',
     cin: '',
-    phone: '822-3000-822',
-    secondaryPhone: '822-3000-824',
-    email: 'malwasolarenergy@gmail.com',
-    altEmail: 'malwasolarenergy@gmail.com',
-    website: 'https://www.malwasolarenergy.com',
+    phone: '',
+    secondaryPhone: '',
+    email: '',
+    altEmail: '',
+    website: '',
     incorporationDate: '',
     startDate: '',
     companySize: '11-50 Employees',
     industryType: 'Solar Energy',
     currency: 'INR (Rs)',
     timezone: '(GMT +05:30) Asia/Kolkata',
-    address1: '11/4, Fawara Chowk',
+    address1: '',
     address2: '',
-    city: 'Ujjain',
-    state: 'Madhya Pradesh',
-    pinCode: '456001',
+    city: '',
+    state: '',
+    pinCode: '',
     country: 'India',
-    bankName: 'AU SMALL FINANCE BANK LIMITED',
-    accountNumber: '2402231963220487',
-    ifsc: 'AUBL0002319',
-    branch: 'Freeganj, Ujjain',
-    contactName: 'Malwa Solar Energy',
-    designation: 'Office',
-    contactPhone: '822-3000-822',
-    contactEmail: 'malwasolarenergy@gmail.com',
-    notes: 'Official quotation company details from client PDF.',
+    bankName: '',
+    accountNumber: '',
+    ifsc: '',
+    branch: '',
+    contactName: '',
+    designation: '',
+    contactPhone: '',
+    contactEmail: '',
+    notes: '',
   };
 
   const [form, setForm] = useState(defaultCompanyForm);
@@ -10044,12 +10045,15 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
   const logoInputRef = useRef(null);
 
   useEffect(() => {
-    settingsApi.company.get()
-      .then((res) => {
-        if (res?.data && Object.keys(res.data).length) {
-          setForm((current) => ({ ...current, ...res.data }));
-        }
-        const nextLogo = res?.logo_url || res?.data?.logoUrl || '';
+    Promise.all([
+      settingsApi.company.get().catch(() => null),
+      refreshOrganization({ force: true }).catch(() => null),
+    ])
+      .then(([res]) => {
+        const fromApi = res?.data && Object.keys(res.data).length ? res.data : null;
+        const fromOrg = getOrganization()?.company || {};
+        setForm((current) => ({ ...current, ...fromOrg, ...(fromApi || {}) }));
+        const nextLogo = res?.logo_url || fromApi?.logoUrl || organizationLogoUrl() || '';
         setLogoUrl(nextLogo);
       })
       .catch(() => onNotify('Could not load company profile.', 'error'));
@@ -35324,19 +35328,19 @@ function formatMoney(value) {
   return `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 }
 
+/** Print theme defaults only — legal identity comes from Settings → Company Profile via quotationCompanyFromOrganization. */
 const QUOTATION_PRINT_COMPANY = {
-  name: 'MALWA SOLAR ENERGY',
-  shortName: 'Malwa Solar Energy',
-  address: '11/4, Fawara Chowk, Ujjain, (M.P.)',
-  officeLine: 'OFFICE:- 11/4, Fawara Chowk, Ujjain, M.P.',
-  phone: '822-3000-822, 822-3000-824',
-  email: 'malwasolarenergy@gmail.com',
-  web: 'www.malwasolarenergy.com',
-  gstin: '23CTTPM3966P1ZN',
-  bankAccount: '2402231963220487',
-  bankIfsc: 'AUBL0002319',
-  bankName: 'AU SMALL FINANCE BANK LIMITED, FREEGANJ, UJJAIN',
-  // Client PDF brand palette
+  name: '',
+  shortName: '',
+  address: '',
+  officeLine: '',
+  phone: '',
+  email: '',
+  web: '',
+  gstin: '',
+  bankAccount: '',
+  bankIfsc: '',
+  bankName: '',
   navy: '#0F233D',
   orange: '#F49018',
   yellow: '#FFFF00',
@@ -35351,7 +35355,7 @@ We thank you for your interest in our company and also for your initiative towar
 With regards to our discussion about providing solar grid tied power plant to cater your Electrical requirements, we hereby offer our best proposal.
 This proposal has been priced competitively, keeping in mind the strategic nature of the engagement and promise to provide you the best of services & support.
 Kindly consider our assurance of a full-fledged end-to end support to all our products. Our development and quality assurance team uses the latest tools and technology to develop state-of the-art products and solutions to address your specific needs.
-Should you require any further details or clarifications, please feel free to contact us @ 822-3000-822`;
+Should you require any further details or clarifications, please feel free to contact us.`;
 
 const QUOTATION_DEFAULT_TERMS = [
   'Wattage of Panel or make might vary, depending on availability on the day of confirmation of order (Per Wp cost will remain same).',
@@ -35534,7 +35538,13 @@ function buildQuotationPrintHtml(detail) {
   const tilt = detail.tilt_angle_range || '14 to 16 Degree';
   const installNote = detail.installation_type || detail.structure_type || 'Rooftop';
   const subject = detail.subject || 'Comprehensive proposal for grid-tied solar power plant';
-  const coverLetter = (detail.cover_letter || '').trim() || QUOTATION_DEFAULT_COVER_LETTER;
+  const coverRaw = (detail.cover_letter || '').trim() || QUOTATION_DEFAULT_COVER_LETTER;
+  const coverLetter = company.phone && !/contact us\s*@/i.test(coverRaw)
+    ? coverRaw.replace(
+      /please feel free to contact us\.?\s*$/i,
+      `please feel free to contact us @ ${company.phone}`,
+    )
+    : coverRaw;
   const structureSpec = detail.structure_spec_details
     || 'Thickness 2 mm, Galvanized 80 GSM JSW Standard / Elevated height, 14–16° tilt';
   const netMeter = detail.net_meter_details
@@ -36092,6 +36102,7 @@ function buildQuotationPrintHtml(detail) {
 async function printQuotationRecord(quotationId) {
   const detail = await quotationApi.get(quotationId);
   if (!detail) throw new Error('Quotation not found');
+  await refreshOrganization({ force: true }).catch(() => {});
 
   const iframe = document.createElement('iframe');
   iframe.setAttribute('title', `Print ${detail.quotation_number || 'Quotation'}`);
