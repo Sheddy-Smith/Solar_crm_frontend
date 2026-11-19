@@ -180,7 +180,7 @@ def dashboard_summary(today=None):
         assignee = getattr(t.assigned_to, 'name', None) if t.assigned_to_id else None
         ticket_rows.append({
             'id': t.id,
-            'record_no': t.record_no,
+            'record_no': f'BD-{t.id:04d}',
             'subject': t.subject,
             'status': t.status,
             'priority': t.priority,
