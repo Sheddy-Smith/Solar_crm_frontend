@@ -78,6 +78,10 @@ class SellInvoiceViewSet(AccountsBaseViewSet):
     def perform_update(self, serializer):
         old_party_id = serializer.instance.party_id
         invoice = serializer.save()
+        # Keep balance_due aligned with invoice allocations when present.
+        from .invoice_payment_allocation import invoice_has_active_allocations, refresh_invoice_settlement
+        if invoice_has_active_allocations(invoice):
+            invoice = refresh_invoice_settlement(invoice, sync_status=True)
         sync_inventory_for_sell_invoice(invoice, self.request.user)
         sync_journal_for_invoice(invoice, 'sell')
         if old_party_id and old_party_id != invoice.party_id:
@@ -85,12 +89,24 @@ class SellInvoiceViewSet(AccountsBaseViewSet):
         recalculate_party_balance(invoice.party_id)
 
     def perform_destroy(self, instance):
+        from .invoice_payment_allocation import active_allocations_qs
+        from rest_framework.exceptions import ValidationError
+        if active_allocations_qs(invoice_id=instance.id).exists():
+            raise ValidationError(
+                'Cannot delete Sell Invoice with active payment allocations. Reverse allocations first.'
+            )
         ref = instance.invoice_no or f'SI-{instance.id:04d}'
         Transaction.objects.filter(reference_number=ref, transaction_date=instance.invoice_date).delete()
         party_id = instance.party_id
         remove_sell_invoice_stock(instance)
         instance.delete()
         recalculate_party_balance(party_id)
+
+    @action(detail=True, methods=['get'], url_path='payment-summary')
+    def payment_summary(self, request, pk=None):
+        from .invoice_payment_allocation import invoice_settlement_summary
+        invoice = self.get_object()
+        return Response(invoice_settlement_summary(invoice))
 
 
 class PaymentVoucherViewSet(AccountsBaseViewSet):

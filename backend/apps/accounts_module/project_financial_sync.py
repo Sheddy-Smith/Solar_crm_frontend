@@ -163,6 +163,28 @@ def _project_customer_collections(project):
     return decimal_or_zero(collected)
 
 
+def _project_invoice_settlement_totals(project):
+    """Invoice-wise allocated / outstanding using InvoicePaymentAllocation when present."""
+    from .invoice_payment_allocation import invoice_allocated_amount, invoice_effective_paid, invoice_outstanding
+    from .models import SellInvoice
+
+    invoices = SellInvoice.objects.filter(
+        project=project,
+        status__in=_SELL_INVOICE_REVENUE_STATUSES,
+    )
+    allocated = Decimal('0')
+    outstanding = Decimal('0')
+    for inv in invoices:
+        allocated += invoice_allocated_amount(inv)
+        # Prefer allocation-aware outstanding; falls back to legacy payment_amount.
+        outstanding += invoice_outstanding(inv)
+        _ = invoice_effective_paid(inv)  # ensure helper remains import-safe
+    return {
+        'invoice_allocated': allocated.quantize(Decimal('0.01')),
+        'invoice_outstanding': outstanding.quantize(Decimal('0.01')),
+    }
+
+
 def project_pnl(project):
     """
     Actual profitability:
@@ -178,9 +200,14 @@ def project_pnl(project):
     """
     revenue = _project_sell_invoice_revenue(project)
     collected = _project_customer_collections(project)
-    outstanding_ar = (revenue - collected).quantize(Decimal('0.01'))
-    if outstanding_ar < 0:
-        outstanding_ar = Decimal('0.00')
+    settlement = _project_invoice_settlement_totals(project)
+    invoice_allocated = settlement['invoice_allocated']
+    # Outstanding from open invoice balances (not revenue − all receipts, which
+    # mis-states AR when advances/unallocated payments exist).
+    outstanding_ar = settlement['invoice_outstanding']
+    unallocated_advance = (collected - invoice_allocated).quantize(Decimal('0.01'))
+    if unallocated_advance < 0:
+        unallocated_advance = Decimal('0.00')
 
     # Actual material cost from dispatch-linked cost vouchers
     material_vouchers = PaymentVoucher.objects.filter(
@@ -244,11 +271,14 @@ def project_pnl(project):
             'total_billed': float(revenue),
             'collected_from_customer': float(collected),
             'total_received': float(collected),
+            'invoice_allocated': float(invoice_allocated),
+            'unallocated_advance': float(unallocated_advance),
             'outstanding_receivable': float(outstanding_ar),
             'balance_due': float(outstanding_ar),
             'note': (
-                'Revenue is recognized on Sell Invoice (Dr AR / Cr Sales). '
-                'Customer payments reduce Accounts Receivable only.'
+                'Revenue is accrual from Sell Invoices. Receipts are cash-flow only. '
+                'Outstanding is sum of invoice balances (allocation-aware). '
+                'Unallocated advance = receipts − invoice allocations.'
             ),
         },
         'costs': {

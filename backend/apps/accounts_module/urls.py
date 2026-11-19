@@ -14,6 +14,7 @@ from .vendor_installation_views import (
     VendorInstallationSummaryView,
     VendorOverallCreditLedgerView,
 )
+from .invoice_allocation_views import InvoicePaymentAllocationViewSet
 
 router = DefaultRouter()
 router.register('chart-of-accounts', ChartOfAccountViewSet, basename='chart-of-account')
@@ -31,6 +32,11 @@ router.register('sell-challans', SellChallanViewSet, basename='sell-challan')
 router.register('gst-opening', GstOpeningBalanceViewSet, basename='gst-opening')
 router.register('vendor-install-stages', VendorInstallStageTemplateViewSet, basename='vendor-install-stage')
 router.register('vendor-installations', VendorInstallationAssignmentViewSet, basename='vendor-installation')
+router.register(
+    'invoice-payment-allocations',
+    InvoicePaymentAllocationViewSet,
+    basename='invoice-payment-allocation',
+)
 
 urlpatterns = [
     path('vendor-credit-ledger/', VendorOverallCreditLedgerView.as_view(), name='vendor-credit-ledger'),

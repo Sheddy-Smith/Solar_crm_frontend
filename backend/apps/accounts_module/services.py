@@ -454,11 +454,10 @@ def sync_journal_for_invoice(invoice, kind):
         return
 
     defaults = _default_accounts()
-    fully_paid = _d(invoice.balance_due) <= 0
-    if fully_paid:
-        settlement_account = account_for_cash_or_bank(invoice.payment_mode, None, defaults)
-    else:
-        settlement_account = defaults['2110'] if is_purchase else defaults['1130']
+    # Accrual principle: invoice always posts AR/AP. Cash/Bank movement belongs ONLY
+    # on Payment journals. Using Cash when balance_due==0 caused double Cash posting
+    # when a separate Payment also existed for the same money.
+    settlement_account = defaults['2110'] if is_purchase else defaults['1130']
 
     party = invoice.supplier if is_purchase else invoice.party
     party_label = (invoice.supplier_name if is_purchase else invoice.party_name) or (party.name if party else '—')
@@ -676,9 +675,14 @@ def delete_payment_voucher_with_employee_voucher(voucher):
 
 def sync_project_payment_to_accounts(project_payment, user):
     """Create or update Accounts Payment from a ProjectPayment."""
+    from .invoice_payment_allocation import assert_payment_amount_covers_allocations
+
     project = project_payment.project
     party = get_or_create_party_for_project(project)
     mode = PAYMENT_MODE_MAP.get(project_payment.payment_mode, 'Other')
+    existing = Payment.objects.filter(project_payment=project_payment).first()
+    if existing:
+        assert_payment_amount_covers_allocations(existing, project_payment.amount)
     payment, _ = Payment.objects.update_or_create(
         project_payment=project_payment,
         defaults={

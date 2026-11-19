@@ -137,6 +137,15 @@ class PaymentSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     'project': 'Project is required for customer cash receipts (use receipt source Other for unallocated).',
                 })
+        if instance is not None and 'amount' in attrs:
+            from .invoice_payment_allocation import assert_payment_amount_covers_allocations
+            try:
+                assert_payment_amount_covers_allocations(instance, attrs['amount'])
+            except Exception as exc:
+                from django.core.exceptions import ValidationError as DjangoValidationError
+                if isinstance(exc, DjangoValidationError):
+                    raise serializers.ValidationError({'amount': exc.messages if hasattr(exc, 'messages') else str(exc)})
+                raise
         return attrs
 
     class Meta:

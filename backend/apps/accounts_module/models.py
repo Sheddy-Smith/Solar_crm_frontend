@@ -992,6 +992,57 @@ class PaymentAllocation(models.Model):
         return f'Alloc {self.amount} → project {self.project_id} (payment {self.payment_id})'
 
 
+class InvoicePaymentAllocation(models.Model):
+    """Many-to-many through-model: Accounts Payment ↔ Sell Invoice settlement.
+
+    Distinct from PaymentAllocation (Payment → Project advance distribution).
+    Allocation never creates a second cash/bank journal — it only settles AR on invoices.
+    """
+    STATUS_ACTIVE = 'Active'
+    STATUS_REVERSED = 'Reversed'
+    STATUS_CHOICES = [
+        (STATUS_ACTIVE, 'Active'),
+        (STATUS_REVERSED, 'Reversed'),
+    ]
+
+    payment = models.ForeignKey(
+        Payment, on_delete=models.PROTECT, related_name='invoice_allocations',
+    )
+    invoice = models.ForeignKey(
+        'SellInvoice', on_delete=models.PROTECT, related_name='payment_allocations',
+    )
+    allocated_amount = models.DecimalField(max_digits=14, decimal_places=2)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_ACTIVE)
+    notes = models.TextField(blank=True)
+    allocated_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='invoice_allocations_created',
+    )
+    allocated_at = models.DateTimeField(auto_now_add=True)
+    reversed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='invoice_allocations_reversed',
+    )
+    reversed_at = models.DateTimeField(null=True, blank=True)
+    reversal_reason = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-allocated_at', '-id']
+        indexes = [
+            models.Index(fields=['payment', 'status'], name='inv_pay_alloc_payment_status'),
+            models.Index(fields=['invoice', 'status'], name='inv_pay_alloc_invoice_status'),
+            models.Index(fields=['status', 'allocated_at'], name='inv_pay_alloc_status_at'),
+        ]
+
+    def __str__(self):
+        return (
+            f'IPA {self.allocated_amount} payment={self.payment_id} '
+            f'invoice={self.invoice_id} ({self.status})'
+        )
+
+
 class CustomerMergeAudit(models.Model):
     """Immutable record of an authorized Customer (Account) merge."""
     source = models.ForeignKey(

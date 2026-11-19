@@ -280,6 +280,9 @@ def build_ledger_entries(party, start=None, end=None, project_id=None, unallocat
 
     for pay in received.order_by('payment_date', 'id'):
         particulars = pay.description or pay.particulars or 'Payment received'
+        # Receipt appears once as cash credit — never duplicated via invoice allocations.
+        from .invoice_payment_allocation import sum_active_allocations
+        inv_allocated = sum_active_allocations(payment_id=pay.id)
         entries.append({
             'date': _iso(pay.payment_date),
             'particulars': particulars,
@@ -294,6 +297,44 @@ def build_ledger_entries(party, start=None, end=None, project_id=None, unallocat
             'source_id': pay.id,
             'source_kind': 'payment',
             'project_id': pay.project_id,
+            'invoice_allocated': float(inv_allocated),
+            'unallocated_amount': float(max(_d(pay.amount) - inv_allocated, Decimal('0'))),
+        })
+
+    # Settlement detail only (zero cash impact) — links receipt ↔ invoice without double credit.
+    from .models import InvoicePaymentAllocation
+    inv_alloc_qs = InvoicePaymentAllocation.objects.filter(
+        status=InvoicePaymentAllocation.STATUS_ACTIVE,
+        payment__party_id=party.id,
+        payment__status='Completed',
+    ).select_related('payment', 'invoice')
+    if project_id is not None:
+        inv_alloc_qs = inv_alloc_qs.filter(invoice__project_id=project_id)
+    if start:
+        inv_alloc_qs = inv_alloc_qs.filter(allocated_at__date__gte=start)
+    if end:
+        inv_alloc_qs = inv_alloc_qs.filter(allocated_at__date__lte=end)
+    for row in inv_alloc_qs.order_by('allocated_at', 'id'):
+        inv_no = row.invoice.invoice_no or f'SI-{row.invoice_id}'
+        rcpt = row.payment.reference_no or f'RCPT-{row.payment_id}'
+        particulars = f'Settlement {rcpt} → {inv_no}'
+        entries.append({
+            'date': _iso(row.allocated_at.date() if row.allocated_at else None),
+            'particulars': particulars,
+            'work': row.notes or particulars,
+            'ref': f'IPA-{row.id}',
+            'vehicle_no': vehicle_fallback or '',
+            'debit': 0,
+            'credit': 0,
+            'type': 'Settlement',
+            'type_label': 'invoice_allocation',
+            'payment_mode': (getattr(row.payment, 'payment_mode', None) or '').strip(),
+            'source_id': row.id,
+            'source_kind': 'invoice_payment_allocation',
+            'project_id': row.invoice.project_id,
+            'allocated_amount': float(_d(row.allocated_amount)),
+            'payment_id': row.payment_id,
+            'invoice_id': row.invoice_id,
         })
 
     for pay in made.order_by('payment_date', 'id'):

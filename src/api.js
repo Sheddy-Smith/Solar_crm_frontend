@@ -537,6 +537,22 @@ export const accountsModuleApi = {
   transactions: accountsCrud('transactions'),
   purchaseInvoices: accountsCrud('purchase-invoices'),
   sellInvoices: accountsCrud('sell-invoices'),
+  sellInvoicePaymentSummary: (id) => request(`/accounts/sell-invoices/${id}/payment-summary/`),
+  invoicePaymentAllocations: {
+    ...accountsCrud('invoice-payment-allocations'),
+    bulk: (data) => request('/accounts/invoice-payment-allocations/bulk/', { method: 'POST', body: data }),
+    reverse: (id, data) => request(`/accounts/invoice-payment-allocations/${id}/reverse/`, { method: 'POST', body: data }),
+    eligibleInvoices: (params = {}) => {
+      const qs = new URLSearchParams(
+        Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null)),
+      ).toString();
+      return request(`/accounts/invoice-payment-allocations/eligible-invoices/${qs ? `?${qs}` : ''}`);
+    },
+    legacyAudit: (params = {}) => {
+      const qs = new URLSearchParams(params).toString();
+      return request(`/accounts/invoice-payment-allocations/legacy-audit/${qs ? `?${qs}` : ''}`);
+    },
+  },
   vouchers: accountsCrud('vouchers'),
   purchaseChallans: accountsCrud('purchase-challans'),
   sellChallans: accountsCrud('sell-challans'),

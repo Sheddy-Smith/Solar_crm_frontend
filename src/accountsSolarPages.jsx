@@ -8,6 +8,7 @@ import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/
 import { accountsModuleApi, projectApi, inventoryApi } from './api.js';
 import { fetchEveryPage } from './lib/listQuery.js';
 import ProjectSearchSelect from './components/ProjectSearchSelect.jsx';
+import { InvoicePaymentHistoryPanel } from './components/InvoicePaymentAllocationPanel.jsx';
 
 const panelClass =
   'crm-panel rounded-[12px] border border-[#dbe5f2] bg-white/90 shadow-[0_10px_24px_rgba(24,48,87,0.06)] backdrop-blur-sm';
@@ -707,6 +708,12 @@ export function AccountsLineDocumentPage({
                   ))}
                 </tbody>
               </table>
+            </div>
+          ) : null}
+          {recordLabel === 'Sell Invoice' ? (
+            <div className="mt-5">
+              <h4 className="mb-2 text-[11px] font-extrabold uppercase tracking-wide text-[#7b8ca8]">Payment History / Settlement</h4>
+              <InvoicePaymentHistoryPanel invoiceId={viewItem.id} onNotify={onNotify} canReverse={caps.edit} />
             </div>
           ) : null}
           <div className="mt-4 flex justify-end gap-2">

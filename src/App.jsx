@@ -59,6 +59,7 @@ import {
 } from './accountsVoucherForm.jsx';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import SearchableSelect from './components/SearchableSelect.jsx';
+import InvoicePaymentAllocationPanel from './components/InvoicePaymentAllocationPanel.jsx';
 import {
   MarkAsFinalConfirmModal,
   ModuleIndependentBadge,
@@ -14951,6 +14952,7 @@ function AccountsOtherExpensesPage({ activeSection, onOpenSection, onNotify }) {
 }
 
 function AccountsCashReceiptPage({ activeSection, onOpenSection, onNotify }) {
+  const [allocatePayment, setAllocatePayment] = useState(null);
   const config = {
     moduleTitle: 'Accounts',
     Subnav: AccountsSubnavTabs,
@@ -15033,8 +15035,37 @@ function AccountsCashReceiptPage({ activeSection, onOpenSection, onNotify }) {
       ['Due', (r) => fmtAccRs(r.due_amount)],
       ['Particulars', (r) => r.particulars || '—', true],
     ],
+    renderViewExtra: (row) => (
+      row.status === 'Completed' && row.direction === 'Received' ? (
+        <div className="rounded-[12px] border border-[#dbe5f2] bg-[#f8fbff] p-4">
+          <h3 className="text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6]">Invoice Allocation</h3>
+          <p className="mt-1 text-[12px] font-semibold text-[#53647f]">
+            Settle this receipt against outstanding Sell Invoices for the same Customer/Project. Does not create another cash journal.
+          </p>
+          <button
+            type="button"
+            onClick={() => setAllocatePayment(row)}
+            className="mt-3 inline-flex h-9 items-center rounded-[8px] bg-[#0b65e5] px-4 text-[12px] font-extrabold text-white"
+          >
+            Allocate to Invoices
+          </button>
+        </div>
+      ) : null
+    ),
   };
-  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  return (
+    <>
+      <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />
+      {allocatePayment ? (
+        <InvoicePaymentAllocationPanel
+          payment={allocatePayment}
+          onClose={() => setAllocatePayment(null)}
+          onNotify={onNotify}
+          onSaved={() => setAllocatePayment(null)}
+        />
+      ) : null}
+    </>
+  );
 }
 
 // ── AMC & Warranty (popup-based module) ───────────────────────────────────────
@@ -22034,6 +22065,8 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
                     {[
                       ['Total Billed', formatCurrencyPrecise(accountsSummary.billing?.total_billed ?? accountsSummary.revenue)],
                       ['Total Received', formatCurrencyPrecise(accountsSummary.billing?.total_received ?? accountsSummary.billing?.collected_from_customer)],
+                      ['Invoice Allocated', formatCurrencyPrecise(accountsSummary.billing?.invoice_allocated)],
+                      ['Unallocated Advance', formatCurrencyPrecise(accountsSummary.billing?.unallocated_advance)],
                       ['Outstanding', formatCurrencyPrecise(accountsSummary.billing?.balance_due ?? accountsSummary.billing?.outstanding_receivable)],
                       ['Material Cost', formatCurrencyPrecise(accountsSummary.costs?.actual_material_cost)],
                       ['Labour Cost', formatCurrencyPrecise(accountsSummary.costs?.labour_cost)],
