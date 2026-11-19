@@ -691,6 +691,8 @@ def sync_project_payment_to_accounts(project_payment, user):
             'project': project,
             'project_ref': project.project_id,
             'reference_no': project_payment.reference or '',
+            'receipt_source': 'Project',
+            'received_from': project.customer_name or '',
             'description': project_payment.notes or f'Project payment — {project.project_id}',
             'status': 'Completed',
             'created_by': user,

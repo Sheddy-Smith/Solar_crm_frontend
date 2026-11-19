@@ -6,6 +6,8 @@ import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { accountsModuleApi, projectApi, inventoryApi } from './api.js';
+import { fetchEveryPage } from './lib/listQuery.js';
+import ProjectSearchSelect from './components/ProjectSearchSelect.jsx';
 
 const panelClass =
   'crm-panel rounded-[12px] border border-[#dbe5f2] bg-white/90 shadow-[0_10px_24px_rgba(24,48,87,0.06)] backdrop-blur-sm';
@@ -223,6 +225,8 @@ export function AccountsLineDocumentPage({
   linkInventory = false,
   stockSyncHint = '',
   extraHeaderFields = [],
+  requireProject = false,
+  partyAccountType = null,
   caps: capsProp = null,
   loggedInUser = null,
 }) {
@@ -234,6 +238,7 @@ export function AccountsLineDocumentPage({
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [projectFilter, setProjectFilter] = useState('');
   const [modal, setModal] = useState(null);
   const [viewItem, setViewItem] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -241,33 +246,44 @@ export function AccountsLineDocumentPage({
 
   const loadRows = useCallback(() => {
     setLoading(true);
-    const params = { page_size: 25 };
+    const params = {};
     if (statusFilter) params.status = statusFilter;
-    api.list(params)
-      .then((r) => setRows(normalizeApiRows(r)))
+    if (projectFilter) params.project = projectFilter;
+    fetchEveryPage((page, pageSize) => api.list({ ...params, page, page_size: pageSize }))
+      .then((r) => setRows(Array.isArray(r) ? r : normalizeApiRows(r)))
       .catch(() => onNotify(`Could not load ${title.toLowerCase()}.`, 'error'))
       .finally(() => setLoading(false));
-  }, [api, statusFilter, title, onNotify]);
+  }, [api, statusFilter, projectFilter, title, onNotify]);
 
   useEffect(() => { loadRows(); }, [loadRows]);
   useEffect(() => {
-    accountsModuleApi.parties.list({ page_size: 25 }).then((r) => setParties(normalizeApiRows(r))).catch(() => {});
-    projectApi.list({ page_size: 25 }).then((r) => setProjects(normalizeApiRows(r))).catch(() => {});
+    // Full lookup lists via pagination — avoid page_size:25 truncation on Project/Party/Inventory.
+    const partyParams = partyAccountType ? { account_type: partyAccountType } : {};
+    fetchEveryPage((page, pageSize) => accountsModuleApi.parties.list({ ...partyParams, page, page_size: pageSize }))
+      .then((r) => setParties(Array.isArray(r) ? r : normalizeApiRows(r)))
+      .catch(() => setParties([]));
+    fetchEveryPage((page, pageSize) => projectApi.list({ page, page_size: pageSize, ordering: '-created_at' }))
+      .then((r) => setProjects(Array.isArray(r) ? r : normalizeApiRows(r)))
+      .catch(() => setProjects([]));
     if (linkInventory) {
-      inventoryApi.items.list({ page_size: 25 })
-        .then((r) => setInventoryItems(normalizeApiRows(r)))
-        .catch(() => {});
+      fetchEveryPage((page, pageSize) => inventoryApi.items.list({ page, page_size: pageSize }))
+        .then((r) => setInventoryItems(Array.isArray(r) ? r : normalizeApiRows(r)))
+        .catch(() => setInventoryItems([]));
     }
-  }, [linkInventory]);
+  }, [linkInventory, partyAccountType]);
 
   const filtered = useMemo(() => {
-    if (!search) return rows;
+    let next = rows;
+    if (projectFilter) {
+      next = next.filter((r) => String(r.project || '') === String(projectFilter));
+    }
+    if (!search) return next;
     const q = search.toLowerCase();
-    return rows.filter((r) => [
+    return next.filter((r) => [
       r.record_no, r[partyConfig.nameKey], r[partyConfig.displayKey], r.project_name, r.vehicle_no, r.site_address,
     ].some((v) => (v || '').toString().toLowerCase().includes(q)));
-  }, [rows, search, partyConfig]);
-  const { pageRows, pagination } = usePagedRows(filtered, `accounts-${recordLabel.replace(/\s+/g, '-').toLowerCase()}`, { resetKey: `${search}|${statusFilter}` });
+  }, [rows, search, partyConfig, projectFilter]);
+  const { pageRows, pagination } = usePagedRows(filtered, `accounts-${recordLabel.replace(/\s+/g, '-').toLowerCase()}`, { resetKey: `${search}|${statusFilter}|${projectFilter}` });
 
   const summary = useMemo(() => ({
     count: filtered.length,
@@ -359,6 +375,10 @@ export function AccountsLineDocumentPage({
   }
 
   function saveForm() {
+    if (requireProject && !form.project) {
+      onNotify('Project is required for this document.', 'error');
+      return;
+    }
     setSaving(true);
     const payload = buildPayload(form);
     const req = form.id ? api.update(form.id, payload) : api.create(payload);
@@ -455,6 +475,12 @@ export function AccountsLineDocumentPage({
             <option value="">All Status</option>
             {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
+          <select className={cx(inputClass, 'w-full sm:w-56')} value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)}>
+            <option value="">All Projects</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>{p.project_id ? `${p.project_id} — ` : ''}{p.project_name}</option>
+            ))}
+          </select>
         </div>
       </article>
 
@@ -494,7 +520,21 @@ export function AccountsLineDocumentPage({
                 <th className="px-4 py-3">No</th>
                 <th className="px-4 py-3">Date</th>
                 <th className="px-4 py-3">{partyConfig.label}</th>
-                <th className="px-4 py-3">Project</th>
+                <th className="px-4 py-3">
+                  <TableHeaderFilter
+                    label="Project"
+                    value={projectFilter || 'All'}
+                    active={Boolean(projectFilter)}
+                    options={[
+                      { value: 'All', label: 'All' },
+                      ...projects.map((p) => ({
+                        value: String(p.id),
+                        label: `${p.project_id ? `${p.project_id} — ` : ''}${p.project_name}`,
+                      })),
+                    ]}
+                    onChange={(v) => setProjectFilter(v === 'All' ? '' : v)}
+                  />
+                </th>
                 <th className="px-4 py-3">Total</th>
                 <th className="px-4 py-3">
                   <TableHeaderFilter
@@ -553,11 +593,25 @@ export function AccountsLineDocumentPage({
               </select>
             </Field>
             <Field label={`Or ${partyConfig.label} Name`}><input className={inputClass} value={form[partyConfig.nameKey] || ''} onChange={(e) => setForm((f) => ({ ...f, [partyConfig.nameKey]: e.target.value }))} /></Field>
-            <Field label="Project">
-              <select className={inputClass} value={form.project || ''} onChange={(e) => setForm((f) => ({ ...f, project: e.target.value }))}>
-                <option value="">Link project (optional)</option>
-                {projects.map((p) => <option key={p.id} value={p.id}>{p.project_id} — {p.project_name}</option>)}
-              </select>
+            <Field label={requireProject ? 'Project *' : 'Project'}>
+              <ProjectSearchSelect
+                value={form.project || ''}
+                onChange={(v) => {
+                  const project = projects.find((p) => String(p.id) === String(v));
+                  setForm((f) => ({
+                    ...f,
+                    project: v || '',
+                    // Prefer project customer name when linking a customer-facing document.
+                    ...(project && partyConfig.nameKey === 'party_name' && project.customer_name
+                      ? { [partyConfig.nameKey]: f[partyConfig.nameKey] || project.customer_name }
+                      : {}),
+                  }));
+                }}
+                required={requireProject}
+                allowClear={!requireProject}
+                placeholder={requireProject ? 'Select project (required)' : 'Link project (optional)'}
+                triggerClassName={`${inputClass} flex items-center justify-between gap-2 text-left`}
+              />
             </Field>
             <Field label="Status">
               <select className={inputClass} value={form.status || statuses[0]} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}>
@@ -673,6 +727,7 @@ export function PurchaseInvoicePage(props) {
       recordLabel="Purchase Invoice"
       api={accountsModuleApi.purchaseInvoices}
       partyConfig={{ key: 'supplier', nameKey: 'supplier_name', displayKey: 'supplier_display', label: 'Supplier' }}
+      partyAccountType="Supplier"
       dateField="invoice_date"
       statuses={['Draft', 'Recorded', 'Paid', 'Cancelled']}
       hasGst
@@ -692,11 +747,13 @@ export function SellInvoicePage(props) {
       recordLabel="Sell Invoice"
       api={accountsModuleApi.sellInvoices}
       partyConfig={{ key: 'party', nameKey: 'party_name', displayKey: 'party_display', label: 'Customer' }}
+      partyAccountType="Customer"
+      requireProject
       dateField="invoice_date"
       statuses={['Pending', 'Issued', 'Paid', 'Cancelled']}
       hasGst
       linkInventory
-      stockSyncHint="GST bill. On status Issued/Paid: stock OUT + Customer ledger + journal."
+      stockSyncHint="GST bill. On status Issued/Paid: stock OUT + Customer ledger + journal. Project is mandatory for customer billing."
       extraHeaderFields={[
         { name: 'gst_number', label: 'GST No', default: '' },
         { name: 'branch', label: 'Branch', default: '' },
@@ -713,6 +770,7 @@ export function PurchaseChallanPage(props) {
       recordLabel="Purchase Challan"
       api={accountsModuleApi.purchaseChallans}
       partyConfig={{ key: 'supplier', nameKey: 'supplier_name', displayKey: 'supplier_display', label: 'Supplier' }}
+      partyAccountType="Supplier"
       dateField="challan_date"
       statuses={['Open', 'Received', 'Cancelled']}
       hasVehicle
@@ -730,12 +788,14 @@ export function SellChallanPage(props) {
       recordLabel="Sell Challan"
       api={accountsModuleApi.sellChallans}
       partyConfig={{ key: 'party', nameKey: 'party_name', displayKey: 'party_display', label: 'Customer / Site' }}
+      partyAccountType="Customer"
+      requireProject
       dateField="challan_date"
       statuses={['Open', 'Dispatched', 'Delivered', 'Cancelled']}
       hasVehicle
       hasSiteAddress
       linkInventory
-      stockSyncHint="Without GST bill. On status Dispatched/Delivered: a Stock Movement OUT is created for each line and inventory stock is reduced."
+      stockSyncHint="Without GST bill. On status Dispatched/Delivered: a Stock Movement OUT is created for each line and inventory stock is reduced. Project is mandatory."
     />
   );
 }

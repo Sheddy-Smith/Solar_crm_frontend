@@ -663,6 +663,7 @@ export const projectApi = {
   getSiteSurvey: (id) => request(`/projects/${id}/site_survey/`),
   saveSiteSurvey: (id, data) => request(`/projects/${id}/site_survey/`, { method: 'PUT', body: data }),
   pnl: (id) => request(`/projects/${id}/pnl/`),
+  accountsSummary: (id) => request(`/projects/${id}/accounts-summary/`),
 };
 
 export const siteSurveyPhotoApi = {

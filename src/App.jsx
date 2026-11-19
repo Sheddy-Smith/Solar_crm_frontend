@@ -7582,59 +7582,96 @@ function PaymentSettingsPage({ activeSection, onOpenSection, onNotify }) {
 function SettingsChartOfAccountsContent({ onOpenSection, onNotify }) {
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState('All Groups');
-  const rows = [
-    { code: '1000', name: 'Assets', group: 'Assets', type: 'Group', balance: 'Rs 0.00', status: 'Active' },
-    { code: '1100', name: 'Current Assets', group: 'Assets', type: 'Group', balance: 'Rs 0.00', status: 'Active' },
-    { code: '1110', name: 'Cash in Hand', group: 'Cash & Bank', type: 'Ledger', balance: 'Rs 1,25,000.00', status: 'Active' },
-    { code: '1120', name: 'Bank Accounts', group: 'Cash & Bank', type: 'Ledger', balance: 'Rs 8,40,500.00', status: 'Active' },
-    { code: '1200', name: 'Accounts Receivable', group: 'Receivables', type: 'Ledger', balance: 'Rs 4,75,200.00', status: 'Active' },
-    { code: '2000', name: 'Liabilities', group: 'Liabilities', type: 'Group', balance: 'Rs 0.00', status: 'Active' },
-    { code: '2100', name: 'Accounts Payable', group: 'Payables', type: 'Ledger', balance: 'Rs 2,18,900.00', status: 'Active' },
-    { code: '3000', name: 'Sales Revenue', group: 'Income', type: 'Ledger', balance: 'Rs 12,80,000.00', status: 'Active' },
-    { code: '4000', name: 'Purchase Expense', group: 'Expenses', type: 'Ledger', balance: 'Rs 6,42,300.00', status: 'Active' },
-  ];
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+
+  const loadCoa = useCallback(() => {
+    setLoading(true);
+    setLoadError('');
+    fetchEveryPage((page, pageSize) => accountsModuleApi.chartOfAccounts.list({ page, page_size: pageSize }))
+      .then((list) => {
+        const mapped = (Array.isArray(list) ? list : []).map((row) => ({
+          id: row.id,
+          code: row.account_code || row.code || '—',
+          name: row.account_name || row.name || '—',
+          group: row.account_type || row.group || row.parent_name || 'General',
+          type: row.parent ? 'Ledger' : 'Group',
+          balance: fmtAccRs(row.opening_balance ?? row.balance ?? 0),
+          status: row.is_active === false ? 'Inactive' : 'Active',
+        }));
+        setRows(mapped);
+      })
+      .catch((err) => {
+        setRows([]);
+        setLoadError(err?.message || 'Could not load Chart of Accounts.');
+        onNotify?.('Could not load Chart of Accounts from database.', 'error');
+      })
+      .finally(() => setLoading(false));
+  }, [onNotify]);
+
+  useEffect(() => { loadCoa(); }, [loadCoa]);
+
   const filteredRows = rows.filter((row) => {
-    const queryMatch = [row.code, row.name, row.group, row.type].some((value) => value.toLowerCase().includes(query.toLowerCase()));
+    const queryMatch = [row.code, row.name, row.group, row.type].some((value) => String(value || '').toLowerCase().includes(query.toLowerCase()));
     const groupMatch = group === 'All Groups' || row.group === group;
     return queryMatch && groupMatch;
   });
   const { pageRows, pagination } = usePagedRows(filteredRows, 'settings-chart-of-accounts', { resetKey: `${query}|${group}` });
+  const activeCount = rows.filter((r) => r.status === 'Active').length;
+  const groupCount = rows.filter((r) => r.type === 'Group').length;
+  const inactiveCount = rows.filter((r) => r.status === 'Inactive').length;
 
   return (
     <section className={`${panelClass} p-4 sm:p-5`}>
-      <SettingsContentHeader title="Chart of Accounts" note="Manage ledger groups, account codes and accounting hierarchy." onCancel={() => onOpenSection('Settings')} onSave={() => onNotify('Chart of accounts saved')} />
+      <SettingsContentHeader
+        title="Chart of Accounts"
+        note="Database-backed ledger groups and account codes (Accounts module)."
+        onCancel={() => onOpenSection('Settings')}
+        onSave={() => onOpenSection('Chart of Accounts')}
+      />
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <SettingsMetricCard title="Total Accounts" value="128" subtitle="Groups and ledgers" icon={ReceiptText} tone="green" />
-        <SettingsMetricCard title="Active Ledgers" value="94" subtitle="Posting enabled" icon={CheckCircle2} tone="blue" />
-        <SettingsMetricCard title="Account Groups" value="34" subtitle="Parent accounts" icon={FolderKanban} tone="purple" />
-        <SettingsMetricCard title="Inactive Accounts" value="03" subtitle="Hidden from entries" icon={Minus} tone="amber" />
+        <SettingsMetricCard title="Total Accounts" value={loading ? '…' : String(rows.length)} subtitle="Groups and ledgers" icon={ReceiptText} tone="green" />
+        <SettingsMetricCard title="Active Ledgers" value={loading ? '…' : String(activeCount)} subtitle="Posting enabled" icon={CheckCircle2} tone="blue" />
+        <SettingsMetricCard title="Account Groups" value={loading ? '…' : String(groupCount)} subtitle="Parent accounts" icon={FolderKanban} tone="purple" />
+        <SettingsMetricCard title="Inactive Accounts" value={loading ? '…' : String(inactiveCount)} subtitle="Hidden from entries" icon={Minus} tone="amber" />
       </section>
 
       <section className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
         <article className="rounded-[14px] border border-[#dbe5f2] bg-white p-4 sm:p-5">
+          {loadError ? (
+            <div className="mb-3 rounded-[10px] border border-[#fecaca] bg-[#fff5f5] px-3 py-2 text-[12px] font-semibold text-[#b91c1c]">
+              {loadError}
+              <button type="button" onClick={loadCoa} className="ml-2 font-extrabold text-[#0b65e5] underline">Retry</button>
+            </div>
+          ) : null}
           <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_210px_auto] md:items-end">
             <label className="flex h-11 items-center gap-3 rounded-[8px] border border-black/20 bg-white px-4 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
               <Search className="size-4 text-[#7386a3]" />
               <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search by account code or name..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
             </label>
             <ReportSelect label="Group" value={group} onChange={setGroup} options={['All Groups', ...new Set(rows.map((row) => row.group))]} hideLabel />
-            <button type="button" onClick={() => onNotify('Add account flow opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white"><Plus className="size-4" />Add Account</button>
+            <button type="button" onClick={() => onOpenSection('Chart of Accounts')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white"><Plus className="size-4" />Manage in Accounts</button>
           </div>
 
           <div className="mt-4 overflow-x-auto rounded-[12px] border border-[#e7eef7]">
             <table className="crm-table min-w-[860px] w-full">
               <thead><tr>{['Code', 'Account Name', 'Group', 'Type', 'Opening Balance', 'Status', 'Action'].map((header) => <th key={header}>{header}</th>)}</tr></thead>
               <tbody>
-                {pageRows.map((row) => (
-                  <tr key={row.code}>
+                {loading ? (
+                  <tr><td colSpan={7} className="px-4 py-10 text-center text-[13px] font-bold text-[#7a8fa6]">Loading Chart of Accounts…</td></tr>
+                ) : pageRows.length === 0 ? (
+                  <tr><td colSpan={7} className="px-4 py-10 text-center text-[13px] font-bold text-[#7a8fa6]">No accounts found. Seed recommended COA from Accounts module if empty.</td></tr>
+                ) : pageRows.map((row) => (
+                  <tr key={row.id || row.code}>
                     <td className="font-extrabold text-[#1e3261]">{row.code}</td>
                     <td className="font-extrabold text-[#1e3261]">{row.name}</td>
                     <td>{row.group}</td>
                     <td><SettingsTokenBadge label={row.type} tone={row.type === 'Group' ? 'blue' : 'green'} /></td>
                     <td>{row.balance}</td>
                     <td><SettingsStatusBadge label={row.status} /></td>
-                    <td><UserActionButton label={`Open ${row.name}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.name} account opened`)} /></td>
+                    <td><UserActionButton label={`Open ${row.name}`} icon={MoreVertical} tone="blue" onClick={() => onOpenSection('Chart of Accounts')} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -7646,14 +7683,20 @@ function SettingsChartOfAccountsContent({ onOpenSection, onNotify }) {
         <div className="space-y-4">
           <SettingsSidebarInfoCard title="Account Groups" icon={FolderKanban}>
             <div className="space-y-3">
-              {['Assets', 'Liabilities', 'Income', 'Expenses', 'Cash & Bank'].map((item) => <SettingsPreviewRow key={item} label={item} value={String(rows.filter((row) => row.group === item).length)} />)}
+              {[...new Set(rows.map((r) => r.group))].slice(0, 8).map((item) => (
+                <SettingsPreviewRow key={item} label={item} value={String(rows.filter((row) => row.group === item).length)} />
+              ))}
             </div>
           </SettingsSidebarInfoCard>
           <SettingsSidebarInfoCard title="Quick Actions" icon={Zap}>
             <div className="space-y-2">
-              <MiniActionButton label="Import Accounts" icon={Download} tone="blue" onClick={() => onNotify('Import accounts opened')} />
-              <MiniActionButton label="Export Chart" icon={Download} tone="green" onClick={() => onNotify('Chart exported')} />
-              <MiniActionButton label="Validate Codes" icon={CheckCircle2} tone="purple" onClick={() => onNotify('Account codes validated')} />
+              <MiniActionButton label="Open Accounts CoA" icon={ReceiptText} tone="blue" onClick={() => onOpenSection('Chart of Accounts')} />
+              <MiniActionButton label="Refresh" icon={RefreshCw} tone="green" onClick={loadCoa} />
+              <MiniActionButton label="Seed Recommended" icon={CheckCircle2} tone="purple" onClick={() => {
+                accountsModuleApi.seedRecommendedCoa()
+                  .then(() => { onNotify('Recommended Chart of Accounts seeded.', 'success'); loadCoa(); })
+                  .catch((e) => onNotify(e?.message || 'Seed failed.', 'error'));
+              }} />
             </div>
           </SettingsSidebarInfoCard>
         </div>
@@ -14746,7 +14789,7 @@ function AccountsVoucherPage({ activeSection, onOpenSection, onNotify }) {
       { key: 'payee_type', label: 'Payee Type', options: ['Vendor', 'Labour', 'Supplier', 'Other'] },
       { key: 'payment_mode', label: 'Mode', options: ACC_PAYMENT_MODES },
     ],
-    searchKeys: ['voucher_no', 'payee_name', 'category', 'particulars'],
+    searchKeys: ['voucher_no', 'payee_name', 'category', 'particulars', 'project_ref', 'project_name'],
     lookups: {
       projects: { api: projectApi, label: (p) => `${p.project_id} — ${p.project_name}` },
     },
@@ -14763,6 +14806,15 @@ function AccountsVoucherPage({ activeSection, onOpenSection, onNotify }) {
         ),
       },
       { label: 'Type', render: (r) => (r.payee_type === 'Labour' ? 'Employee (Worker)' : r.payee_type) },
+      {
+        label: 'Project',
+        render: (r) => (r.project_name ? (
+          <span>
+            {r.project_ref ? <span className="font-bold text-[#53647f]">{r.project_ref} · </span> : null}
+            {r.project_name}
+          </span>
+        ) : '—'),
+      },
       { label: 'Mode', render: (r) => r.payment_mode },
       { label: 'Amount', render: (r) => fmtAccRs(r.amount) },
       { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
@@ -14772,6 +14824,7 @@ function AccountsVoucherPage({ activeSection, onOpenSection, onNotify }) {
       { name: 'voucher_no', label: 'Voucher No', type: 'text' },
       { name: 'payee_type', label: 'Payee Type', type: 'select', options: ['Vendor', 'Labour', 'Supplier', 'Other'], required: true },
       { name: 'payee_name', label: 'Payee Name', type: 'text', required: true },
+      { name: 'project', label: 'Project', type: 'lookup', lookup: 'projects' },
       { name: 'particulars', label: 'Particulars', type: 'textarea' },
       { name: 'payment_mode', label: 'Payment Mode', type: 'select', options: ACC_PAYMENT_MODES, required: true },
       { name: 'amount', label: 'Amount (Rs)', type: 'number', required: true },
@@ -14783,6 +14836,7 @@ function AccountsVoucherPage({ activeSection, onOpenSection, onNotify }) {
       payee_type: 'Labour',
       payee_id: '',
       payee_name: '',
+      project: '',
       particulars: '',
       notes: '',
       payment_mode: 'Cash',
@@ -14795,6 +14849,7 @@ function AccountsVoucherPage({ activeSection, onOpenSection, onNotify }) {
         ...form,
         voucher_no: item.voucher_no || item.record_no || '',
         payee_id: item.payee_type === 'Labour' && item.employee ? String(item.employee) : '',
+        project: item.project ? String(item.project) : '',
         particulars: split.particulars,
         notes: split.notes,
       };
@@ -14806,6 +14861,9 @@ function AccountsVoucherPage({ activeSection, onOpenSection, onNotify }) {
       payee_name: form.payee_name,
       payee_type: form.payee_type,
       employee: form.payee_type === 'Labour' && form.payee_id ? Number(form.payee_id) : null,
+      project: form.project ? Number(form.project) : null,
+      // Labour vouchers must carry category=Labour so Project P&L labour_cost includes them.
+      category: form.payee_type === 'Labour' ? 'Labour' : (body.category || ''),
     }),
     validateForm: (form) => {
       if (!form.payee_type) return 'Select payee type.';
@@ -14820,6 +14878,7 @@ function AccountsVoucherPage({ activeSection, onOpenSection, onNotify }) {
       ['Date', (r) => lcFormatDate(r.voucher_date)],
       ['Payee', (r) => (r.employee_code ? `${r.payee_name} (${r.employee_code})` : r.payee_name)],
       ['Payee Type', (r) => (r.payee_type === 'Labour' ? 'Employee (Worker)' : r.payee_type)],
+      ['Project', (r) => (r.project_name ? `${r.project_ref ? `${r.project_ref} — ` : ''}${r.project_name}` : '—')],
       ['Employee Ledger', (r) => (r.payee_type !== 'Labour' ? '—' : r.employee_voucher ? 'Posted to employee account' : 'Not posted (only Completed vouchers are posted)')],
       ['Mode', (r) => r.payment_mode],
       ['Amount', (r) => fmtAccRs(r.amount)],
@@ -14902,7 +14961,7 @@ function AccountsCashReceiptPage({ activeSection, onOpenSection, onNotify }) {
     listParams: { direction: 'Received' },
     fixedFields: { direction: 'Received' },
     statuses: ['Pending', 'Completed', 'Cancelled'],
-    searchKeys: ['reference_no', 'party_name', 'received_from', 'particulars', 'project_ref'],
+    searchKeys: ['reference_no', 'party_name', 'received_from', 'particulars', 'project_ref', 'project_name', 'sync_source'],
     lookups: {
       parties: { api: accountsModuleApi.parties, label: (a) => a.name },
       banks: { api: accountsModuleApi.bankAccounts, label: (b) => b.account_name },
@@ -14914,7 +14973,17 @@ function AccountsCashReceiptPage({ activeSection, onOpenSection, onNotify }) {
       { label: 'Date', render: (r) => lcFormatDate(r.payment_date) },
       { label: 'Received From', render: (r) => r.received_from || r.party_display },
       { label: 'Project', render: (r) => r.project_name || r.project_ref || '—' },
-      { label: 'Source', render: (r) => r.receipt_source || '—' },
+      {
+        label: 'Source',
+        render: (r) => (
+          <span>
+            {r.sync_source === 'From Project' ? (
+              <span className="mr-1 rounded-full bg-[#e8f8eb] px-2 py-0.5 text-[10px] font-extrabold text-[#14853a]">From Project</span>
+            ) : null}
+            {r.receipt_source || '—'}
+          </span>
+        ),
+      },
       { label: 'Mode', render: (r) => r.payment_mode },
       { label: 'Amount', render: (r) => fmtAccRs(r.amount) },
       { label: 'Status', render: (r) => <LcStatusBadge status={r.status} /> },
@@ -14924,7 +14993,7 @@ function AccountsCashReceiptPage({ activeSection, onOpenSection, onNotify }) {
       { name: 'payment_date', label: 'Date', type: 'date', required: true },
       { name: 'received_from', label: 'Received From', type: 'text', required: true },
       { name: 'party', label: 'Customer Account', type: 'lookup', lookup: 'parties' },
-      { name: 'project', label: 'Project', type: 'lookup', lookup: 'projects' },
+      { name: 'project', label: 'Project', type: 'lookup', lookup: 'projects', required: true },
       { name: 'receipt_source', label: 'Receipt Source', type: 'select', options: ['Estimate', 'Invoice', 'Advance', 'Project', 'Other'] },
       { name: 'related_staff', label: 'Handled By', type: 'lookup', lookup: 'staff' },
       { name: 'bank_account', label: 'Deposit To', type: 'lookup', lookup: 'banks' },
@@ -14943,11 +15012,20 @@ function AccountsCashReceiptPage({ activeSection, onOpenSection, onNotify }) {
       related_staff: '', bank_account: '', payment_mode: 'Cash', amount: '', advance_amount: '', settled_amount: '',
       due_amount: '', particulars: '', project_ref: '', status: 'Completed', description: '',
     },
+    validateForm: (form) => {
+      const source = String(form.receipt_source || '').trim().toLowerCase();
+      if (!form.project && source !== 'other' && source !== 'unallocated') {
+        return 'Project is required for customer cash receipts (use receipt source Other for unallocated).';
+      }
+      if (!form.amount && form.amount !== 0) return 'Amount is required.';
+      return null;
+    },
     detailRows: [
       ['Receipt No', (r) => r.record_no],
       ['Date', (r) => lcFormatDate(r.payment_date)],
       ['Received From', (r) => r.received_from || r.party_display],
       ['Project', (r) => r.project_name || r.project_ref || '—'],
+      ['Sync', (r) => r.sync_source || 'Accounts'],
       ['Receipt Source', (r) => r.receipt_source || '—'],
       ['Amount', (r) => fmtAccRs(r.amount)],
       ['Advance', (r) => fmtAccRs(r.advance_amount)],
@@ -19774,6 +19852,8 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const fullView = !hubMode && !embedded && !stackedSections;
   const [pipelineInfo, setPipelineInfo] = useState(null);
+  const [accountsSummary, setAccountsSummary] = useState(null);
+  const [accountsSummaryLoading, setAccountsSummaryLoading] = useState(false);
 
   useEffect(() => {
     if (!fullView || !projectProp?.id) {
@@ -19786,6 +19866,20 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
       .catch(() => { if (!cancelled) setPipelineInfo(null); });
     return () => { cancelled = true; };
   }, [fullView, projectProp?.id]);
+
+  useEffect(() => {
+    if (!projectProp?.id) {
+      setAccountsSummary(null);
+      return undefined;
+    }
+    let cancelled = false;
+    setAccountsSummaryLoading(true);
+    projectApi.accountsSummary(projectProp.id)
+      .then((res) => { if (!cancelled) setAccountsSummary(res); })
+      .catch(() => { if (!cancelled) setAccountsSummary(null); })
+      .finally(() => { if (!cancelled) setAccountsSummaryLoading(false); });
+    return () => { cancelled = true; };
+  }, [projectProp?.id, data?.payments?.length, data?.total_paid]);
 
   useEffect(() => {
     userApi.options({ is_active: true }).then((res) => {
@@ -21926,6 +22020,40 @@ function ProjectDetailsPage({ activeSection, onOpenSection, project: projectProp
                     </div>
                   )}
                 </div>
+              </article>
+
+              <article className={`${panelClass} p-4 sm:p-5`}>
+                <div className="flex items-center gap-2 border-b border-[#edf2f8] pb-3">
+                  <span className="grid size-7 place-items-center rounded-full bg-[#eef5ff] text-[#0b65e5]"><ReceiptText className="size-4" /></span>
+                  <h2 className="font-display text-[15px] font-extrabold text-[#06135a]">Accounts Summary</h2>
+                </div>
+                {accountsSummaryLoading ? (
+                  <p className="mt-4 text-[12px] font-bold text-[#7a8fa6]">Loading accounts aggregates…</p>
+                ) : accountsSummary ? (
+                  <div className="mt-4 space-y-2.5 text-[13px]">
+                    {[
+                      ['Total Billed', formatCurrencyPrecise(accountsSummary.billing?.total_billed ?? accountsSummary.revenue)],
+                      ['Total Received', formatCurrencyPrecise(accountsSummary.billing?.total_received ?? accountsSummary.billing?.collected_from_customer)],
+                      ['Outstanding', formatCurrencyPrecise(accountsSummary.billing?.balance_due ?? accountsSummary.billing?.outstanding_receivable)],
+                      ['Material Cost', formatCurrencyPrecise(accountsSummary.costs?.actual_material_cost)],
+                      ['Labour Cost', formatCurrencyPrecise(accountsSummary.costs?.labour_cost)],
+                      ['Other Expenses', formatCurrencyPrecise(accountsSummary.costs?.other_expenses)],
+                      ['Total Project Cost', formatCurrencyPrecise(accountsSummary.costs?.total_cost)],
+                      ['Gross Profit', formatCurrencyPrecise(accountsSummary.actual_profit)],
+                      ['Profit Margin', `${Number(accountsSummary.profit_margin_percent || 0).toFixed(1)}%`],
+                    ].map(([label, value]) => (
+                      <div key={label} className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-[#53647f]">{label}</span>
+                        <span className="shrink-0 font-extrabold text-[#1e3261]">{value}</span>
+                      </div>
+                    ))}
+                    <p className="pt-2 text-[11px] font-semibold text-[#7b8ca8]">
+                      Live from Accounts (Sell Invoice, receipts, vouchers, material dispatch).
+                    </p>
+                  </div>
+                ) : (
+                  <p className="mt-4 text-[12px] font-bold text-[#7a8fa6]">Accounts summary unavailable.</p>
+                )}
               </article>
 
             </aside>

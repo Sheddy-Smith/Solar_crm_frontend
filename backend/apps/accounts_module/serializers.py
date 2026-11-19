@@ -104,6 +104,7 @@ class PaymentSerializer(serializers.ModelSerializer):
     bank_account_name = serializers.CharField(source='bank_account.account_name', read_only=True)
     project_name = serializers.CharField(source='project.project_name', read_only=True)
     created_by_name = serializers.SerializerMethodField()
+    sync_source = serializers.SerializerMethodField()
 
     def get_record_no(self, obj):
         prefix = 'RCPT' if obj.direction == 'Received' else 'PMT'
@@ -117,6 +118,27 @@ class PaymentSerializer(serializers.ModelSerializer):
     def get_created_by_name(self, obj):
         return _user_name(obj.created_by)
 
+    def get_sync_source(self, obj):
+        if getattr(obj, 'project_payment_id', None):
+            return 'From Project'
+        return 'Accounts'
+
+    def validate(self, attrs):
+        instance = getattr(self, 'instance', None)
+        direction = attrs.get('direction', getattr(instance, 'direction', None))
+        project = attrs.get('project', getattr(instance, 'project', None))
+        receipt_source = attrs.get(
+            'receipt_source',
+            getattr(instance, 'receipt_source', None) or '',
+        )
+        # Customer cash receipts should be project-linked except controlled unallocated (Other).
+        if direction == 'Received' and not project:
+            if str(receipt_source).strip().lower() not in ('other', 'unallocated'):
+                raise serializers.ValidationError({
+                    'project': 'Project is required for customer cash receipts (use receipt source Other for unallocated).',
+                })
+        return attrs
+
     class Meta:
         model = Payment
         fields = [
@@ -126,9 +148,10 @@ class PaymentSerializer(serializers.ModelSerializer):
             'payment_mode', 'amount', 'description', 'status',
             'received_from', 'particulars', 'receipt_source', 'related_staff',
             'advance_amount', 'settled_amount', 'due_amount',
+            'sync_source', 'project_payment',
             'created_by', 'created_by_name', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['created_by', 'created_at', 'updated_at', 'project_payment']
+        read_only_fields = ['created_by', 'created_at', 'updated_at', 'project_payment', 'sync_source']
 
 
 class ChequeSerializer(serializers.ModelSerializer):

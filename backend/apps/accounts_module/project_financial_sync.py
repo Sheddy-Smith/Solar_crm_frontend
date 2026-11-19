@@ -8,7 +8,7 @@ Planning Difference = planning_unit_price − inventory rate (report-only; not m
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
@@ -188,11 +188,27 @@ def project_pnl(project):
     )
     actual_material = sum((v.amount for v in material_vouchers), Decimal('0'))
 
+    # Labour: Accounts vouchers linked to this project (payee Labour / category Labour).
+    # Includes workforce-mirrored vouchers and Accounts-created labour vouchers.
     labour_vouchers = PaymentVoucher.objects.filter(
-        project=project, category__iexact='Labour', status='Completed',
-        employee_voucher__isnull=False,
+        project=project,
+        status='Completed',
+        material_plan__isnull=True,
+    ).filter(
+        Q(category__iexact='Labour') | Q(payee_type='Labour'),
     )
     labour_total = sum((v.amount for v in labour_vouchers), Decimal('0'))
+
+    # Other project expenses (manual Expense vouchers; exclude dispatch cost + labour).
+    other_expense_vouchers = PaymentVoucher.objects.filter(
+        project=project,
+        status='Completed',
+        entry_type='Expense',
+        material_plan__isnull=True,
+    ).exclude(
+        Q(category__iexact='Labour') | Q(payee_type='Labour'),
+    )
+    other_expenses = sum((v.amount for v in other_expense_vouchers), Decimal('0'))
 
     # Planning metrics across BOM lines
     plans = list(project.material_plans.select_related('inventory_item').all())
@@ -213,17 +229,23 @@ def project_pnl(project):
             if qty > 0 and item:
                 actual_material += (qty * decimal_or_zero(item.rate)).quantize(Decimal('0.01'))
 
-    total_cost = actual_material + labour_total
+    total_cost = actual_material + labour_total + other_expenses
     actual_profit = revenue - total_cost
+    margin = float((actual_profit / revenue * Decimal('100')).quantize(Decimal('0.01'))) if revenue > 0 else 0.0
 
     return {
         'project_id': project.project_id,
+        'project_pk': project.pk,
         'project_name': project.project_name,
+        'customer_name': getattr(project, 'customer_name', '') or '',
         'revenue': float(revenue),
         'billing': {
             'revenue_from_sell_invoices': float(revenue),
+            'total_billed': float(revenue),
             'collected_from_customer': float(collected),
+            'total_received': float(collected),
             'outstanding_receivable': float(outstanding_ar),
+            'balance_due': float(outstanding_ar),
             'note': (
                 'Revenue is recognized on Sell Invoice (Dr AR / Cr Sales). '
                 'Customer payments reduce Accounts Receivable only.'
@@ -232,9 +254,11 @@ def project_pnl(project):
         'costs': {
             'actual_material_cost': float(actual_material),
             'labour_cost': float(labour_total),
+            'other_expenses': float(other_expenses),
             'total_cost': float(total_cost),
         },
         'actual_profit': float(actual_profit),
+        'profit_margin_percent': margin,
         'material_planning': {
             'planning_value': float(planning_value),
             'inventory_cost_of_planned_qty': float(planning_inventory_cost),

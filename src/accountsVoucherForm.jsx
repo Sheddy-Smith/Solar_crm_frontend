@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { User, Building2, Package, X } from 'lucide-react';
 import { accountsModuleApi, workforceApi } from './api.js';
 import SearchableSelect from './components/SearchableSelect.jsx';
+import ProjectSearchSelect from './components/ProjectSearchSelect.jsx';
 import { fetchEveryPage } from './lib/listQuery.js';
 
 const PAYEE_TYPES = [
@@ -254,6 +255,19 @@ export function PaymentVoucherFormModal({
               </div>
             </div>
           ) : null}
+
+          <label className="block">
+            <span className={labelCls}>Project</span>
+            <ProjectSearchSelect
+              value={form.project || ''}
+              onChange={(v) => update({ project: v || '' })}
+              placeholder="Link project (preferred for site work)"
+              triggerClassName={`${inputCls} flex items-center justify-between gap-2 text-left`}
+            />
+            <p className="mt-1 text-[11px] font-semibold text-[#7b8ca8]">
+              Site labour / vendor payments should link a project so cost appears in Project P&amp;L.
+            </p>
+          </label>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="block">

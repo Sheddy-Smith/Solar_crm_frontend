@@ -154,6 +154,14 @@ class SellInvoiceSerializer(serializers.ModelSerializer):
     def get_created_by_name(self, obj):
         return _user_name(obj.created_by)
 
+    def validate(self, attrs):
+        instance = getattr(self, 'instance', None)
+        project = attrs.get('project', getattr(instance, 'project', None))
+        # Customer billing must always be project-linked (new + updates that clear project).
+        if not project:
+            raise serializers.ValidationError({'project': 'Project is required for Sell Invoice.'})
+        return attrs
+
     def _save_lines(self, invoice, lines_data):
         for existing in invoice.lines.select_related('stock_movement').all():
             if existing.stock_movement_id:
@@ -401,6 +409,13 @@ class SellChallanSerializer(serializers.ModelSerializer):
 
     def get_created_by_name(self, obj):
         return _user_name(obj.created_by)
+
+    def validate(self, attrs):
+        instance = getattr(self, 'instance', None)
+        project = attrs.get('project', getattr(instance, 'project', None))
+        if not project:
+            raise serializers.ValidationError({'project': 'Project is required for Sell Challan.'})
+        return attrs
 
     def _save_lines(self, challan, lines_data):
         for existing in challan.lines.select_related('stock_movement').all():

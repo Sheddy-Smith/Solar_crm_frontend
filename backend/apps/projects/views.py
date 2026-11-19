@@ -226,6 +226,13 @@ class ProjectViewSet(viewsets.ModelViewSet):
         project = self.get_object()
         return Response(project_pnl(project))
 
+    @action(detail=True, methods=['get'], url_path='accounts-summary')
+    def accounts_summary(self, request, pk=None):
+        """Project Accounts Summary card — same aggregates as /pnl/ with billing aliases."""
+        from apps.accounts_module.project_financial_sync import project_pnl
+        project = self.get_object()
+        return Response(project_pnl(project))
+
     @action(detail=True, methods=['get', 'put'])
     def system_config(self, request, pk=None):
         project = self.get_object()
