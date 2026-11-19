@@ -4,14 +4,7 @@ import {
 } from 'lucide-react';
 import { dailyTasksApi, inventoryApi, leadApi, projectApi, workforceApi } from './api.js';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
-import { TablePagination } from './components/TablePagination.jsx';
-import {
-  RecentAllPageHeading,
-  RecentRecordsSectionHeader,
-  ViewAllRecordsButton,
-} from './components/RecentAllListShell.jsx';
-import { useRecentAllRows } from './hooks/useRecentAllRows.js';
-import { RECENT_LIST_LIMIT } from './lib/recentAllList.js';
+import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
 import { fetchEveryPage } from './lib/listQuery.js';
 import SearchableSelect from './components/SearchableSelect.jsx';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
@@ -413,18 +406,8 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
     if (statusFilter === 'All') return tasks;
     return tasks.filter((task) => task.status === statusFilter);
   }, [tasks, statusFilter]);
-  const {
-    isAll: isAllTasksView,
-    openAll: openAllTasks,
-    openRecent: openRecentTasks,
-    displayRows: pageRows,
-    pagination,
-    totalCount: tasksTotalCount,
-    recentCount: tasksRecentCount,
-  } = useRecentAllRows(visibleTasks, {
-    storageKey: 'daily-tasks',
+  const { pageRows, pagination } = usePagedRows(visibleTasks, 'daily-tasks', {
     resetKey: `${deferredSearch}|${categoryFilter}|${statusFilter}|${dateFrom}|${dateTo}`,
-    activityFields: ['updated_at', 'created_at', 'task_date'],
   });
 
   const openCreate = (categoryId) => setModal({ open: true, mode: 'create', categoryId, task: null });
@@ -564,22 +547,11 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
       </section>
 
       <section className={`${CARD} overflow-hidden`}>
-        <div className="border-b border-[#e7eef7] px-4 py-3 sm:px-5 space-y-2">
-          <RecentAllPageHeading
-            isAll={isAllTasksView}
-            moduleLabel="Daily Tasks"
-            recentTitle="Daily Tasks (Recent)"
-            allTitle="All Daily Tasks"
-            recentSubtitle={`Showing the latest ${RECENT_LIST_LIMIT} field tasks you recently worked on.`}
-            onBackToRecent={openRecentTasks}
-          />
-          {!isAllTasksView ? (
-            <RecentRecordsSectionHeader
-              moduleLabel="Tasks"
-              showing={tasksRecentCount}
-              total={tasksTotalCount}
-            />
-          ) : null}
+        <div className="border-b border-[#e7eef7] px-4 py-3 sm:px-5">
+          <h2 className="text-[18px] font-extrabold tracking-tight text-[#0f172a] sm:text-[20px]">All Daily Tasks</h2>
+          <p className="mt-0.5 text-[12px] font-semibold text-[#7386a3]">
+            Complete field task list ({visibleTasks.length} records).
+          </p>
         </div>
         <div className="p-3 lg:hidden">
           {loading ? (
@@ -688,10 +660,7 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
             </tbody>
           </table>
         </div>
-        {!loading && !isAllTasksView ? (
-          <ViewAllRecordsButton label="View All Daily Tasks →" onClick={openAllTasks} />
-        ) : null}
-        {!loading && isAllTasksView && pagination ? <TablePagination {...pagination} /> : null}
+        {!loading && pagination ? <TablePagination {...pagination} /> : null}
       </section>
 
       <TaskModal

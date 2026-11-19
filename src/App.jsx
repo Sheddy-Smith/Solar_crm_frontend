@@ -144,14 +144,6 @@ import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
 import { UnderlineTabs } from './components/UnderlineTabs.jsx';
 import { usePagedRows, usePageSize, TablePagination } from './components/TablePagination.jsx';
 import {
-  RecentAllPageHeading,
-  RecentRecordsSectionHeader,
-  ViewAllRecordsButton,
-} from './components/RecentAllListShell.jsx';
-import { useRecentAllView } from './hooks/useRecentAllView.js';
-import { useRecentAllRows } from './hooks/useRecentAllRows.js';
-import {
-  RECENT_LIST_LIMIT,
   RECENT_ACTIVITY_ORDERING,
   formatRelativeActivity,
 } from './lib/recentAllList.js';
@@ -16939,14 +16931,6 @@ function openProjectAddressInMaps(parts, onNotify) {
 
 function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNotify, loggedInUser = null, onOpenPipeline = null, embedded = false }) {
   const projectCaps = moduleCaps(loggedInUser, 'Project Management');
-  const isSiteSurveyPickerEarly = activeSection === 'Project Site Survey';
-  const projectViewApi = useRecentAllView({
-    storageKey: isSiteSurveyPickerEarly ? 'project-survey-list' : 'project-list',
-    syncUrl: !embedded,
-  });
-  const isAllProjectsView = embedded || projectViewApi.isAll;
-  const openAllProjects = projectViewApi.openAll;
-  const openRecentProjects = projectViewApi.openRecent;
   const [dateRangeOpen, setDateRangeOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -16982,10 +16966,10 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
 
   useEffect(() => {
     setActivePage(1);
-  }, [deferredQuery, deferredStatus, deferredStage, projectTypeFilter, managerFilter, surveyedByFilter, feasibilityFilter, dateFrom, dateTo, projectPageSize, isAllProjectsView]);
+  }, [deferredQuery, deferredStatus, deferredStage, projectTypeFilter, managerFilter, surveyedByFilter, feasibilityFilter, dateFrom, dateTo, projectPageSize]);
 
-  const effectiveProjectPageSize = isAllProjectsView ? (projectPageSize || LIST_PAGE_SIZE) : RECENT_LIST_LIMIT;
-  const effectiveProjectPage = isAllProjectsView ? activePage : 1;
+  const effectiveProjectPageSize = projectPageSize || LIST_PAGE_SIZE;
+  const effectiveProjectPage = activePage;
 
   useEffect(() => {
     let cancelled = false;
@@ -17019,7 +17003,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
     return () => { cancelled = true; };
   }, [
     refreshKey, effectiveProjectPage, effectiveProjectPageSize, deferredQuery, deferredStatus, deferredStage,
-    projectTypeFilter, isSiteSurveyPicker, isAllProjectsView,
+    projectTypeFilter, isSiteSurveyPicker,
   ]);
 
 
@@ -17165,10 +17149,8 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
     });
   }, [projectRows, managerFilter, statusFilter, surveyedByFilter, feasibilityFilter, dateFrom, dateTo, isSiteSurveyPicker]);
 
-  const totalProjectPages = isAllProjectsView
-    ? Math.max(1, Math.ceil((projectTotal || filteredRows.length) / effectiveProjectPageSize))
-    : 1;
-  const safeProjectPage = isAllProjectsView ? Math.min(activePage, totalProjectPages) : 1;
+  const totalProjectPages = Math.max(1, Math.ceil((projectTotal || filteredRows.length) / effectiveProjectPageSize));
+  const safeProjectPage = Math.min(activePage, totalProjectPages);
   const pagedProjectRows = filteredRows;
   const pmStageOptions = ['All', ...PM_STAGE_NAMES, PIPELINE_COMPLETED_STAGE];
 
@@ -17216,7 +17198,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
       <div className="w-full sm:w-[280px]">
         <ReportDateRangePicker open={dateRangeOpen} onToggle={() => setDateRangeOpen((current) => !current)} onClose={() => setDateRangeOpen(false)} dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} formattedRange={formattedRange} hideLabel />
       </div>
-      {projectCaps.export && isAllProjectsView ? (
+      {projectCaps.export ? (
         <button type="button" data-custom-export="true" disabled={loading} onClick={exportProjects} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-60"><Download className="size-4 text-[#0b65e5]" />Export</button>
       ) : null}
     </>
@@ -17228,16 +17210,17 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">{headingActions}</div>
       ) : (
         <>
-          <RecentAllPageHeading
-            isAll={isAllProjectsView}
-            moduleLabel="Projects"
-            recentTitle={isSiteSurveyPicker ? 'Site Survey (Recent)' : 'Project List (Recent)'}
-            allTitle={isSiteSurveyPicker ? 'All Site Surveys' : 'All Projects'}
-            recentSubtitle={`Showing the latest ${RECENT_LIST_LIMIT} projects you recently worked on (view, edit or update).`}
-            allSubtitle="Complete list of projects (Recent + Older)."
-            onBackToRecent={openRecentProjects}
-            actions={headingActions}
-          />
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="text-[18px] font-extrabold tracking-tight text-[#0f172a] sm:text-[20px]">
+                {isSiteSurveyPicker ? 'All Site Surveys' : 'All Projects'}
+              </h2>
+              <p className="mt-0.5 text-[12px] font-semibold text-[#7386a3]">
+                Complete {isSiteSurveyPicker ? 'site survey' : 'project'} list.
+              </p>
+            </div>
+            {headingActions}
+          </div>
           <ProjectSubnavTabs activeSection={activeSection} onOpenSection={onOpenSection} />
         </>
       )}
@@ -17339,13 +17322,6 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
       </section>
 
       <article className={`${panelClass} overflow-hidden p-2 sm:p-2.5`}>
-        {!isAllProjectsView ? (
-          <RecentRecordsSectionHeader
-            moduleLabel="Projects"
-            showing={Math.min(RECENT_LIST_LIMIT, pagedProjectRows.length || RECENT_LIST_LIMIT)}
-            total={projectTotal || null}
-          />
-        ) : null}
         {loading ? (
           <PageLoadingState message="Loading projects..." />
         ) : (
@@ -17645,14 +17621,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
           ) : null}
         </div>
 
-        {!isAllProjectsView ? (
-          <ViewAllRecordsButton
-            label={isSiteSurveyPicker ? 'View All Site Surveys →' : 'View All Projects →'}
-            onClick={openAllProjects}
-          />
-        ) : null}
-
-        {!loading && isAllProjectsView ? (
+        {!loading ? (
           <TablePagination
             total={projectTotal || filteredRows.length}
             page={safeProjectPage}
@@ -30713,20 +30682,16 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify, logged
     if (statusFilter !== 'All Status' && (row.status || 'Available') !== statusFilter) return false;
     return true;
   });
+  // Always show full Employee master list (no Recent intermediate page).
   const {
-    isAll: isAllEmployeesView,
-    openAll: openAllEmployees,
-    openRecent: openRecentEmployees,
-    displayRows: pagedEmployees,
+    pageRows: pagedEmployees,
     startIndex: employeesStartIndex,
     pagination: employeesPagination,
-    totalCount: employeeTotalCount,
-    recentCount: employeeRecentCount,
-  } = useRecentAllRows(filteredEmployees, {
-    storageKey: 'employees',
+  } = usePagedRows(filteredEmployees, 'employees', {
+    defaultSize: 10,
     resetKey: `${search}|${skillFilter}|${statusFilter}`,
-    activityFields: ['updated_at', 'created_at', 'last_activity_at'],
   });
+  const employeeTotalCount = filteredEmployees.length;
 
   const selectedEmployee = employees.find((row) => String(row.id) === String(selectedEmployeeId)) ?? null;
   const periodCardLabel = rangeMode === 'weekly' ? 'Weekly' : rangeMode === 'monthly' ? 'Monthly' : 'Period';
@@ -31110,20 +31075,12 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify, logged
 
       {!isAttendanceView ? (
         <section className={`${panelClass} overflow-hidden p-2.5 sm:p-3`}>
-          <RecentAllPageHeading
-            isAll={isAllEmployeesView}
-            moduleLabel="Employees"
-            recentTitle="Employee Details (Recent)"
-            allTitle="All Employees"
-            onBackToRecent={openRecentEmployees}
-          />
-          {!isAllEmployeesView ? (
-            <RecentRecordsSectionHeader
-              moduleLabel="Employees"
-              showing={employeeRecentCount}
-              total={employeeTotalCount}
-            />
-          ) : null}
+          <div className="mb-3">
+            <h2 className="text-[18px] font-extrabold tracking-tight text-[#0f172a] sm:text-[20px]">All Employees</h2>
+            <p className="mt-0.5 text-[12px] font-semibold text-[#7386a3]">
+              Complete employee master list ({employeeTotalCount} records).
+            </p>
+          </div>
           <div className="mb-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
             {[
               { label: 'Total Employees', value: employeeStats.total, note: 'All Registered', tone: 'text-[#0d9f4a]', icon: UsersRound },
@@ -31171,7 +31128,7 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify, logged
                 {statusOptions.map((option) => <option key={option} value={option}>{option}</option>)}
               </select>
             </label>
-            {employeeCaps.export && isAllEmployeesView ? (
+            {employeeCaps.export ? (
               <button
                 type="button"
                 onClick={() => { exportEmployeesCsv(filteredEmployees); onNotify('Employee list exported'); }}
@@ -31311,10 +31268,7 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify, logged
                 </tbody>
               </table>
             </div>
-            {!loading && !isAllEmployeesView ? (
-              <ViewAllRecordsButton label="View All Employees →" onClick={openAllEmployees} />
-            ) : null}
-            {!loading && isAllEmployeesView && employeesPagination ? (
+            {!loading && employeesPagination ? (
               <TablePagination {...employeesPagination} />
             ) : null}
             </>
@@ -37830,17 +37784,10 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
   });
 
   const {
-    isAll: isAllQuotationsView,
-    openAll: openAllQuotations,
-    openRecent: openRecentQuotations,
-    displayRows: pagedQuotations,
+    pageRows: pagedQuotations,
     pagination: quotationsPagination,
-    totalCount: quotationTotalCount,
-    recentCount: quotationRecentCount,
-  } = useRecentAllRows(filteredQuotations, {
-    storageKey: 'quotation-list',
+  } = usePagedRows(filteredQuotations, 'quotation-list', {
     resetKey: `${searchQuery}|${statusFilter}|${templateFilter}|${expiredFilter}|${dateFrom}|${dateTo}`,
-    activityFields: ['updated_at', 'created_at', 'quotation_date', 'last_activity_at'],
   });
 
   const applyStatusCardFilter = (filter) => {
@@ -37867,35 +37814,32 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
 
   return (
     <div className="flex min-h-0 flex-1 flex-col space-y-3 overflow-visible pb-2 lg:overflow-hidden">
-      <RecentAllPageHeading
-        isAll={isAllQuotationsView}
-        moduleLabel="Quotations"
-        recentTitle="Quotation Module (Recent)"
-        allTitle="All Quotations"
-        recentSubtitle={`Showing the latest ${RECENT_LIST_LIMIT} quotations you recently worked on.`}
-        allSubtitle="Complete list of quotations (Recent + Older)."
-        onBackToRecent={openRecentQuotations}
-        actions={(
-          <div className="flex flex-wrap items-center gap-2">
-            <ModuleIndependentBadge />
-            <ModuleSyncDropdown
-              module="quotation"
-              onNotify={onNotify}
-              onSynced={() => setRefreshKey((k) => k + 1)}
-            />
-            {quoteCaps.add ? (
-              <button
-                type="button"
-                onClick={startNewQuotation}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]"
-              >
-                <Plus className="size-4" />
-                Create Quotation
-              </button>
-            ) : null}
-          </div>
-        )}
-      />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-[18px] font-extrabold tracking-tight text-[#0f172a] sm:text-[20px]">All Quotations</h2>
+          <p className="mt-0.5 text-[12px] font-semibold text-[#7386a3]">
+            Complete quotation list ({filteredQuotations.length} records).
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <ModuleIndependentBadge />
+          <ModuleSyncDropdown
+            module="quotation"
+            onNotify={onNotify}
+            onSynced={() => setRefreshKey((k) => k + 1)}
+          />
+          {quoteCaps.add ? (
+            <button
+              type="button"
+              onClick={startNewQuotation}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(13,159,74,0.2)] transition hover:bg-[#078c3e]"
+            >
+              <Plus className="size-4" />
+              Create Quotation
+            </button>
+          ) : null}
+        </div>
+      </div>
 
       <section className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 lg:gap-3">
         <LiaisonApprovalStatCard label="Total Quotations" value={String(quotationStats.total)} caption="All Time" icon={FileText} tone="green" onClick={() => applyStatusCardFilter('All')} />
@@ -37967,13 +37911,6 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
       </article>
 
       <section ref={quotationTableRef} className={`${panelClass} flex min-h-0 flex-1 flex-col overflow-hidden p-3 sm:p-4`}>
-        {!isAllQuotationsView ? (
-          <RecentRecordsSectionHeader
-            moduleLabel="Quotations"
-            showing={quotationRecentCount}
-            total={quotationTotalCount}
-          />
-        ) : null}
         {loading ? (
           <PageLoadingState message="Loading quotations..." />
         ) : filteredQuotations.length === 0 ? (
@@ -38078,11 +38015,7 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
           </>
         )}
 
-        {!loading && !isAllQuotationsView ? (
-          <ViewAllRecordsButton label="View All Quotations →" onClick={openAllQuotations} />
-        ) : null}
-
-        {!loading && isAllQuotationsView && quotationsPagination ? (
+        {!loading && quotationsPagination ? (
           <TablePagination
             {...quotationsPagination}
             onPageChange={(page) => {

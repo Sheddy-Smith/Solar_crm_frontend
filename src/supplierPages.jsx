@@ -7,12 +7,6 @@ import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/
 import { LedgerMobileCards } from './components/mobile/LedgerMobileCards.jsx';
 import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
 import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
-import {
-  RecentAllPageHeading,
-  RecentRecordsSectionHeader,
-  ViewAllRecordsButton,
-} from './components/RecentAllListShell.jsx';
-import { useRecentAllRows } from './hooks/useRecentAllRows.js';
 
 const TABS = [
   { key: 'Supplier Details', label: 'Supplier Details' },
@@ -187,18 +181,8 @@ function SupplierDetailsTab({ caps, onNotify, addRequested = false, onAddRequest
     const hay = `${r.name} ${r.company} ${r.phone} ${r.vendor_type} ${r.address}`.toLowerCase();
     return hay.includes(q.trim().toLowerCase());
   });
-  const {
-    isAll: isAllSuppliersView,
-    openAll: openAllSuppliers,
-    openRecent: openRecentSuppliers,
-    displayRows: pageRows,
-    pagination,
-    totalCount: supplierTotalCount,
-    recentCount: supplierRecentCount,
-  } = useRecentAllRows(filtered, {
-    storageKey: 'supplier-list',
+  const { pageRows, pagination } = usePagedRows(filtered, 'supplier-list', {
     resetKey: q,
-    activityFields: ['updated_at', 'created_at', 'last_activity_at'],
   });
 
   const save = async () => {
@@ -243,13 +227,12 @@ function SupplierDetailsTab({ caps, onNotify, addRequested = false, onAddRequest
 
   return (
     <>
-      <RecentAllPageHeading
-        isAll={isAllSuppliersView}
-        moduleLabel="Suppliers"
-        recentTitle="Suppliers (Recent)"
-        allTitle="All Suppliers"
-        onBackToRecent={openRecentSuppliers}
-        actions={caps.export && isAllSuppliersView ? (
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-[18px] font-extrabold tracking-tight text-[#0f172a] sm:text-[20px]">All Suppliers</h2>
+          <p className="mt-0.5 text-[12px] font-semibold text-[#7386a3]">Complete supplier master list ({filtered.length} records).</p>
+        </div>
+        {caps.export ? (
           <button
             type="button"
             onClick={() => exportNotifyCsv(onNotify, 'suppliers', ['Name', 'Phone', 'Company', 'Type', 'Balance'], filtered.map((r) => [r.name, r.phone, r.company, r.vendor_type, r.balance]))}
@@ -258,10 +241,7 @@ function SupplierDetailsTab({ caps, onNotify, addRequested = false, onAddRequest
             <Download className="size-3.5" /> Export
           </button>
         ) : null}
-      />
-      {!isAllSuppliersView ? (
-        <RecentRecordsSectionHeader moduleLabel="Suppliers" showing={supplierRecentCount} total={supplierTotalCount} />
-      ) : null}
+      </div>
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <input className={`${inputClass} w-full sm:max-w-xs`} placeholder="Search Suppliers..." value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
@@ -329,10 +309,7 @@ function SupplierDetailsTab({ caps, onNotify, addRequested = false, onAddRequest
           </tbody>
         </table>
       </div>
-      {!loading && !isAllSuppliersView ? (
-        <ViewAllRecordsButton label="View All Suppliers →" onClick={openAllSuppliers} />
-      ) : null}
-      {!loading && isAllSuppliersView && pagination ? (
+      {!loading && pagination ? (
         <TablePagination {...pagination} className="rounded-[12px] border border-[#e2e9f3]" />
       ) : null}
       {modal ? (

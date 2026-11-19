@@ -9,12 +9,6 @@ import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/
 import { LedgerMobileCards } from './components/mobile/LedgerMobileCards.jsx';
 import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
 import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
-import {
-  RecentAllPageHeading,
-  RecentRecordsSectionHeader,
-  ViewAllRecordsButton,
-} from './components/RecentAllListShell.jsx';
-import { useRecentAllRows } from './hooks/useRecentAllRows.js';
 
 const TABS = [
   { key: 'Vendor Details', label: 'Vendor Details' },
@@ -262,18 +256,8 @@ function VendorDetailsTab({ caps, onNotify, addRequested = false, onAddRequestCo
     const hay = `${r.name} ${r.company} ${r.phone} ${r.vendor_type} ${r.address}`.toLowerCase();
     return hay.includes(q.trim().toLowerCase());
   });
-  const {
-    isAll: isAllVendorsView,
-    openAll: openAllVendors,
-    openRecent: openRecentVendors,
-    displayRows: pageRows,
-    pagination,
-    totalCount: vendorTotalCount,
-    recentCount: vendorRecentCount,
-  } = useRecentAllRows(filtered, {
-    storageKey: 'vendor-list',
+  const { pageRows, pagination } = usePagedRows(filtered, 'vendor-list', {
     resetKey: q,
-    activityFields: ['updated_at', 'created_at', 'last_activity_at'],
   });
 
   const save = async () => {
@@ -318,13 +302,12 @@ function VendorDetailsTab({ caps, onNotify, addRequested = false, onAddRequestCo
 
   return (
     <>
-      <RecentAllPageHeading
-        isAll={isAllVendorsView}
-        moduleLabel="Vendors"
-        recentTitle="Vendors (Recent)"
-        allTitle="All Vendors"
-        onBackToRecent={openRecentVendors}
-        actions={caps.export && isAllVendorsView ? (
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-[18px] font-extrabold tracking-tight text-[#0f172a] sm:text-[20px]">All Vendors</h2>
+          <p className="mt-0.5 text-[12px] font-semibold text-[#7386a3]">Complete vendor master list ({filtered.length} records).</p>
+        </div>
+        {caps.export ? (
           <button
             type="button"
             onClick={() => exportNotifyCsv(onNotify, 'vendors', ['Name', 'Phone', 'Company', 'Type', 'Net Balance'], filtered.map((r) => [r.name, r.phone, r.company, r.vendor_type, r.balance]))}
@@ -333,10 +316,7 @@ function VendorDetailsTab({ caps, onNotify, addRequested = false, onAddRequestCo
             <Download className="size-3.5" /> Export
           </button>
         ) : null}
-      />
-      {!isAllVendorsView ? (
-        <RecentRecordsSectionHeader moduleLabel="Vendors" showing={vendorRecentCount} total={vendorTotalCount} />
-      ) : null}
+      </div>
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <input className={`${inputClass} w-full sm:max-w-xs`} placeholder="Search vendors..." value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
@@ -410,10 +390,7 @@ function VendorDetailsTab({ caps, onNotify, addRequested = false, onAddRequestCo
           </tbody>
         </table>
       </div>
-      {!loading && !isAllVendorsView ? (
-        <ViewAllRecordsButton label="View All Vendors →" onClick={openAllVendors} />
-      ) : null}
-      {!loading && isAllVendorsView && pagination ? (
+      {!loading && pagination ? (
         <TablePagination {...pagination} className="rounded-[12px] border border-[#e2e9f3]" />
       ) : null}
       {modal ? (

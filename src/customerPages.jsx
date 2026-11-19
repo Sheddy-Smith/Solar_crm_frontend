@@ -16,12 +16,6 @@ import { LedgerMobileCards } from './components/mobile/LedgerMobileCards.jsx';
 import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
-import {
-  RecentAllPageHeading,
-  RecentRecordsSectionHeader,
-  ViewAllRecordsButton,
-} from './components/RecentAllListShell.jsx';
-import { useRecentAllRows } from './hooks/useRecentAllRows.js';
 import { CustomerProfileModal } from './customerMasterHub.jsx';
 
 function telHref(phone) {
@@ -717,18 +711,8 @@ function CustomerDetailsTab({ caps, onNotify, onOpenSection }) {
     const hay = `${r.name} ${r.company} ${r.phone} ${r.address} ${(r.project_labels || []).join(' ')} ${r.gstin}`.toLowerCase();
     return hay.includes(q.trim().toLowerCase());
   });
-  const {
-    isAll: isAllCustomersView,
-    openAll: openAllCustomers,
-    openRecent: openRecentCustomers,
-    displayRows: pageRows,
-    pagination,
-    totalCount: customerTotalCount,
-    recentCount: customerRecentCount,
-  } = useRecentAllRows(filtered, {
-    storageKey: 'customer-list',
+  const { pageRows, pagination } = usePagedRows(filtered, 'customer-list', {
     resetKey: q,
-    activityFields: ['updated_at', 'created_at', 'last_activity_at'],
   });
 
   const save = async () => {
@@ -769,40 +753,34 @@ function CustomerDetailsTab({ caps, onNotify, onOpenSection }) {
 
   return (
     <>
-      <RecentAllPageHeading
-        isAll={isAllCustomersView}
-        moduleLabel="Customers"
-        recentTitle="Customer Details (Recent)"
-        allTitle="All Customers"
-        onBackToRecent={openRecentCustomers}
-        actions={(
-          <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={refreshFromLeads} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[8px] border border-[#d9e4f2] px-3 text-[12px] font-extrabold text-[#284276]">
-              <RefreshCw className="size-3.5" /> Refresh
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-[18px] font-extrabold tracking-tight text-[#0f172a] sm:text-[20px]">All Customers</h2>
+          <p className="mt-0.5 text-[12px] font-semibold text-[#7386a3]">Complete customer master list ({filtered.length} records).</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={refreshFromLeads} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[8px] border border-[#d9e4f2] px-3 text-[12px] font-extrabold text-[#284276]">
+            <RefreshCw className="size-3.5" /> Refresh
+          </button>
+          {caps.add ? (
+            <button type="button" onClick={() => setModal({ form: { ...emptyForm } })} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[8px] bg-[#12a54f] px-3 text-[12px] font-extrabold text-white">
+              <Plus className="size-3.5" /> Add Customer
             </button>
-            {caps.add ? (
-              <button type="button" onClick={() => setModal({ form: { ...emptyForm } })} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[8px] bg-[#12a54f] px-3 text-[12px] font-extrabold text-white">
-                <Plus className="size-3.5" /> Add Customer
-              </button>
-            ) : null}
-            {caps.export && isAllCustomersView ? (
-              <button
-                type="button"
-                onClick={() => exportNotifyCsv(onNotify, 'customers', ['Name', 'Company', 'Phone', 'Address', 'GSTIN', 'Projects', 'Leads', 'Balance'], filtered.map((r) => [r.name, r.company, r.phone, r.address, r.gstin, r.projects_count || 0, r.leads_count || 0, r.balance]))}
-                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[8px] border border-[#d9e4f2] px-3 text-[12px] font-extrabold text-[#284276]"
-              >
-                <Download className="size-3.5" /> Export
-              </button>
-            ) : null}
-          </div>
-        )}
-      />
-      <div className="rounded-[12px] border border-[#dbeafe] bg-[#f8fbff] px-3 py-2 text-[12px] font-semibold text-[#284276]">
-        All Client Detail: mobile number is the customer key. Older customers stay in All Customers — Recent only shows the latest worked records.
+          ) : null}
+          {caps.export ? (
+            <button
+              type="button"
+              onClick={() => exportNotifyCsv(onNotify, 'customers', ['Name', 'Company', 'Phone', 'Address', 'GSTIN', 'Projects', 'Leads', 'Balance'], filtered.map((r) => [r.name, r.company, r.phone, r.address, r.gstin, r.projects_count || 0, r.leads_count || 0, r.balance]))}
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[8px] border border-[#d9e4f2] px-3 text-[12px] font-extrabold text-[#284276]"
+            >
+              <Download className="size-3.5" /> Export
+            </button>
+          ) : null}
+        </div>
       </div>
-      {!isAllCustomersView ? (
-        <RecentRecordsSectionHeader moduleLabel="Customers" showing={customerRecentCount} total={customerTotalCount} />
-      ) : null}
+      <div className="rounded-[12px] border border-[#dbeafe] bg-[#f8fbff] px-3 py-2 text-[12px] font-semibold text-[#284276]">
+        All Client Detail: mobile number is the customer key.
+      </div>
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <input className={`${inputClass} w-full sm:max-w-xs`} placeholder="Search name, mobile, project..." value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
@@ -890,10 +868,7 @@ function CustomerDetailsTab({ caps, onNotify, onOpenSection }) {
           </tbody>
         </table>
       </div>
-      {!loading && !isAllCustomersView ? (
-        <ViewAllRecordsButton label="View All Customers →" onClick={openAllCustomers} />
-      ) : null}
-      {!loading && isAllCustomersView && pagination ? (
+      {!loading && pagination ? (
         <TablePagination {...pagination} className="rounded-[8px] border border-[#e2e9f3]" />
       ) : null}
       {modal ? (

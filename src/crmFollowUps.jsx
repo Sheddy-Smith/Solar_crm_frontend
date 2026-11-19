@@ -16,13 +16,6 @@ import { exportNotifyCsv } from './lib/utils.js';
 import { fetchEveryPage, mergeFollowUpRows, rowsOf } from './lib/listQuery.js';
 import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
-import {
-  RecentAllPageHeading,
-  RecentRecordsSectionHeader,
-  ViewAllRecordsButton,
-} from './components/RecentAllListShell.jsx';
-import { useRecentAllRows } from './hooks/useRecentAllRows.js';
-import { RECENT_LIST_LIMIT } from './lib/recentAllList.js';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { hasModuleAccess } from './settingsHubPages.jsx';
 import {
@@ -280,21 +273,13 @@ export function CrmFollowUpsPage({
     return [...list].sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at));
   }, [baseFiltered, listTab, statusFilter, search, todayStart]);
 
-  const followUpListView = useRecentAllRows(filtered, {
-    storageKey: 'crm-follow-ups-list',
-    resetKey: `${listTab}|${statusFilter}|${assignedFilter}|${addedByFilter}|${typeFilter}|${dateFrom}|${dateTo}|${search}`,
-    activityFields: ['updated_at', 'created_at', 'scheduled_at'],
-    syncUrl: listTab === 'list',
-  });
-  const missedPaged = usePagedRows(filtered, 'crm-follow-ups-missed', {
+  const listPaged = usePagedRows(filtered, listTab === 'list' ? 'crm-follow-ups-list' : 'crm-follow-ups-missed', {
     defaultSize: 10,
     pageSizeOptions: [10, 20, 50],
     resetKey: `${listTab}|${statusFilter}|${assignedFilter}|${addedByFilter}|${typeFilter}|${dateFrom}|${dateTo}|${search}`,
   });
-  const pageRows = listTab === 'list' ? followUpListView.displayRows : missedPaged.pageRows;
-  const pagination = listTab === 'list'
-    ? (followUpListView.isAll ? followUpListView.pagination : null)
-    : missedPaged.pagination;
+  const pageRows = listPaged.pageRows;
+  const pagination = listPaged.pagination;
 
   const setStatusLive = (next) => {
     setStatusFilter(next);
@@ -416,7 +401,7 @@ export function CrmFollowUpsPage({
               <Plus className="size-4" /> Schedule Follow-up
             </button>
           ) : null}
-          {canExport && (listTab !== 'list' || followUpListView.isAll) ? (
+          {canExport ? (
             <button
               type="button"
               onClick={exportRows}
@@ -600,23 +585,12 @@ export function CrmFollowUpsPage({
 
         <div className="p-3 sm:p-4">
           {listTab === 'list' ? (
-            <>
-              <RecentAllPageHeading
-                isAll={followUpListView.isAll}
-                moduleLabel="Follow-ups"
-                recentTitle="Follow-up List (Recent)"
-                allTitle="All Follow-ups"
-                recentSubtitle={`Showing the latest ${RECENT_LIST_LIMIT} follow-ups you recently worked on.`}
-                onBackToRecent={followUpListView.openRecent}
-              />
-              {!followUpListView.isAll ? (
-                <RecentRecordsSectionHeader
-                  moduleLabel="Follow-ups"
-                  showing={followUpListView.recentCount}
-                  total={followUpListView.totalCount}
-                />
-              ) : null}
-            </>
+            <div className="mb-3">
+              <h2 className="text-[18px] font-extrabold tracking-tight text-[#0f172a] sm:text-[20px]">All Follow-ups</h2>
+              <p className="mt-0.5 text-[12px] font-semibold text-[#7386a3]">
+                Complete follow-up list ({filtered.length} records).
+              </p>
+            </div>
           ) : null}
           {!loaded ? (
             <p className="py-10 text-center text-[13px] font-semibold text-[#7a8fa6]">Loading follow-ups...</p>
@@ -784,9 +758,6 @@ export function CrmFollowUpsPage({
                   </tbody>
                 </table>
               </div>
-              {listTab === 'list' && !followUpListView.isAll ? (
-                <ViewAllRecordsButton label="View All Follow-ups →" onClick={followUpListView.openAll} />
-              ) : null}
               {pagination ? <TablePagination {...pagination} className="mt-3" /> : null}
             </>
           )}
