@@ -11,6 +11,7 @@ import { fetchEveryPage, rowsOf } from './lib/listQuery.js';
 import { exportNotifyCsv } from './lib/utils.js';
 import { moduleCaps } from './settingsHubPages.jsx';
 import { InventoryProductsCatalog } from './inventoryProductsCatalog.jsx';
+import InventoryReconciliationPanel from './inventoryReconciliationPanel.jsx';
 import {
   InventoryBreadcrumbs,
   InventoryHeroBanner,
@@ -443,6 +444,8 @@ export function InventoryOverviewPageEnhanced({ activeSection, onOpenSection, on
               </div>
             </section>
           </div>
+
+          <InventoryReconciliationPanel onNotify={onNotify} />
 
           <section className={cx(panelClass, 'p-4')}>
             <h3 className="text-[14px] font-extrabold text-[#1e3261]">Stock by Unit</h3>

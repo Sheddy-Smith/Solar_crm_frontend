@@ -34,13 +34,41 @@ def _sync_inventory_requested(value):
     return str(value).lower() in ('1', 'true', 'yes')
 
 
-def _maybe_sync_linked_inventory(spare_part, sync=False):
-    """When requested, mirror spare-part stock onto the linked inventory row (BUG-069)."""
+def _maybe_sync_linked_inventory(spare_part, sync=False, user=None):
+    """When requested, align linked InventoryItem via Manual StockMovement (ledger-safe)."""
     if not sync or not spare_part.linked_inventory_item_id:
         return
-    InventoryItem.objects.filter(pk=spare_part.linked_inventory_item_id).update(
-        current_stock=Decimal(spare_part.stock_qty),
-    )
+    from apps.inventory.models import StockMovement
+
+    item = InventoryItem.objects.filter(pk=spare_part.linked_inventory_item_id).first()
+    if not item:
+        return
+    target = Decimal(spare_part.stock_qty or 0)
+    current = Decimal(item.current_stock or 0)
+    delta = target - current
+    if delta == 0:
+        return
+    if not item.warehouse_id:
+        raise ValidationError({
+            'linked_inventory_item': (
+                f'Assign a warehouse to inventory item "{item.name}" before syncing stock.'
+            ),
+        })
+    qty = abs(delta)
+    data = {
+        'item': item,
+        'movement_type': 'Adjustment',
+        'quantity': qty,
+        'rate': item.rate or 0,
+        'reference_type': 'Manual',
+        'notes': f'O&M spare-part sync — {spare_part.name or item.name}',
+        'created_by': user,
+    }
+    if delta > 0:
+        data['to_warehouse'] = item.warehouse
+    else:
+        data['from_warehouse'] = item.warehouse
+    StockMovement.objects.create(**data)
 
 
 class OmBaseViewSet(viewsets.ModelViewSet):
@@ -477,12 +505,12 @@ class OmSparePartViewSet(OmBaseViewSet):
     def perform_create(self, serializer):
         sync = _sync_inventory_requested(self.request.data.get('sync_inventory', False))
         spare_part = serializer.save(created_by=self.request.user)
-        _maybe_sync_linked_inventory(spare_part, sync)
+        _maybe_sync_linked_inventory(spare_part, sync, user=self.request.user)
 
     def perform_update(self, serializer):
         sync = _sync_inventory_requested(self.request.data.get('sync_inventory', False))
         spare_part = serializer.save()
-        _maybe_sync_linked_inventory(spare_part, sync)
+        _maybe_sync_linked_inventory(spare_part, sync, user=self.request.user)
 
 
 class OmReportViewSet(viewsets.ModelViewSet):

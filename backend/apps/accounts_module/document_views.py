@@ -1,5 +1,8 @@
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from rest_framework import viewsets, filters
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 
@@ -23,6 +26,14 @@ from .services import recalculate_party_balance, sync_journal_for_invoice
 from .views import AccountsBaseViewSet
 
 
+def _raise_drf(exc: DjangoValidationError):
+    if hasattr(exc, 'message_dict'):
+        raise ValidationError(exc.message_dict)
+    if hasattr(exc, 'messages'):
+        raise ValidationError(exc.messages)
+    raise ValidationError(str(exc))
+
+
 class PurchaseInvoiceViewSet(AccountsBaseViewSet):
     serializer_class = PurchaseInvoiceSerializer
     filterset_fields = ['status', 'supplier', 'project', 'gst_type']
@@ -35,26 +46,35 @@ class PurchaseInvoiceViewSet(AccountsBaseViewSet):
         ).prefetch_related('lines', 'lines__inventory_item', 'lines__stock_movement', 'extra_charges').all()
 
     def perform_create(self, serializer):
-        invoice = serializer.save(created_by=self.request.user)
-        sync_inventory_for_purchase_invoice(invoice, self.request.user)
-        sync_journal_for_invoice(invoice, 'purchase')
-        recalculate_party_balance(invoice.supplier_id)
+        try:
+            with transaction.atomic():
+                invoice = serializer.save(created_by=self.request.user)
+                sync_inventory_for_purchase_invoice(invoice, self.request.user)
+                sync_journal_for_invoice(invoice, 'purchase')
+                recalculate_party_balance(invoice.supplier_id)
+        except DjangoValidationError as exc:
+            _raise_drf(exc)
 
     def perform_update(self, serializer):
         old_supplier_id = serializer.instance.supplier_id
-        invoice = serializer.save()
-        sync_inventory_for_purchase_invoice(invoice, self.request.user)
-        sync_journal_for_invoice(invoice, 'purchase')
-        if old_supplier_id and old_supplier_id != invoice.supplier_id:
-            recalculate_party_balance(old_supplier_id)
-        recalculate_party_balance(invoice.supplier_id)
+        try:
+            with transaction.atomic():
+                invoice = serializer.save()
+                sync_inventory_for_purchase_invoice(invoice, self.request.user)
+                sync_journal_for_invoice(invoice, 'purchase')
+                if old_supplier_id and old_supplier_id != invoice.supplier_id:
+                    recalculate_party_balance(old_supplier_id)
+                recalculate_party_balance(invoice.supplier_id)
+        except DjangoValidationError as exc:
+            _raise_drf(exc)
 
     def perform_destroy(self, instance):
         ref = instance.invoice_no or f'PI-{instance.id:04d}'
-        Transaction.objects.filter(reference_number=ref, transaction_date=instance.invoice_date).delete()
         supplier_id = instance.supplier_id
-        remove_purchase_invoice_stock(instance)
-        instance.delete()
+        with transaction.atomic():
+            remove_purchase_invoice_stock(instance)
+            Transaction.objects.filter(reference_number=ref, transaction_date=instance.invoice_date).delete()
+            instance.delete()
         recalculate_party_balance(supplier_id)
 
 
@@ -70,36 +90,43 @@ class SellInvoiceViewSet(AccountsBaseViewSet):
         ).prefetch_related('lines', 'lines__inventory_item', 'lines__stock_movement').all()
 
     def perform_create(self, serializer):
-        invoice = serializer.save(created_by=self.request.user)
-        sync_inventory_for_sell_invoice(invoice, self.request.user)
-        sync_journal_for_invoice(invoice, 'sell')
-        recalculate_party_balance(invoice.party_id)
+        try:
+            with transaction.atomic():
+                invoice = serializer.save(created_by=self.request.user)
+                sync_inventory_for_sell_invoice(invoice, self.request.user)
+                sync_journal_for_invoice(invoice, 'sell')
+                recalculate_party_balance(invoice.party_id)
+        except DjangoValidationError as exc:
+            _raise_drf(exc)
 
     def perform_update(self, serializer):
         old_party_id = serializer.instance.party_id
-        invoice = serializer.save()
-        # Keep balance_due aligned with invoice allocations when present.
-        from .invoice_payment_allocation import invoice_has_active_allocations, refresh_invoice_settlement
-        if invoice_has_active_allocations(invoice):
-            invoice = refresh_invoice_settlement(invoice, sync_status=True)
-        sync_inventory_for_sell_invoice(invoice, self.request.user)
-        sync_journal_for_invoice(invoice, 'sell')
-        if old_party_id and old_party_id != invoice.party_id:
-            recalculate_party_balance(old_party_id)
-        recalculate_party_balance(invoice.party_id)
+        try:
+            with transaction.atomic():
+                invoice = serializer.save()
+                from .invoice_payment_allocation import invoice_has_active_allocations, refresh_invoice_settlement
+                if invoice_has_active_allocations(invoice):
+                    invoice = refresh_invoice_settlement(invoice, sync_status=True)
+                sync_inventory_for_sell_invoice(invoice, self.request.user)
+                sync_journal_for_invoice(invoice, 'sell')
+                if old_party_id and old_party_id != invoice.party_id:
+                    recalculate_party_balance(old_party_id)
+                recalculate_party_balance(invoice.party_id)
+        except DjangoValidationError as exc:
+            _raise_drf(exc)
 
     def perform_destroy(self, instance):
         from .invoice_payment_allocation import active_allocations_qs
-        from rest_framework.exceptions import ValidationError
         if active_allocations_qs(invoice_id=instance.id).exists():
             raise ValidationError(
                 'Cannot delete Sell Invoice with active payment allocations. Reverse allocations first.'
             )
         ref = instance.invoice_no or f'SI-{instance.id:04d}'
-        Transaction.objects.filter(reference_number=ref, transaction_date=instance.invoice_date).delete()
         party_id = instance.party_id
-        remove_sell_invoice_stock(instance)
-        instance.delete()
+        with transaction.atomic():
+            remove_sell_invoice_stock(instance)
+            Transaction.objects.filter(reference_number=ref, transaction_date=instance.invoice_date).delete()
+            instance.delete()
         recalculate_party_balance(party_id)
 
     @action(detail=True, methods=['get'], url_path='payment-summary')
@@ -164,21 +191,30 @@ class PurchaseChallanViewSet(AccountsBaseViewSet):
         ).prefetch_related('lines', 'lines__inventory_item', 'lines__stock_movement').all()
 
     def perform_create(self, serializer):
-        challan = serializer.save(created_by=self.request.user)
-        sync_inventory_for_purchase_challan(challan, self.request.user)
-        recalculate_party_balance(challan.supplier_id)
+        try:
+            with transaction.atomic():
+                challan = serializer.save(created_by=self.request.user)
+                sync_inventory_for_purchase_challan(challan, self.request.user)
+                recalculate_party_balance(challan.supplier_id)
+        except DjangoValidationError as exc:
+            _raise_drf(exc)
 
     def perform_update(self, serializer):
         old_supplier_id = serializer.instance.supplier_id
-        challan = serializer.save()
-        sync_inventory_for_purchase_challan(challan, self.request.user)
-        if old_supplier_id and old_supplier_id != challan.supplier_id:
-            recalculate_party_balance(old_supplier_id)
-        recalculate_party_balance(challan.supplier_id)
+        try:
+            with transaction.atomic():
+                challan = serializer.save()
+                sync_inventory_for_purchase_challan(challan, self.request.user)
+                if old_supplier_id and old_supplier_id != challan.supplier_id:
+                    recalculate_party_balance(old_supplier_id)
+                recalculate_party_balance(challan.supplier_id)
+        except DjangoValidationError as exc:
+            _raise_drf(exc)
 
     def perform_destroy(self, instance):
-        remove_purchase_challan_stock(instance)
-        instance.delete()
+        with transaction.atomic():
+            remove_purchase_challan_stock(instance)
+            instance.delete()
 
 
 class SellChallanViewSet(AccountsBaseViewSet):
@@ -193,16 +229,25 @@ class SellChallanViewSet(AccountsBaseViewSet):
         ).prefetch_related('lines', 'lines__inventory_item', 'lines__stock_movement').all()
 
     def perform_create(self, serializer):
-        challan = serializer.save(created_by=self.request.user)
-        sync_inventory_for_sell_challan(challan, self.request.user)
+        try:
+            with transaction.atomic():
+                challan = serializer.save(created_by=self.request.user)
+                sync_inventory_for_sell_challan(challan, self.request.user)
+        except DjangoValidationError as exc:
+            _raise_drf(exc)
 
     def perform_update(self, serializer):
-        challan = serializer.save()
-        sync_inventory_for_sell_challan(challan, self.request.user)
+        try:
+            with transaction.atomic():
+                challan = serializer.save()
+                sync_inventory_for_sell_challan(challan, self.request.user)
+        except DjangoValidationError as exc:
+            _raise_drf(exc)
 
     def perform_destroy(self, instance):
-        remove_sell_challan_stock(instance)
-        instance.delete()
+        with transaction.atomic():
+            remove_sell_challan_stock(instance)
+            instance.delete()
 
 
 class GstOpeningBalanceViewSet(viewsets.ModelViewSet):

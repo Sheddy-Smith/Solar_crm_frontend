@@ -352,11 +352,18 @@ class PurchaseInvoice(_GstMixin):
         ('Paid', 'Paid'),
         ('Cancelled', 'Cancelled'),
     ]
+    PROCUREMENT_SCOPE_CHOICES = [
+        ('General', 'General Stock'),
+        ('Project', 'Project Specific'),
+    ]
     invoice_no = models.CharField(max_length=100, blank=True, unique=True)
     invoice_date = models.DateField()
     supplier = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True, blank=True, related_name='purchase_invoices')
     supplier_name = models.CharField(max_length=200, blank=True)
     category = models.CharField(max_length=100, blank=True)
+    procurement_scope = models.CharField(
+        max_length=20, choices=PROCUREMENT_SCOPE_CHOICES, default='General',
+    )
     project = models.ForeignKey(
         'projects.Project', on_delete=models.SET_NULL, null=True, blank=True, related_name='purchase_invoices',
     )

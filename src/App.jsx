@@ -59,6 +59,7 @@ import {
 } from './accountsVoucherForm.jsx';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import SearchableSelect from './components/SearchableSelect.jsx';
+import ProjectSearchSelect from './components/ProjectSearchSelect.jsx';
 import InvoicePaymentAllocationPanel from './components/InvoicePaymentAllocationPanel.jsx';
 import {
   MarkAsFinalConfirmModal,
@@ -11253,7 +11254,8 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
         return;
       }
       if (typeof lk.api?.list === 'function') {
-        fetchEveryPage((page, pageSize) => lk.api.list({ page, page_size: pageSize }))
+        const extraParams = lk.params || {};
+        fetchEveryPage((page, pageSize) => lk.api.list({ ...extraParams, page, page_size: pageSize }))
           .then((rows) => setLookupData((prev) => ({ ...prev, [key]: rows })))
           .catch(() => setLookupData((prev) => ({ ...prev, [key]: [] })));
       }
@@ -11430,21 +11432,31 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
 
   const searchableTrigger = 'flex h-9 w-full items-center justify-between gap-2 rounded-[8px] border border-[#d9e2ec] bg-white px-3 text-left text-[13px] font-semibold text-[#1e2a38] outline-none transition focus:border-[#0b65e5] focus:ring-2 focus:ring-[#e3efff] disabled:cursor-not-allowed disabled:bg-[#f8fafc]';
 
-  const renderField = ({ name, label, type, options, required, lookup }) => (
+  const renderField = ({ name, label, type, options, required, lookup, readOnly }) => {
+    const isReadOnly = typeof readOnly === 'function' ? Boolean(readOnly(form)) : Boolean(readOnly);
+    return (
     <div key={name} className={type === 'textarea' || type === 'file' ? 'col-span-2' : ''}>
       <label className={lcLabelCls}>{label}{required ? ' *' : ''}</label>
       {type === 'project' ? (
-        <SearchableSelect
+        <ProjectSearchSelect
           value={form[name] ?? ''}
           onChange={(projectId) => {
-            setForm((p) => ({ ...p, [name]: projectId }));
+            setForm((p) => {
+              const next = { ...p, [name]: projectId };
+              if (typeof config.afterLookupChange === 'function') {
+                const patch = config.afterLookupChange(name, projectId, projects, next) || {};
+                return { ...next, ...patch };
+              }
+              return next;
+            });
             config.onProjectSelect?.(projectId, setForm);
           }}
-          options={projects.map((p) => ({ value: String(p.id), label: p.project_name || p.project_id || String(p.id) }))}
-          placeholder="Select project..."
-          searchPlaceholder="Search project..."
           required={required}
+          allowClear={!required}
+          placeholder={required ? 'Select project (required)' : 'Link project (optional)'}
           triggerClassName={searchableTrigger}
+          disabled={isReadOnly}
+          customerFilter={form.party_name || form.received_from || ''}
         />
       ) : type === 'user' ? (
         <SearchableSelect
@@ -11472,7 +11484,14 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
       ) : type === 'lookup' ? (
         <SearchableSelect
           value={form[name] ?? ''}
-          onChange={(v) => setForm((p) => ({ ...p, [name]: v }))}
+          onChange={(v) => setForm((p) => {
+            const next = { ...p, [name]: v };
+            if (typeof config.afterLookupChange === 'function') {
+              const patch = config.afterLookupChange(name, v, lookupData[lookup] || [], next) || {};
+              return { ...next, ...patch };
+            }
+            return next;
+          })}
           options={(lookupData[lookup] || []).map((item) => ({
             value: String(item.id),
             label: config.lookups[lookup].label(item),
@@ -11503,7 +11522,13 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
           triggerClassName={searchableTrigger}
         />
       ) : type === 'textarea' ? (
-        <textarea rows={2} className={lcTextareaCls} value={form[name] ?? ''} onChange={(e) => setForm((p) => ({ ...p, [name]: e.target.value }))} />
+        <textarea
+          rows={2}
+          className={lcTextareaCls}
+          value={form[name] ?? ''}
+          readOnly={isReadOnly}
+          onChange={(e) => setForm((p) => ({ ...p, [name]: e.target.value }))}
+        />
       ) : type === 'file' ? (
         <div className="space-y-1.5">
           {editItem?.[name] && !(form[name] instanceof File) ? (
@@ -11528,10 +11553,17 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
           />
         </div>
       ) : (
-        <input type={type === 'number' ? 'number' : type === 'date' ? 'date' : 'text'} className={lcInputCls} value={form[name] ?? ''} onChange={(e) => setForm((p) => ({ ...p, [name]: e.target.value }))} />
+        <input
+          type={type === 'number' ? 'number' : type === 'date' ? 'date' : 'text'}
+          className={cx(lcInputCls, isReadOnly && 'bg-[#f4f7fb] text-[#53647f]')}
+          value={form[name] ?? ''}
+          readOnly={isReadOnly}
+          onChange={(e) => setForm((p) => ({ ...p, [name]: e.target.value }))}
+        />
       )}
     </div>
-  );
+    );
+  };
 
   const formPopup = (title, onClose, onSave) => {
     if (typeof config.renderForm === 'function') {
@@ -14576,6 +14608,7 @@ function AccountsChartPage({ activeSection, onOpenSection, onNotify }) {
 }
 
 function AccountsPaymentReceivedPage({ activeSection, onOpenSection, onNotify }) {
+  const [allocatePayment, setAllocatePayment] = useState(null);
   const config = {
     moduleTitle: 'Accounts',
     Subnav: AccountsSubnavTabs,
@@ -14586,9 +14619,9 @@ function AccountsPaymentReceivedPage({ activeSection, onOpenSection, onNotify })
     listParams: { direction: 'Received' },
     fixedFields: { direction: 'Received' },
     statuses: ['Pending', 'Completed', 'Cancelled'],
-    searchKeys: ['reference_no', 'party_name', 'project_ref'],
+    searchKeys: ['reference_no', 'party_name', 'project_ref', 'project_name'],
     lookups: {
-      parties: { api: accountsModuleApi.parties, label: (a) => a.name },
+      parties: { api: accountsModuleApi.parties, params: { account_type: 'Customer' }, label: (a) => a.name },
       banks: { api: accountsModuleApi.bankAccounts, label: (b) => b.account_name },
       projects: { api: projectApi, label: (p) => `${p.project_id} — ${p.project_name}` },
     },
@@ -14604,9 +14637,10 @@ function AccountsPaymentReceivedPage({ activeSection, onOpenSection, onNotify })
     fields: [
       { name: 'reference_no', label: 'Receipt No', type: 'text' },
       { name: 'payment_date', label: 'Date', type: 'date', required: true },
-      { name: 'party', label: 'Customer', type: 'lookup', lookup: 'parties' },
-      { name: 'party_name', label: 'Or Customer Name', type: 'text' },
-      { name: 'project', label: 'Project', type: 'lookup', lookup: 'projects' },
+      { name: 'party', label: 'Customer (master)', type: 'lookup', lookup: 'parties', required: true },
+      { name: 'party_name', label: 'Customer Name (from master)', type: 'text', readOnly: (f) => Boolean(f.party) },
+      { name: 'project', label: 'Project', type: 'project', required: true },
+      { name: 'receipt_source', label: 'Receipt Source', type: 'select', options: ['Estimate', 'Invoice', 'Advance', 'Project', 'Other'] },
       { name: 'bank_account', label: 'Deposit To', type: 'lookup', lookup: 'banks' },
       { name: 'payment_mode', label: 'Payment Mode', type: 'select', options: ACC_PAYMENT_MODES },
       { name: 'amount', label: 'Amount (Rs)', type: 'number', required: true },
@@ -14614,7 +14648,47 @@ function AccountsPaymentReceivedPage({ activeSection, onOpenSection, onNotify })
       { name: 'status', label: 'Status', type: 'select', options: ['Pending', 'Completed', 'Cancelled'] },
       { name: 'description', label: 'Notes', type: 'textarea' },
     ],
-    defaults: { reference_no: '', payment_date: '', party: '', party_name: '', project: '', bank_account: '', payment_mode: 'NEFT', amount: '', project_ref: '', status: 'Completed', description: '' },
+    defaults: {
+      reference_no: '', payment_date: '', party: '', party_name: '', project: '', receipt_source: 'Project',
+      bank_account: '', payment_mode: 'NEFT', amount: '', project_ref: '', status: 'Completed', description: '',
+    },
+    validateForm: (form) => {
+      const source = String(form.receipt_source || '').trim().toLowerCase();
+      if (!form.project && source !== 'other' && source !== 'unallocated') {
+        return 'Project is required for customer receipts (use receipt source Other for unallocated).';
+      }
+      if (!form.party && !(form.party_name || '').trim()) return 'Select Customer from master.';
+      if (!form.amount && form.amount !== 0) return 'Amount is required.';
+      return null;
+    },
+    mapItemToForm: (item, f) => ({
+      ...f,
+      party_name: item.party_display || item.party_name || f.party_name || '',
+      receipt_source: item.receipt_source || 'Project',
+    }),
+    afterLookupChange: (name, v, rows, form) => {
+      if (name === 'party' && v) {
+        const party = rows.find((r) => String(r.id) === String(v));
+        if (party?.name) return { party_name: party.name, received_from: party.name };
+      }
+      if (name === 'project' && v) {
+        const project = rows.find((r) => String(r.id) === String(v));
+        const cust = project?.customer_name || '';
+        if (cust) {
+          return {
+            party_name: form?.party_name || cust,
+            received_from: form?.received_from || cust,
+          };
+        }
+      }
+      return {};
+    },
+    transformBody: (body, form) => {
+      const out = { ...body };
+      if (!(out.party_name || '').trim() && form.party_name) out.party_name = form.party_name;
+      if (!(out.received_from || '').trim()) out.received_from = out.party_name || '';
+      return out;
+    },
     detailRows: [
       ['Receipt No', (r) => r.record_no],
       ['Date', (r) => lcFormatDate(r.payment_date)],
@@ -14626,8 +14700,37 @@ function AccountsPaymentReceivedPage({ activeSection, onOpenSection, onNotify })
       ['Project Ref', (r) => r.project_ref || '—'],
       ['Notes', (r) => r.description || '—', true],
     ],
+    renderViewExtra: (row) => (
+      row.status === 'Completed' && row.direction === 'Received' ? (
+        <div className="rounded-[12px] border border-[#dbe5f2] bg-[#f8fbff] p-4">
+          <h3 className="text-[11px] font-extrabold uppercase tracking-wide text-[#7a8fa6]">Invoice Allocation</h3>
+          <p className="mt-1 text-[12px] font-semibold text-[#53647f]">
+            Settle this receipt against outstanding Sell Invoices. Does not create another cash journal.
+          </p>
+          <button
+            type="button"
+            onClick={() => setAllocatePayment(row)}
+            className="mt-3 inline-flex h-9 items-center rounded-[8px] bg-[#0b65e5] px-4 text-[12px] font-extrabold text-white"
+          >
+            Allocate to Invoices
+          </button>
+        </div>
+      ) : null
+    ),
   };
-  return <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />;
+  return (
+    <>
+      <LiaisonCrudPage config={config} activeSection={activeSection} onOpenSection={onOpenSection} onNotify={onNotify} />
+      {allocatePayment ? (
+        <InvoicePaymentAllocationPanel
+          payment={allocatePayment}
+          onClose={() => setAllocatePayment(null)}
+          onNotify={onNotify}
+          onSaved={() => setAllocatePayment(null)}
+        />
+      ) : null}
+    </>
+  );
 }
 
 function AccountsPaymentMadePage({ activeSection, onOpenSection, onNotify }) {
@@ -14659,9 +14762,9 @@ function AccountsPaymentMadePage({ activeSection, onOpenSection, onNotify }) {
     fields: [
       { name: 'reference_no', label: 'Payment No', type: 'text' },
       { name: 'payment_date', label: 'Date', type: 'date', required: true },
-      { name: 'party', label: 'Payee', type: 'lookup', lookup: 'parties' },
-      { name: 'party_name', label: 'Or Payee Name', type: 'text' },
-      { name: 'project', label: 'Project', type: 'lookup', lookup: 'projects' },
+      { name: 'party', label: 'Payee (master)', type: 'lookup', lookup: 'parties' },
+      { name: 'party_name', label: 'Payee Name (from master / Other)', type: 'text', readOnly: (f) => Boolean(f.party) },
+      { name: 'project', label: 'Project', type: 'project' },
       { name: 'bank_account', label: 'Pay From', type: 'lookup', lookup: 'banks' },
       { name: 'payment_mode', label: 'Payment Mode', type: 'select', options: ACC_PAYMENT_MODES },
       { name: 'amount', label: 'Amount (Rs)', type: 'number', required: true },
@@ -14670,6 +14773,18 @@ function AccountsPaymentMadePage({ activeSection, onOpenSection, onNotify }) {
       { name: 'description', label: 'Notes', type: 'textarea' },
     ],
     defaults: { reference_no: '', payment_date: '', party: '', party_name: '', project: '', bank_account: '', payment_mode: 'NEFT', amount: '', project_ref: '', status: 'Completed', description: '' },
+    afterLookupChange: (name, v, rows) => {
+      if (name === 'party' && v) {
+        const party = rows.find((r) => String(r.id) === String(v));
+        if (party?.name) return { party_name: party.name };
+      }
+      return {};
+    },
+    transformBody: (body, form) => {
+      const out = { ...body };
+      if (!(out.party_name || '').trim() && form.party_name) out.party_name = form.party_name;
+      return out;
+    },
     detailRows: [
       ['Payment No', (r) => r.record_no],
       ['Date', (r) => lcFormatDate(r.payment_date)],
@@ -14740,7 +14855,10 @@ function AccountsChequesPage({ activeSection, onOpenSection, onNotify }) {
     statuses: ['Issued', 'Pending', 'Deposited', 'Cleared', 'Cancelled'],
     extraFilters: [{ key: 'cheque_type', label: 'All Types', options: ['Issued', 'Received'] }],
     searchKeys: ['cheque_no', 'payee_name'],
-    lookups: { banks: { api: accountsModuleApi.bankAccounts, label: (b) => b.account_name } },
+    lookups: {
+      banks: { api: accountsModuleApi.bankAccounts, label: (b) => b.account_name },
+      parties: { api: accountsModuleApi.parties, label: (a) => `${a.name}${a.account_type ? ` (${a.account_type})` : ''}` },
+    },
     columns: [
       { label: 'Cheque No', render: (r) => <span className="font-extrabold text-[#0b65e5]">{r.cheque_no}</span> },
       { label: 'Date', render: (r) => lcFormatDate(r.cheque_date) },
@@ -14753,14 +14871,27 @@ function AccountsChequesPage({ activeSection, onOpenSection, onNotify }) {
       { name: 'cheque_no', label: 'Cheque No', type: 'text', required: true },
       { name: 'cheque_date', label: 'Date', type: 'date', required: true },
       { name: 'bank_account', label: 'Bank Account', type: 'lookup', lookup: 'banks' },
-      { name: 'payee_name', label: 'Payee Name', type: 'text', required: true },
+      { name: 'party', label: 'Payee (master)', type: 'lookup', lookup: 'parties' },
+      { name: 'payee_name', label: 'Payee Name (from master / Other)', type: 'text', required: true, readOnly: (f) => Boolean(f.party) },
       { name: 'amount', label: 'Amount (Rs)', type: 'number', required: true },
       { name: 'cheque_type', label: 'Type', type: 'select', options: ['Issued', 'Received'] },
       { name: 'status', label: 'Status', type: 'select', options: ['Issued', 'Pending', 'Deposited', 'Cleared', 'Cancelled'] },
       { name: 'cleared_date', label: 'Cleared Date', type: 'date' },
       { name: 'remarks', label: 'Remarks', type: 'textarea' },
     ],
-    defaults: { cheque_no: '', cheque_date: '', bank_account: '', payee_name: '', amount: '', cheque_type: 'Issued', status: 'Issued', cleared_date: '', remarks: '' },
+    defaults: { cheque_no: '', cheque_date: '', bank_account: '', party: '', payee_name: '', amount: '', cheque_type: 'Issued', status: 'Issued', cleared_date: '', remarks: '' },
+    afterLookupChange: (name, v, rows) => {
+      if (name === 'party' && v) {
+        const party = rows.find((r) => String(r.id) === String(v));
+        if (party?.name) return { payee_name: party.name };
+      }
+      return {};
+    },
+    transformBody: (body) => {
+      const out = { ...body };
+      delete out.party;
+      return out;
+    },
     detailRows: [
       ['Cheque No', (r) => r.cheque_no],
       ['Date', (r) => lcFormatDate(r.cheque_date)],
@@ -14907,6 +15038,7 @@ function AccountsOtherExpensesPage({ activeSection, onOpenSection, onNotify }) {
     ],
     searchKeys: ['voucher_no', 'payee_name', 'category', 'particulars', 'project_ref'],
     lookups: {
+      parties: { api: accountsModuleApi.parties, label: (a) => `${a.name}${a.account_type ? ` (${a.account_type})` : ''}` },
       projects: { api: projectApi, label: (p) => `${p.project_id} — ${p.project_name}` },
     },
     columns: [
@@ -14928,15 +15060,28 @@ function AccountsOtherExpensesPage({ activeSection, onOpenSection, onNotify }) {
     ],
     fields: [
       { name: 'voucher_date', label: 'Date', type: 'date', required: true },
-      { name: 'payee_name', label: 'Paid To', type: 'text', required: true },
+      { name: 'party', label: 'Payee (Vendor/Supplier/Party)', type: 'lookup', lookup: 'parties' },
+      { name: 'payee_name', label: 'Paid To (from master / Other)', type: 'text', required: true, readOnly: (f) => Boolean(f.party) },
       { name: 'category', label: 'Category', type: 'select', options: ['Site Visit', 'Transport', 'Office', 'Labour', 'Misc'] },
       { name: 'particulars', label: 'Particulars', type: 'textarea' },
-      { name: 'project', label: 'Project', type: 'lookup', lookup: 'projects' },
+      { name: 'project', label: 'Project', type: 'project' },
       { name: 'payment_mode', label: 'Payment Mode', type: 'select', options: ACC_PAYMENT_MODES },
       { name: 'amount', label: 'Amount (Rs)', type: 'number', required: true },
       { name: 'status', label: 'Status', type: 'select', options: ['Pending', 'Completed', 'Cancelled'] },
     ],
-    defaults: { voucher_date: '', payee_name: '', category: 'Misc', particulars: '', project: '', payment_mode: 'Cash', amount: '', status: 'Completed' },
+    defaults: { voucher_date: '', party: '', payee_name: '', category: 'Misc', particulars: '', project: '', payment_mode: 'Cash', amount: '', status: 'Completed' },
+    afterLookupChange: (name, v, rows) => {
+      if (name === 'party' && v) {
+        const party = rows.find((r) => String(r.id) === String(v));
+        if (party?.name) return { payee_name: party.name };
+      }
+      return {};
+    },
+    transformBody: (body) => {
+      const out = { ...body };
+      delete out.party;
+      return out;
+    },
     detailRows: [
       ['Expense No', (r) => r.record_no],
       ['Date', (r) => lcFormatDate(r.voucher_date)],
@@ -14965,7 +15110,7 @@ function AccountsCashReceiptPage({ activeSection, onOpenSection, onNotify }) {
     statuses: ['Pending', 'Completed', 'Cancelled'],
     searchKeys: ['reference_no', 'party_name', 'received_from', 'particulars', 'project_ref', 'project_name', 'sync_source'],
     lookups: {
-      parties: { api: accountsModuleApi.parties, label: (a) => a.name },
+      parties: { api: accountsModuleApi.parties, params: { account_type: 'Customer' }, label: (a) => a.name },
       banks: { api: accountsModuleApi.bankAccounts, label: (b) => b.account_name },
       projects: { api: projectApi, label: (p) => `${p.project_id} — ${p.project_name}` },
       staff: { api: userApi, label: (u) => u.name || u.email },
@@ -14993,9 +15138,14 @@ function AccountsCashReceiptPage({ activeSection, onOpenSection, onNotify }) {
     fields: [
       { name: 'reference_no', label: 'Receipt No', type: 'text' },
       { name: 'payment_date', label: 'Date', type: 'date', required: true },
-      { name: 'received_from', label: 'Received From', type: 'text', required: true },
-      { name: 'party', label: 'Customer Account', type: 'lookup', lookup: 'parties' },
-      { name: 'project', label: 'Project', type: 'lookup', lookup: 'projects', required: true },
+      { name: 'party', label: 'Customer Account (master)', type: 'lookup', lookup: 'parties', required: true },
+      {
+        name: 'received_from',
+        label: 'Received From (auto from customer/project)',
+        type: 'text',
+        readOnly: (f) => Boolean(f.party),
+      },
+      { name: 'project', label: 'Project', type: 'project', required: true },
       { name: 'receipt_source', label: 'Receipt Source', type: 'select', options: ['Estimate', 'Invoice', 'Advance', 'Project', 'Other'] },
       { name: 'related_staff', label: 'Handled By', type: 'lookup', lookup: 'staff' },
       { name: 'bank_account', label: 'Deposit To', type: 'lookup', lookup: 'banks' },
@@ -15019,8 +15169,41 @@ function AccountsCashReceiptPage({ activeSection, onOpenSection, onNotify }) {
       if (!form.project && source !== 'other' && source !== 'unallocated') {
         return 'Project is required for customer cash receipts (use receipt source Other for unallocated).';
       }
+      if (!form.party && !(form.received_from || '').trim()) {
+        return 'Select Customer Account from master (or enter Received From for walk-in).';
+      }
       if (!form.amount && form.amount !== 0) return 'Amount is required.';
       return null;
+    },
+    mapItemToForm: (item, f) => ({
+      ...f,
+      received_from: item.received_from || item.party_display || item.party_name || f.received_from || '',
+    }),
+    afterLookupChange: (name, v, rows, form) => {
+      if (name === 'party' && v) {
+        const party = rows.find((r) => String(r.id) === String(v));
+        if (party?.name) {
+          return {
+            received_from: party.name,
+            party_name: party.name,
+          };
+        }
+      }
+      if (name === 'project' && v) {
+        const project = rows.find((r) => String(r.id) === String(v));
+        const cust = project?.customer_name || '';
+        if (cust && !(form?.received_from || '').trim()) {
+          return { received_from: cust, party_name: form?.party_name || cust };
+        }
+      }
+      return {};
+    },
+    transformBody: (body, form) => {
+      const out = { ...body };
+      if (!(out.received_from || '').trim()) {
+        out.received_from = form.received_from || out.party_name || '';
+      }
+      return out;
     },
     detailRows: [
       ['Receipt No', (r) => r.record_no],
@@ -15405,7 +15588,7 @@ function AmcDocumentsCrudPage({ activeSection, onOpenSection, onNotify }) {
 
 // ── Inventory (popup-based module) ────────────────────────────────────────────
 
-const INV_MOVEMENT_REF_TYPES = ['Manual', 'Purchase Invoice', 'Purchase Challan', 'Sell Challan', 'Jobs', 'Opening Stock'];
+const INV_MOVEMENT_REF_TYPES = ['Manual', 'Purchase Invoice', 'Purchase Challan', 'Sell Invoice', 'Sell Challan', 'Jobs', 'Opening Stock'];
 
 function InventoryManagementPage({ activeSection, onOpenSection, onNotify, loggedInUser = null }) {
   const invCommon = {

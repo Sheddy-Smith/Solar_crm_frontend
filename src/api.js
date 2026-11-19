@@ -419,6 +419,12 @@ export const inventoryApi = {
       ).toString();
       return request(`/inventory/movements/analytics/${qs ? '?' + qs : ''}`);
     },
+    reconciliation: (params = {}) => {
+      const qs = new URLSearchParams(
+        Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null))
+      ).toString();
+      return request(`/inventory/movements/reconciliation/${qs ? '?' + qs : ''}`);
+    },
   },
   categories: inventoryCrud('categories'),
   warehouses: inventoryCrud('warehouses'),

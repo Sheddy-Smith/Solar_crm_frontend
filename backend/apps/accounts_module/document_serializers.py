@@ -51,6 +51,23 @@ class PurchaseInvoiceSerializer(serializers.ModelSerializer):
     def get_created_by_name(self, obj):
         return _user_name(obj.created_by)
 
+    def validate(self, attrs):
+        instance = getattr(self, 'instance', None)
+        scope = attrs.get(
+            'procurement_scope',
+            getattr(instance, 'procurement_scope', None) or 'General',
+        )
+        project = attrs.get('project', getattr(instance, 'project', None))
+        if scope == 'Project' and not project:
+            raise serializers.ValidationError({
+                'project': 'Project is required for Project-Specific purchase.',
+            })
+        if scope == 'General':
+            # General stock purchase may still optionally link a project for reference,
+            # but does not require it.
+            pass
+        return attrs
+
     def _save_lines(self, invoice, lines_data):
         for existing in invoice.lines.select_related('stock_movement').all():
             if existing.stock_movement_id:
@@ -115,7 +132,7 @@ class PurchaseInvoiceSerializer(serializers.ModelSerializer):
         model = PurchaseInvoice
         fields = [
             'id', 'record_no', 'invoice_no', 'invoice_date', 'supplier', 'supplier_name', 'supplier_display',
-            'category', 'project', 'project_name', 'payment_mode', 'payment_amount', 'balance_due',
+            'category', 'procurement_scope', 'project', 'project_name', 'payment_mode', 'payment_amount', 'balance_due',
             'gst_type', 'cgst_percent', 'sgst_percent', 'igst_percent',
             'subtotal', 'extra_charges_total', 'gst_amount', 'total_amount',
             'status', 'remarks', 'lines', 'extra_charges',
@@ -126,14 +143,19 @@ class PurchaseInvoiceSerializer(serializers.ModelSerializer):
 
 class SellInvoiceLineSerializer(serializers.ModelSerializer):
     inventory_item_name = serializers.CharField(source='inventory_item.name', read_only=True)
+    warehouse_name = serializers.CharField(source='inventory_item.warehouse.name', read_only=True)
+    stock_movement = serializers.IntegerField(source='stock_movement_id', read_only=True)
+    stock_movement_ref = serializers.CharField(source='stock_movement.reference_no', read_only=True)
 
     class Meta:
         model = SellInvoiceLine
         fields = [
-            'id', 'inventory_item', 'inventory_item_name', 'material_name', 'category',
+            'id', 'inventory_item', 'inventory_item_name', 'warehouse_name',
+            'material_name', 'category',
             'quantity', 'unit', 'rate', 'line_total', 'sort_order',
+            'stock_movement', 'stock_movement_ref',
         ]
-        read_only_fields = ['id', 'line_total']
+        read_only_fields = ['id', 'line_total', 'warehouse_name', 'stock_movement', 'stock_movement_ref']
 
 
 class SellInvoiceSerializer(serializers.ModelSerializer):
@@ -215,7 +237,12 @@ class SellInvoiceSerializer(serializers.ModelSerializer):
             'subtotal', 'gst_amount', 'total_amount', 'status', 'remarks', 'lines', 'source',
             'created_by', 'created_by_name', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['subtotal', 'gst_amount', 'total_amount', 'balance_due', 'source', 'created_by', 'created_at', 'updated_at']
+        read_only_fields = ['subtotal', 'gst_amount', 'total_amount', 'balance_due', 'created_by', 'created_at', 'updated_at']
+
+    def validate_source(self, value):
+        if value and value not in ('Accounts', 'Project'):
+            raise serializers.ValidationError('source must be Accounts or Project.')
+        return value or 'Accounts'
 
 
 class PaymentVoucherSerializer(serializers.ModelSerializer):

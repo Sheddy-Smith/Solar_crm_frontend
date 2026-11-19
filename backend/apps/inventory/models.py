@@ -96,10 +96,15 @@ class StockMovement(models.Model):
         ('Manual', 'Manual'),
         ('Purchase Invoice', 'Purchase Invoice'),
         ('Purchase Challan', 'Purchase Challan'),
+        ('Sell Invoice', 'Sell Invoice'),
         ('Sell Challan', 'Sell Challan'),
         ('Jobs', 'Jobs'),
         ('Opening Stock', 'Opening Stock'),
     ]
+    # Document / dispatch generated movements — not editable via generic StockMovement API.
+    SOURCE_PROTECTED_REFERENCE_TYPES = frozenset({
+        'Purchase Invoice', 'Purchase Challan', 'Sell Invoice', 'Sell Challan', 'Jobs',
+    })
 
     item = models.ForeignKey(InventoryItem, on_delete=models.CASCADE, related_name='movements')
     movement_type = models.CharField(max_length=20, choices=TYPE_CHOICES)
@@ -119,12 +124,22 @@ class StockMovement(models.Model):
         blank=True,
         related_name='incoming',
     )
+    project = models.ForeignKey(
+        'projects.Project',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='stock_movements',
+    )
     reference_type = models.CharField(max_length=30, choices=REFERENCE_TYPE_CHOICES, default='Manual', blank=True)
     reference_no = models.CharField(max_length=100, blank=True)
     reference = models.CharField(max_length=100, blank=True)
     notes = models.TextField(blank=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def is_source_protected(self):
+        return (self.reference_type or '') in self.SOURCE_PROTECTED_REFERENCE_TYPES
 
     @staticmethod
     def _stock_delta(movement_type, quantity, to_warehouse_id=None, from_warehouse_id=None):

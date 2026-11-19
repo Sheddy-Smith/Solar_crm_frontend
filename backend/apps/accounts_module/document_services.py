@@ -167,21 +167,66 @@ def gst_split_for_invoice(invoice):
     return {'igst': 0.0, 'cgst': float(cgst), 'sgst': float(sgst)}
 
 
-def _resolve_inventory_item(line):
-    """Match line to inventory master by FK or material name (legacy MD flow)."""
-    from apps.inventory.models import InventoryItem
+# Explicit non-stock / service lines — never create StockMovement.
+NON_STOCK_CATEGORIES = frozenset({
+    'service', 'labour', 'labor', 'installation', 'freight', 'transport',
+    'charge', 'charges', 'non-stock', 'nonstock', 'fee', 'fees', 'amc',
+    'warranty', 'subsidy', 'gst', 'tax', 'rounding',
+})
 
+
+def is_non_stock_line(line) -> bool:
+    cat = (getattr(line, 'category', None) or '').strip().lower()
+    if cat in NON_STOCK_CATEGORIES:
+        return True
+    # Explicit null inventory + empty/service-ish name without product intent.
+    if getattr(line, 'inventory_item_id', None):
+        return False
+    return False
+
+
+def _resolve_inventory_item(line):
+    """Resolve inventory master by explicit FK only (no fuzzy name match).
+
+    Ambiguous icontains matching caused wrong item binding. Physical product
+    lines must send inventory_item from the form/API.
+    """
     if line.inventory_item_id:
         return line.inventory_item
+    return None
 
-    name = (line.material_name or '').strip()
-    if not name:
-        return None
 
-    exact = InventoryItem.objects.filter(is_active=True, name__iexact=name).first()
-    if exact:
-        return exact
-    return InventoryItem.objects.filter(is_active=True, name__icontains=name).order_by('id').first()
+def validate_document_lines_for_stock(lines, *, document_label='Document'):
+    """Raise ValidationError for physical lines missing inventory_item / warehouse."""
+    from django.core.exceptions import ValidationError
+    from apps.inventory.models import Warehouse
+
+    errors = []
+    default_wh = Warehouse.objects.filter(is_active=True).order_by('id').first()
+    for idx, line in enumerate(lines, start=1):
+        if is_non_stock_line(line):
+            continue
+        # Product line: must have inventory_item when material_name present or qty>0
+        name = (getattr(line, 'material_name', None) or '').strip()
+        if not name and not getattr(line, 'inventory_item_id', None):
+            continue
+        item = _resolve_inventory_item(line)
+        if not item:
+            errors.append(
+                f'{document_label} line {idx} ({name or "unnamed"}): '
+                'select a valid Inventory Item for physical products '
+                '(or set category to Service/Labour for non-stock).'
+            )
+            continue
+        if not item.is_active:
+            errors.append(f'{document_label} line {idx}: Inventory Item is inactive.')
+        warehouse = item.warehouse or default_wh
+        if warehouse is None:
+            errors.append(
+                f'{document_label} line {idx}: no warehouse on item and no active warehouse in CRM.'
+            )
+    if errors:
+        raise ValidationError({'lines': errors})
 
 
 def _clear_line_movement(line):
@@ -206,126 +251,55 @@ def _apply_received_item_rate(item, rate):
 @transaction.atomic
 def sync_inventory_for_purchase_challan(challan, user=None):
     """Purchase Challan Received → StockMovement IN + inventory_items.current_stock (MD §4.2)."""
-    from apps.inventory.models import StockMovement, Warehouse
-
     ref_no = challan.challan_no or f'PC-{challan.id:04d}'
-    default_warehouse = Warehouse.objects.filter(is_active=True).order_by('id').first()
+    lines = list(challan.lines.select_related('inventory_item', 'stock_movement').all())
 
     if challan.status != 'Received':
-        for line in challan.lines.filter(stock_movement__isnull=False).select_related('stock_movement'):
-            _clear_line_movement(line)
+        for line in lines:
+            if line.stock_movement_id:
+                _clear_line_movement(line)
         return
 
-    for line in challan.lines.select_related('inventory_item', 'stock_movement').all():
+    validate_document_lines_for_stock(lines, document_label='Purchase Challan')
+    for line in lines:
+        _sync_document_line_stock(
+            line,
+            movement_type='Inward',
+            reference_type='Purchase Challan',
+            ref_no=ref_no,
+            notes_prefix=f'Purchase challan {ref_no}',
+            user=user,
+            project=challan.project,
+        )
         item = _resolve_inventory_item(line)
-        if not item:
-            _clear_line_movement(line)
-            continue
-
-        if not line.inventory_item_id:
-            line.inventory_item = item
-            line.save(update_fields=['inventory_item'])
-
-        warehouse = item.warehouse or default_warehouse
-        if warehouse is None:
-            continue
-
-        notes = f'Purchase challan {ref_no} — {line.material_name}'
-
-        if line.stock_movement_id:
-            movement = line.stock_movement
-            movement.item = item
-            movement.quantity = line.quantity
-            movement.rate = line.rate
-            movement.movement_type = 'Inward'
-            movement.to_warehouse = warehouse
-            movement.from_warehouse = None
-            movement.reference_type = 'Purchase Challan'
-            movement.reference_no = ref_no
-            movement.reference = ref_no
-            movement.notes = notes
-            if user and not movement.created_by_id:
-                movement.created_by = user
-            movement.save()
-        else:
-            movement = StockMovement.objects.create(
-                item=item,
-                movement_type='Inward',
-                quantity=line.quantity,
-                rate=line.rate,
-                to_warehouse=warehouse,
-                reference_type='Purchase Challan',
-                reference_no=ref_no,
-                reference=ref_no,
-                notes=notes,
-                created_by=user,
-            )
-            line.stock_movement = movement
-            line.save(update_fields=['stock_movement'])
-
-        _apply_received_item_rate(item, line.rate)
+        if item:
+            _apply_received_item_rate(item, line.rate)
 
 
 @transaction.atomic
 def sync_inventory_for_sell_challan(challan, user=None):
     """Sell Challan Dispatched/Delivered → StockMovement OUT (MD §4.3)."""
-    from apps.inventory.models import StockMovement, Warehouse
-
     ref_no = challan.challan_no or f'SC-{challan.id:04d}'
-    default_warehouse = Warehouse.objects.filter(is_active=True).order_by('id').first()
-    active_statuses = {'Dispatched', 'Delivered'}
+    active = challan.status in {'Dispatched', 'Delivered'} and challan.source != 'Project'
+    lines = list(challan.lines.select_related('inventory_item', 'stock_movement').all())
 
-    if challan.status not in active_statuses or challan.source == 'Project':
-        for line in challan.lines.filter(stock_movement__isnull=False).select_related('stock_movement'):
-            _clear_line_movement(line)
+    if not active:
+        for line in lines:
+            if line.stock_movement_id:
+                _clear_line_movement(line)
         return
 
-    for line in challan.lines.select_related('inventory_item', 'stock_movement').all():
-        item = _resolve_inventory_item(line)
-        if not item:
-            _clear_line_movement(line)
-            continue
-
-        if not line.inventory_item_id:
-            line.inventory_item = item
-            line.save(update_fields=['inventory_item'])
-
-        warehouse = item.warehouse or default_warehouse
-        if warehouse is None:
-            continue
-
-        notes = f'Sell challan {ref_no} — {line.material_name}'
-
-        if line.stock_movement_id:
-            movement = line.stock_movement
-            movement.item = item
-            movement.quantity = line.quantity
-            movement.rate = line.rate or item.rate or 0
-            movement.movement_type = 'Outward'
-            movement.from_warehouse = warehouse
-            movement.to_warehouse = None
-            movement.reference_type = 'Sell Challan'
-            movement.reference_no = ref_no
-            movement.reference = ref_no
-            movement.notes = notes
-            if user and not movement.created_by_id:
-                movement.created_by = user
-            movement.save()
-        else:
-            movement = StockMovement.objects.create(
-                item=item,
-                movement_type='Outward',
-                quantity=line.quantity,
-                rate=line.rate or item.rate or 0,
-                from_warehouse=warehouse,
-                reference_type='Sell Challan',
-                reference_no=ref_no,
-                reference=ref_no,
-                notes=notes,
-                created_by=user,
-            )
-            line.stock_movement = movement
-            line.save(update_fields=['stock_movement'])
+    validate_document_lines_for_stock(lines, document_label='Sell Challan')
+    for line in lines:
+        _sync_document_line_stock(
+            line,
+            movement_type='Outward',
+            reference_type='Sell Challan',
+            ref_no=ref_no,
+            notes_prefix=f'Sell challan {ref_no}',
+            user=user,
+            project=challan.project,
+        )
 
 
 def remove_purchase_challan_stock(challan):
@@ -339,12 +313,20 @@ def remove_sell_challan_stock(challan):
         _clear_line_movement(line)
 
 
-def _sync_document_line_stock(line, *, movement_type, reference_type, ref_no, notes_prefix, user=None):
+def _sync_document_line_stock(
+    line, *, movement_type, reference_type, ref_no, notes_prefix, user=None, project=None,
+):
     """Shared IN/OUT sync for invoice/challan lines linked to inventory_item."""
+    from django.core.exceptions import ValidationError
     from apps.inventory.models import StockMovement, Warehouse
+
+    if is_non_stock_line(line):
+        _clear_line_movement(line)
+        return
 
     item = _resolve_inventory_item(line)
     if not item:
+        # Physical product without item — caller should have validated; clear stale link.
         _clear_line_movement(line)
         return
 
@@ -354,10 +336,16 @@ def _sync_document_line_stock(line, *, movement_type, reference_type, ref_no, no
 
     warehouse = item.warehouse or Warehouse.objects.filter(is_active=True).order_by('id').first()
     if warehouse is None:
-        return
+        raise ValidationError(
+            f'No warehouse available for inventory item "{item.name}" '
+            f'({reference_type} {ref_no}).'
+        )
 
     notes = f'{notes_prefix} — {line.material_name}'
     inward = movement_type == 'Inward'
+    project_id = None
+    if project is not None:
+        project_id = project.pk if hasattr(project, 'pk') else project
 
     if line.stock_movement_id:
         movement = line.stock_movement
@@ -367,6 +355,7 @@ def _sync_document_line_stock(line, *, movement_type, reference_type, ref_no, no
         movement.movement_type = movement_type
         movement.from_warehouse = None if inward else warehouse
         movement.to_warehouse = warehouse if inward else None
+        movement.project_id = project_id
         movement.reference_type = reference_type
         movement.reference_no = ref_no
         movement.reference = ref_no
@@ -382,6 +371,7 @@ def _sync_document_line_stock(line, *, movement_type, reference_type, ref_no, no
             rate=line.rate or item.rate or 0,
             from_warehouse=None if inward else warehouse,
             to_warehouse=warehouse if inward else None,
+            project_id=project_id,
             reference_type=reference_type,
             reference_no=ref_no,
             reference=ref_no,
@@ -400,13 +390,16 @@ def sync_inventory_for_purchase_invoice(invoice, user=None):
     """Purchase Invoice Recorded/Paid → Stock IN (MD §5.1)."""
     ref_no = invoice.invoice_no or f'PI-{invoice.id:04d}'
     active = invoice.status in {'Recorded', 'Paid'}
+    lines = list(invoice.lines.select_related('inventory_item', 'stock_movement').all())
 
     if not active:
-        for line in invoice.lines.filter(stock_movement__isnull=False).select_related('stock_movement'):
-            _clear_line_movement(line)
+        for line in lines:
+            if line.stock_movement_id:
+                _clear_line_movement(line)
         return
 
-    for line in invoice.lines.select_related('inventory_item', 'stock_movement').all():
+    validate_document_lines_for_stock(lines, document_label='Purchase Invoice')
+    for line in lines:
         _sync_document_line_stock(
             line,
             movement_type='Inward',
@@ -414,21 +407,75 @@ def sync_inventory_for_purchase_invoice(invoice, user=None):
             ref_no=ref_no,
             notes_prefix=f'Purchase invoice {ref_no}',
             user=user,
+            project=invoice.project if getattr(invoice, 'procurement_scope', 'General') == 'Project' else None,
         )
+
+
+def _project_has_jobs_out_for_item(project_id, item_id) -> bool:
+    """True when Material Dispatch already created Jobs Stock OUT for project+item."""
+    from apps.inventory.models import StockMovement
+
+    if not project_id or not item_id:
+        return False
+    return StockMovement.objects.filter(
+        project_id=project_id,
+        item_id=item_id,
+        reference_type='Jobs',
+        movement_type='Outward',
+    ).exists()
+
+
+def guard_accounts_sell_against_dispatch_double_out(invoice, lines):
+    """Block Accounts-source Sell Stock OUT when Jobs dispatch already OUT the same item.
+
+    Project-source Sell invoices skip stock entirely (billing only). Accounts-source
+    Sell that also OUT warehouse stock would double-reduce inventory after Material Dispatch.
+    """
+    from django.core.exceptions import ValidationError
+
+    if getattr(invoice, 'source', None) == 'Project':
+        return
+    project_id = getattr(invoice, 'project_id', None)
+    if not project_id:
+        return
+    conflicts = []
+    for idx, line in enumerate(lines, start=1):
+        if is_non_stock_line(line):
+            continue
+        item = _resolve_inventory_item(line)
+        if not item:
+            continue
+        if _project_has_jobs_out_for_item(project_id, item.id):
+            conflicts.append(
+                f'line {idx} ({item.name}): already dispatched via Jobs Stock OUT'
+            )
+    if conflicts:
+        raise ValidationError({
+            'lines': (
+                'Double Stock OUT blocked: this project already has Material Dispatch '
+                '(Jobs) for the same inventory item(s). Use Sell Invoice source=Project '
+                'for billing-only (no warehouse OUT), or reverse the dispatch first. '
+                + '; '.join(conflicts)
+            ),
+        })
 
 
 @transaction.atomic
 def sync_inventory_for_sell_invoice(invoice, user=None):
-    """Sell Invoice Issued/Paid → Stock OUT (MD §5.3)."""
+    """Sell Invoice Issued/Paid → Stock OUT (MD §5.3). Project-source skips (dispatch owns OUT)."""
     ref_no = invoice.invoice_no or f'SI-{invoice.id:04d}'
     active = invoice.status in {'Issued', 'Paid'} and invoice.source != 'Project'
+    lines = list(invoice.lines.select_related('inventory_item', 'stock_movement').all())
 
     if not active:
-        for line in invoice.lines.filter(stock_movement__isnull=False).select_related('stock_movement'):
-            _clear_line_movement(line)
+        for line in lines:
+            if line.stock_movement_id:
+                _clear_line_movement(line)
         return
 
-    for line in invoice.lines.select_related('inventory_item', 'stock_movement').all():
+    validate_document_lines_for_stock(lines, document_label='Sell Invoice')
+    guard_accounts_sell_against_dispatch_double_out(invoice, lines)
+    for line in lines:
         _sync_document_line_stock(
             line,
             movement_type='Outward',
@@ -436,6 +483,7 @@ def sync_inventory_for_sell_invoice(invoice, user=None):
             ref_no=ref_no,
             notes_prefix=f'Sell invoice {ref_no}',
             user=user,
+            project=invoice.project,
         )
 
 

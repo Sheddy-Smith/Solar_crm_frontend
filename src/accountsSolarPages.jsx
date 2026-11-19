@@ -5,7 +5,7 @@ import Button from './components/ui/Button.jsx';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
-import { accountsModuleApi, projectApi, inventoryApi } from './api.js';
+import { accountsModuleApi, projectApi, inventoryApi, materialPlanApi } from './api.js';
 import { fetchEveryPage } from './lib/listQuery.js';
 import ProjectSearchSelect from './components/ProjectSearchSelect.jsx';
 import { InvoicePaymentHistoryPanel } from './components/InvoicePaymentAllocationPanel.jsx';
@@ -145,13 +145,42 @@ function LineItemsEditor({ lines, onChange, showCategory = true, linkInventory =
                         {inventoryItems.map((item) => (
                           <option key={item.id} value={item.id}>
                             {item.name} · Stock {item.current_stock} {item.unit}
+                            {item.warehouse_name || item.warehouse ? ` · WH ${item.warehouse_name || item.warehouse}` : ''}
                           </option>
                         ))}
                       </select>
+                      {line.inventory_item ? (
+                        <p className="mt-1 text-[10px] font-semibold text-[#7b8ca8]">
+                          Warehouse: {
+                            (() => {
+                              const item = inventoryItems.find((inv) => String(inv.id) === String(line.inventory_item));
+                              return item?.warehouse_name || item?.warehouse || 'From item master';
+                            })()
+                          }
+                        </p>
+                      ) : null}
                     </td>
                   ) : null}
-                  <td className="px-2 py-2"><input className={inputClass} value={line.material_name} onChange={(e) => updateLine(idx, 'material_name', e.target.value)} placeholder="Panel / Inverter / Cable" /></td>
-                  {showCategory ? <td className="px-2 py-2"><input className={inputClass} value={line.category} onChange={(e) => updateLine(idx, 'category', e.target.value)} placeholder="Solar / O&M" /></td> : null}
+                  <td className="px-2 py-2">
+                    <input
+                      className={inputClass}
+                      value={line.material_name}
+                      readOnly={Boolean(line.inventory_item)}
+                      onChange={(e) => updateLine(idx, 'material_name', e.target.value)}
+                      placeholder={line.inventory_item ? 'From inventory item' : 'Panel / Inverter / Cable'}
+                    />
+                  </td>
+                  {showCategory ? (
+                    <td className="px-2 py-2">
+                      <select className={inputClass} value={line.category || ''} onChange={(e) => updateLine(idx, 'category', e.target.value)}>
+                        <option value="">Product</option>
+                        <option value="Service">Service</option>
+                        <option value="Labour">Labour</option>
+                        <option value="Freight">Freight</option>
+                        <option value="Charge">Charge</option>
+                      </select>
+                    </td>
+                  ) : null}
                   <td className="px-2 py-2 w-20"><input className={inputClass} type="number" value={line.quantity} onChange={(e) => updateLine(idx, 'quantity', e.target.value)} /></td>
                   <td className="px-2 py-2 w-24">
                     <select className={inputClass} value={line.unit} onChange={(e) => updateLine(idx, 'unit', e.target.value)}>
@@ -228,6 +257,7 @@ export function AccountsLineDocumentPage({
   extraHeaderFields = [],
   requireProject = false,
   partyAccountType = null,
+  warnDispatchDoubleOut = false,
   caps: capsProp = null,
   loggedInUser = null,
 }) {
@@ -244,6 +274,7 @@ export function AccountsLineDocumentPage({
   const [viewItem, setViewItem] = useState(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({});
+  const [dispatchWarning, setDispatchWarning] = useState('');
 
   const loadRows = useCallback(() => {
     setLoading(true);
@@ -272,6 +303,39 @@ export function AccountsLineDocumentPage({
         .catch(() => setInventoryItems([]));
     }
   }, [linkInventory, partyAccountType]);
+
+  // Phase C: warn when Accounts Sell would Stock OUT items already dispatched (Jobs) for the project.
+  useEffect(() => {
+    if (!warnDispatchDoubleOut || !form.project || modal !== 'edit') {
+      setDispatchWarning('');
+      return undefined;
+    }
+    let cancelled = false;
+    materialPlanApi.list({ project: form.project, page_size: 100 })
+      .then((data) => {
+        if (cancelled) return;
+        const plans = normalizeApiRows(data).filter((p) => {
+          const qty = Number(p.dispatched_qty || 0);
+          return qty > 0 || String(p.dispatch_status || '').toLowerCase() === 'dispatched';
+        });
+        if (!plans.length) {
+          setDispatchWarning('');
+          return;
+        }
+        const names = plans
+          .map((p) => p.inventory_item_name || p.items || p.category || 'material')
+          .slice(0, 5)
+          .join(', ');
+        setDispatchWarning(
+          `This project already has Material Dispatch (${plans.length} line${plans.length > 1 ? 's' : ''}: ${names}). `
+          + 'Accounts Sell Invoice Stock OUT would double-reduce warehouse. Use source=Project for billing-only, or omit already-dispatched products.',
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setDispatchWarning('');
+      });
+    return () => { cancelled = true; };
+  }, [warnDispatchDoubleOut, form.project, modal]);
 
   const filtered = useMemo(() => {
     let next = rows;
@@ -379,6 +443,24 @@ export function AccountsLineDocumentPage({
     if (requireProject && !form.project) {
       onNotify('Project is required for this document.', 'error');
       return;
+    }
+    if (form.procurement_scope === 'Project' && !form.project) {
+      onNotify('Project is required for Project-Specific purchase.', 'error');
+      return;
+    }
+    const NON_STOCK = new Set(['service', 'labour', 'labor', 'installation', 'freight', 'charge', 'non-stock', 'nonstock']);
+    if (linkInventory) {
+      const bad = (form.lines || []).find((l) => {
+        const name = (l.material_name || '').trim();
+        if (!name) return false;
+        const cat = String(l.category || '').trim().toLowerCase();
+        if (NON_STOCK.has(cat)) return false;
+        return !l.inventory_item;
+      });
+      if (bad) {
+        onNotify('Physical product lines require an Inventory Item from the dropdown (or set category to Service).', 'error');
+        return;
+      }
     }
     setSaving(true);
     const payload = buildPayload(form);
@@ -588,13 +670,36 @@ export function AccountsLineDocumentPage({
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <Field label="Date"><input type="date" className={inputClass} value={form[dateField] || ''} onChange={(e) => setForm((f) => ({ ...f, [dateField]: e.target.value }))} /></Field>
             <Field label={partyConfig.label}>
-              <select className={inputClass} value={form[partyConfig.key] || ''} onChange={(e) => setForm((f) => ({ ...f, [partyConfig.key]: e.target.value }))}>
+              <select
+                className={inputClass}
+                value={form[partyConfig.key] || ''}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  const party = parties.find((p) => String(p.id) === String(id));
+                  setForm((f) => ({
+                    ...f,
+                    [partyConfig.key]: id,
+                    [partyConfig.nameKey]: party?.name || f[partyConfig.nameKey] || '',
+                    ...(party?.gstin || party?.gst_number
+                      ? { gst_number: f.gst_number || party.gstin || party.gst_number || '' }
+                      : {}),
+                  }));
+                }}
+              >
                 <option value="">Select party</option>
                 {parties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </Field>
-            <Field label={`Or ${partyConfig.label} Name`}><input className={inputClass} value={form[partyConfig.nameKey] || ''} onChange={(e) => setForm((f) => ({ ...f, [partyConfig.nameKey]: e.target.value }))} /></Field>
-            <Field label={requireProject ? 'Project *' : 'Project'}>
+            <Field label={`${partyConfig.label} Name (from master)`}>
+              <input
+                className={inputClass}
+                value={form[partyConfig.nameKey] || ''}
+                readOnly={Boolean(form[partyConfig.key])}
+                onChange={(e) => setForm((f) => ({ ...f, [partyConfig.nameKey]: e.target.value }))}
+                placeholder={form[partyConfig.key] ? 'Filled from selected party' : 'Only if party not in master'}
+              />
+            </Field>
+            <Field label={requireProject || form.procurement_scope === 'Project' ? 'Project *' : 'Project'}>
               <ProjectSearchSelect
                 value={form.project || ''}
                 onChange={(v) => {
@@ -602,15 +707,17 @@ export function AccountsLineDocumentPage({
                   setForm((f) => ({
                     ...f,
                     project: v || '',
-                    // Prefer project customer name when linking a customer-facing document.
                     ...(project && partyConfig.nameKey === 'party_name' && project.customer_name
                       ? { [partyConfig.nameKey]: f[partyConfig.nameKey] || project.customer_name }
                       : {}),
+                    ...(project?.site_address && hasSiteAddress
+                      ? { site_address: f.site_address || project.site_address }
+                      : {}),
                   }));
                 }}
-                required={requireProject}
-                allowClear={!requireProject}
-                placeholder={requireProject ? 'Select project (required)' : 'Link project (optional)'}
+                required={requireProject || form.procurement_scope === 'Project'}
+                allowClear={!requireProject && form.procurement_scope !== 'Project'}
+                placeholder={requireProject || form.procurement_scope === 'Project' ? 'Select project (required)' : 'Link project (optional)'}
                 triggerClassName={`${inputClass} flex items-center justify-between gap-2 text-left`}
               />
             </Field>
@@ -667,6 +774,9 @@ export function AccountsLineDocumentPage({
             {stockSyncHint ? (
               <p className="rounded-[8px] border border-[#cfe8d6] bg-[#f1fff5] px-3 py-2 text-[12px] font-semibold text-[#078c3e]">{stockSyncHint}</p>
             ) : null}
+            {dispatchWarning ? (
+              <p className="rounded-[8px] border border-[#f5d0a9] bg-[#fff8ef] px-3 py-2 text-[12px] font-semibold text-[#9a5b00]">{dispatchWarning}</p>
+            ) : null}
             <LineItemsEditor
               lines={form.lines || []}
               onChange={(lines) => setForm((f) => ({ ...f, lines }))}
@@ -690,20 +800,32 @@ export function AccountsLineDocumentPage({
             <p><span className="font-bold text-[#7b8ca8]">Date:</span> {fmtDate(viewItem[dateField])}</p>
             <p><span className="font-bold text-[#7b8ca8]">{partyConfig.label}:</span> {viewItem[partyConfig.displayKey]}</p>
             <p><span className="font-bold text-[#7b8ca8]">Project:</span> {viewItem.project_name || '—'}</p>
+            {viewItem.source ? <p><span className="font-bold text-[#7b8ca8]">Source:</span> {viewItem.source}</p> : null}
             <p><span className="font-bold text-[#7b8ca8]">Total:</span> {fmtRs(viewItem.total_amount)}</p>
             <p><span className="font-bold text-[#7b8ca8]">Status:</span> <StatusBadge status={viewItem.status} /></p>
           </div>
           {(viewItem.lines || []).length > 0 ? (
             <div className="mt-4 overflow-x-auto rounded-[10px] border border-[#e5eaf2]">
               <table className="min-w-full text-left text-[12px]">
-                <thead className="bg-[#f8fbff] font-extrabold text-[#7b8ca8]"><tr><th className="px-3 py-2">Item</th><th className="px-3 py-2">Qty</th><th className="px-3 py-2">Rate</th><th className="px-3 py-2">Total</th></tr></thead>
+                <thead className="bg-[#f8fbff] font-extrabold text-[#7b8ca8]">
+                  <tr>
+                    <th className="px-3 py-2">Item</th>
+                    <th className="px-3 py-2">Warehouse</th>
+                    <th className="px-3 py-2">Qty</th>
+                    <th className="px-3 py-2">Rate</th>
+                    <th className="px-3 py-2">Total</th>
+                    <th className="px-3 py-2">Stock Mov.</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {viewItem.lines.map((l) => (
                     <tr key={l.id} className="border-t border-[#eef2f7]">
                       <td className="px-3 py-2">{l.material_name}</td>
+                      <td className="px-3 py-2">{l.warehouse_name || '—'}</td>
                       <td className="px-3 py-2">{l.quantity} {l.unit}</td>
                       <td className="px-3 py-2">{fmtRs(l.rate)}</td>
                       <td className="px-3 py-2 font-extrabold">{fmtRs(l.line_total)}</td>
+                      <td className="px-3 py-2">{l.stock_movement_ref || (l.stock_movement ? `#${l.stock_movement}` : '—')}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -741,7 +863,16 @@ export function PurchaseInvoicePage(props) {
       hasExtraCharges
       linkInventory
       stockSyncHint="GST bill. On status Recorded/Paid: stock IN + Supplier ledger + journal. The account type must be Supplier."
-      extraHeaderFields={[{ name: 'category', label: 'Category', default: '' }]}
+      extraHeaderFields={[
+        {
+          name: 'procurement_scope',
+          label: 'Procurement Scope',
+          type: 'select',
+          options: ['General', 'Project'],
+          default: 'General',
+        },
+        { name: 'category', label: 'Category', default: '' },
+      ]}
     />
   );
 }
@@ -756,12 +887,20 @@ export function SellInvoicePage(props) {
       partyConfig={{ key: 'party', nameKey: 'party_name', displayKey: 'party_display', label: 'Customer' }}
       partyAccountType="Customer"
       requireProject
+      warnDispatchDoubleOut
       dateField="invoice_date"
       statuses={['Pending', 'Issued', 'Paid', 'Cancelled']}
       hasGst
       linkInventory
-      stockSyncHint="GST bill. On status Issued/Paid: stock OUT + Customer ledger + journal. Project is mandatory for customer billing."
+      stockSyncHint="GST bill. On status Issued/Paid: stock OUT + Customer ledger + journal. Project is mandatory for customer billing. If material was already dispatched, use Project source (billing only)."
       extraHeaderFields={[
+        {
+          name: 'source',
+          label: 'Billing Source',
+          type: 'select',
+          options: ['Accounts', 'Project'],
+          default: 'Accounts',
+        },
         { name: 'gst_number', label: 'GST No', default: '' },
         { name: 'branch', label: 'Branch', default: '' },
       ]}

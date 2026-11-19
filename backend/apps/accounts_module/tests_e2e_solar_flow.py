@@ -368,7 +368,9 @@ class SolarE2EFlowTests(TestCase):
         self.assertEqual(pnl['billing']['revenue_from_sell_invoices'], 160000.0)
         self.assertEqual(pnl['billing']['collected_from_customer'], 50000.0)
         self.assertEqual(pnl['billing']['outstanding_receivable'], 110000.0)
-        self.assertEqual(pnl['actual_profit'], 60000.0)  # 160k − 100k material
+        self.assertEqual(pnl['costs']['other_expenses'], 5000.0)  # project Transport voucher
+        # 160k revenue − 100k material − 5k other expenses
+        self.assertEqual(pnl['actual_profit'], 55000.0)
         self.assertEqual(pnl['costs']['labour_cost'], 0.0)  # employee voucher not project-linked
 
         # Stock history: +10 purchase, -10 dispatch = 0

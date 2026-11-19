@@ -13,20 +13,9 @@ def _parse_qty(value):
 
 
 def resolve_inventory_item(plan):
-    from .models import InventoryItem
-
+    """Resolve inventory by explicit MaterialPlan.inventory_item FK only (no fuzzy name match)."""
     if plan.inventory_item_id:
         return plan.inventory_item
-
-    name = (plan.items or '').strip()
-    if name:
-        exact = InventoryItem.objects.filter(is_active=True, name__iexact=name).first()
-        if exact:
-            return exact
-        partial = InventoryItem.objects.filter(is_active=True, name__icontains=name).order_by('id').first()
-        if partial:
-            return partial
-
     return None
 
 
@@ -34,7 +23,7 @@ def resolve_inventory_item(plan):
 def sync_inventory_for_material_dispatch(plan, user=None):
     """
     Keep a single Outward StockMovement in sync with plan.dispatched_qty.
-    Returns a small status dict (never raises for missing item — only for stock rules).
+    Physical dispatch requires inventory_item FK — raises ValidationError when qty > 0 and unmapped.
     """
     from .models import StockMovement, Warehouse
     from apps.projects.models import MaterialPlan
@@ -48,10 +37,21 @@ def sync_inventory_for_material_dispatch(plan, user=None):
             MaterialPlan.objects.filter(pk=plan.pk).update(stock_movement=None)
             plan.stock_movement = None
             movement.delete()
+        if qty > 0:
+            raise ValidationError({
+                'inventory_item': (
+                    'Material Dispatch requires an Inventory Item from master before Stock OUT. '
+                    'Select inventory_item on the material plan line.'
+                ),
+            })
         return {'synced': False, 'reason': 'no_inventory_item'}
 
     warehouse = item.warehouse or Warehouse.objects.filter(is_active=True).order_by('id').first()
     if warehouse is None:
+        if qty > 0:
+            raise ValidationError({
+                'warehouse': f'No warehouse available for inventory item "{item.name}".',
+            })
         return {'synced': False, 'reason': 'no_warehouse'}
 
     project = plan.project
@@ -74,6 +74,7 @@ def sync_inventory_for_material_dispatch(plan, user=None):
         return {'synced': True, 'cleared': True}
 
     try:
+        project_obj = getattr(plan, 'project', None)
         if plan.stock_movement_id:
             movement = plan.stock_movement
             movement.item = item
@@ -86,6 +87,7 @@ def sync_inventory_for_material_dispatch(plan, user=None):
             movement.reference_no = ref_no
             movement.reference = project_ref
             movement.notes = notes
+            movement.project = project_obj
             if user and not movement.created_by_id:
                 movement.created_by = user
             movement.save()
@@ -104,6 +106,7 @@ def sync_inventory_for_material_dispatch(plan, user=None):
             reference=project_ref,
             notes=notes,
             created_by=user,
+            project=project_obj,
         )
         movement.save()
         MaterialPlan.objects.filter(pk=plan.pk).update(

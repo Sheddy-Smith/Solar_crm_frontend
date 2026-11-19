@@ -26,6 +26,8 @@ export default function ProjectSearchSelect({
   triggerClassName = '',
   className = '',
   allowClear = true,
+  /** Optional customer/party name — client-filters loaded projects by customer_name. */
+  customerFilter = '',
 }) {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -61,7 +63,11 @@ export default function ProjectSearchSelect({
   }, [load]);
 
   const options = useMemo(() => {
-    const rows = projects.map((p) => ({
+    const needle = String(customerFilter || '').trim().toLowerCase();
+    const filtered = needle
+      ? projects.filter((p) => String(p.customer_name || '').toLowerCase().includes(needle))
+      : projects;
+    const rows = filtered.map((p) => ({
       value: String(p.id),
       label: projectLabel(p),
       raw: p,
@@ -70,7 +76,7 @@ export default function ProjectSearchSelect({
       return [{ value: '', label: placeholder || 'No project' }, ...rows];
     }
     return rows;
-  }, [projects, allowClear, placeholder]);
+  }, [projects, allowClear, placeholder, customerFilter]);
 
   // Keep selected project visible even if not in loaded list yet (edit race).
   const optionsWithSelected = useMemo(() => {

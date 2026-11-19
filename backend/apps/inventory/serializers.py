@@ -164,6 +164,15 @@ class StockMovementSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 'detail': 'Select at least one warehouse (from or to) for adjustment.',
             })
+        ref = attrs.get(
+            'reference_type',
+            self.instance.reference_type if self.instance else 'Manual',
+        ) or 'Manual'
+        notes = attrs.get('notes', self.instance.notes if self.instance else '')
+        if ref == 'Manual' and not (notes or '').strip():
+            raise serializers.ValidationError({
+                'notes': 'Reason is required for Manual stock adjustments.',
+            })
         return attrs
 
     class Meta:

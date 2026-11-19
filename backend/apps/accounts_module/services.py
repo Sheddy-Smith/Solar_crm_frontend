@@ -674,7 +674,12 @@ def delete_payment_voucher_with_employee_voucher(voucher):
 
 
 def sync_project_payment_to_accounts(project_payment, user):
-    """Create or update Accounts Payment from a ProjectPayment."""
+    """Create or update Accounts Payment from a ProjectPayment.
+
+    After cash journal sync, FIFO-allocate remaining unallocated amount to
+    outstanding Sell Invoices for the same Customer/Project via InvoicePaymentAllocation
+    (settlement only — no second cash journal).
+    """
     from .invoice_payment_allocation import assert_payment_amount_covers_allocations
 
     project = project_payment.project
@@ -703,7 +708,46 @@ def sync_project_payment_to_accounts(project_payment, user):
         },
     )
     after_payment_saved(payment)
+    _fifo_allocate_project_payment(payment, user=user)
     return payment
+
+
+def _fifo_allocate_project_payment(payment, user=None):
+    """Idempotent FIFO InvoicePaymentAllocation for remaining payment available amount."""
+    from decimal import Decimal
+    from .invoice_payment_allocation import (
+        allocate_payment_to_invoice,
+        payment_available_amount,
+        outstanding_invoices_for_receipt,
+    )
+
+    if payment.status != 'Completed' or payment.direction != 'Received':
+        return
+    if not payment.party_id:
+        return
+    available = payment_available_amount(payment)
+    if available <= 0:
+        return
+    eligible = outstanding_invoices_for_receipt(
+        party_id=payment.party_id,
+        project_id=payment.project_id,
+    )
+    remaining = available
+    for row in eligible:
+        if remaining <= 0:
+            break
+        outstanding = Decimal(str(row['outstanding']))
+        if outstanding <= 0:
+            continue
+        take = min(remaining, outstanding)
+        allocate_payment_to_invoice(
+            payment_id=payment.id,
+            invoice_id=row['id'],
+            allocated_amount=take,
+            user=user,
+            notes='Auto-allocated from Project Payment sync',
+        )
+        remaining -= take
 
 
 def remove_accounts_payment_for_project_payment(project_payment):

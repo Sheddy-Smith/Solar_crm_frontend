@@ -4,7 +4,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from apps.accounts.tests import make_user
-from apps.inventory.models import InventoryItem
+from apps.inventory.models import InventoryItem, Warehouse
 from apps.om.models import OmSparePart
 
 
@@ -17,10 +17,12 @@ class OmSparePartInventorySyncTests(TestCase):
             {'O&M': {'can_view': True, 'can_edit': True}},
         )
         self.client.force_authenticate(self.user)
+        self.warehouse = Warehouse.objects.create(name='OM WH', is_active=True)
         self.inventory_item = InventoryItem.objects.create(
             name='MC4 Connector',
             category='Other',
             current_stock=Decimal('5'),
+            warehouse=self.warehouse,
         )
         self.spare_part = OmSparePart.objects.create(
             name='MC4 Connector',

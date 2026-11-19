@@ -48,12 +48,14 @@ class ProjectAccountsConnectivityTests(TestCase):
         self.assertIn('project', res.data)
 
     def test_sell_invoice_with_project_ok(self):
+        # Service/non-stock line — physical products require inventory_item (Phase A).
         res = self.client.post('/api/v1/accounts/sell-invoices/', {
             'invoice_date': '2026-01-15',
             'party_name': 'Conn Customer',
             'project': self.project.id,
             'status': 'Issued',
-            'lines': [{'material_name': 'Panel', 'quantity': 2, 'rate': 5000}],
+            'source': 'Project',
+            'lines': [{'material_name': 'EPC Billing', 'category': 'Service', 'quantity': 2, 'rate': 5000}],
         }, format='json')
         self.assertEqual(res.status_code, 201, res.content)
         inv = SellInvoice.objects.get(id=res.data['id'])
