@@ -26,6 +26,7 @@ import {
   organizationFinancialYearLabel,
   organizationLogoUrl,
   quotationCompanyFromOrganization,
+  refreshBranding,
   refreshOrganization,
   subscribeOrganization,
 } from './lib/organization.js';
@@ -148,6 +149,7 @@ import {
   formatRelativeActivity,
 } from './lib/recentAllList.js';
 import { LIST_PAGE_SIZE, LOOKUP_PAGE_SIZE, rowsOf, parseListPage, listParams, fetchEveryPage } from './lib/listQuery.js';
+import { ensureWebPushSubscription, syncWebPushWithSettings } from './lib/webPush.js';
 import { downloadSurveyPhoto, downloadSurveyPhotosPdf } from './lib/surveyPhotoExport.js';
 import { MobileDashboardPage, MobileBottomNav } from './mobileDashboard.jsx';
 import { HomeDashboardPage } from './homeDashboard.jsx';
@@ -2276,6 +2278,35 @@ function App() {
     return 'portal';
   });
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  /** Blocks ghost click / touch fallback from reopening drawer right after close (overlay → More). */
+  const mobileSidebarCloseGuardRef = useRef(0);
+  const closeMobileSidebar = useCallback(() => {
+    mobileSidebarCloseGuardRef.current = Date.now();
+    setMobileSidebarOpen(false);
+  }, []);
+  const openMobileSidebar = useCallback(() => {
+    if (Date.now() - mobileSidebarCloseGuardRef.current < 450) return;
+    setMobileSidebarOpen(true);
+  }, []);
+  const toggleMobileSidebar = useCallback(() => {
+    setMobileSidebarOpen((open) => {
+      if (open) {
+        mobileSidebarCloseGuardRef.current = Date.now();
+        return false;
+      }
+      if (Date.now() - mobileSidebarCloseGuardRef.current < 450) return false;
+      return true;
+    });
+  }, []);
+  useEffect(() => {
+    if (!mobileSidebarOpen || typeof document === 'undefined') return undefined;
+    const { style } = document.body;
+    const prevOverflow = style.overflow;
+    style.overflow = 'hidden';
+    return () => {
+      style.overflow = prevOverflow;
+    };
+  }, [mobileSidebarOpen]);
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(Boolean(initialPreferences.desktopSidebarCollapsed));
   const navHistoryRef = useRef([]);
   const [activeSidebarItem, setActiveSidebarItemState] = useState(() => {
@@ -2361,10 +2392,17 @@ function App() {
       return undefined;
     }
     refreshNotificationCount();
+    // Amazon-style: request OS notification permission once after login (PWA/TWA).
+    const pushTimer = window.setTimeout(() => {
+      ensureWebPushSubscription().catch(() => {});
+    }, 1200);
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') refreshNotificationCount();
     }, 60000);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearInterval(timer);
+      window.clearTimeout(pushTimer);
+    };
   }, [loggedInUser, refreshNotificationCount]);
   const openNotificationLink = useCallback((link) => {
     setNotificationMenuOpen(false);
@@ -3213,8 +3251,12 @@ function App() {
             <PwaInstallBanner notify={notify} />
           </div>
           <PortalSelectPage
-            onSelectCrm={() => setCurrentPage('signin')}
+            onSelectCrm={() => {
+              refreshBranding().catch(() => {});
+              setCurrentPage('signin');
+            }}
             onSelectTele={() => {
+              refreshBranding().catch(() => {});
               setCurrentPage('tele-signin');
               if (typeof window !== 'undefined') {
                 window.history.replaceState({ currentPage: 'tele-signin' }, '', '/tele/signin');
@@ -3318,35 +3360,59 @@ function App() {
         )}
       >
         <div
+          role="presentation"
+          aria-hidden={!mobileSidebarOpen}
           className={cx(
             // Above bottom nav (z-60) so dim + tap-outside actually closes More menu on phones.
             'crm-anim-window fixed inset-0 z-[70] bg-[#10213d]/45 transition xl:hidden',
             mobileSidebarOpen ? 'opacity-100' : 'pointer-events-none opacity-0',
           )}
-          onClick={() => setMobileSidebarOpen(false)}
+          onPointerDown={(event) => {
+            // pointerdown + preventDefault blocks the synthetic click that would
+            // hit MobileBottomNav "More" and immediately re-open the drawer.
+            event.preventDefault();
+            event.stopPropagation();
+            closeMobileSidebar();
+          }}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            closeMobileSidebar();
+          }}
         />
 
         <aside
           className={cx(
             'sidebar-root fixed inset-y-2 left-2 z-[80] flex w-[236px] max-w-[calc(100vw-16px)] flex-col overflow-hidden rounded-[20px] border border-[#dfe7f2] border-r-white/10 bg-white shadow-[0_18px_40px_rgba(15,39,92,0.12)] transition-[transform,width] duration-300 xl:static xl:z-auto xl:h-full xl:min-h-0 xl:max-w-none xl:flex-none xl:self-stretch xl:translate-x-0',
             desktopSidebarCollapsed ? 'xl:w-[84px]' : 'xl:w-[236px]',
-            mobileSidebarOpen ? 'translate-x-0' : 'translate-x-[-110%] xl:translate-x-0',
+            mobileSidebarOpen
+              ? 'translate-x-0 pointer-events-auto'
+              : 'pointer-events-none translate-x-[-110%] xl:pointer-events-auto xl:translate-x-0',
           )}
         >
           <div
             className={cx(
-              'sidebar-brand relative shrink-0 border-b border-[#e8eef6] bg-white',
-              desktopSidebarCollapsed ? 'px-2.5 py-3' : 'px-3 pt-3 pb-2.5',
+              'sidebar-brand relative z-10 shrink-0 border-b border-[#e8eef6] bg-white',
+              desktopSidebarCollapsed ? 'px-2.5 py-3' : 'px-3 pt-3 pb-2.5 pr-12 xl:pr-3',
             )}
           >
-            <div className={cx('flex items-start justify-center', desktopSidebarCollapsed ? 'min-h-[44px]' : 'min-h-[48px]')}>
+            <div className={cx('pointer-events-none flex items-start justify-center', desktopSidebarCollapsed ? 'min-h-[44px]' : 'min-h-[48px]')}>
               {desktopSidebarCollapsed ? <MiniBrandMark compact plain /> : <BrandLockup />}
             </div>
 
             <button
               type="button"
-              onClick={() => setMobileSidebarOpen(false)}
-              className="absolute right-3 top-1/2 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-[12px] border border-[#e4ebf4] bg-white/95 text-[#52637f] shadow-[0_6px_14px_rgba(17,39,84,0.08)] xl:hidden"
+              onPointerDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                closeMobileSidebar();
+              }}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                closeMobileSidebar();
+              }}
+              className="absolute right-2 top-1/2 z-30 inline-flex size-10 -translate-y-1/2 touch-manipulation items-center justify-center rounded-[12px] border border-[#e4ebf4] bg-white text-[#52637f] shadow-[0_6px_14px_rgba(17,39,84,0.08)] xl:hidden"
               aria-label="Close sidebar"
             >
               <X className="size-4" />
@@ -4068,7 +4134,7 @@ function App() {
           )}>
             <AppHeader
               notify={notify}
-              setMobileSidebarOpen={setMobileSidebarOpen}
+              openMobileSidebar={openMobileSidebar}
               setDesktopSidebarCollapsed={setDesktopSidebarCollapsed}
               notificationMenuOpen={notificationMenuOpen}
               messageMenuOpen={messageMenuOpen}
@@ -4521,7 +4587,7 @@ function App() {
                     }
                     openDashboardSection(action.target, `${action.label} opened`);
                   }}
-                  onOpenMenu={() => setMobileSidebarOpen(true)}
+                  onOpenMenu={openMobileSidebar}
                 />
               </div>
               {Object.values(dashboardWidgetErrors).some(Boolean) ? (
@@ -4614,7 +4680,7 @@ function App() {
           }
           openDashboardSection(item.section, `${item.label} opened`);
         }}
-        onMore={() => setMobileSidebarOpen((open) => !open)}
+        onMore={toggleMobileSidebar}
       />
 
       {dashboardCreateLeadOpen ? (
@@ -4695,7 +4761,7 @@ function App() {
 // toggle, profile menu. Rendered once from App; every page swaps out only the
 // content below it, so this never re-mounts when switching sidebar sections.
 function AppHeader({
-  notify, setMobileSidebarOpen, setDesktopSidebarCollapsed,
+  notify, openMobileSidebar, setDesktopSidebarCollapsed,
   notificationMenuOpen, messageMenuOpen, handleHeaderAction,
   openDashboardSection, openWhatsApp,
   profileMenuOpen, setProfileMenuOpen, handleProfileAction,
@@ -4754,7 +4820,7 @@ function AppHeader({
           <button
             type="button"
             onClick={() => {
-              setMobileSidebarOpen(true);
+              openMobileSidebar();
               notify('Sidebar opened');
             }}
             className="inline-flex size-9 shrink-0 items-center justify-center rounded-[10px] border border-[#dfe7f2] bg-white text-[#52637f] shadow-[0_4px_12px_rgba(15,39,92,0.06)] transition hover:border-[#cfdbee] hover:text-[#2158d6] xl:hidden dark:border-slate-600 dark:bg-slate-800"
@@ -7873,8 +7939,10 @@ function useSettingsCategory(category, defaults, onNotify) {
     try {
       await settingsApi.category(category).update(form);
       onNotify(`${category} settings saved`);
+      return true;
     } catch {
       onNotify(`Could not save ${category} settings.`, 'error');
+      return false;
     } finally {
       setSaving(false);
     }
@@ -8042,8 +8110,18 @@ function SettingsCategoryIntegrationPage({
   addLabel,
   onOpenSection,
   onNotify,
+  onAfterSave = null,
 }) {
-  const { form, loading, saving, save, updateField } = useSettingsCategory(category, {}, onNotify);
+  const { form, loading, saving, save: saveCategory, updateField } = useSettingsCategory(category, {}, onNotify);
+  const save = async () => {
+    const ok = await saveCategory();
+    if (!ok || !onAfterSave) return;
+    try {
+      await onAfterSave(form);
+    } catch {
+      /* ignore post-save hooks */
+    }
+  };
   const { rows, loading: mastersLoading, setRows } = useSettingsMasters(masterType, onNotify);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -8755,7 +8833,7 @@ function SettingsNotificationSettingsContent({ onOpenSection, onNotify }) {
         <>
           <SettingsToggleRow label="Email Alerts" note="Send email notifications for key events." enabled={Boolean(form.emailAlerts)} onToggle={() => updateField('emailAlerts', !form.emailAlerts)} />
           <SettingsToggleRow label="SMS Alerts" note="Send SMS notifications for urgent events." enabled={Boolean(form.smsAlerts)} onToggle={() => updateField('smsAlerts', !form.smsAlerts)} />
-          <SettingsToggleRow label="Push Alerts" note="Show in-app/browser notifications." enabled={Boolean(form.pushAlerts)} onToggle={() => updateField('pushAlerts', !form.pushAlerts)} />
+          <SettingsToggleRow label="Push Alerts" note="OS lockscreen / banner alerts on phone (even when CRM is closed). Allow once when prompted." enabled={Boolean(form.pushAlerts)} onToggle={() => updateField('pushAlerts', !form.pushAlerts)} />
           <SettingsToggleRow label="Lead Assignment" note="Notify when a lead is assigned." enabled={Boolean(form.leadAssignment)} onToggle={() => updateField('leadAssignment', !form.leadAssignment)} />
           <SettingsToggleRow label="Payment Received" note="Notify when payment is recorded." enabled={Boolean(form.paymentReceived)} onToggle={() => updateField('paymentReceived', !form.paymentReceived)} />
           <SettingsToggleRow label="Project Updates" note="Notify on project status changes." enabled={Boolean(form.projectUpdates)} onToggle={() => updateField('projectUpdates', !form.projectUpdates)} />
@@ -8767,10 +8845,22 @@ function SettingsNotificationSettingsContent({ onOpenSection, onNotify }) {
       mapTemplateRow={(row) => [row.name, row.code || '—', row.metadata?.approver || '—', <SettingsStatusBadge key="status" label={row.is_active ? 'Active' : 'Inactive'} />, null]}
       stats={[['Events', 'Live', Bell, 'green'], ['Channels', '4', MessageSquareMore, 'blue'], ['Rules', '—', CheckCircle2, 'purple'], ['Escalations', 'On', AlertTriangle, 'amber']]}
       sideTitle="Channel Status"
-      sideRows={[['In-app', 'Active'], ['Email', 'Active'], ['SMS', 'Optional'], ['WhatsApp', 'Optional']]}
+      sideRows={[['In-app', 'Active'], ['Push (OS)', 'On by default'], ['Email', 'Active'], ['SMS', 'Optional']]}
       addLabel="Add Rule"
       onOpenSection={onOpenSection}
       onNotify={onNotify}
+      onAfterSave={async (savedForm) => {
+        const result = await syncWebPushWithSettings(Boolean(savedForm?.pushAlerts));
+        if (savedForm?.pushAlerts && result?.ok) {
+          onNotify?.('Push alerts enabled on this device');
+        } else if (!savedForm?.pushAlerts) {
+          onNotify?.('Push alerts disabled on this device');
+        } else if (savedForm?.pushAlerts && result?.reason === 'denied') {
+          onNotify?.('Browser blocked notifications — allow them in site settings', 'error');
+        } else if (savedForm?.pushAlerts && result?.reason === 'no_service_worker') {
+          onNotify?.('Install the CRM app / open production PWA to receive phone push alerts', 'error');
+        }
+      }}
     />
   );
 }
@@ -10086,16 +10176,23 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
     setUploadingLogo(true);
     try {
       const res = await settingsApi.company.uploadLogo(file);
-      const nextLogo = res?.logo_url || res?.data?.logoUrl || '';
-      setLogoUrl(nextLogo);
+      const nextLogo = res?.logo_url || res?.logo || res?.data?.logoUrl || organizationLogoUrl() || '';
+      if (!nextLogo) {
+        throw new Error('Upload succeeded but logo URL was empty. Please try again.');
+      }
+      const cacheBust = res?.updated_at ? `?v=${encodeURIComponent(res.updated_at)}` : `?v=${Date.now()}`;
+      const stamped = `${String(nextLogo).split('?')[0]}${cacheBust}`;
+      setLogoUrl(stamped);
       await refreshOrganization({ force: true }).catch(() => {});
       onNotify('Company logo updated across CRM', 'success');
     } catch (err) {
       onNotify(err?.message || 'Logo upload failed.', 'error');
     } finally {
       setUploadingLogo(false);
-      setLogoPreview('');
-      URL.revokeObjectURL(preview);
+      setLogoPreview((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return '';
+      });
     }
   };
 
@@ -10147,7 +10244,12 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
               <div className="flex min-w-0 items-start gap-4">
                 <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-[18px] bg-[#e9f8ec] text-[#0d9f4a] shadow-[inset_0_0_0_1px_rgba(13,159,74,0.08)]">
                   {displayLogo ? (
-                    <img src={displayLogo} alt="" className="size-full object-contain p-1.5" />
+                    <img
+                      src={displayLogo}
+                      alt=""
+                      className="size-full object-contain p-1.5"
+                      onError={() => setLogoUrl('')}
+                    />
                   ) : (
                     <Leaf className="size-8" />
                   )}
@@ -10192,7 +10294,12 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
                 <div className="flex min-w-0 items-center gap-3">
                   <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-full bg-[#effbf3] text-[#0d9f4a]">
                     {displayLogo ? (
-                      <img src={displayLogo} alt="Company logo" className="size-full object-contain p-1.5" />
+                      <img
+                        src={displayLogo}
+                        alt="Company logo"
+                        className="size-full object-contain p-1.5"
+                        onError={() => setLogoUrl('')}
+                      />
                     ) : (
                       <Leaf className="size-8" />
                     )}
@@ -40798,12 +40905,17 @@ function SurveyStatusBadge({ status }) {
 
 function BrandLockup() {
   const [orgLogo, setOrgLogo] = useState(() => organizationLogoUrl());
+  const [broken, setBroken] = useState(false);
   useEffect(() => {
-    const sync = () => setOrgLogo(organizationLogoUrl());
+    refreshBranding().catch(() => {});
+    const sync = () => {
+      setOrgLogo(organizationLogoUrl());
+      setBroken(false);
+    };
     sync();
     return subscribeOrganization(sync);
   }, []);
-  const customSrc = orgLogo ? getMediaUrl(orgLogo) : '';
+  const customSrc = !broken && orgLogo ? getMediaUrl(orgLogo) : '';
   const alt = organizationDisplayName() || 'Company logo';
   if (customSrc) {
     return (
@@ -40813,6 +40925,7 @@ function BrandLockup() {
           alt={alt}
           className="h-auto w-[92%] max-h-[48px] -translate-y-0.5 select-none object-contain"
           draggable={false}
+          onError={() => setBroken(true)}
         />
       </div>
     );
@@ -40837,12 +40950,17 @@ function BrandLockup() {
 
 function MiniBrandMark({ compact = false, plain = false }) {
   const [orgLogo, setOrgLogo] = useState(() => organizationLogoUrl());
+  const [broken, setBroken] = useState(false);
   useEffect(() => {
-    const sync = () => setOrgLogo(organizationLogoUrl());
+    refreshBranding().catch(() => {});
+    const sync = () => {
+      setOrgLogo(organizationLogoUrl());
+      setBroken(false);
+    };
     sync();
     return subscribeOrganization(sync);
   }, []);
-  const customSrc = orgLogo ? getMediaUrl(orgLogo) : '';
+  const customSrc = !broken && orgLogo ? getMediaUrl(orgLogo) : '';
   return (
     <div
       className={cx(
@@ -40858,6 +40976,7 @@ function MiniBrandMark({ compact = false, plain = false }) {
           alt=""
           className={cx('select-none object-contain', compact ? 'size-11' : 'size-12')}
           draggable={false}
+          onError={() => setBroken(true)}
         />
       ) : (
         <>

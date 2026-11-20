@@ -274,7 +274,7 @@ def update_category_settings(category, data: dict):
     return get_category_settings(category)
 
 
-def organization_snapshot():
+def organization_snapshot(request=None):
     """Read-only org identity for the whole CRM (not Settings-permission gated)."""
     from apps.accounts.models import Branch
 
@@ -315,7 +315,8 @@ def organization_snapshot():
     logo_url = ''
     if profile.logo:
         try:
-            logo_url = profile.logo.url
+            # Keep relative /media/... so FE can bind to API origin / Vite proxy.
+            logo_url = profile.logo.url or ''
         except ValueError:
             logo_url = ''
     # Keep company JSON consumers in sync (quotations / headers).

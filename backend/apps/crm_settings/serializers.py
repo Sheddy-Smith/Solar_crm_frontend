@@ -26,16 +26,18 @@ class CompanyProfileSerializer(serializers.ModelSerializer):
         }
 
     def get_logo_url(self, obj):
+        """Return a same-app relative media path (e.g. /media/company_logos/…).
+
+        Absolute host URLs break the SPA when API and UI are on different
+        origins (crm.* vs api.*) or when Django sees an internal Host header.
+        The frontend resolves /media via VITE_API_URL / Vite proxy.
+        """
         if not obj.logo:
             return ''
-        request = self.context.get('request')
         try:
-            url = obj.logo.url
+            return obj.logo.url or ''
         except ValueError:
             return ''
-        if request is not None:
-            return request.build_absolute_uri(url)
-        return url
 
 
 class AppSettingSerializer(serializers.ModelSerializer):

@@ -107,23 +107,54 @@ export function useOrganization() {
   const [org, setOrg] = useState(() => getOrganization());
   useEffect(() => {
     if (!getOrganization()) {
-      refreshOrganization().catch(() => {});
+      refreshOrganization().catch(() => refreshBranding().catch(() => {}));
     }
     return subscribeOrganization(setOrg);
   }, []);
   return org;
 }
 
+function publishSnapshot(next) {
+  snapshot = next && typeof next === 'object' ? next : { ...FALLBACK };
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(EVENT, { detail: snapshot }));
+  }
+  return snapshot;
+}
+
+/** Public branding for portal/login (no JWT). Merges into org snapshot. */
+export async function refreshBranding({ force = false } = {}) {
+  if (!force && snapshot?.logo_url) return snapshot;
+  try {
+    const data = await settingsApi.branding.get();
+    const logo = data?.logo_url || '';
+    const name = data?.display_name || FALLBACK.display_name;
+    const base = snapshot && typeof snapshot === 'object' ? { ...snapshot } : { ...FALLBACK };
+    base.display_name = name || base.display_name;
+    // Never wipe a known logo with an empty branding payload.
+    base.logo_url = logo || base.logo_url || '';
+    if (base.company && typeof base.company === 'object') {
+      base.company = {
+        ...base.company,
+        logoUrl: logo || base.logo_url || base.company.logoUrl || '',
+      };
+    } else {
+      base.company = { logoUrl: base.logo_url || '' };
+    }
+    return publishSnapshot(base);
+  } catch {
+    return snapshot || { ...FALLBACK };
+  }
+}
+
 export async function refreshOrganization({ force = false } = {}) {
-  if (snapshot && !force) return snapshot;
+  if (snapshot && !force && snapshot.company && Object.keys(snapshot.company).length) return snapshot;
   if (inflight) return inflight;
   inflight = settingsApi.organization.get()
-    .then((data) => {
-      snapshot = data && typeof data === 'object' ? data : { ...FALLBACK };
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent(EVENT, { detail: snapshot }));
-      }
-      return snapshot;
+    .then((data) => publishSnapshot(data && typeof data === 'object' ? data : { ...FALLBACK }))
+    .catch(async () => {
+      // Logged-out portal: fall back to public branding endpoint.
+      return refreshBranding({ force: true });
     })
     .finally(() => {
       inflight = null;

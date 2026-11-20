@@ -50,11 +50,26 @@ export const tokenStore = {
 // send an Authorization header. Wrap every media URL rendered in the UI with this.
 function resolveMediaUrl(url) {
   if (!url) return url;
-  if (/^https?:\/\//i.test(url)) return url;
 
-  let path = url.startsWith('/') ? url : `/media/${url.replace(/^\/+/, '')}`;
-  if (path.startsWith('/') && !path.startsWith('/media/')) {
-    path = `/media${path}`;
+  let path = String(url);
+  // Absolute media URLs from Django (often api host or 127.0.0.1:8000) must be
+  // rewritten to a path the SPA can load via VITE_API_URL origin / Vite proxy.
+  if (/^https?:\/\//i.test(path)) {
+    try {
+      const parsed = new URL(path);
+      if (parsed.pathname.startsWith('/media/')) {
+        path = `${parsed.pathname}${parsed.search || ''}`;
+      } else {
+        return path;
+      }
+    } catch {
+      return path;
+    }
+  } else {
+    path = path.startsWith('/') ? path : `/media/${path.replace(/^\/+/, '')}`;
+    if (path.startsWith('/') && !path.startsWith('/media/')) {
+      path = `/media${path}`;
+    }
   }
 
   const apiBase = import.meta.env.VITE_API_URL || '';
@@ -68,6 +83,10 @@ function resolveMediaUrl(url) {
 export function getMediaUrl(url) {
   const resolved = resolveMediaUrl(url);
   if (!resolved) return resolved;
+  // Company logo is public branding — skip JWT query param (works on portal/login).
+  if (/\/media\/company_logos\//i.test(String(resolved)) || /company_logos\//i.test(String(url || ''))) {
+    return resolved;
+  }
   const token = tokenStore.getAccess();
   if (!token) return resolved;
   // Drop a previous access= so nested/re-render calls don't stack tokens and
@@ -1088,6 +1107,12 @@ export const notificationApi = {
   unreadCount: () => request('/notifications/unread-count/'),
   markRead: (ids) => request('/notifications/mark-read/', { method: 'POST', body: { ids } }),
   markAllRead: () => request('/notifications/mark-all-read/', { method: 'POST', body: {} }),
+  pushVapidPublicKey: () => request('/notifications/push-vapid-public-key/'),
+  savePushSubscription: (data) => request('/notifications/push-subscription/', { method: 'POST', body: data }),
+  deletePushSubscription: (endpoint) => request('/notifications/push-subscription/delete/', {
+    method: 'POST',
+    body: endpoint ? { endpoint } : {},
+  }),
 };
 
 // ─── O&M pending flow (work order → quotation → dispatch → install → invoice) ──
@@ -1160,6 +1185,10 @@ export const settingsApi = {
   categories: () => request('/settings/categories/'),
   organization: {
     get: () => request('/settings/organization/'),
+  },
+  /** Public portal/login branding (no JWT). */
+  branding: {
+    get: () => request('/settings/branding/', { auth: false }),
   },
   company: {
     get: () => request('/settings/company/'),

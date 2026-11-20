@@ -2,7 +2,7 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
 
 from apps.accounts.permissions import HasModulePermission
@@ -68,7 +68,21 @@ class OrganizationSnapshotView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return Response(organization_snapshot())
+        return Response(organization_snapshot(request=request))
+
+
+class PublicBrandingView(APIView):
+    """Unauthenticated branding for portal / login screens (name + logo only)."""
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def get(self, request):
+        snap = organization_snapshot(request=request)
+        return Response({
+            'display_name': snap.get('display_name') or 'Malwa Solar Energy',
+            'logo_url': snap.get('logo_url') or '',
+            'updated_at': snap.get('updated_at'),
+        })
 
 
 class CompanyProfileView(SettingsPermissionMixin, APIView):
@@ -80,26 +94,33 @@ class CompanyProfileView(SettingsPermissionMixin, APIView):
 
     def patch(self, request):
         profile = CompanyProfile.get_solo()
-        payload = request.data
-        # Multipart logo upload may arrive without wrapping `data` JSON.
-        if hasattr(payload, 'dict'):
-            payload = payload.dict()
-            # Keep uploaded file object (dict() drops files).
-            if request.FILES.get('logo') is not None:
-                payload['logo'] = request.FILES['logo']
-        logo_file = payload.get('logo') if isinstance(payload, dict) else None
-        if logo_file is not None and hasattr(logo_file, 'size'):
-            if logo_file.size > 2 * 1024 * 1024:
+        # Prefer request.FILES — QueryDict.dict() can drop multipart file objects.
+        logo_file = request.FILES.get('logo')
+        if logo_file is not None:
+            if getattr(logo_file, 'size', 0) > 2 * 1024 * 1024:
                 return Response(
                     {'logo': ['Logo must be 2 MB or smaller.']},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             name = (getattr(logo_file, 'name', '') or '').lower()
-            if not name.endswith(('.jpg', '.jpeg', '.png', '.webp')):
+            content_type = (getattr(logo_file, 'content_type', '') or '').lower()
+            ok_ext = name.endswith(('.jpg', '.jpeg', '.png', '.webp'))
+            ok_mime = content_type in ('image/jpeg', 'image/png', 'image/webp', '')
+            if not ok_ext and not ok_mime:
                 return Response(
                     {'logo': ['Upload a JPG, PNG, or WEBP image.']},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+            profile.logo = logo_file
+            profile.save(update_fields=['logo', 'updated_at'])
+            log_user_activity(request, 'Update', 'Settings', 'Company logo updated')
+            return Response(CompanyProfileSerializer(profile, context={'request': request}).data)
+
+        payload = request.data
+        if hasattr(payload, 'dict'):
+            payload = payload.dict()
+        if isinstance(payload, dict):
+            payload.pop('logo', None)
         serializer = CompanyProfileSerializer(
             profile, data=payload, partial=True, context={'request': request},
         )
@@ -107,12 +128,7 @@ class CompanyProfileView(SettingsPermissionMixin, APIView):
         serializer.save()
         if isinstance(serializer.instance.data, dict) and serializer.instance.data:
             sync_company_to_business(serializer.instance.data)
-        log_user_activity(
-            request,
-            'Update',
-            'Settings',
-            'Company logo updated' if logo_file is not None else 'Company profile updated',
-        )
+        log_user_activity(request, 'Update', 'Settings', 'Company profile updated')
         return Response(serializer.data)
 
 

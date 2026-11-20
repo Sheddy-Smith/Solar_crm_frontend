@@ -60,7 +60,7 @@ _MEDIA_MODULE_PREFIXES = (
     ('workforce', 'Employee'),
     ('bug_reports', 'Settings'),
     ('backups', 'Settings'),
-    # Org branding — module label unused; any authenticated user may view.
+    # Org branding — publicly readable (portal/login); see secure_media_serve.
     ('company_logos', 'Dashboard'),
 )
 
@@ -407,18 +407,18 @@ def _authenticate_media_user(request):
 
 
 def secure_media_serve(request, path):
-    user, auth_error = _authenticate_media_user(request)
-    if auth_error:
-        return auth_error
-
     normalized = normalize_media_path(path)
     if not normalized:
         return HttpResponseForbidden('Invalid media path.')
 
     folder = _top_folder(normalized)
-    module = _module_for_media_path(normalized)
-    # Company logo is org-wide branding — any authenticated user can load it.
+    # Company logo is public branding (portal / login / letterhead preview).
+    # All other media still requires JWT + module/object ACL.
     if folder not in _ORG_BRANDING_FOLDERS:
+        user, auth_error = _authenticate_media_user(request)
+        if auth_error:
+            return auth_error
+        module = _module_for_media_path(normalized)
         if not _user_can_view_module(user, module):
             return HttpResponseForbidden('You do not have permission to access this file.')
         if not _user_can_access_media_object(user, normalized):
