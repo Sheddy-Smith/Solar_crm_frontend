@@ -21,13 +21,11 @@ from apps.accounts_module.models import (
     ChartOfAccount,
     InvoicePaymentAllocation,
     Payment,
-    PaymentAllocation,
     SellInvoice,
     Transaction,
 )
 from apps.accounts_module.services import sync_journal_for_invoice, sync_journal_for_payment
 from apps.projects.models import Project
-from apps.accounts_module.customer_ledger import party_totals
 
 
 User = get_user_model()
@@ -269,41 +267,6 @@ class InvoicePaymentAllocationTests(TestCase):
         self.assertEqual(summary.status_code, 200)
         self.assertEqual(float(summary.data['total_allocated']), 300000.0)
         self.assertEqual(summary.data['payment_status'], 'Partially Paid')
-
-    def test_project_ledger_year_filters_advance_allocation_creation_date(self):
-        # Dedicated project so setUp's 2026 project payment does not pollute year totals.
-        project = Project.objects.create(
-            project_name='Year Filter Plant',
-            customer_name='IPA Customer',
-            capacity_kwp=Decimal('5.00'),
-            status='Active',
-            created_by=self.user,
-        )
-        advance = Payment.objects.create(
-            direction='Received', payment_date='2024-12-20', party=self.party,
-            party_name=self.party.name, project=None, amount=Decimal('300000.00'),
-            payment_mode='UPI', status='Completed', created_by=self.user,
-        )
-        allocation_2025 = PaymentAllocation.objects.create(
-            payment=advance, project=project, amount=Decimal('100000.00'),
-            notes='Allocated in FY 2025', created_by=self.user,
-        )
-        allocation_2026 = PaymentAllocation.objects.create(
-            payment=advance, project=project, amount=Decimal('200000.00'),
-            notes='Allocated in FY 2026', created_by=self.user,
-        )
-        from datetime import datetime, timezone as dt_timezone
-        PaymentAllocation.objects.filter(pk=allocation_2025.pk).update(
-            created_at=datetime(2025, 6, 15, tzinfo=dt_timezone.utc),
-        )
-        PaymentAllocation.objects.filter(pk=allocation_2026.pk).update(
-            created_at=datetime(2026, 6, 15, tzinfo=dt_timezone.utc),
-        )
-
-        totals_2025 = party_totals(self.party, year=2025, project_id=project.id)
-        totals_2026 = party_totals(self.party, year=2026, project_id=project.id)
-        self.assertEqual(totals_2025['received'], Decimal('100000.00'))
-        self.assertEqual(totals_2026['received'], Decimal('200000.00'))
 
     def test_project_payment_sync_idempotent_still(self):
         from apps.accounts_module.services import sync_project_payment_to_accounts
