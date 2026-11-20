@@ -68,6 +68,8 @@ class InventoryItemViewSet(InventoryBaseViewSet):
         raw_qty = request.data.get('quantity')
         direction = request.data.get('direction', 'add')
         notes = (request.data.get('notes') or '').strip()
+        if direction not in ('add', 'remove'):
+            return Response({'detail': "direction must be either 'add' or 'remove'."}, status=400)
         if raw_qty in (None, ''):
             return Response({'detail': 'quantity is required.'}, status=400)
         try:

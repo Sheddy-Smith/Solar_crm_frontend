@@ -121,6 +121,20 @@ class InventoryApiTests(TestCase):
         )
         self.assertEqual(res.status_code, 400)
 
+    def test_quick_adjust_rejects_invalid_direction_without_changing_stock(self):
+        item = InventoryItem.objects.create(
+            name='Invalid Direction Panel', current_stock=Decimal('5'), warehouse=self.warehouse,
+        )
+        res = self.client.post(
+            f'/api/v1/inventory/items/{item.id}/quick-adjust/',
+            {'quantity': '2', 'direction': 'subtract', 'notes': 'Regression test'},
+            format='json',
+        )
+        self.assertEqual(res.status_code, 400)
+        item.refresh_from_db()
+        self.assertEqual(item.current_stock, Decimal('5.00'))
+        self.assertFalse(StockMovement.objects.filter(item=item).exists())
+
     def test_quick_adjust_updates_stock(self):
         item = InventoryItem.objects.create(
             name='Panel', current_stock=Decimal('5'), warehouse=self.warehouse,

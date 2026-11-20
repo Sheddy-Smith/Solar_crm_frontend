@@ -138,14 +138,15 @@ def party_totals(party, year=None, project_id=None, unallocated_only=False):
         # full unallocated payment in consolidated (those stay project_id null on Payment).
         # Only count allocations from payments that remain unstamped (project IS NULL).
         # Fully allocated advances stamp Payment.project and are already in `received`.
-        alloc_credit = _d(
-            PaymentAllocation.objects.filter(
-                project_id=project_id,
-                payment__party_id=party.id,
-                payment__status='Completed',
-                payment__project__isnull=True,
-            ).aggregate(t=Sum('amount'))['t']
+        allocations = PaymentAllocation.objects.filter(
+            project_id=project_id,
+            payment__party_id=party.id,
+            payment__status='Completed',
+            payment__project__isnull=True,
         )
+        if year:
+            allocations = allocations.filter(created_at__year=year)
+        alloc_credit = _d(allocations.aggregate(t=Sum('amount'))['t'])
     elif unallocated_only:
         invoices = invoices.filter(project__isnull=True)
         received = received.filter(project__isnull=True)
