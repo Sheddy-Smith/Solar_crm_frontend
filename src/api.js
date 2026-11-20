@@ -80,6 +80,28 @@ function resolveMediaUrl(url) {
   return path;
 }
 
+/** True only for CRM-owned /media paths (API origin or local Vite proxy). */
+function isTrustedCrmMediaUrl(resolved) {
+  if (!resolved) return false;
+  try {
+    if (/^https?:\/\//i.test(resolved)) {
+      const parsed = new URL(resolved);
+      if (!parsed.pathname.startsWith('/media/')) return false;
+      const apiBase = import.meta.env.VITE_API_URL || '';
+      if (apiBase && /^https?:\/\//i.test(apiBase)) {
+        return parsed.origin === new URL(apiBase).origin;
+      }
+      if (typeof window !== 'undefined' && window.location?.origin) {
+        return parsed.origin === window.location.origin;
+      }
+      return false;
+    }
+    return String(resolved).startsWith('/media/');
+  } catch {
+    return false;
+  }
+}
+
 export function getMediaUrl(url) {
   const resolved = resolveMediaUrl(url);
   if (!resolved) return resolved;
@@ -87,6 +109,8 @@ export function getMediaUrl(url) {
   if (/\/media\/company_logos\//i.test(String(resolved)) || /company_logos\//i.test(String(url || ''))) {
     return resolved;
   }
+  // Never attach the CRM JWT to external / untrusted hosts (audit Finding 1).
+  if (!isTrustedCrmMediaUrl(resolved)) return resolved;
   const token = tokenStore.getAccess();
   if (!token) return resolved;
   // Drop a previous access= so nested/re-render calls don't stack tokens and

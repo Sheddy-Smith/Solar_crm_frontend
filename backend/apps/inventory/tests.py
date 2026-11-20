@@ -141,10 +141,10 @@ class InventoryApiTests(TestCase):
         )
         res = self.client.post(
             f'/api/v1/inventory/items/{item.id}/quick-adjust/',
-            {'quantity': '3', 'direction': 'add'},
+            {'quantity': '3', 'direction': 'add', 'notes': 'Cycle count correction'},
             format='json',
         )
-        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.status_code, 200, res.content)
         item.refresh_from_db()
         self.assertEqual(item.current_stock, Decimal('8.00'))
 

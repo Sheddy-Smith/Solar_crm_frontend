@@ -271,17 +271,25 @@ class InvoicePaymentAllocationTests(TestCase):
         self.assertEqual(summary.data['payment_status'], 'Partially Paid')
 
     def test_project_ledger_year_filters_advance_allocation_creation_date(self):
+        # Dedicated project so setUp's 2026 project payment does not pollute year totals.
+        project = Project.objects.create(
+            project_name='Year Filter Plant',
+            customer_name='IPA Customer',
+            capacity_kwp=Decimal('5.00'),
+            status='Active',
+            created_by=self.user,
+        )
         advance = Payment.objects.create(
             direction='Received', payment_date='2024-12-20', party=self.party,
             party_name=self.party.name, project=None, amount=Decimal('300000.00'),
             payment_mode='UPI', status='Completed', created_by=self.user,
         )
         allocation_2025 = PaymentAllocation.objects.create(
-            payment=advance, project=self.project, amount=Decimal('100000.00'),
+            payment=advance, project=project, amount=Decimal('100000.00'),
             notes='Allocated in FY 2025', created_by=self.user,
         )
         allocation_2026 = PaymentAllocation.objects.create(
-            payment=advance, project=self.project, amount=Decimal('200000.00'),
+            payment=advance, project=project, amount=Decimal('200000.00'),
             notes='Allocated in FY 2026', created_by=self.user,
         )
         from datetime import datetime, timezone as dt_timezone
@@ -292,8 +300,8 @@ class InvoicePaymentAllocationTests(TestCase):
             created_at=datetime(2026, 6, 15, tzinfo=dt_timezone.utc),
         )
 
-        totals_2025 = party_totals(self.party, year=2025, project_id=self.project.id)
-        totals_2026 = party_totals(self.party, year=2026, project_id=self.project.id)
+        totals_2025 = party_totals(self.party, year=2025, project_id=project.id)
+        totals_2026 = party_totals(self.party, year=2026, project_id=project.id)
         self.assertEqual(totals_2025['received'], Decimal('100000.00'))
         self.assertEqual(totals_2026['received'], Decimal('200000.00'))
 
