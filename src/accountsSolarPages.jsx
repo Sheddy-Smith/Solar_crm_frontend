@@ -512,16 +512,16 @@ export function AccountsLineDocumentPage({
   }, [form, hasGst]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="flex flex-wrap items-center gap-2 font-display text-[22px] font-extrabold text-[#06135a]">
+          <h1 className="flex flex-wrap items-center gap-2 font-display text-[18px] font-extrabold text-[#06135a]">
             {title}
-            <span className={`rounded-full px-2.5 py-1 text-[11px] font-extrabold ${hasGst ? 'bg-[#e8f2ff] text-[#0b65e5]' : 'bg-[#eef2f7] text-[#53647f]'}`}>
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${hasGst ? 'bg-[#e8f2ff] text-[#0b65e5]' : 'bg-[#eef2f7] text-[#53647f]'}`}>
               {hasGst ? 'With GST' : 'Without GST'}
             </span>
           </h1>
-          <p className="mt-1 text-[12px] font-semibold text-[#7b8ca8]">Solar CRM — project-linked billing & material documents</p>
+          <p className="text-[11px] font-semibold leading-tight text-[#7b8ca8]">Solar CRM — project-linked billing & material documents</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {caps.export ? (
@@ -541,9 +541,9 @@ export function AccountsLineDocumentPage({
           { label: 'Total Amount', value: fmtRs(summary.total) },
           { label: 'Filtered', value: filtered.length },
         ].map((card) => (
-          <article key={card.label} className={cx(panelClass, 'p-4')}>
-            <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#7b8ca8]">{card.label}</p>
-            <p className="mt-1 font-display text-[22px] font-extrabold text-[#111827]">{card.value}</p>
+          <article key={card.label} className={cx(panelClass, 'p-3')}>
+            <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#7b8ca8]">{card.label}</p>
+            <p className="mt-0.5 font-display text-[18px] font-extrabold text-[#111827]">{card.value}</p>
           </article>
         ))}
       </section>
@@ -770,7 +770,7 @@ export function AccountsLineDocumentPage({
             </div>
           ) : null}
 
-          <div className="mt-4 space-y-4">
+          <div className="mt-2 space-y-2">
             {stockSyncHint ? (
               <p className="rounded-[8px] border border-[#cfe8d6] bg-[#f1fff5] px-3 py-2 text-[12px] font-semibold text-[#078c3e]">{stockSyncHint}</p>
             ) : null}
@@ -992,9 +992,9 @@ export function GstLedgerPage({ Subnav, activeSection, onOpenSection, onNotify }
   const years = Array.from({ length: 6 }, (_, i) => now.getFullYear() - i);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <div>
-        <h1 className="font-display text-[22px] font-extrabold text-[#06135a]">GST Ledger</h1>
+        <h1 className="font-display text-[18px] font-extrabold text-[#06135a]">GST Ledger</h1>
         <p className="mt-1 text-[12px] font-semibold text-[#7b8ca8]">Monthly input/output GST from purchase & sales invoices</p>
       </div>
       {Subnav ? <Subnav activeSection={activeSection} onOpenSection={onOpenSection} /> : null}

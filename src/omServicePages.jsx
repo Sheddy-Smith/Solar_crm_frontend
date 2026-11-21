@@ -536,7 +536,7 @@ export function VisitDetailModal({ visitId, onClose, onNotify, canEdit, onChange
         : null}
     >
       {!visit ? <p className="py-8 text-center text-[13px] font-semibold text-[#8a98af]">Loading...</p> : (
-        <div className="space-y-5">
+        <div className="space-y-2">
           <DetailGrid rows={[
             ['Visit Date', fmtDate(visit.date)],
             ['Status', <Pill key="s">{visit.status}</Pill>],
@@ -853,7 +853,7 @@ function TicketDetailModal({ ticketId, caps, onClose, onNotify, onChanged }) {
         ) : null}
       >
         {!ticket ? <p className="py-8 text-center text-[13px] font-semibold text-[#8a98af]">Loading...</p> : (
-          <div className="space-y-5">
+          <div className="space-y-2">
             <DetailGrid rows={[
               ['Status', <span key="s" className="flex gap-1.5"><Pill>{ticket.status}</Pill>{ticket.is_overdue ? <Pill tone="red">Overdue</Pill> : null}</span>],
               ['Priority', <Pill key="p">{ticket.priority}</Pill>],
@@ -1109,7 +1109,7 @@ function TaskDetailModal({ task, caps, onClose, onNotify, onAction }) {
           </>
         ) : null}
       >
-        <div className="space-y-5">
+        <div className="space-y-2">
           <DetailGrid rows={[
             ['Status', <span key="s" className="flex gap-1.5"><Pill>{task.status}</Pill>{task.is_overdue ? <Pill tone="red">Overdue</Pill> : null}</span>],
             ['Source', <Pill key="src">{task.source}</Pill>],

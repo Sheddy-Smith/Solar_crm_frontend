@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Bug, Check, Info, Paperclip, X } from 'lucide-react';
+import { Check, Info, Paperclip, X } from 'lucide-react';
 import { settingsApi } from '../api.js';
+
+const BUG_REPORT_ICON = '/icons/bug-report.png';
 
 const MAX_FILES = 4;
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -210,11 +212,11 @@ export function ReportProblemButton({ portal = 'CRM', notify, className = '' }) 
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={`inline-flex size-10 shrink-0 items-center justify-center rounded-full border border-[#fecaca] bg-[#fff1f2] text-[#e11d48] transition hover:bg-[#ffe4e6] ${className}`}
+        className={`inline-flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#e2e8f0] bg-white p-0.5 transition hover:bg-[#f8fafc] ${className}`}
         aria-label="Report a problem"
         title="Report a problem"
       >
-        <Bug className="size-[18px]" />
+        <img src={BUG_REPORT_ICON} alt="" className="size-full object-contain" draggable={false} />
       </button>
       {open ? (
         <ReportProblemModal

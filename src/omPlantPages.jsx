@@ -492,7 +492,7 @@ function PlantEditModal({ plant, onClose, onSaved, onNotify }) {
         <button type="button" className={BTN_PRIMARY} disabled={saving} onClick={save}>{saving ? 'Saving...' : 'Save'}</button>
       </>}
     >
-      <div className="space-y-5">
+      <div className="space-y-2">
         {PROFILE_GROUPS.map(([group, fields]) => (
           <section key={group}>
             <h3 className="mb-2 text-[13px] font-extrabold text-[#1e3261]">{group}</h3>

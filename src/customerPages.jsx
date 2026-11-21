@@ -186,14 +186,14 @@ function Field({ label, required, children }) {
 function LedgerSectionCard({ step, title, children, action, tone = 'blue' }) {
   const bar = tone === 'green' ? 'bg-[#16a34a]' : tone === 'slate' ? 'bg-[#334155]' : 'bg-[#0b65e5]';
   return (
-    <section className="relative z-0 overflow-visible rounded-[14px] border border-[#e2e9f3] bg-white shadow-[0_8px_24px_rgba(24,48,87,0.06)]">
-      <div className={`flex flex-wrap items-center justify-between gap-2 rounded-t-[14px] px-4 py-3 text-white ${bar}`}>
-        <h3 className="text-[14px] font-extrabold tracking-wide">
+    <section className="relative z-0 overflow-visible rounded-[10px] border border-[#e2e9f3] bg-white shadow-[0_6px_16px_rgba(24,48,87,0.05)]">
+      <div className={`flex flex-wrap items-center justify-between gap-2 rounded-t-[10px] px-3 py-2 text-white ${bar}`}>
+        <h3 className="text-[13px] font-extrabold tracking-wide">
           {step ? `${step}. ${title}` : title}
         </h3>
-        {action ? <div className="flex flex-wrap items-center gap-2">{action}</div> : null}
+        {action ? <div className="flex flex-wrap items-center gap-1.5">{action}</div> : null}
       </div>
-      <div className="relative z-10 overflow-visible p-4 md:p-5">{children}</div>
+      <div className="relative z-10 overflow-visible p-3 md:p-3.5">{children}</div>
     </section>
   );
 }
@@ -226,19 +226,19 @@ function LedgerStatCard({ label, value, Icon, tone = 'blue' }) {
     slate: 'border-[#e2e8f0] bg-[#f8fafc] text-[#334155]',
   };
   return (
-    <article className={`rounded-[12px] border p-3.5 shadow-sm ${tones[tone] || tones.blue}`}>
+    <article className={`rounded-[10px] border p-2.5 shadow-sm ${tones[tone] || tones.blue}`}>
       <div className="flex items-start justify-between gap-2">
-        <p className="text-[11px] font-extrabold uppercase tracking-wide opacity-80">{label}</p>
-        {Icon ? <Icon className="size-4 opacity-70" /> : null}
+        <p className="text-[10px] font-extrabold uppercase tracking-wide opacity-80">{label}</p>
+        {Icon ? <Icon className="size-3.5 opacity-70" /> : null}
       </div>
-      <p className="mt-2 text-[17px] font-extrabold tracking-tight sm:text-[18px]">{value}</p>
+      <p className="mt-1 text-[15px] font-extrabold tracking-tight sm:text-[16px]">{value}</p>
     </article>
   );
 }
 
-const inputClass = 'h-11 w-full rounded-[10px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-semibold text-[#1e3261] outline-none transition focus:border-[#0b65e5] focus:ring-4 focus:ring-[#dbeafe]';
-const softBtnClass = 'inline-flex h-10 items-center gap-1.5 rounded-[10px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-50';
-const primaryBtnClass = 'inline-flex h-10 items-center gap-1.5 rounded-[10px] bg-[#0b65e5] px-4 text-[12px] font-extrabold text-white shadow-[0_8px_18px_rgba(11,101,229,0.25)] transition hover:bg-[#0954c2] disabled:opacity-50';
+const inputClass = 'h-9 w-full rounded-[8px] border border-[#d9e4f2] bg-white px-2.5 text-[13px] font-semibold text-[#1e3261] outline-none transition focus:border-[#0b65e5] focus:ring-2 focus:ring-[#dbeafe]';
+const softBtnClass = 'inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-[#d9e4f2] bg-white px-2.5 text-[12px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff] disabled:opacity-50';
+const primaryBtnClass = 'inline-flex h-8 items-center gap-1.5 rounded-[8px] bg-[#0b65e5] px-3 text-[12px] font-extrabold text-white shadow-[0_6px_14px_rgba(11,101,229,0.22)] transition hover:bg-[#0954c2] disabled:opacity-50';
 function customerOptionLabel(c) {
   if (!c) return '';
   const won = Number(c.won_count || 0);
@@ -584,12 +584,12 @@ export function CustomerModulePage({ activeSection, onOpenSection, onNotify, log
   const tab = TABS.some((t) => t.key === normalizedSection) ? normalizedSection : 'Customer Details';
 
   return (
-    <div className="min-w-0 space-y-4">
-      <div>
-        <p className="text-[12px] font-semibold text-[#94a3b8]">
+    <div className="min-w-0 space-y-2">
+      <div className="page-heading">
+        <p className="text-[11px] font-semibold leading-tight text-[#94a3b8]">
           Dashboard <span className="mx-1 text-[#cbd5e1]">&gt;</span> Customer Management
         </p>
-        <h1 className="mt-1 text-[24px] font-extrabold tracking-tight text-[#0f172a]">Customer Management</h1>
+        <h1 className="mt-0.5 text-[20px] font-extrabold tracking-tight text-[#0f172a]">Customer Management</h1>
       </div>
       <MobileSubnavSelect
         tone="green"
@@ -597,7 +597,7 @@ export function CustomerModulePage({ activeSection, onOpenSection, onNotify, log
         value={tab}
         onChange={onOpenSection}
       />
-      <div className="hidden flex-wrap gap-2 md:flex">
+      <div className="hidden flex-wrap gap-1.5 md:flex">
         {TABS.map((item) => {
           const active = tab === item.key;
           const Icon = item.Icon;
@@ -606,13 +606,13 @@ export function CustomerModulePage({ activeSection, onOpenSection, onNotify, log
               key={item.key}
               type="button"
               onClick={() => onOpenSection(item.key)}
-              className={`inline-flex h-11 items-center gap-2 rounded-[12px] border px-4 text-[13px] font-extrabold transition ${
+              className={`module-tab-button inline-flex h-9 items-center gap-1.5 rounded-[8px] border px-3 text-[12px] font-extrabold transition ${
                 active
-                  ? 'border-[#16a34a] bg-[#16a34a] text-white shadow-[0_10px_24px_rgba(22,163,74,0.28)]'
+                  ? 'border-[#16a34a] bg-[#16a34a] text-white shadow-[0_6px_14px_rgba(22,163,74,0.22)]'
                   : 'border-[#e2e8f0] bg-white text-[#475569] hover:border-[#bbf7d0] hover:text-[#166534]'
               }`}
             >
-              {Icon ? <Icon className="size-4" /> : null}
+              {Icon ? <Icon className="size-3.5" /> : null}
               {item.label}
             </button>
           );
@@ -752,18 +752,18 @@ function CustomerDetailsTab({ caps, onNotify, onOpenSection }) {
   };
 
   return (
-    <>
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
-          <h2 className="text-[18px] font-extrabold tracking-tight text-[#0f172a] sm:text-[20px]">All Customers</h2>
-          <p className="mt-0.5 text-[12px] font-semibold text-[#7386a3]">Complete customer master list ({filtered.length} records).</p>
+          <h2 className="text-[16px] font-extrabold tracking-tight text-[#0f172a] sm:text-[17px]">All Customers</h2>
+          <p className="text-[11px] font-semibold leading-tight text-[#7386a3]">Complete customer master list ({filtered.length} records).</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={refreshFromLeads} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[8px] border border-[#d9e4f2] px-3 text-[12px] font-extrabold text-[#284276]">
+        <div className="page-heading-actions flex flex-wrap gap-1.5">
+          <button type="button" onClick={refreshFromLeads} className="inline-flex h-8 items-center justify-center gap-1.5 rounded-[8px] border border-[#d9e4f2] px-2.5 text-[12px] font-extrabold text-[#284276]">
             <RefreshCw className="size-3.5" /> Refresh
           </button>
           {caps.add ? (
-            <button type="button" onClick={() => setModal({ form: { ...emptyForm } })} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[8px] bg-[#12a54f] px-3 text-[12px] font-extrabold text-white">
+            <button type="button" onClick={() => setModal({ form: { ...emptyForm } })} className="inline-flex h-8 items-center justify-center gap-1.5 rounded-[8px] bg-[#12a54f] px-2.5 text-[12px] font-extrabold text-white professional:bg-[#1e3a5f] professional:hover:bg-[#162e4c]">
               <Plus className="size-3.5" /> Add Customer
             </button>
           ) : null}
@@ -771,18 +771,18 @@ function CustomerDetailsTab({ caps, onNotify, onOpenSection }) {
             <button
               type="button"
               onClick={() => exportNotifyCsv(onNotify, 'customers', ['Name', 'Company', 'Phone', 'Address', 'GSTIN', 'Projects', 'Leads', 'Balance'], filtered.map((r) => [r.name, r.company, r.phone, r.address, r.gstin, r.projects_count || 0, r.leads_count || 0, r.balance]))}
-              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[8px] border border-[#d9e4f2] px-3 text-[12px] font-extrabold text-[#284276]"
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-[8px] border border-[#d9e4f2] px-2.5 text-[12px] font-extrabold text-[#284276]"
             >
               <Download className="size-3.5" /> Export
             </button>
           ) : null}
         </div>
       </div>
-      <div className="rounded-[12px] border border-[#dbeafe] bg-[#f8fbff] px-3 py-2 text-[12px] font-semibold text-[#284276]">
+      <div className="rounded-[8px] border border-[#dbeafe] bg-[#f8fbff] px-2.5 py-1.5 text-[11px] font-semibold leading-snug text-[#284276]">
         All Client Detail: mobile number is the customer key.
       </div>
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-        <input className={`${inputClass} w-full sm:max-w-xs`} placeholder="Search name, mobile, project..." value={q} onChange={(e) => setQ(e.target.value)} />
+      <div className="flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center">
+        <input className={`${inputClass} h-9 w-full sm:max-w-xs`} placeholder="Search name, mobile, project..." value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       {loading ? (
         <p className="py-8 text-center text-[13px] font-semibold text-[#7a8fa6] lg:hidden">Loading customers from leads...</p>
@@ -966,7 +966,7 @@ function CustomerDetailsTab({ caps, onNotify, onOpenSection }) {
           </div>
         </ModalShell>
       ) : null}
-    </>
+    </div>
   );
 }
 
@@ -1421,14 +1421,14 @@ function CustomerLedgerTab({ onNotify, onOpenSection }) {
 
   return (
     <>
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h2 className="text-[20px] font-extrabold tracking-tight text-[#0f172a]">Client Ledger</h2>
-          <p className="mt-1 text-[13px] font-semibold text-[#53647f]">
+          <h2 className="text-[16px] font-extrabold tracking-tight text-[#0f172a]">Client Ledger</h2>
+          <p className="text-[12px] font-semibold leading-tight text-[#53647f]">
             Customer-wise Sale, Payment Received aur Discount entries — Payment Mode ke saath clean accounting view.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
           <button type="button" onClick={refreshAll} className={softBtnClass}><RefreshCw className="size-3.5" /> Refresh</button>
           <button type="button" disabled={!entries.length} onClick={exportCsv} className={softBtnClass}><Download className="size-3.5" /> CSV</button>
           <button type="button" disabled={!entries.length} onClick={savePdf} className={softBtnClass}><FileText className="size-3.5" /> PDF</button>
@@ -2509,28 +2509,28 @@ function OverallCreditTab({ onNotify, onOpenSection }) {
 
   return (
     <>
-      <div className="space-y-4">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="space-y-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
           {kpiCards.map(({ label, value, icon: Icon, wrap, iconWrap, valueClass }) => (
-            <article key={label} className={`rounded-2xl border p-4 shadow-sm ${wrap}`}>
-              <div className="flex items-start justify-between gap-3">
+            <article key={label} className={`rounded-xl border p-3 shadow-sm ${wrap}`}>
+              <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="text-[12px] font-semibold text-slate-500">{label}</p>
-                  <p className={`mt-2 text-[22px] font-extrabold tracking-tight ${valueClass}`}>{fmtRs(value)}</p>
+                  <p className="text-[11px] font-semibold text-slate-500">{label}</p>
+                  <p className={`mt-1 text-[18px] font-extrabold tracking-tight ${valueClass}`}>{fmtRs(value)}</p>
                 </div>
-                <span className={`grid size-10 place-items-center rounded-xl ${iconWrap}`}>
-                  <Icon className="size-5" />
+                <span className={`grid size-8 place-items-center rounded-lg ${iconWrap}`}>
+                  <Icon className="size-4" />
                 </span>
               </div>
             </article>
           ))}
         </div>
 
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-            <h3 className="text-[15px] font-extrabold text-slate-900">Credit Ledger Summary</h3>
-            <div className="mt-2 flex flex-col items-center gap-4 sm:flex-row">
-              <div className="relative h-[210px] w-full max-w-[240px]">
+        <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
+          <article className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-3.5">
+            <h3 className="text-[14px] font-extrabold text-slate-900">Credit Ledger Summary</h3>
+            <div className="mt-2 flex flex-col items-center gap-3 sm:flex-row">
+              <div className="relative h-[180px] w-full max-w-[220px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -2923,7 +2923,7 @@ function OverallCreditTab({ onNotify, onOpenSection }) {
           {detailLoading ? (
             <p className="py-10 text-center text-[13px] font-semibold text-[#7a8fa6]">Loading ledgers…</p>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-2">
               <div className="rounded-[12px] border border-[#e5e7eb] bg-[#f8fafc] p-4">
                 <p className="text-[11px] font-extrabold uppercase tracking-wide text-[#6b7280]">Customer</p>
                 <p className="mt-1 text-[18px] font-extrabold text-[#dc2626]">{detail.customer.name}</p>
@@ -3022,7 +3022,7 @@ function OverallCreditTab({ onNotify, onOpenSection }) {
             </>
           )}
         >
-          <div className="space-y-4">
+          <div className="space-y-2">
             <div className="flex flex-col gap-3 rounded-[12px] border border-[#e8eef6] bg-[#f8fafc] p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-[10px] font-extrabold uppercase tracking-wide text-[#94a3b8]">Customer</p>

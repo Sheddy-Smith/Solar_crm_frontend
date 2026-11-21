@@ -118,7 +118,7 @@ export function TablePagination({
 
   return (
     <div className={cx(
-      'flex shrink-0 flex-wrap items-center justify-between gap-2 bg-white px-3 py-2 text-[13px] font-bold text-[#53647f]',
+      'flex shrink-0 flex-wrap items-center justify-between gap-2 bg-white px-2.5 py-1.5 text-[12px] font-bold text-[#53647f]',
       hideBorder ? '' : 'border-t border-[#eef2f8]',
       className,
     )}

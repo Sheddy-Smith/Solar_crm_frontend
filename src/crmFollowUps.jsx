@@ -141,8 +141,8 @@ export function CrmFollowUpsPage({
         page_size: pageSize,
         status: 'Scheduled',
         ordering: 'scheduled_at',
-      }), { maxPages: 5 }),
-      followUpApi.listAll({ page_size: 100, ordering: '-created_at' }),
+      }), { maxPages: 2 }),
+      followUpApi.listAll({ page_size: 50, ordering: '-created_at' }),
     ])
       .then(([scheduled, recent]) => {
         setRows(mergeFollowUpRows(scheduled, rowsOf(recent)));
@@ -369,45 +369,45 @@ export function CrmFollowUpsPage({
   ];
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-[12px] font-semibold text-[#7585a2]">
+    <div className="space-y-2">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+        <div className="page-heading min-w-0">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[#7585a2]">
             <span>Home</span>
-            <ChevronRight className="size-3.5" />
+            <ChevronRight className="size-3" />
             <span>Lead</span>
-            <ChevronRight className="size-3.5" />
+            <ChevronRight className="size-3" />
             <span className="text-[#0b65e5]">Follow-ups</span>
           </div>
-          <div className="mt-2 flex items-start gap-3">
-            <span className="mt-0.5 grid size-10 place-items-center rounded-[12px] bg-[#e8f8eb] text-[#0d9f4a]">
-              <CalendarDays className="size-5" />
+          <div className="mt-1 flex items-start gap-2">
+            <span className="mt-0.5 grid size-8 place-items-center rounded-[8px] bg-[#e8f8eb] text-[#0d9f4a] professional:bg-[#e8eef5] professional:text-[#1e3a5f]">
+              <CalendarDays className="size-4" />
             </span>
             <div>
-              <h1 className="font-display text-[24px] font-extrabold text-[#0f172a]">Lead Follow-ups</h1>
-              <p className="mt-1 max-w-2xl text-[13px] font-semibold text-[#64748b]">
+              <h1 className="font-display text-[18px] font-extrabold text-[#0f172a]">Lead Follow-ups</h1>
+              <p className="max-w-2xl text-[12px] font-semibold leading-tight text-[#64748b]">
                 Manage, track and follow up on leads. Check pending, completed, overdue and missed follow-ups.
               </p>
             </div>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2 lg:justify-end">
+        <div className="flex flex-wrap gap-1.5 lg:justify-end">
           {canLogFollowUp ? (
             <button
               type="button"
               onClick={() => onLogFollowUp?.(null)}
-              className="inline-flex h-10 items-center gap-1.5 rounded-[8px] bg-[#12a54f] px-4 text-[13px] font-extrabold text-white shadow-[0_10px_20px_rgba(18,165,79,0.22)]"
+              className="inline-flex h-8 items-center gap-1.5 rounded-[8px] bg-[#12a54f] px-3 text-[12px] font-extrabold text-white shadow-[0_8px_16px_rgba(18,165,79,0.2)] professional:bg-[#1e3a5f] professional:shadow-[0_8px_16px_rgba(30,58,95,0.22)] professional:hover:bg-[#162e4c]"
             >
-              <Plus className="size-4" /> Schedule Follow-up
+              <Plus className="size-3.5" /> Schedule Follow-up
             </button>
           ) : null}
           {canExport ? (
             <button
               type="button"
               onClick={exportRows}
-              className="inline-flex h-10 items-center gap-1.5 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276]"
+              className="inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#284276]"
             >
-              <Download className="size-4" /> Export
+              <Download className="size-3.5" /> Export
             </button>
           ) : null}
           <button
@@ -466,27 +466,27 @@ export function CrmFollowUpsPage({
           <div className="mt-3 grid gap-2 rounded-[12px] border border-[#e7eef7] bg-[#f8fafd] p-3 lg:hidden">
             <label className="grid gap-1 text-[11px] font-extrabold uppercase tracking-wide text-[#7b88a2]">
               Status
-              <select className="h-11 rounded-[10px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" value={statusFilter} onChange={(e) => setStatusLive(e.target.value)}>
+              <select className="h-9 rounded-[8px] border border-[#d9e4f2] bg-white px-2.5 text-[12px] font-bold text-[#1e3261]" value={statusFilter} onChange={(e) => setStatusLive(e.target.value)}>
                 {STATUS_FILTERS.map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
             </label>
             <label className="grid gap-1 text-[11px] font-extrabold uppercase tracking-wide text-[#7b88a2]">
               Assigned To
-              <select className="h-11 rounded-[10px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" value={assignedFilter} onChange={(e) => setAssignedFilter(e.target.value)}>
+              <select className="h-9 rounded-[8px] border border-[#d9e4f2] bg-white px-2.5 text-[12px] font-bold text-[#1e3261]" value={assignedFilter} onChange={(e) => setAssignedFilter(e.target.value)}>
                 <option>All Employees</option>
                 {employeeOptions.map((name) => <option key={`a-${name}`} value={name}>{name}</option>)}
               </select>
             </label>
             <label className="grid gap-1 text-[11px] font-extrabold uppercase tracking-wide text-[#7b88a2]">
               Added By
-              <select className="h-11 rounded-[10px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" value={addedByFilter} onChange={(e) => setAddedByFilter(e.target.value)}>
+              <select className="h-9 rounded-[8px] border border-[#d9e4f2] bg-white px-2.5 text-[12px] font-bold text-[#1e3261]" value={addedByFilter} onChange={(e) => setAddedByFilter(e.target.value)}>
                 <option>All Employees</option>
                 {employeeOptions.map((name) => <option key={`b-${name}`} value={name}>{name}</option>)}
               </select>
             </label>
             <label className="grid gap-1 text-[11px] font-extrabold uppercase tracking-wide text-[#7b88a2]">
               Type
-              <select className="h-11 rounded-[10px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+              <select className="h-9 rounded-[8px] border border-[#d9e4f2] bg-white px-2.5 text-[12px] font-bold text-[#1e3261]" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
                 <option>All Types</option>
                 {FOLLOW_UP_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
@@ -494,8 +494,8 @@ export function CrmFollowUpsPage({
             <label className="grid gap-1 text-[11px] font-extrabold uppercase tracking-wide text-[#7b88a2]">
               Date range
               <div className="grid grid-cols-2 gap-2">
-                <input type="date" className="h-11 rounded-[10px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-                <input type="date" className="h-11 rounded-[10px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261]" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+                <input type="date" className="h-9 rounded-[8px] border border-[#d9e4f2] bg-white px-2.5 text-[12px] font-bold text-[#1e3261]" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+                <input type="date" className="h-9 rounded-[8px] border border-[#d9e4f2] bg-white px-2.5 text-[12px] font-bold text-[#1e3261]" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
               </div>
             </label>
           </div>
@@ -520,7 +520,7 @@ export function CrmFollowUpsPage({
               )}
             >
               <p className="text-[11px] font-extrabold uppercase tracking-wide opacity-80">{card.label}</p>
-              <p className="mt-2 text-[26px] font-extrabold">{loaded ? card.value : '—'}</p>
+              <p className="mt-1 text-[20px] font-extrabold">{loaded ? card.value : '—'}</p>
             </button>
           );
         })}

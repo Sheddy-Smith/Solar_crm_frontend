@@ -11,6 +11,7 @@
 import { hasUnsavedWork } from './unsavedWork.js';
 
 const CHECK_INTERVAL_MS = 5 * 60 * 1000;
+const MIN_CHECK_GAP_MS = 60 * 1000;
 const DISMISS_PREFIX = 'malwa_update_dismissed_';
 const ACK_BUILD_KEY = 'malwa_ack_build';
 const ACK_RELEASE_KEY = 'malwa_ack_release';
@@ -24,6 +25,7 @@ let registration = null;
 let popupOpen = false;
 let forceShowPopup = false;
 let checkTimer = null;
+let lastCheckAt = 0;
 
 export function getRunningBuild() {
   const env = typeof import.meta !== 'undefined' ? import.meta.env : {};
@@ -378,20 +380,23 @@ export function startAppUpdateMonitor(getRegistration) {
   if (started || typeof window === 'undefined') return;
   started = true;
 
-  const runCheck = () => {
+  const runCheck = (force = false) => {
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden' && !force) return;
+    const now = Date.now();
+    if (!force && lastCheckAt && now - lastCheckAt < MIN_CHECK_GAP_MS) return;
+    lastCheckAt = now;
     checkForAppUpdate();
     pollServiceWorkerUpdate();
   };
 
-  window.setTimeout(runCheck, 400);
-  window.setTimeout(runCheck, 2000);
-  checkTimer = window.setInterval(runCheck, CHECK_INTERVAL_MS);
+  window.setTimeout(() => runCheck(true), 800);
+  checkTimer = window.setInterval(() => runCheck(true), CHECK_INTERVAL_MS);
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') runCheck();
   });
-  window.addEventListener('online', runCheck);
-  window.addEventListener('focus', runCheck);
+  window.addEventListener('online', () => runCheck());
+  window.addEventListener('focus', () => runCheck());
   window.addEventListener('pageshow', () => runCheck());
 
   Promise.resolve()

@@ -352,7 +352,7 @@ export function InventoryOverviewPageEnhanced({ activeSection, onOpenSection, on
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <div className="px-0.5">
         <InventoryBreadcrumbs onOpenSection={onOpenSection} current="Overview" />
       </div>
@@ -362,10 +362,10 @@ export function InventoryOverviewPageEnhanced({ activeSection, onOpenSection, on
       />
       <Subnav activeSection={activeSection} onOpenSection={onOpenSection} />
       {loading ? (
-        <div className={cx(panelClass, 'flex items-center justify-center py-16 text-[14px] text-[#7a8fa6]')}>Loading overview...</div>
+        <div className={cx(panelClass, 'flex items-center justify-center py-10 text-[13px] text-[#7a8fa6]')}>Loading overview...</div>
       ) : (
         <>
-          <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+          <section className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
             {cards.map((card) => {
               const tone = INV_KPI_TONES[card.tone] || INV_KPI_TONES.blue;
               return (
@@ -383,7 +383,7 @@ export function InventoryOverviewPageEnhanced({ activeSection, onOpenSection, on
             })}
           </section>
 
-          <div className="grid gap-4 xl:grid-cols-3">
+          <div className="grid gap-2 xl:grid-cols-3">
             <section className={cx('overflow-hidden rounded-[16px] border-2 border-[#ef4444]/50 bg-white shadow-[0_12px_28px_rgba(220,38,38,0.12)]', criticalCount > 0 && 'ring-2 ring-[#fecaca]/90')}>
               <div className="flex items-center justify-between gap-3 border-b border-[#fecaca] bg-[linear-gradient(90deg,#fef2f2_0%,#fff5f5_100%)] px-4 py-3">
                 <div className="flex min-w-0 items-center gap-2.5">
@@ -921,7 +921,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
             <label className="mt-3 block text-[12px] font-extrabold text-[#334155]">
               Adjustment Reason <span className="text-[#dc2626]">*</span>
               <select
-                className="mt-1 h-11 w-full rounded-[10px] border border-[#dbe3ee] px-3 text-[13px] font-semibold"
+                className="mt-1 h-9 w-full rounded-[8px] border border-[#dbe3ee] px-2.5 text-[13px] font-semibold"
                 value={adjustForm.reason}
                 onChange={(e) => setAdjustForm((a) => ({ ...a, reason: e.target.value }))}
               >
@@ -1088,8 +1088,8 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                 {formTabBtn('extra', 'Additional Info', FileText)}
               </aside>
 
-              <div className="min-h-0 space-y-6 overflow-y-auto p-5">
-                <section ref={basicSectionRef} className="space-y-4">
+              <div className="min-h-0 space-y-3 overflow-y-auto p-3">
+                <section ref={basicSectionRef} className="space-y-2">
                   <div className="flex items-start gap-2">
                     <span className="grid size-8 place-items-center rounded-[8px] bg-[#dcfce7] text-[#16a34a]"><Package className="size-4" /></span>
                     <div>
@@ -1102,7 +1102,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                       Category
                       <select
                         disabled={readOnly}
-                        className="mt-1 h-11 w-full rounded-[10px] border border-[#dbe3ee] px-3 text-[13px] font-semibold"
+                        className="mt-1 h-9 w-full rounded-[8px] border border-[#dbe3ee] px-2.5 text-[13px] font-semibold"
                         value={selectedCategory}
                         onChange={(e) => {
                           const nextCategory = e.target.value;
@@ -1138,7 +1138,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                     Product Name
                     <input
                       disabled={readOnly}
-                      className="mt-1 h-11 w-full rounded-[10px] border border-[#dbe3ee] px-3 text-[13px] font-semibold"
+                      className="mt-1 h-9 w-full rounded-[8px] border border-[#dbe3ee] px-2.5 text-[13px] font-semibold"
                       placeholder="Enter product name (e.g. ACDB Box 3 Phase)"
                       value={f.name || ''}
                       onChange={(e) => patchForm({ name: e.target.value })}
@@ -1149,7 +1149,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                       Item Code
                       <input
                         disabled={readOnly}
-                        className="mt-1 h-11 w-full rounded-[10px] border border-[#dbe3ee] px-3 text-[13px] font-semibold"
+                        className="mt-1 h-9 w-full rounded-[8px] border border-[#dbe3ee] px-2.5 text-[13px] font-semibold"
                         placeholder="Auto-generated if empty"
                         value={f.item_code || ''}
                         onChange={(e) => patchForm({ item_code: e.target.value })}
@@ -1159,7 +1159,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                       Unit
                       <select
                         disabled={readOnly}
-                        className="mt-1 h-11 w-full rounded-[10px] border border-[#dbe3ee] px-3 text-[13px] font-semibold"
+                        className="mt-1 h-9 w-full rounded-[8px] border border-[#dbe3ee] px-2.5 text-[13px] font-semibold"
                         value={f.unit || 'Nos'}
                         onChange={(e) => patchForm({ unit: e.target.value })}
                       >
@@ -1172,7 +1172,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                     <input
                       disabled={readOnly}
                       type="number"
-                      className="mt-1 h-11 w-full rounded-[10px] border border-[#dbe3ee] px-3 text-[13px] font-semibold"
+                      className="mt-1 h-9 w-full rounded-[8px] border border-[#dbe3ee] px-2.5 text-[13px] font-semibold"
                       placeholder="e.g. 10"
                       value={f.minimum_stock ?? ''}
                       onChange={(e) => patchForm({ minimum_stock: e.target.value })}
@@ -1196,7 +1196,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                       <input
                         disabled={readOnly}
                         type="number"
-                        className="mt-1 h-11 w-full rounded-[10px] border border-[#dbe3ee] px-3 text-[13px] font-semibold"
+                        className="mt-1 h-9 w-full rounded-[8px] border border-[#dbe3ee] px-2.5 text-[13px] font-semibold"
                         placeholder="Enter unit price"
                         value={f.rate ?? ''}
                         onChange={(e) => patchForm({ rate: e.target.value })}
@@ -1207,7 +1207,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                       <input
                         disabled={readOnly}
                         type="number"
-                        className="mt-1 h-11 w-full rounded-[10px] border border-[#dbe3ee] px-3 text-[13px] font-semibold"
+                        className="mt-1 h-9 w-full rounded-[8px] border border-[#dbe3ee] px-2.5 text-[13px] font-semibold"
                         placeholder="Enter selling price (optional)"
                         value={f.selling_price ?? ''}
                         onChange={(e) => patchForm({ selling_price: e.target.value })}
@@ -1219,7 +1219,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                         <input
                           disabled={readOnly}
                           type="number"
-                          className="mt-1 h-11 w-full rounded-[10px] border border-[#dbe3ee] px-3 text-[13px] font-semibold"
+                          className="mt-1 h-9 w-full rounded-[8px] border border-[#dbe3ee] px-2.5 text-[13px] font-semibold"
                           placeholder="e.g. 0"
                           value={f.initial_stock ?? ''}
                           onChange={(e) => patchForm({ initial_stock: e.target.value })}
@@ -1230,7 +1230,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
                       Warehouse
                       <select
                         disabled={readOnly}
-                        className="mt-1 h-11 w-full rounded-[10px] border border-[#dbe3ee] px-3 text-[13px] font-semibold"
+                        className="mt-1 h-9 w-full rounded-[8px] border border-[#dbe3ee] px-2.5 text-[13px] font-semibold"
                         value={f.warehouse || ''}
                         onChange={(e) => patchForm({ warehouse: e.target.value })}
                       >

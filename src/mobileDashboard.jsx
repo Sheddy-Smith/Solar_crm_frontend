@@ -203,11 +203,11 @@ export function MobileDashboardPage({
   return (
     <div className="space-y-3 pb-20">
       {/* Welcome banner */}
-      <section className="relative overflow-hidden rounded-[16px] bg-linear-to-r from-[#1d4ed8] via-[#2563eb] to-[#3b82f6] p-4 text-white shadow-[0_12px_26px_rgba(29,78,216,0.28)] professional:from-[#1e3a5f] professional:via-[#243447] professional:to-[#2f4d73] professional:shadow-[0_12px_26px_rgba(30,58,95,0.28)]">
+      <section className="relative overflow-hidden rounded-[12px] bg-linear-to-r from-[#1d4ed8] via-[#2563eb] to-[#3b82f6] p-3 text-white shadow-[0_10px_20px_rgba(29,78,216,0.24)] professional:from-[#1e3a5f] professional:via-[#243447] professional:to-[#2f4d73] professional:shadow-[0_10px_20px_rgba(30,58,95,0.24)]">
         <div className="pointer-events-none absolute -right-6 -top-8 size-28 rounded-full bg-white/10" aria-hidden="true" />
         <div className="pointer-events-none absolute -bottom-10 right-10 size-24 rounded-full bg-white/10" aria-hidden="true" />
         <p className="text-[12px] font-bold text-white/85">Welcome back,</p>
-        <h1 className="mt-0.5 font-display text-[20px] font-extrabold leading-tight">{userName} 👋</h1>
+        <h1 className="mt-0.5 font-display text-[18px] font-extrabold leading-tight">{userName} 👋</h1>
         {rangeLabel ? (
           <p className="mt-2.5 inline-flex items-center gap-2 rounded-[8px] bg-white/16 px-2.5 py-1.5 text-[11px] font-bold backdrop-blur-[2px]">
             <CalendarDays className="size-3.5" />

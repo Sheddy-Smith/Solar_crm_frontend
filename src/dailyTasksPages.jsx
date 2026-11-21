@@ -313,7 +313,7 @@ function TaskModal({
 
           <div className="mt-6 flex items-center justify-end gap-3 border-t border-[#e7eef7] pt-4">
             <button type="button" onClick={onClose} className="px-4 py-2 text-[13px] font-extrabold text-[#53647f] transition hover:text-[#1e3261]">Cancel</button>
-            <button type="submit" disabled={saving} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_8px_18px_rgba(13,159,74,0.28)] transition hover:bg-[#078c3e] disabled:opacity-60">
+            <button type="submit" disabled={saving} className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white shadow-[0_8px_18px_rgba(13,159,74,0.28)] transition hover:bg-[#078c3e] professional:bg-[#1e3a5f] professional:shadow-[0_8px_18px_rgba(30,58,95,0.22)] professional:hover:bg-[#162e4c] disabled:opacity-60">
               <Save className="size-4" />
               {saving ? 'Saving…' : 'Save Task'}
             </button>
@@ -474,13 +474,13 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
   };
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="font-display text-[24px] font-extrabold text-[#1e3261]">Daily Tasks</h1>
-        <p className="mt-1 text-[13px] font-semibold text-[#7a8fa6]">Assign work to users and track Completed / Not Completed. Field reports stay in the second tab.</p>
+    <div className="space-y-2">
+      <div className="page-heading">
+        <h1 className="font-display text-[20px] font-extrabold text-[#1e3261]">Daily Tasks</h1>
+        <p className="text-[12px] font-semibold leading-tight text-[#7a8fa6]">Assign work to users and track Completed / Not Completed. Field reports stay in the second tab.</p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5">
         {[
           { id: 'assigned', label: 'Assigned Tasks' },
           { id: 'reports', label: 'Field Reports' },
@@ -489,7 +489,7 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
             key={tab.id}
             type="button"
             onClick={() => setHubTab(tab.id)}
-            className={`rounded-[8px] px-4 py-2.5 text-[13px] font-extrabold transition ${hubTab === tab.id ? 'bg-[#0d9f4a] text-white shadow-md' : 'border border-[#d9e2ec] bg-white text-[#30466d] hover:bg-[#f8fbff]'}`}
+            className={`module-tab-button rounded-[8px] px-3 py-1.5 text-[12px] font-extrabold transition ${hubTab === tab.id ? 'bg-[#0d9f4a] text-white shadow-md professional:bg-[#1e3a5f]' : 'border border-[#d9e2ec] bg-white text-[#30466d] hover:bg-[#f8fbff]'}`}
           >
             {tab.label}
           </button>
@@ -499,11 +499,11 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
       {hubTab === 'assigned' ? (
         <TeleDailyTasksPage me={loggedInUser} onNotify={onNotify} variant="crm" />
       ) : (
-      <div className="space-y-5">
+      <div className="space-y-2">
 
-      <section className={`${CARD} p-4 sm:p-5`}>
-        <h2 className="text-[15px] font-extrabold text-[#1e3261]">Add New Task</h2>
-        <div className="mt-4 grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4">
+      <section className={`${CARD} p-3 sm:p-4`}>
+        <h2 className="text-[14px] font-extrabold text-[#1e3261]">Add New Task</h2>
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:gap-2.5 xl:grid-cols-4">
           {categoryCounts.map((cat) => {
             const Icon = cat.icon;
             return (

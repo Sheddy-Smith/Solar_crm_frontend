@@ -182,7 +182,7 @@ export function InventoryMovementsPage({
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <div className="px-0.5">
         <InventoryBreadcrumbs onOpenSection={onOpenSection} current={pageTitle} />
       </div>
@@ -499,7 +499,7 @@ export function InventoryWarehousesPage({
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <div className="px-0.5">
         <InventoryBreadcrumbs onOpenSection={onOpenSection} current="Warehouses" />
       </div>

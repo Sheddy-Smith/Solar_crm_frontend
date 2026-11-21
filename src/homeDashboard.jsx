@@ -105,11 +105,11 @@ function KpiCard({ title, value, delta, tone, icon: Icon, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className={cx(CARD, 'flex w-full items-start justify-between gap-3 p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md', tones.card)}
+      className={cx(CARD, 'flex w-full items-start justify-between gap-2 p-3 text-left transition hover:-translate-y-0.5 hover:shadow-md', tones.card)}
     >
       <div className="min-w-0">
         <p className="text-[12px] font-bold text-[#7386a3]">{title}</p>
-        <p className="mt-2 font-display text-[28px] font-extrabold leading-none text-[#1e3261]">{value}</p>
+        <p className="mt-1 font-display text-[22px] font-extrabold leading-none text-[#1e3261]">{value}</p>
         {delta ? (
           <p className={cx('mt-2 inline-flex items-center gap-1 text-[11px] font-extrabold', tones.delta)}>
             <ArrowUpRight className="size-3.5" />
@@ -329,31 +329,31 @@ export function HomeDashboardPage({
   ];
 
   return (
-    <div className="hidden space-y-4 md:block">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-display text-[22px] font-extrabold text-[#1e3261]">Dashboard</h1>
-          <p className="mt-1 text-[13px] font-semibold text-[#7386a3]">Live sales &amp; follow-up overview</p>
+    <div className="hidden space-y-2 md:block">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="page-heading">
+          <h1 className="font-display text-[18px] font-extrabold text-[#1e3261]">Dashboard</h1>
+          <p className="text-[12px] font-semibold leading-tight text-[#7386a3]">Live sales &amp; follow-up overview</p>
         </div>
         {onRefresh ? (
           <button
             type="button"
             onClick={onRefresh}
-            className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276]"
+            className="inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#284276]"
           >
             Refresh
           </button>
         ) : null}
       </div>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+      <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         {kpiCards.map((card) => (
           <KpiCard key={card.title} {...card} />
         ))}
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.05fr_1.1fr_0.95fr]">
-        <article className={`${CARD} p-4`}>
+      <section className="grid gap-2 xl:grid-cols-[1.05fr_1.1fr_0.95fr]">
+        <article className={`${CARD} p-3`}>
           <h2 className="text-[15px] font-extrabold text-[#1e3261]">Follow-up Status</h2>
           <div className="mt-2 grid gap-3 sm:grid-cols-[160px_1fr] sm:items-center">
             <div className="relative mx-auto h-[160px] w-[160px]">
@@ -442,9 +442,9 @@ export function HomeDashboardPage({
         </article>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-2">
+      <section className="grid gap-2 xl:grid-cols-2">
         <article className={`${CARD} overflow-hidden`}>
-          <div className="flex items-center justify-between border-b border-[#fde68a] bg-[#fffbeb] px-4 py-3">
+          <div className="flex items-center justify-between border-b border-[#fde68a] bg-[#fffbeb] px-3 py-2">
             <h2 className="text-[15px] font-extrabold text-[#92400e]">Today Follow-up ({todayRows.length})</h2>
             <button type="button" onClick={() => onOpenSection?.('Follow-ups', "Today's follow-ups opened", null, 'today')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
           </div>
@@ -462,7 +462,7 @@ export function HomeDashboardPage({
         </article>
 
         <article className={`${CARD} overflow-hidden`}>
-          <div className="flex items-center justify-between border-b border-[#fecaca] bg-[#fef2f2] px-4 py-3">
+          <div className="flex items-center justify-between border-b border-[#fecaca] bg-[#fef2f2] px-3 py-2">
             <h2 className="text-[15px] font-extrabold text-[#991b1b]">High Alert Follow-ups ({highAlertCount})</h2>
             <button type="button" onClick={() => onOpenSection?.('Follow-ups', 'High alert opened', null, 'overdue')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
           </div>
@@ -480,24 +480,24 @@ export function HomeDashboardPage({
         </article>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.05fr_1.35fr]">
+      <section className="grid gap-2 xl:grid-cols-[1.05fr_1.35fr]">
         <article className={`${CARD} overflow-hidden`}>
-          <div className="flex items-center justify-between border-b border-[#edf2f8] px-4 py-3">
-            <h2 className="text-[15px] font-extrabold text-[#1e3261]">Recent Leads</h2>
+          <div className="flex items-center justify-between border-b border-[#edf2f8] px-3 py-2">
+            <h2 className="text-[14px] font-extrabold text-[#1e3261]">Recent Leads</h2>
             <button type="button" onClick={() => onOpenSection?.('Lead List', 'All recent leads opened')} className="inline-flex items-center gap-1 text-[12px] font-extrabold text-[#0b65e5]">
               View All <ArrowRight className="size-3.5" />
             </button>
           </div>
           <div className="max-h-[340px] divide-y divide-[#edf2f8] overflow-y-auto">
             {(recentLeads || []).length === 0 ? (
-              <p className="py-10 text-center text-[13px] font-semibold text-[#94a3b8]">No leads added yet</p>
+              <p className="py-6 text-center text-[12px] font-semibold text-[#94a3b8]">No leads added yet</p>
             ) : (
               recentLeads.slice(0, 8).map((lead) => (
                 <button
                   key={lead.id ?? `${lead.customer}-${lead.mobile}`}
                   type="button"
                   onClick={() => onViewLead?.(lead)}
-                  className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-[#f8fbff]"
+                  className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left transition hover:bg-[#f8fbff]"
                 >
                   <div className="min-w-0">
                     <p className="truncate text-[13px] font-extrabold text-[#1e3261]">{lead.customer}</p>
@@ -512,18 +512,18 @@ export function HomeDashboardPage({
           </div>
         </article>
 
-        <div className="space-y-4">
-          <article className={`${CARD} p-4`}>
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 className="text-[15px] font-extrabold text-[#1e3261]">Workflow — Lead to Installation</h2>
+        <div className="space-y-2">
+          <article className={`${CARD} p-3`}>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h2 className="text-[14px] font-extrabold text-[#1e3261]">Workflow — Lead to Installation</h2>
               <button type="button" onClick={() => onOpenSection?.('Project List', 'Project workflow opened')} className="text-[12px] font-extrabold text-[#0b65e5]">View All</button>
             </div>
             <WorkflowChevron stages={workflowStages} onStageClick={(target) => onOpenSection?.(target, `${target} opened`)} />
           </article>
 
-          <article className={`${CARD} p-4`}>
-            <h2 className="mb-3 text-[15px] font-extrabold text-[#1e3261]">Quick Actions</h2>
-            <div className="grid gap-2.5 sm:grid-cols-2">
+          <article className={`${CARD} p-3`}>
+            <h2 className="mb-2 text-[14px] font-extrabold text-[#1e3261]">Quick Actions</h2>
+            <div className="grid gap-2 sm:grid-cols-2">
               {quickActions.map((action) => {
                 const Icon = action.icon;
                 return (
@@ -532,7 +532,7 @@ export function HomeDashboardPage({
                     type="button"
                     onClick={() => onQuickAction?.(action)}
                     className={cx(
-                      'inline-flex h-12 items-center justify-center gap-2 rounded-[10px] px-4 text-[13px] font-extrabold transition',
+                      'inline-flex h-9 items-center justify-center gap-1.5 rounded-[8px] px-3 text-[12px] font-extrabold transition',
                       action.solid
                         ? 'bg-[#0d9f4a] text-white shadow-[0_10px_20px_rgba(13,159,74,0.25)] hover:bg-[#078c3e]'
                         : 'border border-[#d9e4f2] bg-white text-[#284276] hover:bg-[#f8fbff]',

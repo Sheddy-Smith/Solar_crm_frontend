@@ -28,7 +28,11 @@
         var theme = 'professional';
         try {
           var prefs = JSON.parse(localStorage.getItem('malwa-solar-crm:ui-preferences') || '{}');
-          if (prefs && typeof prefs.theme === 'string') theme = prefs.theme;
+          // Only honor stored theme after the user explicitly picks one in the theme picker.
+          // Otherwise every CRM open lands on Professional.
+          if (prefs && prefs.themeUserSelected === true && typeof prefs.theme === 'string') {
+            theme = prefs.theme;
+          }
         } catch (e) { /* keep default */ }
         var root = document.documentElement;
         // Only Light / Professional remain — map legacy dark/system → professional.

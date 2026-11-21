@@ -46,7 +46,7 @@ const MENU_TONES = {
 
 /** Phone-only list wrapper; pair it with a desktop table wrapped in `hidden lg:block`. */
 export function MobileCardList({ children, className }) {
-  return <div className={cx('flex flex-col gap-2.5 lg:hidden', className)}>{children}</div>;
+  return <div className={cx('flex flex-col gap-2 lg:hidden', className)}>{children}</div>;
 }
 
 export function MobileCardEmpty({ icon: Icon, title, hint, action }) {
@@ -63,7 +63,7 @@ export function MobileCardEmpty({ icon: Icon, title, hint, action }) {
 function ActionButton({ action }) {
   const Icon = action.icon;
   const className = cx(
-    'inline-flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-[10px] px-1 text-[12px] font-extrabold transition',
+    'inline-flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-[8px] px-1 text-[11px] font-extrabold transition',
     action.disabled ? 'text-[#b0bdd4]!' : (ACTION_TONES[action.tone] || ACTION_TONES.slate),
   );
   const body = (
@@ -116,23 +116,23 @@ export function MobileRecordCard({
   const header = (
     <>
       {avatar !== undefined ? (
-        <span className={cx('mt-0.5 grid size-11 shrink-0 place-items-center rounded-full text-[13px] font-extrabold text-white', avatarTone(avatar))}>
+        <span className={cx('mt-0.5 grid size-9 shrink-0 place-items-center rounded-full text-[12px] font-extrabold text-white', avatarTone(avatar))}>
           {initialsOf(avatar)}
         </span>
       ) : Icon ? (
-        <span className={cx('mt-0.5 grid size-11 shrink-0 place-items-center rounded-[12px]', iconTone)}>
-          <Icon className="size-5" />
+        <span className={cx('mt-0.5 grid size-9 shrink-0 place-items-center rounded-[10px]', iconTone)}>
+          <Icon className="size-4" />
         </span>
       ) : null}
       <span className="min-w-0 flex-1">
         <span className="flex items-start justify-between gap-2">
-          <span className="block min-w-0 break-words text-[15px] font-extrabold leading-snug text-[#1e3261] [&_*]:font-extrabold! [&_*]:text-[#1e3261]!">{title || '—'}</span>
-          {aside ? <span className="shrink-0 text-right text-[13px] font-extrabold text-[#1e3261]">{aside}</span> : null}
+          <span className="block min-w-0 break-words text-[14px] font-extrabold leading-snug text-[#1e3261] [&_*]:font-extrabold! [&_*]:text-[#1e3261]!">{title || '—'}</span>
+          {aside ? <span className="shrink-0 text-right text-[12px] font-extrabold text-[#1e3261]">{aside}</span> : null}
         </span>
-        {subtitle ? <span className="mt-0.5 block text-[12px] font-bold text-[#53647f]">{subtitle}</span> : null}
-        {badges ? <span className="mt-2 flex flex-wrap items-center gap-1.5">{badges}</span> : null}
+        {subtitle ? <span className="mt-0.5 block text-[11px] font-bold text-[#53647f]">{subtitle}</span> : null}
+        {badges ? <span className="mt-1.5 flex flex-wrap items-center gap-1">{badges}</span> : null}
         {visibleDetails.length ? (
-          <span className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-2">
+          <span className="mt-1.5 grid grid-cols-2 gap-x-2 gap-y-1.5">
             {visibleDetails.map((d) => (
               <span key={d.label} className={cx('min-w-0', d.wide && 'col-span-2')}>
                 <span className="block text-[10px] font-extrabold uppercase tracking-wide text-[#8a98af]">{d.label}</span>
@@ -151,18 +151,18 @@ export function MobileRecordCard({
   );
 
   return (
-    <article className={cx('overflow-hidden rounded-[14px] border border-[#e7eef7] bg-white shadow-[0_8px_20px_rgba(17,39,84,0.06)]', className)}>
+    <article className={cx('mobile-record-card overflow-hidden rounded-[12px] border border-[#e7eef7] bg-white shadow-[0_6px_14px_rgba(17,39,84,0.05)]', className)}>
       {onOpen ? (
-        <button type="button" onClick={onOpen} style={{ textAlign: 'left' }} className="flex w-full items-start gap-3 px-3.5 pb-3 pt-3.5 active:bg-[#f8fbff]">
+        <button type="button" onClick={onOpen} style={{ textAlign: 'left' }} className="flex w-full items-start gap-2.5 px-3 pb-2.5 pt-2.5 active:bg-[#f8fbff]">
           {header}
         </button>
       ) : (
-        <div className="flex w-full items-start gap-3 px-3.5 pb-3 pt-3.5">{header}</div>
+        <div className="flex w-full items-start gap-2.5 px-3 pb-2.5 pt-2.5">{header}</div>
       )}
 
       {stripCount ? (
         <div
-          className="relative grid gap-1 border-t border-[#eef2f8] bg-[#fbfcfe] p-1.5"
+          className="relative grid gap-1 border-t border-[#eef2f8] bg-[#fbfcfe] p-1"
           style={{ gridTemplateColumns: `repeat(${stripCount}, minmax(0, 1fr))` }}
         >
           {visibleActions.map((action) => <ActionButton key={action.label} action={action} />)}

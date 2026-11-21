@@ -244,18 +244,51 @@ async function refreshAccessToken() {
   return refreshPromise;
 }
 
-/** Short-lived GET cache + in-flight dedupe for hot poll paths (unread / me). */
+/** Short-lived GET cache + in-flight dedupe for hot poll / shell paths. */
 const GET_SOFT_CACHE_MS = {
-  '/notifications/unread-count/': 8000,
-  '/users/me/': 20000,
+  '/notifications/unread-count/': 20000,
+  '/users/me/': 45000,
+  '/leads/stats/': 15000,
+  '/leads/recent/': 15000,
+  '/projects/summary/': 20000,
+  '/dashboard/unified/': 30000,
 };
+const GET_SOFT_CACHE_PREFIX_MS = [
+  { prefix: '/leads/stats/', ttl: 15000 },
+  { prefix: '/dashboard/unified/', ttl: 30000 },
+  { prefix: '/notifications/', ttl: 12000 },
+];
 const getSoftCache = new Map();
 const getInflight = new Map();
+const GET_SOFT_CACHE_MAX = 80;
+
+function softCacheTtlFor(path) {
+  if (GET_SOFT_CACHE_MS[path]) return GET_SOFT_CACHE_MS[path];
+  const bare = String(path || '').split('?')[0];
+  if (GET_SOFT_CACHE_MS[bare]) return GET_SOFT_CACHE_MS[bare];
+  for (const row of GET_SOFT_CACHE_PREFIX_MS) {
+    if (bare.startsWith(row.prefix) || String(path || '').startsWith(row.prefix)) return row.ttl;
+  }
+  return 0;
+}
 
 function softCacheKey(path, auth) {
   // Bind to access token so login/user switches never return a stale /users/me/.
   const tokenHint = auth ? String(tokenStore.getAccess() || '').slice(-24) : '';
   return `${auth ? '1' : '0'}:${tokenHint}:${path}`;
+}
+
+function trimSoftGetCache() {
+  if (getSoftCache.size <= GET_SOFT_CACHE_MAX) return;
+  const now = Date.now();
+  for (const [key, hit] of getSoftCache) {
+    if (!hit || hit.expires <= now) getSoftCache.delete(key);
+  }
+  while (getSoftCache.size > GET_SOFT_CACHE_MAX) {
+    const oldest = getSoftCache.keys().next().value;
+    if (oldest == null) break;
+    getSoftCache.delete(oldest);
+  }
 }
 
 function invalidateSoftGetCache(pathPrefix) {
@@ -269,7 +302,9 @@ function invalidateSoftGetCache(pathPrefix) {
 
 async function request(path, { method = 'GET', body, auth = true, timeoutMs = 20000, signal } = {}) {
   const upper = String(method || 'GET').toUpperCase();
-  const ttl = upper === 'GET' && !body && !signal ? GET_SOFT_CACHE_MS[path] : 0;
+  // External AbortSignal skips soft-cache so callers can cancel, but still
+  // share in-flight GETs when no signal is passed (dashboard / poll storms).
+  const ttl = upper === 'GET' && !body && !signal ? softCacheTtlFor(path) : 0;
   if (ttl) {
     const key = softCacheKey(path, auth);
     const hit = getSoftCache.get(key);
@@ -279,6 +314,7 @@ async function request(path, { method = 'GET', body, auth = true, timeoutMs = 20
     const promise = requestUncached(path, { method, body, auth, timeoutMs, signal })
       .then((data) => {
         getSoftCache.set(key, { data, expires: Date.now() + ttl });
+        trimSoftGetCache();
         return data;
       })
       .finally(() => {
@@ -478,14 +514,39 @@ export const leadApi = {
     if (excludeId != null && excludeId !== '') qs.set('exclude_id', String(excludeId));
     return request(`/leads/check-ivrs/?${qs.toString()}`);
   },
-  create: (data) => request('/leads/', { method: 'POST', body: data }),
+  create: async (data) => {
+    const res = await request('/leads/', { method: 'POST', body: data });
+    invalidateSoftGetCache('/leads/stats/');
+    invalidateSoftGetCache('/leads/recent/');
+    invalidateSoftGetCache('/dashboard/unified/');
+    return res;
+  },
   get: (id) => request(`/leads/${id}/`),
-  update: (id, data) => request(`/leads/${id}/`, { method: 'PATCH', body: data }),
-  delete: (id) => request(`/leads/${id}/`, { method: 'DELETE' }),
-  updateStatus: (id, status) =>
-    request(`/leads/${id}/update_status/`, { method: 'POST', body: { status } }),
-  assign: (id, userId) =>
-    request(`/leads/${id}/assign/`, { method: 'POST', body: { assigned_to: userId } }),
+  update: async (id, data) => {
+    const res = await request(`/leads/${id}/`, { method: 'PATCH', body: data });
+    invalidateSoftGetCache('/leads/stats/');
+    invalidateSoftGetCache('/leads/recent/');
+    return res;
+  },
+  delete: async (id) => {
+    const res = await request(`/leads/${id}/`, { method: 'DELETE' });
+    invalidateSoftGetCache('/leads/stats/');
+    invalidateSoftGetCache('/leads/recent/');
+    invalidateSoftGetCache('/dashboard/unified/');
+    return res;
+  },
+  updateStatus: async (id, status) => {
+    const res = await request(`/leads/${id}/update_status/`, { method: 'POST', body: { status } });
+    invalidateSoftGetCache('/leads/stats/');
+    invalidateSoftGetCache('/leads/recent/');
+    return res;
+  },
+  assign: async (id, userId) => {
+    const res = await request(`/leads/${id}/assign/`, { method: 'POST', body: { assigned_to: userId } });
+    invalidateSoftGetCache('/leads/stats/');
+    invalidateSoftGetCache('/leads/recent/');
+    return res;
+  },
   stats: (period, date) => {
     const qs = new URLSearchParams();
     if (period) qs.set('period', period);

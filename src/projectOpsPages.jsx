@@ -88,10 +88,10 @@ function fmtRs(n) {
 
 function OpsHeading({ title, crumbs, actions }) {
   return (
-    <div className="page-heading flex min-w-0 flex-col gap-2.5 rounded-[12px] bg-white/60 p-2 sm:flex-row sm:items-end sm:justify-between">
+    <div className="page-heading flex min-w-0 flex-col gap-1.5 rounded-[10px] bg-white/60 p-1.5 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
-        <h1 className="font-display text-[24px] font-bold leading-[1.12] tracking-[-0.01em] text-[#111827] sm:text-[30px]">{title}</h1>
-        <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-2 text-[13px] font-semibold">
+        <h1 className="font-display text-[18px] font-bold leading-[1.15] tracking-[-0.01em] text-[#111827] sm:text-[20px]">{title}</h1>
+        <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1.5 text-[12px] font-semibold">
           {crumbs.map((crumb, index) => (
             <span key={`${crumb.label}-${index}`} className="inline-flex min-w-0 items-center gap-2">
               {crumb.onClick

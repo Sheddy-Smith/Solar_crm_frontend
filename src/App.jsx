@@ -2170,6 +2170,8 @@ const dataPanelClass =
   'crm-data-panel overflow-hidden rounded-[12px] border border-[#dbe5f2] bg-white/75 shadow-[0_12px_28px_rgba(24,48,87,0.07)] backdrop-blur-md';
 
 const APP_PREFERENCES_KEY = 'malwa-solar-crm:ui-preferences';
+/** Org-wide default — first open / unset preference always lands on Professional. */
+const DEFAULT_CRM_THEME = 'professional';
 const availableSections = new Set([
   ...sidebarItems.map((item) => item.label),
   'Developer Mode',
@@ -2234,6 +2236,18 @@ function readStoredPreferences() {
   } catch {
     return {};
   }
+}
+
+function normalizeCrmTheme(value) {
+  return value === 'light' || value === 'professional' ? value : DEFAULT_CRM_THEME;
+}
+
+/** Default Professional unless the user explicitly picked a theme in the picker. */
+function resolveCrmTheme(preferences = {}) {
+  if (preferences.themeUserSelected === true) {
+    return normalizeCrmTheme(preferences.theme);
+  }
+  return DEFAULT_CRM_THEME;
 }
 
 function isKnownSection(section) {
@@ -2444,15 +2458,15 @@ function App() {
     const pushTimer = window.setTimeout(() => {
       ensureWebPushSubscription().catch(() => {});
     }, 1200);
-    // 60s poll — avoids full App re-renders every 20s when the badge is unchanged.
+    // 90s poll + soft-cache — badge stays fresh without hammering unread-count.
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') refreshNotificationCount();
-    }, 60000);
+    }, 90000);
     let visibleTimer = 0;
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return;
       window.clearTimeout(visibleTimer);
-      visibleTimer = window.setTimeout(() => refreshNotificationCount(), 800);
+      visibleTimer = window.setTimeout(() => refreshNotificationCount(), 2000);
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
@@ -2568,13 +2582,18 @@ function App() {
   const [dashboardRange, setDashboardRange] = useState({ start: null, end: null });
   const [dashboardRightTab, setDashboardRightTab] = useState('workflow');
   const [dashboardFollowUpsOpen, setDashboardFollowUpsOpen] = useState(false);
-  const [theme, setTheme] = useState(() => (
-    ['light', 'professional'].includes(initialPreferences.theme)
-      ? initialPreferences.theme
-      : 'professional'
+  const [theme, setTheme] = useState(() => resolveCrmTheme(initialPreferences));
+  const [themeUserSelected, setThemeUserSelected] = useState(() => (
+    initialPreferences.themeUserSelected === true
   ));
   const isDarkMode = false;
   const isProfessionalTheme = theme === 'professional';
+
+  const applyThemeChoice = useCallback((next) => {
+    const normalized = normalizeCrmTheme(next);
+    setTheme(normalized);
+    setThemeUserSelected(true);
+  }, []);
 
   const dashboardFollowUpAlerts = useMemo(
     () => splitFollowUpAlerts(dashboardScheduledFollowUps || []),
@@ -2877,6 +2896,7 @@ function App() {
     return () => ac.abort();
   }, [currentPage, refreshDashboardLeadStats]);
 
+  const dashboardFollowUpsInflightRef = useRef(null);
   const refreshDashboardFollowUps = useCallback((signal) => {
     if (!canViewLeadModule) {
       setDashboardScheduledFollowUps([]);
@@ -2885,9 +2905,12 @@ function App() {
       setDashWidgetError('followUps', '');
       return Promise.resolve();
     }
-    // Cap pages — dashboard widgets only need a recent window, not the full history book.
-    const dashPageOpts = { pageSize: DASHBOARD_PAGE_SIZE, maxPages: 3 };
-    return Promise.all([
+    if (dashboardFollowUpsInflightRef.current) {
+      return dashboardFollowUpsInflightRef.current;
+    }
+    // Dashboard widgets need a recent window only — 1 page each (≤3 HTTP calls).
+    const dashPageOpts = { pageSize: DASHBOARD_PAGE_SIZE, maxPages: 1 };
+    const promise = Promise.all([
       fetchEveryPage((page, pageSize) => followUpApi.listAll({
         page,
         page_size: pageSize,
@@ -2905,7 +2928,7 @@ function App() {
         page_size: pageSize,
         status: 'Completed',
         ordering: '-scheduled_at',
-      }), { pageSize: DASHBOARD_PAGE_SIZE, maxPages: 3 }),
+      }), { pageSize: DASHBOARD_PAGE_SIZE, maxPages: 1 }),
     ]).then(([scheduled, missed, completed]) => {
       if (signal?.aborted) return;
       setDashWidgetError('followUps', '');
@@ -2917,8 +2940,12 @@ function App() {
       setDashboardScheduledFollowUps((prev) => prev ?? []);
       setDashWidgetError('followUps', 'Follow-ups unavailable');
       notify('Follow-ups could not be loaded.', 'error');
+    }).finally(() => {
+      dashboardFollowUpsInflightRef.current = null;
     });
-  }, [canViewLeadModule, setDashWidgetError]);
+    dashboardFollowUpsInflightRef.current = promise;
+    return promise;
+  }, [canViewLeadModule, setDashWidgetError, notify]);
 
   const isDashboardSection = activeSidebarItem === 'Dashboard';
 
@@ -2930,11 +2957,11 @@ function App() {
     let visibleTimer = 0;
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return;
-      // Debounce alt-tab storms so stacked multi-page fetches don't freeze the UI.
+      // Longer debounce — alt-tab should not re-storm 3 list APIs.
       window.clearTimeout(visibleTimer);
       visibleTimer = window.setTimeout(() => {
         if (!ac.signal.aborted) refreshDashboardFollowUps(ac.signal);
-      }, 1500);
+      }, 4000);
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
@@ -3173,9 +3200,10 @@ function App() {
         activeSidebarItem,
         desktopSidebarCollapsed,
         theme,
+        themeUserSelected,
       }),
     );
-  }, [activeSidebarItem, currentPage, desktopSidebarCollapsed, theme]);
+  }, [activeSidebarItem, currentPage, desktopSidebarCollapsed, theme, themeUserSelected]);
 
   useEffect(() => {
     if (typeof document === 'undefined') {
@@ -3437,7 +3465,7 @@ function App() {
           }}
           onNotify={notify}
           isDark={isDarkMode}
-          onToggleTheme={() => setTheme(isProfessionalTheme ? 'light' : 'professional')}
+          onToggleTheme={() => applyThemeChoice(isProfessionalTheme ? 'light' : 'professional')}
         />
         <Toast toast={toast} />
       </>
@@ -3466,7 +3494,7 @@ function App() {
   return (
     <div
       className={cx(
-        'crm-density app-mobile-shell box-border flex min-h-dvh max-w-full flex-col overflow-x-hidden p-0 md:p-2 lg:h-dvh lg:overflow-hidden lg:p-2 xl:h-dvh xl:overflow-hidden xl:p-2',
+        'crm-density app-mobile-shell box-border flex min-h-dvh max-w-full flex-col overflow-x-hidden p-0 md:p-1 lg:h-dvh lg:overflow-hidden lg:p-1.5 xl:h-dvh xl:overflow-hidden xl:p-1.5',
         isDarkMode
           ? 'bg-[#07070d] text-[#c9cdd4]'
           : isProfessionalTheme
@@ -3479,8 +3507,8 @@ function App() {
         className={cx(
           'mx-auto flex min-h-0 w-full max-w-full flex-1 lg:h-full lg:min-h-0 lg:items-stretch xl:h-full xl:items-stretch',
           activeSidebarItem === 'Lead' || leadRelatedPages.includes(activeSidebarItem)
-            ? 'gap-1.5'
-            : 'gap-2 xl:gap-2.5',
+            ? 'gap-1'
+            : 'gap-1.5 xl:gap-1.5',
         )}
       >
         <div
@@ -3553,7 +3581,7 @@ function App() {
                 : 'bg-[linear-gradient(180deg,#09b83f_0%,#0799a7_42%,#075fc2_100%)]',
             )}
           >
-            <div className="scroll-soft sidebar-menu-scroll relative h-full overflow-y-auto px-4 py-4">
+            <div className="scroll-soft sidebar-menu-scroll relative h-full overflow-y-auto px-3 py-2.5">
               <nav className="space-y-0.5">
                 {visibleSidebarItems.map((item) => {
                   const Icon = item.icon;
@@ -4263,7 +4291,7 @@ function App() {
         )}>
           <div className={cx(
             'w-full min-w-0 px-2 md:px-0',
-            fixedHeightPage ? 'flex min-h-0 flex-1 flex-col gap-1.5 space-y-0 overflow-visible lg:overflow-hidden' : 'space-y-2 xl:pb-2',
+            fixedHeightPage ? 'flex min-h-0 flex-1 flex-col gap-1 space-y-0 overflow-visible lg:overflow-hidden' : 'space-y-1.5 xl:pb-1.5',
           )}>
             <AppHeader
               notify={notify}
@@ -4282,7 +4310,7 @@ function App() {
               setGlobalSearchNonce={setGlobalSearchNonce}
               setActiveSidebarItem={setActiveSidebarItem}
               theme={theme}
-              setTheme={setTheme}
+              setTheme={applyThemeChoice}
               loggedInUser={loggedInUser}
               showInstallApp={!pwaInstall.isStandalone}
               onInstallApp={handlePwaInstall}
@@ -5022,7 +5050,7 @@ function AppHeader({
                       theme={theme}
                       menuAttrs={{ 'data-profile-menu': 'true' }}
                       onChange={(next) => {
-                        setTheme(next);
+                        applyThemeChoice(next);
                         const labels = {
                           light: 'Light',
                           professional: 'Professional',
@@ -5120,7 +5148,7 @@ function AppHeader({
           <ThemeToggle
             theme={theme}
             onChange={(next) => {
-              setTheme(next);
+              applyThemeChoice(next);
               const labels = {
                 light: 'Light',
                 professional: 'Professional',
@@ -5565,14 +5593,8 @@ function SignInPage({ onLogin, onBack, onNotify }) {
 }
 
 function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initialSearch = '', searchNonce, onOpenSection, onCreateLead, onOpenLead, autoOpenFollowUps = false, onConsumeAutoOpenFollowUps, onNotify }) {
-  // Assign / Delete from Settings → Roles & Permissions → Lead (refreshed from /me on open).
-  const [permUser, setPermUser] = useState(loggedInUser);
-  useEffect(() => { setPermUser(loggedInUser); }, [loggedInUser]);
-  useEffect(() => {
-    authApi.me()
-      .then((data) => { if (data) setPermUser(data); })
-      .catch(() => {});
-  }, []);
+  // Assign / Delete from Settings → Roles & Permissions → Lead (shell already loaded /users/me/).
+  const permUser = loggedInUser;
   const isLeadManager = hasModuleAccess(permUser, 'Lead', 'Assign');
   const canDeleteLeads = hasModuleAccess(permUser, 'Lead', 'Delete');
   const canAddLeads = hasModuleAccess(permUser, 'Lead', 'Add');
@@ -5708,6 +5730,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
   const effectiveLeadPage = activePage;
 
   useEffect(() => {
+    let cancelled = false;
     setLeadsLoading(true);
     const params = listParams({
       page: effectiveLeadPage,
@@ -5723,7 +5746,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
       ),
     });
     leadApi.list(params).then((data) => {
-      if (!data) return;
+      if (cancelled || !data) return;
       const pageData = parseListPage(data, { page: effectiveLeadPage, pageSize: effectiveLeadPageSize });
       setLeadsTotal(pageData.count);
       setApiLeads(pageData.results.map((lead, i) => ({
@@ -5755,12 +5778,18 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         lastActivityLabel: formatRelativeActivity(lead.last_activity_at || lead.updated_at || lead.created_at),
       })));
     }).catch((err) => {
+      if (cancelled) return;
       onNotify?.((err && err.message) ? `Failed to load leads: ${err.message}` : 'Failed to load leads. Please try again.');
-    }).finally(() => setLeadsLoading(false));
+    }).finally(() => {
+      if (!cancelled) setLeadsLoading(false);
+    });
+    return () => { cancelled = true; };
   }, [debouncedSearch, refreshKey, effectiveLeadPage, effectiveLeadPageSize, statusFilter, assignedToFilter, categoryBucketParam, sortOrdering]);
 
   useEffect(() => {
+    let cancelled = false;
     leadApi.stats().then((data) => {
+      if (cancelled) return;
       if (data?.categories) {
         setCategoryLeadCount(data.categories);
         return;
@@ -5773,7 +5802,10 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         'Won leads': data?.won ?? 0,
         'Lost leads': data?.lost ?? 0,
       });
-    }).catch(() => setCategoryLeadCount(null));
+    }).catch(() => {
+      if (!cancelled) setCategoryLeadCount(null);
+    });
+    return () => { cancelled = true; };
   }, [refreshKey]);
 
   // Search / filter change → page 1. Assign/delete refresh keeps the current page.
@@ -6001,18 +6033,18 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
                   }}
                   data-action={`open-${category.shortLabel.toLowerCase()}-leads`}
                   className={cx(
-                    'group inline-flex h-[32px] w-max shrink-0 items-center justify-between gap-1.5 rounded-[8px] border px-2 text-left shadow-[0_6px_12px_rgba(17,39,84,0.03)] transition hover:-translate-y-0.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100',
+                    'group inline-flex h-[34px] w-max shrink-0 items-center justify-between gap-1.5 rounded-[8px] border px-2.5 text-left shadow-[0_6px_12px_rgba(17,39,84,0.03)] transition hover:-translate-y-0.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100',
                     tone.button,
                     selected ? 'ring-2 ring-[#0b65e5] ring-offset-1 ring-offset-white' : '',
                   )}
                 >
-                  <span className="inline-flex items-center gap-1">
+                  <span className="inline-flex items-center gap-1.5">
                     <span className={cx('grid size-5 shrink-0 place-items-center rounded-[6px]', tone.icon)}>
-                      <Icon className="size-[12px]" />
+                      <Icon className="size-[13px]" />
                     </span>
-                    <span className="whitespace-nowrap text-[11px] font-extrabold leading-none">{category.label}</span>
+                    <span className="whitespace-nowrap text-[12px] font-extrabold leading-none">{category.label}</span>
                   </span>
-                  <span className={cx('shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-extrabold leading-none', tone.count)}>
+                  <span className={cx('shrink-0 rounded-full px-1.5 py-0.5 text-[11px] font-extrabold leading-none', tone.count)}>
                     {categoryLeadCount ? (categoryLeadCount[category.label] ?? 0) : '—'}
                   </span>
                 </button>
@@ -7264,7 +7296,7 @@ function SettingsSetupPage({ onOpenSection, onNotify, loggedInUser }) {
   };
 
   return (
-    <div className="settings-full-width w-full min-w-0 space-y-4">
+    <div className="settings-full-width w-full min-w-0 space-y-2">
       <PageHeading
         title="Settings"
         crumbs={[
@@ -19279,14 +19311,15 @@ function SiteSurveyFullForm({ projectId, onClose, onNotify, readOnly = false, fo
     }
   }, [projectId, onNotify, readOnly, onStatusSaved]);
 
-  // Auto-save draft every 30s while editing — never in read-only View modal.
+  // Auto-save draft every 45s while editing — pause when tab is hidden.
   useEffect(() => {
     if (readOnly) return undefined;
     const timer = window.setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       if (dirtyRef.current && formRef.current?.status !== 'Completed') {
         handleSave().then((saved) => { if (saved) onNotify?.('Draft auto-saved'); });
       }
-    }, 30000);
+    }, 45000);
     return () => window.clearInterval(timer);
   }, [handleSave, onNotify, readOnly]);
 
@@ -26043,12 +26076,14 @@ function ProjectDocumentsPage({ activeSection, onOpenSection, onNotify }) {
   const [editForm, setEditForm] = useState({ name: '', category: '' });
 
   useEffect(() => {
-    projectApi.list().then((r) => setProjects(normalizeApiRows(r))).catch(() => {});
+    projectApi.list({ page_size: LOOKUP_PAGE_SIZE, ordering: 'project_name' })
+      .then((r) => setProjects(normalizeApiRows(r)))
+      .catch(() => {});
   }, []);
 
   const loadDocs = useCallback(() => {
     setLoading(true);
-    const params = {};
+    const params = { page_size: LIST_PAGE_SIZE };
     if (filterProject) params.project = filterProject;
     if (filterCategory) params.category = filterCategory;
     projectDocumentApi.list(params)
@@ -29577,7 +29612,7 @@ function SettingsRolesPermissionsPage({ activeSection = 'Settings Roles & Permis
   };
 
   return (
-    <div className="settings-full-width w-full min-w-0 space-y-4">
+    <div className="settings-full-width w-full min-w-0 space-y-2">
       <PageHeading
         title="Roles & Permissions"
         crumbs={[
@@ -31280,16 +31315,16 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify, logged
             <button
               type="button"
               onClick={() => onOpenSection('Project List')}
-              className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[15px] font-semibold text-[#284276] transition hover:bg-[#f8fbff]"
+              className="inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-semibold text-[#284276] transition hover:bg-[#f8fbff]"
             >
-              <Users className="size-4 text-[#0b65e5]" />
+              <Users className="size-3.5 text-[#0b65e5]" />
               Project Team (per project)
             </button>
             {employeeCaps.add ? (
               <button
                 type="button"
                 onClick={openCreateEmployee}
-                className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#16a34a] px-4 text-[15px] font-semibold text-white shadow-[0_10px_20px_rgba(22,163,74,0.22)] transition hover:-translate-y-0.5 hover:bg-[#15803d] professional:bg-[#1e3a5f] professional:shadow-[0_10px_20px_rgba(30,58,95,0.22)] professional:hover:bg-[#162e4c]"
+                className="inline-flex h-8 items-center gap-1.5 rounded-[8px] bg-[#16a34a] px-3 text-[12px] font-semibold text-white shadow-[0_8px_16px_rgba(22,163,74,0.2)] transition hover:bg-[#15803d] professional:bg-[#1e3a5f] professional:shadow-[0_8px_16px_rgba(30,58,95,0.2)] professional:hover:bg-[#162e4c]"
               >
                 <Plus className="size-4" />
                 Add Employee
@@ -40151,7 +40186,7 @@ function LeadQuickActionModal({ type, lead, onClose, onSaved, onLeadUpdated, onN
 
   useEffect(() => {
     if (type !== 'assign') return;
-    userApi.list({ is_active: true }).then((data) => {
+    userApi.options({ is_active: true, page_size: LOOKUP_PAGE_SIZE }).then((data) => {
       const users = normalizeApiRows(data);
       // All active accounts except Tele Sales Executive.
       setEmployeeOptions(
@@ -40461,26 +40496,26 @@ function ViewFollowUpModal({ lead, onClose, onNotify }) {
 
 function PageHeading({ title, crumbs, actions }) {
   return (
-    <div className="page-heading flex min-w-0 flex-col gap-2.5 rounded-[12px] bg-white/60 p-2 sm:flex-row sm:items-end sm:justify-between">
+    <div className="page-heading flex min-w-0 flex-col gap-1.5 rounded-[10px] bg-white/60 p-1.5 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
-        <h1 className="font-display text-[24px] font-bold leading-[1.12] tracking-[-0.01em] text-[#111827] sm:text-[30px] xl:text-[34px]">{title}</h1>
-        <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-2 text-[13px] font-semibold sm:text-[14px]">
+        <h1 className="font-display text-[20px] font-bold leading-[1.15] tracking-[-0.01em] text-[#111827] sm:text-[22px]">{title}</h1>
+        <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1.5 text-[13px] font-semibold">
           {crumbs.map((crumb, index) => (
-            <span key={`${crumb.label}-${index}`} className="inline-flex min-w-0 items-center gap-2">
+            <span key={`${crumb.label}-${index}`} className="inline-flex min-w-0 items-center gap-1.5">
               {crumb.onClick ? <button type="button" onClick={crumb.onClick} className="min-w-0 truncate text-[#0b65e5]">{crumb.label}</button> : <span className="min-w-0 truncate text-[#53647f]">{crumb.label}</span>}
-              {index < crumbs.length - 1 ? <ChevronRight className="size-3.5 shrink-0 text-[#9aa8bc]" /> : null}
+              {index < crumbs.length - 1 ? <ChevronRight className="size-3 shrink-0 text-[#9aa8bc]" /> : null}
             </span>
           ))}
         </div>
       </div>
-      {actions ? <div className="page-heading-actions flex w-full flex-col gap-2 min-[460px]:w-auto min-[460px]:flex-row min-[460px]:flex-wrap sm:justify-end">{actions}</div> : null}
+      {actions ? <div className="page-heading-actions flex w-full flex-col gap-1.5 min-[460px]:w-auto min-[460px]:flex-row min-[460px]:flex-wrap sm:justify-end">{actions}</div> : null}
     </div>
   );
 }
 
 function InfoPanel({ title, icon: Icon, tone = 'primary', actionLabel, onAction, children }) {
   const toneClass = { primary: 'text-[#0b65e5]', success: 'text-[#0d9f4a]', danger: 'text-[#ef4444]', warning: 'text-[#f59e0b]', purple: 'text-[#5944e8]' }[tone] ?? 'text-[#0b65e5]';
-  return <article className={`${panelClass} p-5`}><div className="mb-4 flex items-center justify-between gap-3"><h2 className={`flex items-center gap-2 text-[15px] font-extrabold ${toneClass}`}><Icon className="size-4" />{title}</h2>{actionLabel ? <button type="button" onClick={onAction} className="inline-flex items-center gap-2 text-[13px] font-extrabold text-[#0b65e5]">{actionLabel}<ArrowRight className="size-4" /></button> : null}</div>{children}</article>;
+  return <article className={`${panelClass} p-3`}><div className="mb-2 flex items-center justify-between gap-2"><h2 className={`flex items-center gap-1.5 text-[14px] font-extrabold ${toneClass}`}><Icon className="size-3.5" />{title}</h2>{actionLabel ? <button type="button" onClick={onAction} className="inline-flex items-center gap-1.5 text-[12px] font-extrabold text-[#0b65e5]">{actionLabel}<ArrowRight className="size-3.5" /></button> : null}</div>{children}</article>;
 }
 
 function DetailRow({ label, value, valueNode }) {

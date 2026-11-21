@@ -665,8 +665,8 @@ export function TeleFollowUpAlertsPanel({
   const upcomingPreview = (upcomingFollowUps || []).slice(0, previewLimit);
 
   return (
-    <div className="grid gap-4">
-    <div className={cx('grid gap-4', compact ? '' : 'xl:grid-cols-2')}>
+    <div className="grid gap-2">
+    <div className={cx('grid gap-2', compact ? '' : 'xl:grid-cols-2')}>
       {/* Today Follow-up */}
       <section
         className={cx(
@@ -866,7 +866,7 @@ function TeleField({ label, children }) {
   );
 }
 
-const teleInputClass = 'h-11 w-full rounded-[9px] border border-[#dbe4f0] bg-white px-3 text-[14px] font-semibold text-[#1f2d44] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100';
+const teleInputClass = 'h-9 w-full rounded-[8px] border border-[#dbe4f0] bg-white px-2.5 text-[13px] font-semibold text-[#1f2d44] outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100';
 
 function useTeleIvrsCheck(excludeId) {
   const [checking, setChecking] = useState(false);

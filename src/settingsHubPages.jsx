@@ -213,7 +213,7 @@ function HubStat({ label, value, icon: Icon, tone }) {
         </span>
         <div>
           <p className="text-[11px] font-bold uppercase tracking-wide text-[#7a8fa6]">{label}</p>
-          <p className="mt-1 text-[22px] font-extrabold text-[#1e3261]">{value}</p>
+          <p className="mt-0.5 text-[18px] font-extrabold text-[#1e3261]">{value}</p>
         </div>
       </div>
     </article>
@@ -229,7 +229,7 @@ function QuickActionBtn({ label, icon: Icon, tone, onClick }) {
     slate: 'bg-[#475569] hover:bg-[#334155]',
   };
   return (
-    <button type="button" onClick={onClick} className={`inline-flex h-11 items-center gap-2 rounded-[8px] px-4 text-[13px] font-extrabold text-white shadow-md transition ${tones[tone]}`}>
+    <button type="button" onClick={onClick} className={`inline-flex h-8 items-center gap-1.5 rounded-[8px] px-3 text-[12px] font-extrabold text-white shadow-md transition ${tones[tone]}`}>
       <Icon className="size-4" />
       {label}
     </button>
@@ -412,24 +412,24 @@ export function UsersAccessHubPage({ onOpenSection, onNotify }) {
 
   return (
     <AdminReauthGate onNotify={onNotify}>
-      <div className="space-y-4">
-        <article className="rounded-[14px] border border-[#fbcfe8] bg-linear-to-r from-[#fdf2f8] to-[#fff1f2] p-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="flex items-center gap-2 font-display text-[20px] font-extrabold text-[#1e3261]">
-                <ShieldCheck className="size-6 text-[#dc2626]" />
+      <div className="space-y-2">
+        <article className="rounded-[12px] border border-[#fbcfe8] bg-linear-to-r from-[#fdf2f8] to-[#fff1f2] p-3.5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="page-heading">
+              <h2 className="flex items-center gap-2 font-display text-[18px] font-extrabold text-[#1e3261]">
+                <ShieldCheck className="size-5 text-[#dc2626]" />
                 Users & Access Control
               </h2>
-              <p className="mt-1 text-[13px] font-semibold text-[#53647f]">
+              <p className="text-[12px] font-semibold leading-tight text-[#53647f]">
                 Manage users, roles and permissions from here — no code changes needed.
               </p>
             </div>
-            <span className="inline-flex items-center gap-2 rounded-full bg-[#dcfce7] px-3 py-1.5 text-[12px] font-extrabold text-[#16a34a]">
-              <CheckCircle2 className="size-4" />
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#dcfce7] px-2.5 py-1 text-[11px] font-extrabold text-[#16a34a]">
+              <CheckCircle2 className="size-3.5" />
               Full Access Active
             </span>
           </div>
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-2 flex flex-wrap gap-1.5">
             <QuickActionBtn label="Add User" icon={UserPlus} tone="green" onClick={() => openProtected('Settings Users')} />
             <QuickActionBtn label="Manage Users" icon={Users} tone="blue" onClick={() => openProtected('Settings Users')} />
             <QuickActionBtn label="Manage Permissions" icon={ShieldCheck} tone="purple" onClick={() => openProtected('Settings Roles & Permissions')} />
@@ -438,7 +438,7 @@ export function UsersAccessHubPage({ onOpenSection, onNotify }) {
           </div>
         </article>
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <HubStat label="Total Users" value={String(stats.users)} icon={Users} tone="blue" />
           <HubStat label="Active Users" value={String(stats.active)} icon={CheckCircle2} tone="green" />
           <HubStat label="Roles" value={String(stats.roles)} icon={ShieldCheck} tone="purple" />
@@ -453,18 +453,18 @@ export function SecurityOverviewPage({ onOpenSection, onNotify }) {
   const prefs = readSecurityPrefs();
 
   return (
-    <div className="space-y-4">
-      <article className={`${CARD} bg-linear-to-r from-[#eff6ff] to-[#f5f3ff] p-5`}>
-        <h2 className="flex items-center gap-2 font-display text-[18px] font-extrabold text-[#1e3261]">
-          <ShieldCheck className="size-5 text-[#2563eb]" />
+    <div className="space-y-2">
+      <article className={`${CARD} bg-linear-to-r from-[#eff6ff] to-[#f5f3ff] p-3.5`}>
+        <h2 className="flex items-center gap-2 font-display text-[16px] font-extrabold text-[#1e3261]">
+          <ShieldCheck className="size-4 text-[#2563eb]" />
           Security Overview
         </h2>
-        <p className="mt-1 text-[13px] font-semibold text-[#53647f]">
+        <p className="text-[12px] font-semibold leading-tight text-[#53647f]">
           Review lock status and jump to PIN settings or IP rules.
         </p>
       </article>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
         <HubStat
           label="PIN Lock"
           value={prefs.pinEnabled ? 'Enabled' : 'Off'}
@@ -513,7 +513,7 @@ export function SecurityHubPage({ onOpenSection, onNotify }) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <article className={`${CARD} bg-linear-to-r from-[#eff6ff] to-[#f5f3ff] p-5`}>
         <h2 className="flex items-center gap-2 font-display text-[18px] font-extrabold text-[#1e3261]">
           <ShieldCheck className="size-5 text-[#2563eb]" />
@@ -611,8 +611,8 @@ export function BackupDataHubPage({ onOpenSection, onNotify, BackupContent }) {
   const storagePct = Math.min(100, Math.max(10, backups.length * 12));
 
   return (
-    <div className="space-y-4">
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="space-y-2">
+      <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
         <HubStat label="Last Backup" value={last ? 'Recent' : 'Never'} icon={Cloud} tone="green" />
         <HubStat label="Restore Points" value={String(backups.length)} icon={Database} tone="blue" />
         <HubStat label="Cloud Status" value={config.liveSync ? 'Active' : 'Paused'} icon={RefreshCw} tone="purple" />
@@ -661,7 +661,7 @@ export function AboutSettingsPage() {
   const version = '1.0.0';
   const dbVersion = 'v14';
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <article className={`${CARD} p-6 text-center`}>
         <Info className="mx-auto size-10 text-[#0d9f4a]" />
         <h2 className="mt-3 font-display text-[22px] font-extrabold text-[#1e3261]">Malwa Solar CRM</h2>

@@ -517,7 +517,11 @@ export function UnifiedDashboardPage({
       .finally(() => setLoading(false));
   }, [dateFrom, dateTo, projectType, leadStatus, assignedTo, onNotify]);
 
-  useEffect(() => { load(); }, [load]);
+  // Debounce filter changes so rapid date/status edits don't stack 120s unified calls.
+  useEffect(() => {
+    const timer = window.setTimeout(() => { load(); }, 400);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
   const setTabAndSync = (next) => {
     setTab(next);

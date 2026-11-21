@@ -101,11 +101,11 @@ export function SupplierModulePage({ activeSection, onOpenSection, onNotify, log
   };
 
   return (
-    <div className="min-w-0 space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-[12px] font-bold text-[#7a8fa6]">Dashboard / Supplier</p>
-          <h1 className="font-display text-[20px] font-extrabold text-[#111827] sm:text-[22px]">Supplier Management</h1>
+    <div className="min-w-0 space-y-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="page-heading">
+          <p className="text-[11px] font-bold leading-tight text-[#7a8fa6]">Dashboard / Supplier</p>
+          <h1 className="font-display text-[18px] font-extrabold text-[#111827] sm:text-[20px]">Supplier Management</h1>
         </div>
         {caps.add ? (
           <button
@@ -129,7 +129,7 @@ export function SupplierModulePage({ activeSection, onOpenSection, onNotify, log
             key={item.key}
             type="button"
             onClick={() => onOpenSection(item.key)}
-            className={`shrink-0 border-b-2 px-3 py-2 text-[13px] font-extrabold ${tab === item.key ? 'border-[#dc2626] text-[#dc2626]' : 'border-transparent text-[#53647f] hover:text-[#1e3261]'}`}
+            className={`shrink-0 border-b-2 px-2.5 py-1.5 text-[12px] font-extrabold ${tab === item.key ? 'border-[#dc2626] text-[#dc2626]' : 'border-transparent text-[#53647f] hover:text-[#1e3261]'}`}
           >
             {item.label}
           </button>

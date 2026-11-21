@@ -42,14 +42,14 @@ function formatWhen(value) {
 
 function PageShell({ title, note, actions, children }) {
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#0e582a]">Sync, Share & Backup</p>
-          <h1 className="mt-1 font-display text-[22px] font-extrabold text-[#163d70]">{title}</h1>
-          {note ? <p className="mt-1 max-w-3xl text-[13px] font-semibold text-[#7b88a2]">{note}</p> : null}
+    <div className="space-y-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="page-heading">
+          <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-[#0e582a]">Sync, Share & Backup</p>
+          <h1 className="mt-0.5 font-display text-[18px] font-extrabold text-[#163d70]">{title}</h1>
+          {note ? <p className="max-w-3xl text-[12px] font-semibold leading-tight text-[#7b88a2]">{note}</p> : null}
         </div>
-        {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
+        {actions ? <div className="flex flex-wrap items-center gap-1.5">{actions}</div> : null}
       </div>
       {children}
     </div>
@@ -825,7 +825,7 @@ function UsersActivityPage({ onNotify, onOpenSection }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="font-display text-[28px] font-extrabold tracking-tight text-[#1f2937]">Users Activity Table</h1>
+        <h1 className="font-display text-[18px] font-extrabold tracking-tight text-[#1f2937]">Users Activity Table</h1>
         <div className="flex flex-wrap gap-2">
           <PrimaryButton tone="slate" onClick={load}><RefreshCw className="size-4" /> Refresh</PrimaryButton>
           <PrimaryButton tone="slate" onClick={() => onOpenSection?.('Sync & Share')}>Back to Sync & Share</PrimaryButton>
