@@ -6,6 +6,7 @@
    the app already toggles on <html> — new components should use `dark:`
    classes instead of the attribute-selector overrides further down. */
 @custom-variant dark (&:where(.dark, .dark *));
+@custom-variant professional (&:where(.theme-professional, .theme-professional *));
 
 :root {
   color-scheme: light;
@@ -107,6 +108,366 @@ select,
 .crm-table th {
   user-select: text;
   -webkit-user-select: text;
+}
+
+/* ============================================================
+   PROFESSIONAL THEME — Full CRM corporate remint (navy / slate)
+   Deep coverage: greens (#0d9f4a/#078c3e) + primary blues (#0b65e5)
+   remapped app-wide. Attribute matchers omit trailing "]" so CSS
+   parsers never truncate the selector on the hex bracket.
+   ============================================================ */
+
+html.theme-professional,
+html[data-crm-theme="professional"] {
+  color-scheme: light;
+  --crm-pro-bg: #f4f6f9;
+  --crm-pro-panel: #ffffff;
+  --crm-pro-border: #d5dee8;
+  --crm-pro-text: #1e293b;
+  --crm-pro-muted: #64748b;
+  --crm-pro-accent: #1e3a5f;
+  --crm-pro-accent-hover: #162e4c;
+  --crm-pro-accent-soft: #e8eef5;
+  --crm-pro-accent-mid: #2f4d73;
+  --crm-pro-danger: #6b3a3a;
+  --crm-pro-danger-hover: #5a3030;
+  --crm-pro-danger-soft: #f5eeee;
+  --crm-pro-warn: #6b5320;
+  --crm-pro-warn-soft: #f7f3eb;
+  --crm-pro-row-hover: #f0f4f8;
+  --crm-pro-thead: #eef2f6;
+}
+
+html.theme-professional body,
+html[data-crm-theme="professional"] body {
+  background: var(--crm-pro-bg);
+  color: var(--crm-pro-text);
+}
+
+html.theme-professional .app-mobile-shell,
+html[data-crm-theme="professional"] .app-mobile-shell {
+  background: var(--crm-pro-bg) !important;
+  color: var(--crm-pro-text) !important;
+}
+
+/* ---------- SHELL SURFACES ---------- */
+html.theme-professional .sidebar-root {
+  border-color: var(--crm-pro-border);
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08);
+  background: #ffffff;
+}
+
+html.theme-professional .sidebar-root > div:nth-child(2),
+html.theme-professional .sidebar-root .sidebar-menu-scroll {
+  background: linear-gradient(180deg, #243447 0%, #1a2736 48%, #15202b 100%) !important;
+}
+
+html.theme-professional .sidebar-brand {
+  border-bottom-color: var(--crm-pro-border);
+  background: #ffffff;
+}
+
+html.theme-professional .sidebar-root nav button[aria-current="page"] {
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #ffffff !important;
+}
+
+html.theme-professional .sidebar-root nav button:hover:not([aria-current="page"]) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+html.theme-professional .header-toolbar,
+html.theme-professional .crm-panel,
+html.theme-professional .crm-data-panel {
+  border-color: var(--crm-pro-border) !important;
+  background: var(--crm-pro-panel) !important;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04) !important;
+  color: var(--crm-pro-text);
+}
+
+html.theme-professional .search-input {
+  background: #ffffff !important;
+  border-color: var(--crm-pro-border) !important;
+}
+
+html.theme-professional .search-input input {
+  color: var(--crm-pro-text) !important;
+}
+
+html.theme-professional .header-banner {
+  border-color: var(--crm-pro-border) !important;
+  background: var(--crm-pro-accent-soft) !important;
+}
+
+html.theme-professional .theme-toggle-pill {
+  background: var(--crm-pro-accent) !important;
+  box-shadow: 0 4px 10px rgba(30, 58, 95, 0.28) !important;
+}
+
+html.theme-professional .app-mobile-bottom-nav {
+  border-top-color: var(--crm-pro-border) !important;
+  background: rgba(255, 255, 255, 0.98) !important;
+}
+
+html.theme-professional .crm-table thead tr,
+html.theme-professional .crm-table thead th,
+html.theme-professional .crm-table-sticky-head thead th {
+  background: var(--crm-pro-thead) !important;
+  color: var(--crm-pro-accent) !important;
+  border-bottom-color: var(--crm-pro-border) !important;
+}
+
+html.theme-professional .crm-table td {
+  border-bottom-color: var(--crm-pro-border) !important;
+  color: var(--crm-pro-text);
+}
+
+html.theme-professional .crm-table tbody tr:hover {
+  background: var(--crm-pro-row-hover) !important;
+}
+
+html.theme-professional input:not([type="checkbox"]):not([type="radio"]),
+html.theme-professional select,
+html.theme-professional textarea {
+  border-color: var(--crm-pro-border) !important;
+  color: var(--crm-pro-text);
+  background-color: #ffffff;
+}
+
+html.theme-professional input:focus,
+html.theme-professional select:focus,
+html.theme-professional textarea:focus {
+  border-color: var(--crm-pro-accent-mid) !important;
+}
+
+html.theme-professional [role="dialog"],
+html.theme-professional [role="alertdialog"] {
+  color: var(--crm-pro-text);
+}
+
+/*
+ * Deep brand remints — match hex fragments (no trailing "]") so every
+ * bg-[#…], text-[#…], border-[#…], hover:bg-[#…] token is covered.
+ */
+/* Solid brand fills (green + blue CTAs) → navy */
+html.theme-professional [class*="bg-[#0d9f4a"],
+html.theme-professional [class*="bg-[#078c3e"],
+html.theme-professional [class*="bg-[#067832"],
+html.theme-professional [class*="bg-[#14b84c"],
+html.theme-professional [class*="bg-[#09b83f"],
+html.theme-professional [class*="bg-[#0b8a3f"],
+html.theme-professional [class*="bg-[#0b8a40"],
+html.theme-professional [class*="bg-[#0b8b41"],
+html.theme-professional [class*="bg-[#14853a"],
+html.theme-professional [class*="bg-[#10b981"],
+html.theme-professional [class*="bg-[#059669"],
+html.theme-professional [class*="bg-[#12a54f"],
+html.theme-professional [class*="bg-[#0f9446"],
+html.theme-professional [class*="bg-[#18b957"],
+html.theme-professional [class*="bg-[#0f9f49"],
+html.theme-professional [class*="bg-[#22c55e"],
+html.theme-professional [class*="bg-[#16a34a"],
+html.theme-professional [class*="bg-[#0b65e5"],
+html.theme-professional [class*="bg-[#0954c2"],
+html.theme-professional [class*="bg-[#0952c6"],
+html.theme-professional [class*="bg-[#0950c2"],
+html.theme-professional [class*="bg-[#055ee4"],
+html.theme-professional [class*="hover:bg-[#0d9f4a"],
+html.theme-professional [class*="hover:bg-[#078c3e"],
+html.theme-professional [class*="hover:bg-[#067832"],
+html.theme-professional [class*="hover:bg-[#0b8a3f"],
+html.theme-professional [class*="hover:bg-[#0b8a40"],
+html.theme-professional [class*="hover:bg-[#12a54f"],
+html.theme-professional [class*="hover:bg-[#0f9446"],
+html.theme-professional [class*="hover:bg-[#0954c2"],
+html.theme-professional [class*="hover:bg-[#0b65e5"] {
+  background-color: var(--crm-pro-accent) !important;
+}
+
+/* Solid danger / red CTAs → muted burgundy */
+html.theme-professional [class*="bg-[#ea5a4c"],
+html.theme-professional [class*="bg-[#ef4444"],
+html.theme-professional [class*="bg-[#f04438"],
+html.theme-professional [class*="bg-[#d92d20"],
+html.theme-professional [class*="bg-[#e03434"],
+html.theme-professional [class*="bg-[#dc4a3c"],
+html.theme-professional [class*="bg-[#d94435"],
+html.theme-professional [class*="bg-[#ff4b4f"],
+html.theme-professional [class*="hover:bg-[#ea5a4c"],
+html.theme-professional [class*="hover:bg-[#dc4a3c"],
+html.theme-professional [class*="hover:bg-[#d94435"],
+html.theme-professional [class*="hover:bg-[#d92d20"] {
+  background-color: var(--crm-pro-danger) !important;
+}
+
+/* Brand text (green + blue) → navy */
+html.theme-professional [class*="text-[#0d9f4a"],
+html.theme-professional [class*="text-[#078c3e"],
+html.theme-professional [class*="text-[#067832"],
+html.theme-professional [class*="text-[#087a39"],
+html.theme-professional [class*="text-[#14853a"],
+html.theme-professional [class*="text-[#14b84c"],
+html.theme-professional [class*="text-[#0b8a3f"],
+html.theme-professional [class*="text-[#10b981"],
+html.theme-professional [class*="text-[#059669"],
+html.theme-professional [class*="text-[#12a54f"],
+html.theme-professional [class*="text-[#0f7d63"],
+html.theme-professional [class*="text-[#0f9d7c"],
+html.theme-professional [class*="text-[#0b65e5"],
+html.theme-professional [class*="text-[#2158d6"],
+html.theme-professional [class*="text-[#1766d3"],
+html.theme-professional [class*="text-[#0954c2"],
+html.theme-professional [class*="hover:text-[#0d9f4a"],
+html.theme-professional [class*="hover:text-[#078c3e"],
+html.theme-professional [class*="hover:text-[#0b65e5"] {
+  color: var(--crm-pro-accent) !important;
+}
+
+/* Danger / warm text → professional muted tones */
+html.theme-professional [class*="text-[#d92d20"],
+html.theme-professional [class*="text-[#f04438"],
+html.theme-professional [class*="text-[#ea5a4c"],
+html.theme-professional [class*="text-[#ef4444"],
+html.theme-professional [class*="text-[#e03434"] {
+  color: var(--crm-pro-danger) !important;
+}
+
+html.theme-professional [class*="text-[#b76b00"],
+html.theme-professional [class*="text-[#f59e0b"] {
+  color: var(--crm-pro-warn) !important;
+}
+
+/* Brand borders / rings */
+html.theme-professional [class*="border-[#0d9f4a"],
+html.theme-professional [class*="border-[#078c3e"],
+html.theme-professional [class*="border-[#0b65e5"],
+html.theme-professional [class*="border-[#bcefd1"],
+html.theme-professional [class*="border-[#83d8a5"],
+html.theme-professional [class*="border-[#a7e8d8"],
+html.theme-professional [class*="border-[#7fdcc2"],
+html.theme-professional [class*="border-[#cfe0ff"],
+html.theme-professional [class*="border-[#a9c8ff"],
+html.theme-professional [class*="ring-[#0d9f4a"],
+html.theme-professional [class*="ring-[#078c3e"],
+html.theme-professional [class*="ring-[#0b65e5"],
+html.theme-professional [class*="focus-visible:ring-[#0d9f4a"],
+html.theme-professional [class*="focus-visible:ring-[#0b65e5"],
+html.theme-professional [class*="focus-within:border-[#0b65e5"],
+html.theme-professional [class*="focus-within:ring-[#0b65e5"] {
+  border-color: var(--crm-pro-accent) !important;
+}
+
+html.theme-professional [class*="border-[#ffd1d1"],
+html.theme-professional [class*="border-[#ffadad"],
+html.theme-professional [class*="border-[#ea5a4c"],
+html.theme-professional [class*="border-[#ef4444"] {
+  border-color: color-mix(in srgb, var(--crm-pro-danger) 45%, white) !important;
+}
+
+html.theme-professional [class*="border-[#ffe4b5"],
+html.theme-professional [class*="border-[#ffd285"] {
+  border-color: color-mix(in srgb, var(--crm-pro-warn) 40%, white) !important;
+}
+
+html.theme-professional [class*="ring-[#0d9f4a"],
+html.theme-professional [class*="ring-[#0b65e5"],
+html.theme-professional [class*="focus-visible:ring-[#0d9f4a"],
+html.theme-professional [class*="focus-visible:ring-[#0b65e5"],
+html.theme-professional [class*="focus-within:ring-[#0b65e5"] {
+  --tw-ring-color: color-mix(in srgb, var(--crm-pro-accent) 40%, transparent) !important;
+}
+
+/* Soft green / mint / soft blue chips → soft navy */
+html.theme-professional [class*="bg-[#e8f8eb"],
+html.theme-professional [class*="bg-[#e9f8ec"],
+html.theme-professional [class*="bg-[#effbf3"],
+html.theme-professional [class*="bg-[#dff7e8"],
+html.theme-professional [class*="bg-[#dff6e7"],
+html.theme-professional [class*="bg-[#f1fff6"],
+html.theme-professional [class*="bg-[#f6fff8"],
+html.theme-professional [class*="bg-[#e8fff0"],
+html.theme-professional [class*="bg-[#f0fdf9"],
+html.theme-professional [class*="bg-[#e3fbf3"],
+html.theme-professional [class*="bg-[#d7f7ec"],
+html.theme-professional [class*="bg-[#e8f2ff"],
+html.theme-professional [class*="bg-[#eef5ff"],
+html.theme-professional [class*="bg-[#eaf2ff"],
+html.theme-professional [class*="bg-[#e3efff"],
+html.theme-professional [class*="bg-[#edf5ff"],
+html.theme-professional [class*="bg-[#f5f9ff"],
+html.theme-professional [class*="bg-[#f8fbff"],
+html.theme-professional [class*="bg-[#fbfdff"],
+html.theme-professional [class*="bg-[#f4f7ff"] {
+  background-color: var(--crm-pro-accent-soft) !important;
+}
+
+/* Soft red / danger chips */
+html.theme-professional [class*="bg-[#fff6f6"],
+html.theme-professional [class*="bg-[#fff0f0"],
+html.theme-professional [class*="bg-[#ffe1e1"],
+html.theme-professional [class*="bg-[#ffefef"],
+html.theme-professional [class*="bg-[#fef2f2"] {
+  background-color: var(--crm-pro-danger-soft) !important;
+}
+
+/* Soft amber / warm chips */
+html.theme-professional [class*="bg-[#fffaf0"],
+html.theme-professional [class*="bg-[#fff5df"],
+html.theme-professional [class*="bg-[#fff0dc"],
+html.theme-professional [class*="bg-[#fff4df"],
+html.theme-professional [class*="bg-[#fffbeb"] {
+  background-color: var(--crm-pro-warn-soft) !important;
+}
+
+/* Neutral borders */
+html.theme-professional [class*="border-[#dfe7f2"],
+html.theme-professional [class*="border-[#dbe5f2"],
+html.theme-professional [class*="border-[#dbe4f0"],
+html.theme-professional [class*="border-[#dce8f5"],
+html.theme-professional [class*="border-[#e8eef6"],
+html.theme-professional [class*="border-[#e4ebf4"],
+html.theme-professional [class*="border-[#e7eef7"],
+html.theme-professional [class*="border-[#d9e4f2"],
+html.theme-professional [class*="border-[#edf2f8"],
+html.theme-professional [class*="border-[#dce7f5"],
+html.theme-professional [class*="border-[#e5edf6"],
+html.theme-professional [class*="border-[#e3ebf7"],
+html.theme-professional [class*="border-[#d8e4f4"],
+html.theme-professional [class*="border-[#d4d9e7"] {
+  border-color: var(--crm-pro-border) !important;
+}
+
+/* Muted + heading text */
+html.theme-professional [class*="text-[#53647f"],
+html.theme-professional [class*="text-[#7585a2"],
+html.theme-professional [class*="text-[#8a98af"],
+html.theme-professional [class*="text-[#7b88a2"],
+html.theme-professional [class*="text-[#5c6676"],
+html.theme-professional [class*="text-[#7a8494"],
+html.theme-professional [class*="text-[#5a6d88"],
+html.theme-professional [class*="text-[#52637f"] {
+  color: var(--crm-pro-muted) !important;
+}
+
+html.theme-professional [class*="text-[#111827"],
+html.theme-professional [class*="text-[#1e3261"],
+html.theme-professional [class*="text-[#20345f"],
+html.theme-professional [class*="text-[#263d72"],
+html.theme-professional [class*="text-[#30466d"] {
+  color: var(--crm-pro-text) !important;
+}
+
+/* Sidebar active sub-items stay readable on navy rail */
+html.theme-professional .sidebar-root [class*="text-[#0d9f4a"],
+html.theme-professional .sidebar-root [class*="text-[#078c3e"],
+html.theme-professional .sidebar-root [class*="text-[#14853a"] {
+  color: #93c5fd !important;
+}
+
+html.theme-professional .sidebar-root [class*="bg-[#0d9f4a"],
+html.theme-professional .sidebar-root [class*="bg-[#14b84c"],
+html.theme-professional .sidebar-root [class*="bg-[#078c3e"] {
+  background-color: #60a5fa !important;
 }
 
 /* ============================================================

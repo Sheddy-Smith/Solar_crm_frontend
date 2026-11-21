@@ -239,7 +239,6 @@ import {
   Undo2,
   Wallet,
   LogOut,
-  SunMoon,
   Upload,
   UserPlus,
   UserRound,
@@ -1478,40 +1477,40 @@ function classifyLeadCategory(lead) {
 
 const leadCategoryToneClasses = {
   green: {
-    button: 'border-[#bcefd1] bg-[#f1fff6] text-[#087a39] hover:border-[#83d8a5] hover:bg-[#e8fff0]',
-    icon: 'bg-[#dff6e7] text-[#0d9f4a]',
-    count: 'bg-[#dff6e7] text-[#087a39]',
-    accent: 'from-[#18b957] to-[#0f9f49]',
+    button: 'border-[#bcefd1] bg-[#f1fff6] text-[#087a39] hover:border-[#83d8a5] hover:bg-[#e8fff0] professional:border-[#c5d0dc] professional:bg-[#e8eef5] professional:text-[#1e3a5f] professional:hover:border-[#9eb0c4] professional:hover:bg-[#dde5ef]',
+    icon: 'bg-[#dff6e7] text-[#0d9f4a] professional:bg-[#d7e0ea] professional:text-[#1e3a5f]',
+    count: 'bg-[#dff6e7] text-[#087a39] professional:bg-[#d7e0ea] professional:text-[#1e3a5f]',
+    accent: 'from-[#18b957] to-[#0f9f49] professional:from-[#2f4d73] professional:to-[#1e3a5f]',
   },
   red: {
-    button: 'border-[#ffd1d1] bg-[#fff6f6] text-[#d92d20] hover:border-[#ffadad] hover:bg-[#fff0f0]',
-    icon: 'bg-[#ffe1e1] text-[#f04438]',
-    count: 'bg-[#ffe1e1] text-[#d92d20]',
-    accent: 'from-[#f04438] to-[#fb923c]',
+    button: 'border-[#ffd1d1] bg-[#fff6f6] text-[#d92d20] hover:border-[#ffadad] hover:bg-[#fff0f0] professional:border-[#d9c7c7] professional:bg-[#f5eeee] professional:text-[#6b3a3a] professional:hover:border-[#c7a8a8] professional:hover:bg-[#efe4e4]',
+    icon: 'bg-[#ffe1e1] text-[#f04438] professional:bg-[#eadada] professional:text-[#6b3a3a]',
+    count: 'bg-[#ffe1e1] text-[#d92d20] professional:bg-[#eadada] professional:text-[#6b3a3a]',
+    accent: 'from-[#f04438] to-[#fb923c] professional:from-[#8b4a4a] professional:to-[#6b3a3a]',
   },
   amber: {
-    button: 'border-[#ffe4b5] bg-[#fffaf0] text-[#b76b00] hover:border-[#ffd285] hover:bg-[#fff5df]',
-    icon: 'bg-[#fff0dc] text-[#f59e0b]',
-    count: 'bg-[#fff0dc] text-[#b76b00]',
-    accent: 'from-[#f59e0b] to-[#facc15]',
+    button: 'border-[#ffe4b5] bg-[#fffaf0] text-[#b76b00] hover:border-[#ffd285] hover:bg-[#fff5df] professional:border-[#e2d5be] professional:bg-[#f7f3eb] professional:text-[#6b5320] professional:hover:border-[#cfc0a4] professional:hover:bg-[#efe8dc]',
+    icon: 'bg-[#fff0dc] text-[#f59e0b] professional:bg-[#ebe3d4] professional:text-[#6b5320]',
+    count: 'bg-[#fff0dc] text-[#b76b00] professional:bg-[#ebe3d4] professional:text-[#6b5320]',
+    accent: 'from-[#f59e0b] to-[#facc15] professional:from-[#8a7040] professional:to-[#6b5320]',
   },
   blue: {
-    button: 'border-[#cfe0ff] bg-[#f5f9ff] text-[#1766d3] hover:border-[#a9c8ff] hover:bg-[#edf5ff]',
-    icon: 'bg-[#e3efff] text-[#0b65e5]',
-    count: 'bg-[#e3efff] text-[#1766d3]',
-    accent: 'from-[#1199e6] to-[#126fd1]',
+    button: 'border-[#cfe0ff] bg-[#f5f9ff] text-[#1766d3] hover:border-[#a9c8ff] hover:bg-[#edf5ff] professional:border-[#c5d0dc] professional:bg-[#e8eef5] professional:text-[#1e3a5f] professional:hover:border-[#9eb0c4] professional:hover:bg-[#dde5ef]',
+    icon: 'bg-[#e3efff] text-[#0b65e5] professional:bg-[#d7e0ea] professional:text-[#1e3a5f]',
+    count: 'bg-[#e3efff] text-[#1766d3] professional:bg-[#d7e0ea] professional:text-[#1e3a5f]',
+    accent: 'from-[#1199e6] to-[#126fd1] professional:from-[#2f4d73] professional:to-[#1e3a5f]',
   },
   slate: {
-    button: 'border-[#dce4ef] bg-[#f8fafc] text-[#475569] hover:border-[#cbd5e1] hover:bg-[#f1f5f9]',
-    icon: 'bg-[#e9eef6] text-[#475569]',
-    count: 'bg-[#e9eef6] text-[#475569]',
-    accent: 'from-[#64748b] to-[#334155]',
+    button: 'border-[#dce4ef] bg-[#f8fafc] text-[#475569] hover:border-[#cbd5e1] hover:bg-[#f1f5f9] professional:border-[#d5dee8] professional:bg-[#f4f6f9] professional:text-[#475569] professional:hover:border-[#c0cad6] professional:hover:bg-[#eef2f6]',
+    icon: 'bg-[#e9eef6] text-[#475569] professional:bg-[#e2e8f0] professional:text-[#475569]',
+    count: 'bg-[#e9eef6] text-[#475569] professional:bg-[#e2e8f0] professional:text-[#475569]',
+    accent: 'from-[#64748b] to-[#334155] professional:from-[#64748b] professional:to-[#334155]',
   },
   teal: {
-    button: 'border-[#a7e8d8] bg-[#f0fdf9] text-[#0f7d63] hover:border-[#7fdcc2] hover:bg-[#e3fbf3]',
-    icon: 'bg-[#d7f7ec] text-[#0f9d7c]',
-    count: 'bg-[#d7f7ec] text-[#0f7d63]',
-    accent: 'from-[#14b8a6] to-[#0d9488]',
+    button: 'border-[#a7e8d8] bg-[#f0fdf9] text-[#0f7d63] hover:border-[#7fdcc2] hover:bg-[#e3fbf3] professional:border-[#c5d0dc] professional:bg-[#e8eef5] professional:text-[#1e3a5f] professional:hover:border-[#9eb0c4] professional:hover:bg-[#dde5ef]',
+    icon: 'bg-[#d7f7ec] text-[#0f9d7c] professional:bg-[#d7e0ea] professional:text-[#1e3a5f]',
+    count: 'bg-[#d7f7ec] text-[#0f7d63] professional:bg-[#d7e0ea] professional:text-[#1e3a5f]',
+    accent: 'from-[#14b8a6] to-[#0d9488] professional:from-[#2f4d73] professional:to-[#1e3a5f]',
   },
 };
 
@@ -2490,7 +2489,9 @@ function App() {
   const [dashboardRightTab, setDashboardRightTab] = useState('workflow');
   const [dashboardFollowUpsOpen, setDashboardFollowUpsOpen] = useState(false);
   const [theme, setTheme] = useState(() => (
-    ['light', 'dark', 'system'].includes(initialPreferences.theme) ? initialPreferences.theme : 'light'
+    ['light', 'professional', 'dark', 'system'].includes(initialPreferences.theme)
+      ? initialPreferences.theme
+      : 'light'
   ));
   const [systemPrefersDark, setSystemPrefersDark] = useState(() => (
     typeof window !== 'undefined' && window.matchMedia
@@ -2498,6 +2499,7 @@ function App() {
       : false
   ));
   const isDarkMode = theme === 'system' ? systemPrefersDark : theme === 'dark';
+  const isProfessionalTheme = theme === 'professional';
 
   const dashboardFollowUpAlerts = useMemo(
     () => splitFollowUpAlerts(dashboardScheduledFollowUps || []),
@@ -3005,13 +3007,20 @@ function App() {
       return;
     }
 
-    document.documentElement.classList.toggle('dark', isDarkMode);
+    const root = document.documentElement;
+    root.classList.toggle('dark', isDarkMode);
+    root.classList.toggle('theme-professional', isProfessionalTheme);
+    if (isProfessionalTheme) root.setAttribute('data-crm-theme', 'professional');
+    else root.removeAttribute('data-crm-theme');
     const themeMeta = document.querySelector('meta[name="theme-color"]:not([media])')
       || document.querySelector('meta[name="theme-color"]');
     if (themeMeta) {
-      themeMeta.setAttribute('content', isDarkMode ? '#07070d' : '#0d9f4a');
+      themeMeta.setAttribute(
+        'content',
+        isDarkMode ? '#07070d' : isProfessionalTheme ? '#1e293b' : '#0d9f4a',
+      );
     }
-  }, [isDarkMode]);
+  }, [isDarkMode, isProfessionalTheme]);
 
   // Keep 'system' theme in sync if the OS-level color scheme changes while the app is open.
   useEffect(() => {
@@ -3347,7 +3356,9 @@ function App() {
         'crm-density app-mobile-shell box-border flex min-h-dvh max-w-full flex-col overflow-x-hidden p-0 md:p-2 lg:h-dvh lg:overflow-hidden lg:p-2 xl:h-dvh xl:overflow-hidden xl:p-2',
         isDarkMode
           ? 'bg-[#07070d] text-[#c9cdd4]'
-          : 'bg-[linear-gradient(180deg,#f8fbff_0%,#f3f7fb_56%,#eef4f8_100%)] text-[#20345f]',
+          : isProfessionalTheme
+            ? 'bg-[#f4f6f9] text-[#1e293b]'
+            : 'bg-[linear-gradient(180deg,#f8fbff_0%,#f3f7fb_56%,#eef4f8_100%)] text-[#20345f]',
       )}
     >
       <PinLockOverlay />
@@ -3388,6 +3399,7 @@ function App() {
             mobileSidebarOpen
               ? 'translate-x-0 pointer-events-auto'
               : 'pointer-events-none translate-x-[-110%] xl:pointer-events-auto xl:translate-x-0',
+            isProfessionalTheme && 'border-[#d5dee8]',
           )}
         >
           <div
@@ -3419,7 +3431,14 @@ function App() {
             </button>
           </div>
 
-          <div className="relative min-h-0 flex-1 overflow-hidden rounded-t-[14px] bg-[linear-gradient(180deg,#09b83f_0%,#0799a7_42%,#075fc2_100%)]">
+          <div
+            className={cx(
+              'relative min-h-0 flex-1 overflow-hidden rounded-t-[14px]',
+              isProfessionalTheme
+                ? 'bg-[linear-gradient(180deg,#243447_0%,#1a2736_48%,#15202b_100%)]'
+                : 'bg-[linear-gradient(180deg,#09b83f_0%,#0799a7_42%,#075fc2_100%)]',
+            )}
+          >
             <div className="scroll-soft sidebar-menu-scroll relative h-full overflow-y-auto px-4 py-4">
               <nav className="space-y-0.5">
                 {visibleSidebarItems.map((item) => {
@@ -4884,19 +4903,21 @@ function AppHeader({
 
                   <div className="py-1.5">
                     <LanguageSwitcher row menuAttrs={{ 'data-profile-menu': 'true' }} />
-                    <div className="flex items-center gap-3 px-4 py-2.5 text-[13px] font-semibold text-[#263d72] dark:text-slate-200">
-                      <span className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-[#f3edff] text-[#7c3aed]"><SunMoon className="size-4" /></span>
-                      <span className="min-w-0 flex-1">Theme</span>
-                      <ThemeToggle
-                        theme={theme}
-                        compact
-                        layoutId="theme-toggle-mobile"
-                        onChange={(next) => {
-                          setTheme(next);
-                          notify(`${next.charAt(0).toUpperCase()}${next.slice(1)} theme enabled`);
-                        }}
-                      />
-                    </div>
+                    <ThemeToggle
+                      row
+                      theme={theme}
+                      menuAttrs={{ 'data-profile-menu': 'true' }}
+                      onChange={(next) => {
+                        setTheme(next);
+                        const labels = {
+                          light: 'Light',
+                          professional: 'Professional',
+                          dark: 'Dark',
+                          system: 'System',
+                        };
+                        notify(`${labels[next] || next} theme enabled`);
+                      }}
+                    />
                     {showInstallApp ? (
                       <MobileProfileMenuRow
                         icon={MonitorSmartphone}
@@ -4988,10 +5009,15 @@ function AppHeader({
 
           <ThemeToggle
             theme={theme}
-            layoutId="theme-toggle-desktop"
             onChange={(next) => {
               setTheme(next);
-              notify(`${next.charAt(0).toUpperCase()}${next.slice(1)} theme enabled`);
+              const labels = {
+                light: 'Light',
+                professional: 'Professional',
+                dark: 'Dark',
+                system: 'System',
+              };
+              notify(`${labels[next] || next} theme enabled`);
             }}
           />
 
@@ -5791,7 +5817,7 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
         <button
           type="button"
           onClick={() => setCreateModalOpen(true)}
-          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[9px] bg-[#12a54f] px-3 text-[12px] font-extrabold text-white shadow-[0_10px_18px_rgba(18,165,79,0.22)] transition hover:bg-[#0f9446]"
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[9px] bg-[#12a54f] px-3 text-[12px] font-extrabold text-white shadow-[0_10px_18px_rgba(18,165,79,0.22)] transition hover:bg-[#0f9446] professional:bg-[#1e3a5f] professional:shadow-[0_10px_18px_rgba(30,58,95,0.22)] professional:hover:bg-[#162e4c]"
         >
           <Plus className="size-3.5" />
           Create Lead

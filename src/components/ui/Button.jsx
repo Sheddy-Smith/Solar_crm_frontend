@@ -9,25 +9,30 @@ const sizeClasses = {
 
 const variantClasses = {
   primary:
-    'bg-[#0b65e5] text-white hover:bg-[#0954c2] focus-visible:ring-[#0b65e5]/40 ' +
-    'dark:bg-gradient-to-r dark:from-[#ffd873] dark:via-[#f5a623] dark:to-[#d9820f] dark:text-[#211404] dark:hover:brightness-105 dark:focus-visible:ring-[#f59e0b]/40',
+    'bg-[#0b65e5] text-white hover:bg-[#0954c2] focus-visible:ring-[#0b65e5]/40 '
+    + 'professional:bg-[#1e3a5f] professional:hover:bg-[#162e4c] professional:focus-visible:ring-[#1e3a5f]/35 '
+    + 'dark:bg-gradient-to-r dark:from-[#ffd873] dark:via-[#f5a623] dark:to-[#d9820f] dark:text-[#211404] dark:hover:brightness-105 dark:focus-visible:ring-[#f59e0b]/40',
   secondary:
-    'bg-white text-[#20345f] border border-[#d4d9e7] hover:bg-[#f4f7ff] focus-visible:ring-[#0b65e5]/30 ' +
-    'dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-700',
+    'bg-white text-[#20345f] border border-[#d4d9e7] hover:bg-[#f4f7ff] focus-visible:ring-[#0b65e5]/30 '
+    + 'professional:border-[#d5dee8] professional:text-[#1e293b] professional:hover:bg-[#e8eef5] professional:focus-visible:ring-[#1e3a5f]/25 '
+    + 'dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-700',
   ghost:
-    'bg-transparent text-[#0b65e5] hover:bg-[#eaf2ff] focus-visible:ring-[#0b65e5]/20 ' +
-    'dark:text-[#fbbf24] dark:hover:bg-[rgba(245,158,11,0.10)]',
+    'bg-transparent text-[#0b65e5] hover:bg-[#eaf2ff] focus-visible:ring-[#0b65e5]/20 '
+    + 'professional:text-[#1e3a5f] professional:hover:bg-[#e8eef5] professional:focus-visible:ring-[#1e3a5f]/20 '
+    + 'dark:text-[#fbbf24] dark:hover:bg-[rgba(245,158,11,0.10)]',
   success:
-    'bg-[#0d9f4a] text-white hover:bg-[#0b8a3f] focus-visible:ring-[#0d9f4a]/40 ' +
-    'dark:bg-gradient-to-r dark:from-[#ffd873] dark:via-[#f5a623] dark:to-[#d9820f] dark:text-[#211404] dark:hover:brightness-105 dark:focus-visible:ring-[#f59e0b]/40',
+    'bg-[#0d9f4a] text-white hover:bg-[#0b8a3f] focus-visible:ring-[#0d9f4a]/40 '
+    + 'professional:bg-[#1e3a5f] professional:hover:bg-[#162e4c] professional:focus-visible:ring-[#1e3a5f]/35 '
+    + 'dark:bg-gradient-to-r dark:from-[#ffd873] dark:via-[#f5a623] dark:to-[#d9820f] dark:text-[#211404] dark:hover:brightness-105 dark:focus-visible:ring-[#f59e0b]/40',
   danger:
-    'bg-[#ea5a4c] text-white hover:bg-[#d94435] focus-visible:ring-[#ea5a4c]/40 ' +
-    'dark:bg-[#f0685a] dark:hover:bg-[#ea5a4c]',
+    'bg-[#ea5a4c] text-white hover:bg-[#d94435] focus-visible:ring-[#ea5a4c]/40 '
+    + 'professional:bg-[#6b3a3a] professional:hover:bg-[#5a3030] professional:focus-visible:ring-[#6b3a3a]/35 '
+    + 'dark:bg-[#f0685a] dark:hover:bg-[#ea5a4c]',
 };
 
 /**
  * Shared button primitive: consistent variant/size styling + a subtle
- * hover/tap motion, with real `dark:` variants (no attribute-selector CSS
+ * hover/tap motion, with real `dark:` / `professional:` variants (no attribute-selector CSS
  * override needed) so any panel migrated to this component drops out of
  * the legacy dark-mode retint list in index.css.
  */
