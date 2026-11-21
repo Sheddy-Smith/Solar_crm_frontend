@@ -2281,7 +2281,7 @@ function App() {
   const mobileSidebarCloseGuardRef = useRef(0);
   const closeMobileSidebar = useCallback(() => {
     mobileSidebarCloseGuardRef.current = Date.now();
-    closeMobileSidebar();
+    setMobileSidebarOpen(false);
   }, []);
   const openMobileSidebar = useCallback(() => {
     if (Date.now() - mobileSidebarCloseGuardRef.current < 450) return;
