@@ -387,7 +387,7 @@ export function ServiceFormWizard({ task, ticket, plant, onClose, onDone, onNoti
                         className={cx(
                           'h-9 min-w-[56px] rounded-[8px] border px-2 text-[12px] font-extrabold',
                           row.status === s
-                            ? (s === 'OK' ? 'border-[#16a34a] bg-[#16a34a] text-white' : s === 'Issue' ? 'border-[#dc2626] bg-[#dc2626] text-white' : 'border-[#64748b] bg-[#64748b] text-white')
+                            ? (s === 'OK' ? 'border-[#16a34a] bg-[#16a34a] text-white professional:border-[#1e3a5f] professional:bg-[#1e3a5f]' : s === 'Issue' ? 'border-[#dc2626] bg-[#dc2626] text-white professional:border-[#6b3a3a] professional:bg-[#6b3a3a]' : 'border-[#64748b] bg-[#64748b] text-white')
                             : 'border-[#d9e4f2] bg-white text-[#53647f]',
                         )}
                       >

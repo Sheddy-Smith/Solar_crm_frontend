@@ -22,7 +22,7 @@ export const OM_PENDING_STEPS = [
 export const OM_PENDING_SECTIONS = OM_PENDING_STEPS.map((step) => step.key);
 
 const PANEL = 'rounded-[14px] border border-[#e7eef7] bg-white shadow-[0_10px_24px_rgba(17,39,84,0.05)]';
-const BTN_PRIMARY = 'inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-[7px] bg-[#16a34a] px-2.5 text-[12px] font-semibold text-white transition hover:bg-[#12883e] disabled:cursor-not-allowed disabled:opacity-50';
+const BTN_PRIMARY = 'inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-[7px] bg-[#16a34a] px-2.5 text-[12px] font-semibold text-white transition hover:bg-[#12883e] professional:bg-[#1e3a5f] professional:hover:bg-[#162e4c] disabled:cursor-not-allowed disabled:opacity-50';
 const BTN_OUTLINE = 'inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-[7px] border border-[#d5e0ef] bg-white px-2.5 text-[12px] font-semibold text-[#314a79] transition hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-50';
 const BTN_AMBER = 'inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-[7px] border border-[#fcd9a4] bg-[#fff7ea] px-2.5 text-[12px] font-semibold text-[#b76b00] transition hover:bg-[#fff0d6] disabled:cursor-not-allowed disabled:opacity-50';
 
@@ -214,7 +214,7 @@ function ConfirmDialog({ title, message, confirmLabel, busy, onConfirm, onCancel
         <p className="mt-2 text-[13px] font-medium text-[#53647f]">{message}</p>
         <div className="mt-4 flex justify-end gap-2">
           <button type="button" disabled={busy} onClick={onCancel} className="h-10 rounded-[8px] border border-[#d5e0ef] px-4 text-[13px] font-semibold text-[#314a79] disabled:opacity-60">Cancel</button>
-          <button type="button" disabled={busy} onClick={onConfirm} className="h-10 rounded-[8px] bg-[#16a34a] px-4 text-[13px] font-semibold text-white disabled:opacity-60">{busy ? 'Saving...' : confirmLabel}</button>
+          <button type="button" disabled={busy} onClick={onConfirm} className="h-10 rounded-[8px] bg-[#16a34a] px-4 text-[13px] font-semibold text-white professional:bg-[#1e3a5f] professional:hover:bg-[#162e4c] disabled:opacity-60">{busy ? 'Saving...' : confirmLabel}</button>
         </div>
       </div>
     </div>

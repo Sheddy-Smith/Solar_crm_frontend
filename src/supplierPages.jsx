@@ -111,7 +111,7 @@ export function SupplierModulePage({ activeSection, onOpenSection, onNotify, log
           <button
             type="button"
             onClick={requestAddSupplier}
-            className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#dc2626] px-4 text-[13px] font-extrabold text-white sm:w-auto"
+            className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#dc2626] professional:bg-[#1e3a5f] professional:hover:bg-[#162e4c] px-4 text-[13px] font-extrabold text-white sm:w-auto"
           >
             <Plus className="size-4" /> Add Supplier
           </button>
@@ -319,7 +319,7 @@ function SupplierDetailsTab({ caps, onNotify, addRequested = false, onAddRequest
           footer={(
             <>
               <button type="button" onClick={() => setModal(null)} className="h-10 rounded-[8px] border px-4 text-[13px] font-semibold">Cancel</button>
-              <button type="button" disabled={saving} onClick={save} className="h-10 rounded-[8px] bg-[#dc2626] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">{saving ? 'Saving...' : modal.id ? 'Save Supplier' : 'Add Supplier'}</button>
+              <button type="button" disabled={saving} onClick={save} className="h-10 rounded-[8px] bg-[#dc2626] professional:bg-[#1e3a5f] professional:hover:bg-[#162e4c] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">{saving ? 'Saving...' : modal.id ? 'Save Supplier' : 'Add Supplier'}</button>
             </>
           )}
         >
@@ -617,7 +617,7 @@ function SupplierLedgerTab({ onNotify }) {
           </Field>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-          <button type="button" disabled={!partyId} onClick={openPurchase} className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#dc2626] px-4 text-[13px] font-extrabold text-white disabled:opacity-50 sm:w-auto">
+          <button type="button" disabled={!partyId} onClick={openPurchase} className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#dc2626] professional:bg-[#1e3a5f] professional:hover:bg-[#162e4c] px-4 text-[13px] font-extrabold text-white disabled:opacity-50 sm:w-auto">
             <Plus className="size-4" /> Add Purchase Entry
           </button>
           <button type="button" disabled={!partyId} onClick={openVoucher} className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] disabled:opacity-50 sm:w-auto">
@@ -761,7 +761,7 @@ function SupplierLedgerTab({ onNotify }) {
           footer={(
             <>
               <button type="button" disabled={savingPurchase} onClick={() => setPurchaseOpen(false)} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-semibold text-[#111827]">Cancel</button>
-              <button type="button" disabled={savingPurchase} onClick={savePurchase} className="h-10 rounded-[8px] bg-[#dc2626] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">
+              <button type="button" disabled={savingPurchase} onClick={savePurchase} className="h-10 rounded-[8px] bg-[#dc2626] professional:bg-[#1e3a5f] professional:hover:bg-[#162e4c] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">
                 {savingPurchase ? 'Saving...' : (purchaseForm.entry_kind === 'invoice' ? 'Save Invoice' : 'Save Challan')}
               </button>
             </>
@@ -914,7 +914,7 @@ function SupplierLedgerTab({ onNotify }) {
           footer={(
             <>
               <button type="button" disabled={savingVoucher} onClick={() => setVoucherOpen(false)} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-semibold text-[#111827]">Cancel</button>
-              <button type="button" disabled={savingVoucher} onClick={saveVoucher} className="h-10 rounded-[8px] bg-[#dc2626] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">
+              <button type="button" disabled={savingVoucher} onClick={saveVoucher} className="h-10 rounded-[8px] bg-[#dc2626] professional:bg-[#1e3a5f] professional:hover:bg-[#162e4c] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">
                 {savingVoucher ? 'Saving...' : 'Save Voucher'}
               </button>
             </>

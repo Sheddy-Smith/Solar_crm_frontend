@@ -2514,7 +2514,7 @@ function App() {
   const [theme, setTheme] = useState(() => (
     ['light', 'professional', 'dark', 'system'].includes(initialPreferences.theme)
       ? initialPreferences.theme
-      : 'light'
+      : 'professional'
   ));
   const [systemPrefersDark, setSystemPrefersDark] = useState(() => (
     typeof window !== 'undefined' && window.matchMedia
@@ -31209,7 +31209,7 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify, logged
               <button
                 type="button"
                 onClick={openCreateEmployee}
-                className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#16a34a] px-4 text-[15px] font-semibold text-white shadow-[0_10px_20px_rgba(22,163,74,0.22)] transition hover:-translate-y-0.5 hover:bg-[#15803d]"
+                className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#16a34a] px-4 text-[15px] font-semibold text-white shadow-[0_10px_20px_rgba(22,163,74,0.22)] transition hover:-translate-y-0.5 hover:bg-[#15803d] professional:bg-[#1e3a5f] professional:shadow-[0_10px_20px_rgba(30,58,95,0.22)] professional:hover:bg-[#162e4c]"
               >
                 <Plus className="size-4" />
                 Add Employee
@@ -31801,7 +31801,7 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify, logged
             </div>
             <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-5 py-4">
               <button type="button" onClick={() => setEmpModalOpen(false)} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[15px] font-semibold text-[#284276]">Cancel</button>
-              <button type="button" onClick={handleSaveEmployee} disabled={saving} className="h-10 rounded-[8px] bg-[#ea5a4c] px-5 text-[15px] font-semibold text-white disabled:opacity-60">{saving ? 'Saving...' : 'Save'}</button>
+              <button type="button" onClick={handleSaveEmployee} disabled={saving} className="h-10 rounded-[8px] bg-[#ea5a4c] px-5 text-[15px] font-semibold text-white professional:bg-[#1e3a5f] professional:hover:bg-[#162e4c] disabled:opacity-60">{saving ? 'Saving...' : 'Save'}</button>
             </div>
           </div>
         </div>
@@ -31836,7 +31836,7 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify, logged
             </div>
             <div className="flex justify-end gap-3 border-t border-[#edf2f8] px-5 py-4">
               <button type="button" onClick={() => setVoucherOpen(false)} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[15px] font-semibold text-[#284276]">Cancel</button>
-              <button type="button" onClick={handleSaveVoucher} disabled={saving} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#ea5a4c] px-5 text-[15px] font-semibold text-white disabled:opacity-60"><Wallet className="size-4" />Process Payment</button>
+              <button type="button" onClick={handleSaveVoucher} disabled={saving} className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#ea5a4c] px-5 text-[15px] font-semibold text-white professional:bg-[#1e3a5f] professional:hover:bg-[#162e4c] disabled:opacity-60"><Wallet className="size-4" />Process Payment</button>
             </div>
           </div>
         </div>
@@ -31877,7 +31877,7 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify, logged
               <h2 className="font-display text-[20px] font-semibold text-[#111827]">{periodCardLabel} Attendance Card — {ledger.employee.name}</h2>
               <div className="flex items-center gap-2">
                 <button type="button" onClick={handlePrintCard} className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#dce6f3] bg-white px-3 text-[13px] font-semibold text-[#284276]"><Printer className="size-4" />Print</button>
-                <button type="button" onClick={handleSaveCardPng} disabled={savingPng} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#ea5a4c] px-3 text-[13px] font-semibold text-white disabled:opacity-60"><Download className="size-4" />{savingPng ? 'Saving…' : 'Save PNG'}</button>
+                <button type="button" onClick={handleSaveCardPng} disabled={savingPng} className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#ea5a4c] px-3 text-[13px] font-semibold text-white professional:bg-[#1e3a5f] professional:hover:bg-[#162e4c] disabled:opacity-60"><Download className="size-4" />{savingPng ? 'Saving…' : 'Save PNG'}</button>
                 <button type="button" onClick={() => setCardOpen(false)} className="text-[#7585a2]"><X className="size-5" /></button>
               </div>
             </div>

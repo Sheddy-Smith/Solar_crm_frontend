@@ -267,6 +267,11 @@ html.theme-professional [class*="bg-[#18b957"],
 html.theme-professional [class*="bg-[#0f9f49"],
 html.theme-professional [class*="bg-[#22c55e"],
 html.theme-professional [class*="bg-[#16a34a"],
+html.theme-professional [class*="bg-[#15803d"],
+html.theme-professional [class*="bg-[#86efac"],
+/* Vendor / Supplier / O&M primary red CTAs (#dc2626) → navy under Professional */
+html.theme-professional [class*="bg-[#dc2626"],
+html.theme-professional [class*="bg-[#b91c1c"],
 html.theme-professional [class*="bg-[#0b65e5"],
 html.theme-professional [class*="bg-[#0954c2"],
 html.theme-professional [class*="bg-[#0952c6"],
@@ -279,12 +284,18 @@ html.theme-professional [class*="hover:bg-[#0b8a3f"],
 html.theme-professional [class*="hover:bg-[#0b8a40"],
 html.theme-professional [class*="hover:bg-[#12a54f"],
 html.theme-professional [class*="hover:bg-[#0f9446"],
+html.theme-professional [class*="hover:bg-[#16a34a"],
+html.theme-professional [class*="hover:bg-[#15803d"],
+html.theme-professional [class*="hover:bg-[#12883e"],
+html.theme-professional [class*="hover:bg-[#dc2626"],
+html.theme-professional [class*="hover:bg-[#b91c1c"],
+html.theme-professional [class*="bg-[#12883e"],
 html.theme-professional [class*="hover:bg-[#0954c2"],
 html.theme-professional [class*="hover:bg-[#0b65e5"] {
   background-color: var(--crm-pro-accent) !important;
 }
 
-/* Solid danger / red CTAs → muted burgundy */
+/* Soft/delete danger reds that are not module primary CTAs → muted burgundy */
 html.theme-professional [class*="bg-[#ea5a4c"],
 html.theme-professional [class*="bg-[#ef4444"],
 html.theme-professional [class*="bg-[#f04438"],
@@ -311,6 +322,8 @@ html.theme-professional [class*="text-[#0b8a3f"],
 html.theme-professional [class*="text-[#10b981"],
 html.theme-professional [class*="text-[#059669"],
 html.theme-professional [class*="text-[#12a54f"],
+html.theme-professional [class*="text-[#16a34a"],
+html.theme-professional [class*="text-[#15803d"],
 html.theme-professional [class*="text-[#0f7d63"],
 html.theme-professional [class*="text-[#0f9d7c"],
 html.theme-professional [class*="text-[#0b65e5"],
@@ -328,7 +341,9 @@ html.theme-professional [class*="text-[#d92d20"],
 html.theme-professional [class*="text-[#f04438"],
 html.theme-professional [class*="text-[#ea5a4c"],
 html.theme-professional [class*="text-[#ef4444"],
-html.theme-professional [class*="text-[#e03434"] {
+html.theme-professional [class*="text-[#e03434"],
+html.theme-professional [class*="text-[#dc2626"],
+html.theme-professional [class*="text-[#b91c1c"] {
   color: var(--crm-pro-danger) !important;
 }
 

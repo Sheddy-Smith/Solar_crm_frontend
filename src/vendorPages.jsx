@@ -183,7 +183,7 @@ export function VendorModulePage({ activeSection, onOpenSection, onNotify, logge
           <button
             type="button"
             onClick={requestAddVendor}
-            className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#dc2626] px-4 text-[13px] font-extrabold text-white sm:w-auto"
+            className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#dc2626] professional:bg-[#1e3a5f] professional:hover:bg-[#162e4c] px-4 text-[13px] font-extrabold text-white sm:w-auto"
           >
             <Plus className="size-4" /> Add Vendor
           </button>
@@ -400,7 +400,7 @@ function VendorDetailsTab({ caps, onNotify, addRequested = false, onAddRequestCo
           footer={(
             <>
               <button type="button" onClick={() => setModal(null)} className="h-10 rounded-[8px] border px-4 text-[13px] font-semibold">Cancel</button>
-              <button type="button" disabled={saving} onClick={save} className="h-10 rounded-[8px] bg-[#dc2626] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">{saving ? 'Saving...' : modal.id ? 'Save Vendor' : 'Add Vendor'}</button>
+              <button type="button" disabled={saving} onClick={save} className="h-10 rounded-[8px] bg-[#dc2626] professional:bg-[#1e3a5f] professional:hover:bg-[#162e4c] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">{saving ? 'Saving...' : modal.id ? 'Save Vendor' : 'Add Vendor'}</button>
             </>
           )}
         >
@@ -830,7 +830,7 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
           <button type="button" disabled={!partyId || !assignments.length} onClick={() => openPay()} className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white disabled:opacity-50 sm:w-auto">
             <Wallet className="size-4" /> Add Payment
           </button>
-          <button type="button" disabled={!partyId} onClick={openAddManual} className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#dc2626] px-4 text-[13px] font-extrabold text-white disabled:opacity-50 sm:w-auto">
+          <button type="button" disabled={!partyId} onClick={openAddManual} className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#dc2626] professional:bg-[#1e3a5f] professional:hover:bg-[#162e4c] px-4 text-[13px] font-extrabold text-white disabled:opacity-50 sm:w-auto">
             <Plus className="size-4" /> Add Manual Entry
           </button>
           <button type="button" disabled={!entries.length} onClick={() => exportNotifyCsv(onNotify, 'vendor-ledger', ['Date', 'Project', 'Work', 'Debit', 'Credit', 'Balance'], entries.map((e) => [e.date, e.project_name, e.work || e.particulars, e.debit, e.credit, e.balance]))} className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] border border-[#d9e4f2] px-4 text-[13px] font-extrabold text-[#284276] disabled:opacity-50 sm:w-auto">
@@ -938,7 +938,7 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
                         <Field label="Credit"><input type="number" min="0" step="0.01" className={inputClass} value={draftForm.credit} onChange={(e) => setDraftForm((f) => ({ ...f, credit: e.target.value, debit: e.target.value ? '' : f.debit }))} /></Field>
                       </div>
                       <div className="flex gap-2">
-                        <button type="button" disabled={saving} onClick={saveManualEntry} className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-[8px] bg-[#dc2626] px-3 text-[13px] font-extrabold text-white disabled:opacity-60">
+                        <button type="button" disabled={saving} onClick={saveManualEntry} className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-[8px] bg-[#dc2626] professional:bg-[#1e3a5f] professional:hover:bg-[#162e4c] px-3 text-[13px] font-extrabold text-white disabled:opacity-60">
                           <Save className="size-4" />{saving ? 'Saving...' : 'Save'}
                         </button>
                         <button type="button" disabled={saving} onClick={cancelDraft} className="h-10 rounded-[8px] border px-4 text-[13px] font-semibold">Cancel</button>
