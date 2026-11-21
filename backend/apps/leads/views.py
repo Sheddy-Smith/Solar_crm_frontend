@@ -19,7 +19,7 @@ from apps.accounts.permissions import (
     HasModulePermission, is_lead_scoped, lead_owner_q,
     is_own_lead, can_manage_leads,
 )
-from .datetime_filters import filter_field_on_local_date, period_created_at_queryset
+from .datetime_filters import day_start, filter_field_on_local_date, period_created_at_queryset
 from .followup_sync import bump_lead_last_activity, sync_lead_next_follow_up
 from .recycle import soft_delete_follow_up, soft_delete_lead, soft_delete_quotation
 
@@ -48,22 +48,26 @@ class LeadViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created_at', 'next_follow_up', 'customer_name', 'last_activity_at']
     ordering = ['-last_activity_at', '-created_at']
 
+    def _scoped_leads_qs(self):
+        """Ownership-scoped leads without list-only annotations (for aggregates)."""
+        qs = Lead.objects.filter(is_deleted=False)
+        owner_q = lead_owner_q(self.request.user)
+        if owner_q is not None:
+            qs = qs.filter(owner_q)
+        return qs
+
     def get_queryset(self):
         from django.db.models import OuterRef, Subquery
         from apps.projects.models import SiteSurvey
 
-        user = self.request.user
         project_survey_status = SiteSurvey.objects.filter(
             project__lead_id=OuterRef('pk'),
         ).order_by('-updated_at').values('status')[:1]
-        qs = Lead.objects.select_related(
+        qs = self._scoped_leads_qs().select_related(
             'assigned_to', 'created_by', 'site_survey', 'customer',
         ).annotate(
             list_survey_status=Subquery(project_survey_status),
-        ).filter(is_deleted=False)
-        owner_q = lead_owner_q(user)
-        if owner_q is not None:
-            qs = qs.filter(owner_q)
+        )
 
         # Lead List category chips (New/Hot/Warm/Cool/Won/Lost) — server-side so
         # counts and pages match full book, not only the current page slice.
@@ -185,7 +189,8 @@ class LeadViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def stats(self, request):
-        qs = self.get_queryset()
+        # Lean scope — skip list Subquery/select_related (unused by aggregates).
+        qs = self._scoped_leads_qs()
         today = timezone.localdate()
 
         # `anchor` lets the dashboard's date-picker look at a period other than
@@ -212,6 +217,7 @@ class LeadViewSet(viewsets.ModelViewSet):
         period_qs, range_start, range_end = period_created_at_queryset(qs, period, anchor)
 
         # One aggregate round-trip for status + Lead List category chips.
+        from datetime import timedelta
         from django.db.models import Count, Q
         open_q = Q(status__in=Lead.OPEN_STATUSES)
         hot_q = ~Q(status__in=['Won', 'Lost']) & (Q(priority='High') | Q(category='Hot'))
@@ -231,6 +237,8 @@ class LeadViewSet(viewsets.ModelViewSet):
             & ~Q(priority='High') & ~Q(priority='Low')
             & ~Q(category='Hot') & ~Q(category='Cool') & ~Q(category='Warm')
         )
+        today_start = day_start(today)
+        today_end = today_start + timedelta(days=1)
         buckets = qs.aggregate(
             total=Count('id'),
             new=Count('id', filter=Q(status='New')),
@@ -240,6 +248,10 @@ class LeadViewSet(viewsets.ModelViewSet):
             overdue=Count(
                 'id',
                 filter=Q(next_follow_up__lt=timezone.now()) & open_q,
+            ),
+            today_followups=Count(
+                'id',
+                filter=Q(next_follow_up__gte=today_start, next_follow_up__lt=today_end),
             ),
             cat_new=Count('id', filter=new_cat_q),
             cat_hot=Count('id', filter=hot_q),
@@ -256,7 +268,7 @@ class LeadViewSet(viewsets.ModelViewSet):
             'new': buckets['new'] or 0,
             # Legacy key kept at 0 — Follow-up is no longer a lead status.
             'follow_up': 0,
-            'today_followups': filter_field_on_local_date(qs, 'next_follow_up', today).count(),
+            'today_followups': buckets['today_followups'] or 0,
             'quotation': buckets['quotation'] or 0,
             'won': buckets['won'] or 0,
             'lost': buckets['lost'] or 0,

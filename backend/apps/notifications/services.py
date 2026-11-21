@@ -1,8 +1,25 @@
+from django.core.cache import cache
 from django.db import IntegrityError
 from django.db.models import Q
 
 from apps.accounts.permissions import is_super_admin
 from .models import Notification
+
+UNREAD_CACHE_TTL = 20
+VIEWABLE_MODULES_TTL = 60
+
+
+def unread_cache_key(user_id):
+    return f'notif_unread_v1:{user_id}'
+
+
+def viewable_modules_cache_key(role_id):
+    return f'notif_viewmods_v1:{role_id}'
+
+
+def invalidate_unread_cache(user_id=None):
+    if user_id:
+        cache.delete(unread_cache_key(user_id))
 
 
 def notify(dedupe_key, title, *, message='', category='General', severity='info',
@@ -24,6 +41,8 @@ def notify(dedupe_key, title, *, message='', category='General', severity='info'
         )
     except IntegrityError:
         return Notification.objects.get(dedupe_key=dedupe_key[:200]), False
+    if user is not None and getattr(user, 'pk', None):
+        invalidate_unread_cache(user.pk)
     try:
         from .push import enqueue_web_push
         enqueue_web_push(row)
@@ -36,10 +55,16 @@ def viewable_modules(user):
     role = getattr(user, 'role', None)
     if not role:
         return []
-    return [
+    key = viewable_modules_cache_key(role.id)
+    cached = cache.get(key)
+    if cached is not None:
+        return list(cached)
+    modules = [
         perm.module for perm in role.permissions.all()
         if perm.full_access or perm.can_view
     ]
+    cache.set(key, modules, VIEWABLE_MODULES_TTL)
+    return modules
 
 
 def notifications_for(user):

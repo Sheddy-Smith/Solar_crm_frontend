@@ -1,19 +1,17 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Briefcase, Check, ChevronDown, Monitor, Moon, Sun, SunMoon } from 'lucide-react';
+import { Briefcase, Check, ChevronDown, Sun, SunMoon } from 'lucide-react';
 
 const OPTIONS = [
   { value: 'light', label: 'Light', icon: Sun },
   { value: 'professional', label: 'Professional', icon: Briefcase },
-  { value: 'dark', label: 'Dark', icon: Moon },
-  { value: 'system', label: 'System', icon: Monitor },
 ];
 
 function getOption(theme) {
-  return OPTIONS.find((option) => option.value === theme) || OPTIONS[0];
+  return OPTIONS.find((option) => option.value === theme) || OPTIONS[1];
 }
 
-/** Navbar / profile theme picker: Light, Professional, Dark, System. */
+/** Navbar / profile theme picker: Light / Professional. */
 function ThemeToggle({
   theme,
   onChange,

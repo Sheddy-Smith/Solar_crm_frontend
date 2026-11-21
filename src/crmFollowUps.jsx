@@ -141,7 +141,7 @@ export function CrmFollowUpsPage({
         page_size: pageSize,
         status: 'Scheduled',
         ordering: 'scheduled_at',
-      })),
+      }), { maxPages: 5 }),
       followUpApi.listAll({ page_size: 100, ordering: '-created_at' }),
     ])
       .then(([scheduled, recent]) => {

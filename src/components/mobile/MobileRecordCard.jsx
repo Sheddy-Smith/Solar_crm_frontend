@@ -3,13 +3,13 @@ import { ChevronRight, MoreVertical } from 'lucide-react';
 import { cx } from '../../lib/utils.js';
 
 const AVATAR_TONES = [
-  'bg-[#0b65e5]',
-  'bg-[#0d9f4a]',
-  'bg-[#7c3aed]',
-  'bg-[#e2594c]',
-  'bg-[#d97706]',
-  'bg-[#0891b2]',
-  'bg-[#db2777]',
+  'bg-[#0b65e5] professional:bg-[#1e3a5f]',
+  'bg-[#0d9f4a] professional:bg-[#2f4d73]',
+  'bg-[#7c3aed] professional:bg-[#3d4f6f]',
+  'bg-[#e2594c] professional:bg-[#6b3a3a]',
+  'bg-[#d97706] professional:bg-[#6b5320]',
+  'bg-[#0891b2] professional:bg-[#2f4d73]',
+  'bg-[#db2777] professional:bg-[#5a3a55]',
 ];
 
 function avatarTone(name) {
@@ -27,21 +27,21 @@ function initialsOf(name) {
 
 // `!` is needed because the unlayered global `a { color: inherit }` beats layered utilities on link actions.
 const ACTION_TONES = {
-  green: 'text-[#0d9f4a]! active:bg-[#e8f8eb]',
-  blue: 'text-[#0b65e5]! active:bg-[#eef4ff]',
-  purple: 'text-[#7c3aed]! active:bg-[#f5f3ff]',
-  red: 'text-[#ef4444]! active:bg-[#fff5f5]',
-  amber: 'text-[#b45309]! active:bg-[#fff4df]',
-  slate: 'text-[#284276]! active:bg-[#eef3fb]',
+  green: 'text-[#0d9f4a]! active:bg-[#e8f8eb] professional:text-[#1e3a5f]! professional:active:bg-[#e8eef5]',
+  blue: 'text-[#0b65e5]! active:bg-[#eef4ff] professional:text-[#1e3a5f]! professional:active:bg-[#e8eef5]',
+  purple: 'text-[#7c3aed]! active:bg-[#f5f3ff] professional:text-[#2f4d73]! professional:active:bg-[#e8eef5]',
+  red: 'text-[#ef4444]! active:bg-[#fff5f5] professional:text-[#6b3a3a]! professional:active:bg-[#f5eeee]',
+  amber: 'text-[#b45309]! active:bg-[#fff4df] professional:text-[#6b5320]! professional:active:bg-[#f7f3eb]',
+  slate: 'text-[#284276]! active:bg-[#eef3fb] professional:text-[#1e293b]! professional:active:bg-[#f0f4f8]',
 };
 
 const MENU_TONES = {
-  green: 'text-[#0d9f4a]',
-  blue: 'text-[#0b65e5]',
-  purple: 'text-[#7c3aed]',
-  red: 'text-[#ef4444]',
-  amber: 'text-[#b45309]',
-  slate: 'text-[#1e3261]',
+  green: 'text-[#0d9f4a] professional:text-[#1e3a5f]',
+  blue: 'text-[#0b65e5] professional:text-[#1e3a5f]',
+  purple: 'text-[#7c3aed] professional:text-[#2f4d73]',
+  red: 'text-[#ef4444] professional:text-[#6b3a3a]',
+  amber: 'text-[#b45309] professional:text-[#6b5320]',
+  slate: 'text-[#1e3261] professional:text-[#1e293b]',
 };
 
 /** Phone-only list wrapper; pair it with a desktop table wrapped in `hidden lg:block`. */

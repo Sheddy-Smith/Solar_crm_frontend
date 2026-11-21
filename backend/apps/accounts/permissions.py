@@ -217,9 +217,15 @@ class HasModulePermission(BasePermission):
         if not role:
             return False
 
+        # Prefetch once per request — avoids N× role.permissions.filter on busy pages.
+        perm_map = getattr(request, '_role_perm_by_module', None)
+        if perm_map is None:
+            perm_map = {p.module: p for p in role.permissions.all()}
+            request._role_perm_by_module = perm_map
+
         check_modules = modules or (module,)
         for mod in check_modules:
-            perm = role.permissions.filter(module=mod).first()
+            perm = perm_map.get(mod)
             if perm and (perm.full_access or getattr(perm, flag, False)):
                 return True
         return False

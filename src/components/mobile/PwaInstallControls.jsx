@@ -74,7 +74,7 @@ export function UpToDateDialog({ open, onClose, versionLabel, buildId }) {
         </button>
         <div className="malwa-update-card__body">
           <div className="flex items-start gap-3">
-            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[#e8f8eb] text-[#0d9f4a]">
+            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[#e8f8eb] text-[#0d9f4a] professional:bg-[#e8eef5] professional:text-[#1e3a5f]">
               <CheckCircle2 className="size-6" />
             </span>
             <div>
@@ -220,7 +220,7 @@ export function usePwaInstallAction(notify) {
 function GuideStep({ n, children }) {
   return (
     <li className="flex gap-2">
-      <span className="font-extrabold text-[#0d9f4a]">{n}.</span>
+      <span className="font-extrabold text-[#0d9f4a] professional:text-[#1e3a5f]">{n}.</span>
       <span>{children}</span>
     </li>
   );
@@ -242,7 +242,7 @@ export function PwaInstallGuide({ open, onClose, ios, android = false }) {
             <X className="size-4" />
           </button>
           <div className="flex items-center gap-3 pr-8">
-            <span className="grid size-12 place-items-center rounded-2xl bg-[#e8f8eb] text-[#0d9f4a]">
+            <span className="grid size-12 place-items-center rounded-2xl bg-[#e8f8eb] text-[#0d9f4a] professional:bg-[#e8eef5] professional:text-[#1e3a5f]">
               <Download className="size-6" />
             </span>
             <div>
@@ -260,7 +260,7 @@ export function PwaInstallGuide({ open, onClose, ios, android = false }) {
             <a
               href={ANDROID_APK_URL}
               download="malwa-solar.apk"
-              className="flex h-11 items-center justify-center gap-2 rounded-[12px] border border-[#c7ebd4] text-[13px] font-extrabold text-[#0d9f4a]"
+              className="flex h-11 items-center justify-center gap-2 rounded-[12px] border border-[#c7ebd4] text-[13px] font-extrabold text-[#0d9f4a] professional:border-[#c5d0dc] professional:text-[#1e3a5f]"
             >
               <Download className="size-4" />
               Download again
@@ -268,7 +268,7 @@ export function PwaInstallGuide({ open, onClose, ios, android = false }) {
             <button
               type="button"
               onClick={onClose}
-              className="flex h-11 items-center justify-center rounded-[12px] bg-[#0d9f4a] text-[14px] font-extrabold text-white"
+              className="flex h-11 items-center justify-center rounded-[12px] bg-[#0d9f4a] professional:bg-[#1e3a5f] text-[14px] font-extrabold text-white"
             >
               Got it
             </button>
@@ -290,7 +290,7 @@ export function PwaInstallGuide({ open, onClose, ios, android = false }) {
           <X className="size-4" />
         </button>
         <div className="flex items-center gap-3 pr-8">
-          <span className="grid size-12 place-items-center rounded-2xl bg-[#e8f8eb] text-[#0d9f4a]">
+          <span className="grid size-12 place-items-center rounded-2xl bg-[#e8f8eb] text-[#0d9f4a] professional:bg-[#e8eef5] professional:text-[#1e3a5f]">
             <MonitorSmartphone className="size-6" />
           </span>
           <div>
@@ -302,7 +302,7 @@ export function PwaInstallGuide({ open, onClose, ios, android = false }) {
           {ios ? (
             <>
               <li className="flex gap-2">
-                <span className="font-extrabold text-[#0d9f4a]">1.</span>
+                <span className="font-extrabold text-[#0d9f4a] professional:text-[#1e3a5f]">1.</span>
                 <span className="inline-flex flex-wrap items-center gap-1">
                   Tap the Share button
                   <Share className="inline size-3.5 text-[#0b65e5]" />
@@ -310,26 +310,26 @@ export function PwaInstallGuide({ open, onClose, ios, android = false }) {
                 </span>
               </li>
               <li className="flex gap-2">
-                <span className="font-extrabold text-[#0d9f4a]">2.</span>
+                <span className="font-extrabold text-[#0d9f4a] professional:text-[#1e3a5f]">2.</span>
                 Scroll and tap <strong className="font-extrabold">Add to Home Screen</strong>.
               </li>
               <li className="flex gap-2">
-                <span className="font-extrabold text-[#0d9f4a]">3.</span>
+                <span className="font-extrabold text-[#0d9f4a] professional:text-[#1e3a5f]">3.</span>
                 Tap <strong className="font-extrabold">Add</strong> — the app icon appears on your home screen.
               </li>
             </>
           ) : (
             <>
               <li className="flex gap-2">
-                <span className="font-extrabold text-[#0d9f4a]">1.</span>
+                <span className="font-extrabold text-[#0d9f4a] professional:text-[#1e3a5f]">1.</span>
                 Click the <strong className="font-extrabold">Install</strong> icon in the address bar (monitor + arrow).
               </li>
               <li className="flex gap-2">
-                <span className="font-extrabold text-[#0d9f4a]">2.</span>
+                <span className="font-extrabold text-[#0d9f4a] professional:text-[#1e3a5f]">2.</span>
                 Or open the browser menu <strong className="font-extrabold">(⋮)</strong> → <strong className="font-extrabold">Install Malwa Solar</strong> / Add to Home screen.
               </li>
               <li className="flex gap-2">
-                <span className="font-extrabold text-[#0d9f4a]">3.</span>
+                <span className="font-extrabold text-[#0d9f4a] professional:text-[#1e3a5f]">3.</span>
                 Confirm — Malwa Solar opens full-screen like an app.
               </li>
             </>
@@ -338,7 +338,7 @@ export function PwaInstallGuide({ open, onClose, ios, android = false }) {
         <button
           type="button"
           onClick={onClose}
-          className="mt-5 flex h-11 w-full items-center justify-center rounded-[12px] bg-[#0d9f4a] text-[14px] font-extrabold text-white"
+          className="mt-5 flex h-11 w-full items-center justify-center rounded-[12px] bg-[#0d9f4a] professional:bg-[#1e3a5f] text-[14px] font-extrabold text-white"
         >
           Got it
         </button>
@@ -367,7 +367,7 @@ export function PwaInstallIconButton({ className = '', notify }) {
         onClick={runInstall}
         disabled={busy}
         className={cx(
-          'relative inline-flex size-10 items-center justify-center rounded-full border border-[#dbe4f0] bg-white text-[#5a6d88] transition hover:border-[#0d9f4a]/40 hover:text-[#0d9f4a] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300',
+          'relative inline-flex size-10 items-center justify-center rounded-full border border-[#dbe4f0] bg-white text-[#5a6d88] transition hover:border-[#0d9f4a]/40 hover:text-[#0d9f4a] professional:hover:text-[#1e3a5f] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300',
           className,
         )}
         aria-label={buttonLabel(pwaInstall, android, busy)}
@@ -379,7 +379,7 @@ export function PwaInstallIconButton({ className = '', notify }) {
           <MonitorSmartphone className="size-[18px]" />
         )}
         {pwaInstall.canPromptInstall || android ? (
-          <span className="absolute right-1 top-1 size-2 rounded-full bg-[#0d9f4a]" />
+          <span className="absolute right-1 top-1 size-2 rounded-full bg-[#0d9f4a] professional:bg-[#1e3a5f]" />
         ) : null}
       </button>
       <PwaInstallGuide open={guideOpen} onClose={() => setGuideOpen(false)} ios={ios} android={android} />
@@ -405,11 +405,11 @@ export function PwaInstallBanner({ notify, className = '' }) {
         onClick={runInstall}
         disabled={busy}
         className={cx(
-          'flex w-full items-center gap-3 rounded-[14px] border border-[#c7ebd4] bg-[#f3fbf6] px-3.5 py-3 text-left transition hover:bg-[#e8f8eb] md:hidden dark:border-emerald-900/50 dark:bg-emerald-950/40',
+          'flex w-full items-center gap-3 rounded-[14px] border border-[#c7ebd4] bg-[#f3fbf6] professional:border-[#c5d0dc] professional:bg-[#e8eef5] px-3.5 py-3 text-left transition hover:bg-[#e8f8eb] md:hidden dark:border-emerald-900/50 dark:bg-emerald-950/40',
           className,
         )}
       >
-        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#0d9f4a] text-white">
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#0d9f4a] text-white professional:bg-[#1e3a5f]">
           <MonitorSmartphone className="size-5" />
         </span>
         <span className="min-w-0 flex-1">
@@ -426,7 +426,7 @@ export function PwaInstallBanner({ notify, className = '' }) {
                 : 'Install for full-screen app experience'}
           </span>
         </span>
-        <span className="shrink-0 rounded-full bg-[#0d9f4a] px-3 py-1.5 text-[11px] font-extrabold text-white">
+        <span className="shrink-0 rounded-full bg-[#0d9f4a] px-3 py-1.5 text-[11px] font-extrabold text-white professional:bg-[#1e3a5f]">
           {busy
             ? '…'
             : android

@@ -1,4 +1,4 @@
-import { useDeferredValue, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { startTransition, useDeferredValue, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import Button from './components/ui/Button.jsx';
@@ -148,7 +148,7 @@ import {
   RECENT_ACTIVITY_ORDERING,
   formatRelativeActivity,
 } from './lib/recentAllList.js';
-import { LIST_PAGE_SIZE, LOOKUP_PAGE_SIZE, rowsOf, parseListPage, listParams, fetchEveryPage } from './lib/listQuery.js';
+import { LIST_PAGE_SIZE, LOOKUP_PAGE_SIZE, DASHBOARD_PAGE_SIZE, rowsOf, parseListPage, listParams, fetchEveryPage } from './lib/listQuery.js';
 import { ensureWebPushSubscription, showForegroundNotification, syncWebPushWithSettings } from './lib/webPush.js';
 import { downloadSurveyPhoto, downloadSurveyPhotosPdf } from './lib/surveyPhotoExport.js';
 import { MobileDashboardPage, MobileBottomNav } from './mobileDashboard.jsx';
@@ -2351,22 +2351,27 @@ function App() {
     return preferred;
   });
   const setActiveSidebarItem = useCallback((next) => {
-    setActiveSidebarItemState((prev) => {
-      const resolved = typeof next === 'function' ? next(prev) : next;
-      let target = resolved === 'Inspection Placed' ? 'Inspection' : resolved;
-      if (target === 'BOM Master') target = 'Project Material Planning';
-      if (target === 'Project Job Sheet') target = 'Project Material Planning';
-      if (prev && target && prev !== target) {
-        navHistoryRef.current = [...navHistoryRef.current.slice(-39), prev];
-      }
-      return target;
+    // Keep nav clicks instant — heavy section mounts defer via startTransition.
+    startTransition(() => {
+      setActiveSidebarItemState((prev) => {
+        const resolved = typeof next === 'function' ? next(prev) : next;
+        let target = resolved === 'Inspection Placed' ? 'Inspection' : resolved;
+        if (target === 'BOM Master') target = 'Project Material Planning';
+        if (target === 'Project Job Sheet') target = 'Project Material Planning';
+        if (prev && target && prev !== target) {
+          navHistoryRef.current = [...navHistoryRef.current.slice(-39), prev];
+        }
+        return target;
+      });
     });
   }, []);
   const goBackInApp = useCallback(() => {
     const stack = navHistoryRef.current;
     const prev = stack.length ? stack[stack.length - 1] : null;
     navHistoryRef.current = stack.slice(0, -1);
-    setActiveSidebarItemState(prev || 'Dashboard');
+    startTransition(() => {
+      setActiveSidebarItemState(prev || 'Dashboard');
+    });
   }, []);
   const [insightsTab, setInsightsTab] = useState(
     initialRoute.params?.tab || INSIGHTS_LEGACY_TAB_MAP[initialRoute.section] || 'overview',
@@ -2409,6 +2414,7 @@ function App() {
       .then((r) => {
         const next = Number(r?.count) || 0;
         const prev = notificationUnreadRef.current;
+        if (next === prev) return;
         notificationUnreadRef.current = next;
         setNotificationUnread(next);
         // When unread rises while this session is open, show a desktop/OS banner.
@@ -2438,16 +2444,21 @@ function App() {
     const pushTimer = window.setTimeout(() => {
       ensureWebPushSubscription().catch(() => {});
     }, 1200);
+    // 60s poll — avoids full App re-renders every 20s when the badge is unchanged.
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') refreshNotificationCount();
-    }, 20000);
+    }, 60000);
+    let visibleTimer = 0;
     const onVisible = () => {
-      if (document.visibilityState === 'visible') refreshNotificationCount();
+      if (document.visibilityState !== 'visible') return;
+      window.clearTimeout(visibleTimer);
+      visibleTimer = window.setTimeout(() => refreshNotificationCount(), 800);
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       window.clearInterval(timer);
       window.clearTimeout(pushTimer);
+      window.clearTimeout(visibleTimer);
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [loggedInUser, refreshNotificationCount]);
@@ -2662,14 +2673,29 @@ function App() {
 
   // Fetch / refresh profile on any authenticated page so role permission
   // changes (e.g. Lead → Delete) apply without a full re-login.
+  // Dedupe in-flight + skip identical payload so page switches stay snappy.
+  const profileFetchRef = useRef(null);
   useEffect(() => {
-    if (['signin', 'portal', 'tele-signin'].includes(currentPage)) return;
-    if (!tokenStore.getAccess()) return;
-    authApi.me().then((data) => {
-      if (data) setLoggedInUser(data);
-    }).catch(() => {
-      if (!loggedInUser) notify('Could not load profile — session may have expired', 'error');
+    if (['signin', 'portal', 'tele-signin'].includes(currentPage)) return undefined;
+    if (!tokenStore.getAccess()) return undefined;
+    let cancelled = false;
+    const run = profileFetchRef.current || authApi.me().finally(() => {
+      profileFetchRef.current = null;
     });
+    profileFetchRef.current = run;
+    run.then((data) => {
+      if (cancelled || !data) return;
+      setLoggedInUser((prev) => {
+        if (prev && prev.id === data.id && prev.role === data.role
+          && JSON.stringify(prev.permissions || []) === JSON.stringify(data.permissions || [])) {
+          return prev;
+        }
+        return data;
+      });
+    }).catch(() => {
+      if (!cancelled && !loggedInUser) notify('Could not load profile — session may have expired', 'error');
+    });
+    return () => { cancelled = true; };
   }, [currentPage]);
 
   // UI language: the user's own choice, else the admin default (Settings → Language).
@@ -2859,26 +2885,27 @@ function App() {
       setDashWidgetError('followUps', '');
       return Promise.resolve();
     }
-    // Scheduled (all pages) + Missed/Completed for dashboard KPIs & charts.
+    // Cap pages — dashboard widgets only need a recent window, not the full history book.
+    const dashPageOpts = { pageSize: DASHBOARD_PAGE_SIZE, maxPages: 3 };
     return Promise.all([
       fetchEveryPage((page, pageSize) => followUpApi.listAll({
         page,
         page_size: pageSize,
         status: 'Scheduled',
         ordering: 'scheduled_at',
-      })),
+      }), dashPageOpts),
       fetchEveryPage((page, pageSize) => followUpApi.listAll({
         page,
         page_size: pageSize,
         status: 'Missed',
         ordering: '-scheduled_at',
-      })),
+      }), dashPageOpts),
       fetchEveryPage((page, pageSize) => followUpApi.listAll({
         page,
         page_size: pageSize,
         status: 'Completed',
         ordering: '-scheduled_at',
-      }), { maxPages: 8 }),
+      }), { pageSize: DASHBOARD_PAGE_SIZE, maxPages: 3 }),
     ]).then(([scheduled, missed, completed]) => {
       if (signal?.aborted) return;
       setDashWidgetError('followUps', '');
@@ -2900,12 +2927,19 @@ function App() {
     if (currentPage !== 'dashboard' || !isDashboardSection) return undefined;
     const ac = new AbortController();
     refreshDashboardFollowUps(ac.signal);
+    let visibleTimer = 0;
     const onVisible = () => {
-      if (document.visibilityState === 'visible') refreshDashboardFollowUps();
+      if (document.visibilityState !== 'visible') return;
+      // Debounce alt-tab storms so stacked multi-page fetches don't freeze the UI.
+      window.clearTimeout(visibleTimer);
+      visibleTimer = window.setTimeout(() => {
+        if (!ac.signal.aborted) refreshDashboardFollowUps(ac.signal);
+      }, 1500);
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       ac.abort();
+      window.clearTimeout(visibleTimer);
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [currentPage, isDashboardSection, refreshDashboardFollowUps]);

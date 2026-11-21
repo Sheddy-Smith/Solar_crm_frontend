@@ -41,7 +41,7 @@ export default function ProjectSearchSelect({
       page,
       page_size: pageSize,
       ordering: '-created_at',
-    }))
+    }), { maxPages: 8 })
       .then((rows) => {
         if (cancelled) return;
         setProjects(Array.isArray(rows) ? rows : []);

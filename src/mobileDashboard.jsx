@@ -23,19 +23,19 @@ const cx = (...parts) => parts.filter(Boolean).join(' ');
 const CARD = 'rounded-[16px] border border-[#e4ebf4] bg-white shadow-[0_6px_18px_rgba(21,43,83,0.06)]';
 
 const STATUS_BADGE = {
-  New: 'bg-[#e8f2ff] text-[#0b65e5]',
-  'Follow-up': 'bg-[#fff3df] text-[#d97706]',
-  Quotation: 'bg-[#f3edff] text-[#7c3aed]',
-  Won: 'bg-[#e9f8ec] text-[#0d9f4a]',
-  Lost: 'bg-[#ffe9e6] text-[#e11d48]',
+  New: 'bg-[#e8f2ff] text-[#0b65e5] professional:bg-[#e8eef5] professional:text-[#1e3a5f]',
+  'Follow-up': 'bg-[#fff3df] text-[#d97706] professional:bg-[#f7f3eb] professional:text-[#6b5320]',
+  Quotation: 'bg-[#f3edff] text-[#7c3aed] professional:bg-[#e8eef5] professional:text-[#2f4d73]',
+  Won: 'bg-[#e9f8ec] text-[#0d9f4a] professional:bg-[#e8eef5] professional:text-[#1e3a5f]',
+  Lost: 'bg-[#ffe9e6] text-[#e11d48] professional:bg-[#f5eeee] professional:text-[#6b3a3a]',
 };
 
 const DONUT_COLORS = {
-  New: '#0b65e5',
-  'Follow-up': '#f59e0b',
-  Quotation: '#8b5cf6',
-  Won: '#16a34a',
-  Lost: '#ef4444',
+  New: '#1e3a5f',
+  'Follow-up': '#6b5320',
+  Quotation: '#2f4d73',
+  Won: '#2f4d73',
+  Lost: '#6b3a3a',
 };
 
 function DeltaLine({ delta, tone }) {
@@ -46,7 +46,7 @@ function DeltaLine({ delta, tone }) {
   return (
     <p className={cx(
       'mt-1 flex items-center gap-1 text-[10px] font-bold',
-      positive ? 'text-[#0d9f4a]' : negative ? 'text-[#e11d48]' : 'text-[#8895ab]',
+      positive ? 'text-[#0d9f4a] professional:text-[#1e3a5f]' : negative ? 'text-[#e11d48] professional:text-[#6b3a3a]' : 'text-[#8895ab]',
     )}
     >
       {positive || negative ? <Icon className="size-3" /> : null}
@@ -171,27 +171,31 @@ export function MobileDashboardPage({
     }));
   }, [analytics]);
 
-  const rankTone = ['bg-[#0b65e5]', 'bg-[#7c3aed]', 'bg-[#0d9f4a]'];
+  const rankTone = [
+    'bg-[#0b65e5] professional:bg-[#1e3a5f]',
+    'bg-[#7c3aed] professional:bg-[#2f4d73]',
+    'bg-[#0d9f4a] professional:bg-[#2f4d73]',
+  ];
 
   const quickActions = [
-    { label: 'Fast Lead', icon: UserPlus, bg: 'from-[#f59e0b] to-[#fb923c]', target: 'Create Lead' },
-    { label: 'Add Follow-up', icon: ClipboardPlus, bg: 'from-[#1578ff] to-[#0a9ff5]', target: 'Lead List' },
-    { label: 'Create Quotation', icon: FilePlus2, bg: 'from-[#5242ef] to-[#6046eb]', target: 'Quotation' },
-    { label: 'Add Project', icon: Plus, bg: 'from-[#0d9f4a] to-[#27d56f]', target: 'Project List' },
-    { label: 'More', icon: MoreHorizontal, bg: 'from-[#0d9488] to-[#14b8a6]', more: true },
+    { label: 'Fast Lead', icon: UserPlus, bg: 'from-[#f59e0b] to-[#fb923c] professional:from-[#6b5320] professional:to-[#8a7040]', target: 'Create Lead' },
+    { label: 'Add Follow-up', icon: ClipboardPlus, bg: 'from-[#1578ff] to-[#0a9ff5] professional:from-[#1e3a5f] professional:to-[#2f4d73]', target: 'Lead List' },
+    { label: 'Create Quotation', icon: FilePlus2, bg: 'from-[#5242ef] to-[#6046eb] professional:from-[#2f4d73] professional:to-[#3d4f6f]', target: 'Quotation' },
+    { label: 'Add Project', icon: Plus, bg: 'from-[#0d9f4a] to-[#27d56f] professional:from-[#1e3a5f] professional:to-[#2f4d73]', target: 'Project List' },
+    { label: 'More', icon: MoreHorizontal, bg: 'from-[#0d9488] to-[#14b8a6] professional:from-[#1e3a5f] professional:to-[#2f4d73]', more: true },
   ];
 
   const workflowStrip = [
-    { label: 'Planning', count: projectSummary?.planning ?? 0, bg: 'bg-[#e8f2ff]', color: 'text-[#0b65e5]' },
-    { label: 'Installation', count: projectSummary?.active ?? 0, bg: 'bg-[#f3edff]', color: 'text-[#7c3aed]' },
-    { label: 'On Hold', count: projectSummary?.on_hold ?? 0, bg: 'bg-[#fff3df]', color: 'text-[#d97706]' },
-    { label: 'Handover', count: projectSummary?.completed ?? 0, bg: 'bg-[#e9f8ec]', color: 'text-[#0d9f4a]' },
+    { label: 'Planning', count: projectSummary?.planning ?? 0, bg: 'bg-[#e8f2ff] professional:bg-[#e8eef5]', color: 'text-[#0b65e5] professional:text-[#1e3a5f]' },
+    { label: 'Installation', count: projectSummary?.active ?? 0, bg: 'bg-[#f3edff] professional:bg-[#e8eef5]', color: 'text-[#7c3aed] professional:text-[#2f4d73]' },
+    { label: 'On Hold', count: projectSummary?.on_hold ?? 0, bg: 'bg-[#fff3df] professional:bg-[#f7f3eb]', color: 'text-[#d97706] professional:text-[#6b5320]' },
+    { label: 'Handover', count: projectSummary?.completed ?? 0, bg: 'bg-[#e9f8ec] professional:bg-[#e8eef5]', color: 'text-[#0d9f4a] professional:text-[#1e3a5f]' },
   ];
 
   const stageBarColor = {
-    'Lead Captured': 'bg-[#0b65e5]',
-    'Site Survey': 'bg-[#10b981]',
-    'Quotation Sent': 'bg-[#f59e0b]',
+    'Lead Captured': 'bg-[#0b65e5] professional:bg-[#1e3a5f]',
+    'Site Survey': 'bg-[#10b981] professional:bg-[#2f4d73]',
+    'Quotation Sent': 'bg-[#f59e0b] professional:bg-[#6b5320]',
     Installation: 'bg-[#64748b]',
     Handover: 'bg-[#475569]',
   };
@@ -199,7 +203,7 @@ export function MobileDashboardPage({
   return (
     <div className="space-y-3 pb-20">
       {/* Welcome banner */}
-      <section className="relative overflow-hidden rounded-[16px] bg-linear-to-r from-[#1d4ed8] via-[#2563eb] to-[#3b82f6] p-4 text-white shadow-[0_12px_26px_rgba(29,78,216,0.28)]">
+      <section className="relative overflow-hidden rounded-[16px] bg-linear-to-r from-[#1d4ed8] via-[#2563eb] to-[#3b82f6] p-4 text-white shadow-[0_12px_26px_rgba(29,78,216,0.28)] professional:from-[#1e3a5f] professional:via-[#243447] professional:to-[#2f4d73] professional:shadow-[0_12px_26px_rgba(30,58,95,0.28)]">
         <div className="pointer-events-none absolute -right-6 -top-8 size-28 rounded-full bg-white/10" aria-hidden="true" />
         <div className="pointer-events-none absolute -bottom-10 right-10 size-24 rounded-full bg-white/10" aria-hidden="true" />
         <p className="text-[12px] font-bold text-white/85">Welcome back,</p>
@@ -549,12 +553,12 @@ export function MobileBottomNav({ activeSection, onNavigate, onMore, loggedInUse
               onClick={() => (item.more ? onMore() : onNavigate(item))}
               className={cx(
                 'flex min-h-[52px] flex-col items-center justify-center gap-0.5 rounded-xl py-1.5 pb-[max(10px,env(safe-area-inset-bottom))] transition active:scale-95',
-                active ? 'text-[#0d9f4a]' : 'text-[#7b88a2] dark:text-slate-400',
+                active ? 'text-[#0d9f4a] professional:text-[#1e3a5f]' : 'text-[#7b88a2] dark:text-slate-400',
               )}
             >
               <span className={cx(
                 'grid size-9 place-items-center rounded-full transition',
-                active ? 'bg-[#e8f8eb] text-[#0d9f4a] dark:bg-emerald-950' : 'bg-transparent',
+                active ? 'bg-[#e8f8eb] text-[#0d9f4a] professional:bg-[#e8eef5] professional:text-[#1e3a5f] dark:bg-emerald-950' : 'bg-transparent',
               )}
               >
                 <Icon className="size-[20px]" strokeWidth={active ? 2.4 : 2} />

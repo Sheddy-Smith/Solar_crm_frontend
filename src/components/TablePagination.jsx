@@ -76,8 +76,8 @@ function PageButton({ active = false, children, onClick, label }) {
       className={cx(
         'inline-flex size-8 items-center justify-center rounded-[8px] border text-[12px] font-extrabold transition',
         active
-          ? 'border-[#11a650] bg-[#11a650] text-white shadow-[0_8px_16px_rgba(17,166,80,0.22)]'
-          : 'border-[#dce7f5] bg-white text-[#284276] hover:bg-[#f8fbff]',
+          ? 'border-[#11a650] bg-[#11a650] text-white shadow-[0_8px_16px_rgba(17,166,80,0.22)] professional:border-[#1e3a5f] professional:bg-[#1e3a5f] professional:shadow-[0_8px_16px_rgba(30,58,95,0.22)]'
+          : 'border-[#dce7f5] bg-white text-[#284276] hover:bg-[#f8fbff] professional:border-[#d5dee8] professional:hover:bg-[#f0f4f8]',
       )}
     >
       {children}
@@ -131,7 +131,7 @@ export function TablePagination({
             value={pageSize}
             onChange={(event) => onPageSizeChange(Number(event.target.value))}
             aria-label="Rows per page"
-            className="h-7 rounded-[7px] border border-[#d9e4f2] bg-white px-2 text-[12px] font-extrabold text-[#1e3261] outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-100"
+            className="h-7 rounded-[7px] border border-[#d9e4f2] bg-white px-2 text-[12px] font-extrabold text-[#1e3261] outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-100 professional:focus:border-[#2f4d73] professional:focus:ring-[#e8eef5]"
           >
             {sizeOptions.map((size) => (
               <option key={size} value={size}>{size}</option>

@@ -857,7 +857,7 @@ function DashboardAndPlants({
           <button
             type="button"
             onClick={() => onOpenSection?.('Service Desk')}
-            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[9px] bg-[#0b8f43] px-4 text-[13px] font-extrabold text-white hover:bg-[#097a39]"
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[9px] bg-[#0b8f43] professional:bg-[#1e3a5f] px-4 text-[13px] font-extrabold text-white hover:bg-[#097a39] professional:hover:bg-[#162e4c]"
           >
             <Plus className="size-4" /> Raise Ticket
           </button>

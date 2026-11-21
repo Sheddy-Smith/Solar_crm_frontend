@@ -527,7 +527,7 @@ export function InventoryProductsPage({ activeSection, onOpenSection, onNotify, 
     const showSpinner = opts.showSpinner !== false;
     if (showSpinner) setLoading(true);
     Promise.all([
-      fetchEveryPage((page, pageSize) => inventoryApi.items.list({ page, page_size: pageSize })),
+      fetchEveryPage((page, pageSize) => inventoryApi.items.list({ page, page_size: pageSize }), { maxPages: 10 }),
       inventoryApi.categories.list({ page_size: 100 }).catch(() => ({ results: [] })),
       inventoryApi.warehouses.list({ page_size: 100 }).catch(() => ({ results: [] })),
     ]).then(async ([items, cats, wh]) => {
@@ -1372,7 +1372,7 @@ export function InventoryCategoriesPage({ activeSection, onOpenSection, onNotify
     setLoading(true);
     Promise.all([
       inventoryApi.categories.list({ page_size: 100 }).catch(() => ({ results: [] })),
-      fetchEveryPage((page, pageSize) => inventoryApi.items.list({ page, page_size: pageSize })).catch(() => []),
+      fetchEveryPage((page, pageSize) => inventoryApi.items.list({ page, page_size: pageSize }), { maxPages: 10 }).catch(() => []),
     ])
       .then(([cats, items]) => {
         setRows(normalizeRows(cats).map(mergeCategoryFormConfig));

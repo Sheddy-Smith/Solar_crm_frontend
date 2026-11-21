@@ -5,7 +5,7 @@ import {
 import { dailyTasksApi, inventoryApi, leadApi, projectApi, workforceApi } from './api.js';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
 import { TablePagination, usePagedRows } from './components/TablePagination.jsx';
-import { fetchEveryPage } from './lib/listQuery.js';
+import { LOOKUP_PAGE_SIZE, fetchEveryPage } from './lib/listQuery.js';
 import SearchableSelect from './components/SearchableSelect.jsx';
 import { MobileCardEmpty, MobileCardList, MobileRecordCard } from './components/mobile/MobileRecordCard.jsx';
 import { TeleDailyTasksPage } from './teleDailyTasks.jsx';
@@ -353,15 +353,20 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
   const [warehouses, setWarehouses] = useState([]);
   const [employees, setEmployees] = useState([]);
 
+  // Lookup directories only when the create/edit modal opens — avoids multi-page
+  // lead/project/employee storms every time Daily Tasks is opened.
   useEffect(() => {
+    if (!modal.open) return undefined;
+    let cancelled = false;
+    const lookupOpts = { pageSize: LOOKUP_PAGE_SIZE, maxPages: 4 };
     Promise.all([
-      fetchEveryPage((page, pageSize) => projectApi.list({ page, page_size: pageSize })),
-      fetchEveryPage((page, pageSize) => leadApi.list({ page, page_size: pageSize })),
-      fetchEveryPage((page, pageSize) => inventoryApi.warehouses.list({ page, page_size: pageSize })),
-      // Full workforce employee directory for Assign To (Employee FK).
-      fetchEveryPage((page, pageSize) => workforceApi.listEmployees({ page, page_size: pageSize })),
+      fetchEveryPage((page, pageSize) => projectApi.list({ page, page_size: pageSize }), lookupOpts),
+      fetchEveryPage((page, pageSize) => leadApi.list({ page, page_size: pageSize }), lookupOpts),
+      fetchEveryPage((page, pageSize) => inventoryApi.warehouses.list({ page, page_size: pageSize }), lookupOpts),
+      fetchEveryPage((page, pageSize) => workforceApi.listEmployees({ page, page_size: pageSize }), lookupOpts),
     ])
       .then(([projRes, leadRes, whRes, empRes]) => {
+        if (cancelled) return;
         setProjects(Array.isArray(projRes) ? projRes : normalizeRows(projRes));
         setLeads(Array.isArray(leadRes) ? leadRes : normalizeRows(leadRes));
         setWarehouses(Array.isArray(whRes) ? whRes : normalizeRows(whRes));
@@ -371,7 +376,8 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
         setEmployees(present);
       })
       .catch(() => {});
-  }, []);
+    return () => { cancelled = true; };
+  }, [modal.open]);
 
   const fieldConfig = useMemo(
     () => buildFieldConfig({ projects, leads, warehouses }),
@@ -384,7 +390,10 @@ export function DailyTasksPage({ onNotify, loggedInUser = null }) {
     if (categoryFilter !== 'All Categories') baseParams.category = categoryFilter;
     if (deferredSearch.trim()) baseParams.search = deferredSearch.trim();
     Promise.all([
-      fetchEveryPage((page, pageSize) => dailyTasksApi.list({ ...baseParams, page, page_size: pageSize })),
+      fetchEveryPage(
+        (page, pageSize) => dailyTasksApi.list({ ...baseParams, page, page_size: pageSize }),
+        { pageSize: LOOKUP_PAGE_SIZE, maxPages: 6 },
+      ),
       dailyTasksApi.summary(),
     ])
       .then(([listRes, summaryRes]) => {

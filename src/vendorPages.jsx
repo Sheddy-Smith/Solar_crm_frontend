@@ -824,7 +824,7 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
           </Field>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-          <button type="button" disabled={!partyId} onClick={openAssign} className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#0b8f43] px-4 text-[13px] font-extrabold text-white disabled:opacity-50 sm:w-auto">
+          <button type="button" disabled={!partyId} onClick={openAssign} className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#0b8f43] professional:bg-[#1e3a5f] px-4 text-[13px] font-extrabold text-white disabled:opacity-50 sm:w-auto">
             <Plus className="size-4" /> Assign Installation Work
           </button>
           <button type="button" disabled={!partyId || !assignments.length} onClick={() => openPay()} className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#0b65e5] px-4 text-[13px] font-extrabold text-white disabled:opacity-50 sm:w-auto">
@@ -1061,7 +1061,7 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
           footer={(
             <>
               <button type="button" disabled={savingAction} onClick={() => setAssignOpen(false)} className="h-10 rounded-[8px] border px-4 text-[13px] font-semibold">Cancel</button>
-              <button type="button" disabled={savingAction} onClick={saveAssign} className="h-10 rounded-[8px] bg-[#0b8f43] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">
+              <button type="button" disabled={savingAction} onClick={saveAssign} className="h-10 rounded-[8px] bg-[#0b8f43] professional:bg-[#1e3a5f] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">
                 {savingAction ? 'Assigning...' : 'Assign Work'}
               </button>
             </>
@@ -1104,7 +1104,7 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
               </select>
             </Field>
             <Field label="Total Contract Amount (auto)">
-              <input className={`${inputClass} font-extrabold text-[#0b8f43]`} disabled value={fmtRs(contractPreview)} />
+              <input className={`${inputClass} font-extrabold text-[#0b8f43] professional:text-[#1e3a5f]`} disabled value={fmtRs(contractPreview)} />
             </Field>
             <Field label="Advance Payment (optional)">
               <input type="number" step="0.01" className={inputClass} value={assignForm.advance_payment} onChange={(e) => setAssignForm((f) => ({ ...f, advance_payment: e.target.value }))} />
@@ -1182,7 +1182,7 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
               type="button"
               disabled={Number(stageView.approved_percent || 0) >= 100}
               onClick={() => approveAllStages(stageView.id)}
-              className="inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#0b8f43] px-4 text-[13px] font-extrabold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#0b8f43] professional:bg-[#1e3a5f] px-4 text-[13px] font-extrabold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
             >
               <CheckCircle2 className="size-4" />
               Approve All / Mark Overall Complete
@@ -1236,7 +1236,7 @@ function VendorLedgerTab({ onNotify, onOpenSection }) {
                             Reopen / Remove Approval
                           </button>
                         ) : (
-                          <button type="button" onClick={() => approveStage(stageView.id, s.id)} className="h-8 rounded-[8px] bg-[#0b8f43] px-3 text-[11px] font-extrabold text-white">Approve</button>
+                          <button type="button" onClick={() => approveStage(stageView.id, s.id)} className="h-8 rounded-[8px] bg-[#0b8f43] professional:bg-[#1e3a5f] px-3 text-[11px] font-extrabold text-white">Approve</button>
                         )}
                       </td>
                     </tr>
@@ -1447,7 +1447,7 @@ export function AssignVendorInstallationModal({ project, onClose, onNotify, onAs
       footer={(
         <>
           <button type="button" disabled={saving} onClick={onClose} className="h-10 rounded-[8px] border px-4 text-[13px] font-semibold">Cancel</button>
-          <button type="button" disabled={saving} onClick={save} className="h-10 rounded-[8px] bg-[#0b8f43] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">
+          <button type="button" disabled={saving} onClick={save} className="h-10 rounded-[8px] bg-[#0b8f43] professional:bg-[#1e3a5f] px-4 text-[13px] font-extrabold text-white disabled:opacity-60">
             {saving ? 'Assigning...' : 'Assign Vendor'}
           </button>
         </>
@@ -1471,7 +1471,7 @@ export function AssignVendorInstallationModal({ project, onClose, onNotify, onAs
             <option value="per_kw">₹/kW</option>
           </select>
         </Field>
-        <Field label="Contract Amount (auto)"><input className={`${inputClass} font-extrabold text-[#0b8f43]`} disabled value={fmtRs(contract)} /></Field>
+        <Field label="Contract Amount (auto)"><input className={`${inputClass} font-extrabold text-[#0b8f43] professional:text-[#1e3a5f]`} disabled value={fmtRs(contract)} /></Field>
         <Field label="Advance (optional)"><input type="number" step="0.01" className={inputClass} value={form.advance_payment} onChange={(e) => setForm((f) => ({ ...f, advance_payment: e.target.value }))} /></Field>
         <Field label="Start Date"><input type="date" className={inputClass} value={form.start_date} onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))} /></Field>
         <Field label="Expected Completion"><input type="date" className={inputClass} value={form.expected_completion_date} onChange={(e) => setForm((f) => ({ ...f, expected_completion_date: e.target.value }))} /></Field>

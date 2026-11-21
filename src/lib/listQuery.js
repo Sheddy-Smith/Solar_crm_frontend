@@ -20,10 +20,11 @@ export function rowsOf(data) {
  * Walk every DRF page until `next` is empty.
  * Use for alert queues (High / Extra High) where a single page_size truncates counts.
  */
-export async function fetchEveryPage(loadPage, { pageSize = API_MAX_PAGE_SIZE, maxPages = 40 } = {}) {
+export async function fetchEveryPage(loadPage, { pageSize = API_MAX_PAGE_SIZE, maxPages = 12 } = {}) {
   const rows = [];
   const size = Math.min(Math.max(1, Number(pageSize) || API_MAX_PAGE_SIZE), API_MAX_PAGE_SIZE);
-  const limit = Math.max(1, Number(maxPages) || 40);
+  // Default cap keeps UI responsive — callers that need deeper history pass maxPages.
+  const limit = Math.max(1, Number(maxPages) || 12);
   for (let page = 1; page <= limit; page += 1) {
     const data = await loadPage(page, size);
     const batch = rowsOf(data);

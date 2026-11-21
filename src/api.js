@@ -244,7 +244,53 @@ async function refreshAccessToken() {
   return refreshPromise;
 }
 
+/** Short-lived GET cache + in-flight dedupe for hot poll paths (unread / me). */
+const GET_SOFT_CACHE_MS = {
+  '/notifications/unread-count/': 8000,
+  '/users/me/': 20000,
+};
+const getSoftCache = new Map();
+const getInflight = new Map();
+
+function softCacheKey(path, auth) {
+  // Bind to access token so login/user switches never return a stale /users/me/.
+  const tokenHint = auth ? String(tokenStore.getAccess() || '').slice(-24) : '';
+  return `${auth ? '1' : '0'}:${tokenHint}:${path}`;
+}
+
+function invalidateSoftGetCache(pathPrefix) {
+  for (const key of getSoftCache.keys()) {
+    if (key.includes(pathPrefix)) getSoftCache.delete(key);
+  }
+  for (const key of getInflight.keys()) {
+    if (key.includes(pathPrefix)) getInflight.delete(key);
+  }
+}
+
 async function request(path, { method = 'GET', body, auth = true, timeoutMs = 20000, signal } = {}) {
+  const upper = String(method || 'GET').toUpperCase();
+  const ttl = upper === 'GET' && !body && !signal ? GET_SOFT_CACHE_MS[path] : 0;
+  if (ttl) {
+    const key = softCacheKey(path, auth);
+    const hit = getSoftCache.get(key);
+    if (hit && hit.expires > Date.now()) return hit.data;
+    const pending = getInflight.get(key);
+    if (pending) return pending;
+    const promise = requestUncached(path, { method, body, auth, timeoutMs, signal })
+      .then((data) => {
+        getSoftCache.set(key, { data, expires: Date.now() + ttl });
+        return data;
+      })
+      .finally(() => {
+        getInflight.delete(key);
+      });
+    getInflight.set(key, promise);
+    return promise;
+  }
+  return requestUncached(path, { method, body, auth, timeoutMs, signal });
+}
+
+async function requestUncached(path, { method = 'GET', body, auth = true, timeoutMs = 20000, signal } = {}) {
   const isFormData = body instanceof FormData;
   const headers = isFormData ? {} : { 'Content-Type': 'application/json' };
   if (auth) {
@@ -349,6 +395,8 @@ async function request(path, { method = 'GET', body, auth = true, timeoutMs = 20
 
 export const authApi = {
   login: async (email, password) => {
+    invalidateSoftGetCache('/users/me/');
+    invalidateSoftGetCache('/notifications/unread-count/');
     const data = await request('/auth/login/', {
       method: 'POST',
       body: { email, password },
@@ -375,6 +423,8 @@ export const authApi = {
       /* still clear local session even if blacklist call fails */
     }
     tokenStore.clear();
+    invalidateSoftGetCache('/users/me/');
+    invalidateSoftGetCache('/notifications/unread-count/');
     window.dispatchEvent(new Event(authSessionEventName('manual')));
   },
 };
@@ -1177,8 +1227,16 @@ export const notificationApi = {
     return request(`/notifications/${qs ? '?' + qs : ''}`);
   },
   unreadCount: () => request('/notifications/unread-count/'),
-  markRead: (ids) => request('/notifications/mark-read/', { method: 'POST', body: { ids } }),
-  markAllRead: () => request('/notifications/mark-all-read/', { method: 'POST', body: {} }),
+  markRead: async (ids) => {
+    const data = await request('/notifications/mark-read/', { method: 'POST', body: { ids } });
+    invalidateSoftGetCache('/notifications/unread-count/');
+    return data;
+  },
+  markAllRead: async () => {
+    const data = await request('/notifications/mark-all-read/', { method: 'POST', body: {} });
+    invalidateSoftGetCache('/notifications/unread-count/');
+    return data;
+  },
   pushVapidPublicKey: () => request('/notifications/push-vapid-public-key/'),
   savePushSubscription: (data) => request('/notifications/push-subscription/', { method: 'POST', body: data }),
   deletePushSubscription: (endpoint) => request('/notifications/push-subscription/delete/', {

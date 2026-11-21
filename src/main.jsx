@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { startKeepAlive } from './lib/keepAlive.js';
@@ -75,18 +75,33 @@ function signalReady() {
   }
 }
 
+/** Lazy update popup — never remounts `<App />` (avoids duplicate boot fetches). */
+function LazyAppUpdatePopup() {
+  const [Popup, setPopup] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    import('./components/AppUpdatePopup.jsx')
+      .then((mod) => {
+        if (alive && mod?.default) setPopup(() => mod.default);
+      })
+      .catch((e) => console.warn('[Malwa] update popup load failed', e));
+    return () => { alive = false; };
+  }, []);
+  if (!Popup) return null;
+  return <Popup />;
+}
+
 let reactRoot = null;
-function renderApp(UpdatePopup) {
+function renderApp() {
   const rootEl = document.getElementById('root');
   if (!rootEl) return;
-  const Popup = UpdatePopup || function NoUpdatePopup() { return null; };
   if (!reactRoot) reactRoot = ReactDOM.createRoot(rootEl);
   reactRoot.render(
     <React.StrictMode>
       <ErrorBoundary>
         <AnimationScaleProvider>
           <App />
-          <Popup />
+          <LazyAppUpdatePopup />
         </AnimationScaleProvider>
       </ErrorBoundary>
     </React.StrictMode>,
@@ -95,21 +110,12 @@ function renderApp(UpdatePopup) {
 }
 
 function startUpdateSystem() {
-  Promise.all([
-    import('./lib/appUpdate.js'),
-    import('./components/AppUpdatePopup.jsx'),
-  ])
-    .then(([updateMod, popupMod]) => {
+  import('./lib/appUpdate.js')
+    .then((updateMod) => {
       try {
         updateMod.startAppUpdateMonitor(() => swReady);
       } catch (e) {
         console.warn('[Malwa] update monitor failed', e);
-      }
-      // Remount with popup once available (non-blocking if this fails).
-      try {
-        renderApp(popupMod.default);
-      } catch (e2) {
-        console.warn('[Malwa] update popup mount failed', e2);
       }
     })
     .catch((e) => {
@@ -122,7 +128,7 @@ initI18n()
   .catch(() => {})
   .finally(() => {
     try {
-      renderApp(null);
+      renderApp();
       startUpdateSystem();
     } catch (e) {
       console.error('[Malwa] boot failed', e);

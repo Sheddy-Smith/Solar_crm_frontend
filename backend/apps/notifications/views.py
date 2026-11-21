@@ -6,10 +6,12 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from django.core.cache import cache
+
 from .models import PushSubscription
 from .push import vapid_configured
 from .serializers import NotificationSerializer
-from .services import notifications_for
+from .services import UNREAD_CACHE_TTL, invalidate_unread_cache, notifications_for, unread_cache_key
 
 
 class NotificationViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
@@ -29,19 +31,29 @@ class NotificationViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
             qs = qs.exclude(read_by=self.request.user)
         return qs
 
-    def get_serializer_context(self):
-        ctx = super().get_serializer_context()
-        ctx['read_ids'] = set(self.request.user.read_notifications.values_list('id', flat=True))
-        return ctx
-
     def list(self, request, *args, **kwargs):
         limit = min(int(request.query_params.get('limit') or 30), 100)
-        items = self.get_queryset()[:limit]
-        return Response(self.get_serializer(items, many=True).data)
+        items = list(self.get_queryset()[:limit])
+        # Only check read state for the page — avoid loading the full M2M set.
+        page_ids = [row.id for row in items]
+        read_ids = set(
+            request.user.read_notifications.filter(id__in=page_ids).values_list('id', flat=True)
+        ) if page_ids else set()
+        serializer = self.get_serializer(items, many=True, context={
+            **self.get_serializer_context(),
+            'read_ids': read_ids,
+        })
+        return Response(serializer.data)
 
     @action(detail=False, methods=['get'], url_path='unread-count')
     def unread_count(self, request):
-        return Response({'count': notifications_for(request.user).exclude(read_by=request.user).count()})
+        key = unread_cache_key(request.user.id)
+        cached = cache.get(key)
+        if cached is not None:
+            return Response({'count': int(cached)})
+        count = notifications_for(request.user).exclude(read_by=request.user).count()
+        cache.set(key, count, UNREAD_CACHE_TTL)
+        return Response({'count': count})
 
     @action(detail=False, methods=['post'], url_path='mark-read')
     def mark_read(self, request):
@@ -50,12 +62,14 @@ class NotificationViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
             ids = [ids]
         visible = notifications_for(request.user).filter(id__in=ids)
         request.user.read_notifications.add(*visible)
+        invalidate_unread_cache(request.user.id)
         return Response({'marked': visible.count()})
 
     @action(detail=False, methods=['post'], url_path='mark-all-read')
     def mark_all_read(self, request):
         unread = list(notifications_for(request.user).exclude(read_by=request.user))
         request.user.read_notifications.add(*unread)
+        invalidate_unread_cache(request.user.id)
         return Response({'marked': len(unread)})
 
     @action(detail=False, methods=['get'], url_path='push-vapid-public-key')

@@ -92,7 +92,7 @@ function Section({ n, title, children }) {
   return (
     <section className="rounded-[14px] border border-[#e6edf6] bg-white p-4 shadow-sm sm:p-5">
       <header className="mb-3 flex items-center gap-2">
-        <span className="grid size-7 place-items-center rounded-full bg-[#ecfdf5] text-[12px] font-extrabold text-[#0b8f43]">{n}</span>
+        <span className="grid size-7 place-items-center rounded-full bg-[#ecfdf5] professional:bg-[#e8eef5] text-[12px] font-extrabold text-[#0b8f43] professional:text-[#1e3a5f]">{n}</span>
         <h3 className="text-[14px] font-extrabold text-[#1e3261]">{title}</h3>
       </header>
       <div className="grid gap-3 sm:grid-cols-2">{children}</div>
@@ -110,7 +110,7 @@ function Field({ label, required, children, className, hint }) {
   );
 }
 
-const inputCls = 'h-10 w-full rounded-[9px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none focus:border-[#0b8f43]';
+const inputCls = 'h-10 w-full rounded-[9px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-bold text-[#1e3261] outline-none focus:border-[#0b8f43] professional:focus:border-[#2f4d73]';
 const tillCls = 'h-10 w-full rounded-[9px] border border-[#bbf7d0] bg-[#f0fdf4] px-3 text-[13px] font-extrabold text-[#15803d]';
 
 export function AddExistingPlantForm({ onClose, onSaved, onNotify }) {
@@ -538,10 +538,10 @@ export function AddExistingPlantForm({ onClose, onSaved, onNotify }) {
             <Section n={8} title="Photos & Documents">
               <div className="sm:col-span-2">
                 <div className="mb-2 flex gap-2">
-                  <button type="button" onClick={() => setMediaTab('photos')} className={cx('rounded-full px-3 py-1 text-[12px] font-extrabold', mediaTab === 'photos' ? 'bg-[#ecfdf5] text-[#0b8f43]' : 'bg-[#f1f5f9] text-[#64748b]')}>
+                  <button type="button" onClick={() => setMediaTab('photos')} className={cx('rounded-full px-3 py-1 text-[12px] font-extrabold', mediaTab === 'photos' ? 'bg-[#ecfdf5] professional:bg-[#e8eef5] text-[#0b8f43] professional:text-[#1e3a5f]' : 'bg-[#f1f5f9] text-[#64748b]')}>
                     Plant Photos ({photos.length})
                   </button>
-                  <button type="button" onClick={() => setMediaTab('docs')} className={cx('rounded-full px-3 py-1 text-[12px] font-extrabold', mediaTab === 'docs' ? 'bg-[#ecfdf5] text-[#0b8f43]' : 'bg-[#f1f5f9] text-[#64748b]')}>
+                  <button type="button" onClick={() => setMediaTab('docs')} className={cx('rounded-full px-3 py-1 text-[12px] font-extrabold', mediaTab === 'docs' ? 'bg-[#ecfdf5] professional:bg-[#e8eef5] text-[#0b8f43] professional:text-[#1e3a5f]' : 'bg-[#f1f5f9] text-[#64748b]')}>
                     Documents ({documents.length})
                   </button>
                 </div>

@@ -2,11 +2,31 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { cx } from '../../lib/utils.js';
 
 const TONES = {
-  green: { button: 'bg-[#0d9f4a] active:bg-[#078c3e] shadow-[0_8px_18px_rgba(13,159,74,0.25)]', ring: 'focus:border-[#0d9f4a] focus:ring-[#dff6e7]', text: 'text-[#0d9f4a]' },
-  blue: { button: 'bg-[#0b65e5] active:bg-[#0a56c4] shadow-[0_8px_18px_rgba(11,101,229,0.25)]', ring: 'focus:border-[#0b65e5] focus:ring-[#e3efff]', text: 'text-[#0b65e5]' },
-  amber: { button: 'bg-[#f59e0b] active:bg-[#d98b06] shadow-[0_8px_18px_rgba(245,158,11,0.28)]', ring: 'focus:border-[#f59e0b] focus:ring-[#fff0dc]', text: 'text-[#b76b00]' },
-  teal: { button: 'bg-[#0f766e] active:bg-[#0c625b] shadow-[0_8px_18px_rgba(15,118,110,0.25)]', ring: 'focus:border-[#0f766e] focus:ring-[#e7faf8]', text: 'text-[#0f766e]' },
-  red: { button: 'bg-[#dc2626] active:bg-[#b91c1c] shadow-[0_8px_18px_rgba(220,38,38,0.22)]', ring: 'focus:border-[#dc2626] focus:ring-[#fee2e2]', text: 'text-[#dc2626]' },
+  green: {
+    button: 'bg-[#0d9f4a] active:bg-[#078c3e] shadow-[0_8px_18px_rgba(13,159,74,0.25)] professional:bg-[#1e3a5f] professional:active:bg-[#162e4c] professional:shadow-[0_8px_18px_rgba(30,58,95,0.25)]',
+    ring: 'focus:border-[#0d9f4a] focus:ring-[#dff6e7] professional:focus:border-[#2f4d73] professional:focus:ring-[#e8eef5]',
+    text: 'text-[#0d9f4a] professional:text-[#1e3a5f]',
+  },
+  blue: {
+    button: 'bg-[#0b65e5] active:bg-[#0a56c4] shadow-[0_8px_18px_rgba(11,101,229,0.25)] professional:bg-[#1e3a5f] professional:active:bg-[#162e4c] professional:shadow-[0_8px_18px_rgba(30,58,95,0.25)]',
+    ring: 'focus:border-[#0b65e5] focus:ring-[#e3efff] professional:focus:border-[#2f4d73] professional:focus:ring-[#e8eef5]',
+    text: 'text-[#0b65e5] professional:text-[#1e3a5f]',
+  },
+  amber: {
+    button: 'bg-[#f59e0b] active:bg-[#d98b06] shadow-[0_8px_18px_rgba(245,158,11,0.28)] professional:bg-[#6b5320] professional:active:bg-[#564218] professional:shadow-[0_8px_18px_rgba(107,83,32,0.25)]',
+    ring: 'focus:border-[#f59e0b] focus:ring-[#fff0dc] professional:focus:border-[#6b5320] professional:focus:ring-[#f7f3eb]',
+    text: 'text-[#b76b00] professional:text-[#6b5320]',
+  },
+  teal: {
+    button: 'bg-[#0f766e] active:bg-[#0c625b] shadow-[0_8px_18px_rgba(15,118,110,0.25)] professional:bg-[#1e3a5f] professional:active:bg-[#162e4c] professional:shadow-[0_8px_18px_rgba(30,58,95,0.25)]',
+    ring: 'focus:border-[#0f766e] focus:ring-[#e7faf8] professional:focus:border-[#2f4d73] professional:focus:ring-[#e8eef5]',
+    text: 'text-[#0f766e] professional:text-[#1e3a5f]',
+  },
+  red: {
+    button: 'bg-[#dc2626] active:bg-[#b91c1c] shadow-[0_8px_18px_rgba(220,38,38,0.22)] professional:bg-[#6b3a3a] professional:active:bg-[#5a3030] professional:shadow-[0_8px_18px_rgba(107,58,58,0.22)]',
+    ring: 'focus:border-[#dc2626] focus:ring-[#fee2e2] professional:focus:border-[#6b3a3a] professional:focus:ring-[#f5eeee]',
+    text: 'text-[#dc2626] professional:text-[#6b3a3a]',
+  },
 };
 
 /**

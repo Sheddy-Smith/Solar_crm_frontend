@@ -1361,7 +1361,10 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
   const [addLeadOpen, setAddLeadOpen] = useState(false);
 
   const loadLeads = () => {
-    fetchEveryPage((page, pageSize) => leadApi.list({ page, page_size: pageSize, ordering: '-last_activity_at,-created_at' }))
+    fetchEveryPage(
+      (page, pageSize) => leadApi.list({ page, page_size: pageSize, ordering: '-last_activity_at,-created_at' }),
+      { maxPages: 5 },
+    )
       .then((rows) => setLeads(rows))
       .catch(() => { setLeads([]); onNotify('Leads could not be loaded.', 'error'); });
   };
@@ -1370,7 +1373,7 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
     Promise.all([
       fetchEveryPage((page, pageSize) => followUpApi.listAll({
         page, page_size: pageSize, status: 'Scheduled', ordering: 'scheduled_at',
-      })),
+      }), { maxPages: 5 }),
       followUpApi.listAll({ page_size: 100, ordering: '-created_at' }),
     ]).then(([scheduled, recent]) => {
       setFollowUps(mergeFollowUpRows(scheduled, rowsOf(recent)));
@@ -1740,12 +1743,12 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
                   onClick={() => navigateTele(item.label)}
               className={cx(
                     'flex min-h-[54px] flex-col items-center justify-center gap-0.5 rounded-xl py-1.5 pb-[max(10px,env(safe-area-inset-bottom))] transition active:scale-95',
-                    active ? 'text-[#1d4ed8]' : 'text-[#7b88a2]',
+                    active ? 'text-[#1d4ed8] professional:text-[#1e3a5f]' : 'text-[#7b88a2]',
                   )}
                 >
                   <span className={cx(
                     'grid size-9 place-items-center rounded-full',
-                    active ? 'bg-[#e7efff] text-[#1d4ed8]' : 'bg-transparent',
+                    active ? 'bg-[#e7efff] text-[#1d4ed8] professional:bg-[#e8eef5] professional:text-[#1e3a5f]' : 'bg-transparent',
                   )}
                   >
                     <Icon className="size-[20px]" strokeWidth={active ? 2.4 : 2} />
@@ -1761,12 +1764,12 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
               onClick={() => setMobileMoreOpen(true)}
               className={cx(
                 'flex min-h-[54px] flex-col items-center justify-center gap-0.5 rounded-xl py-1.5 pb-[max(10px,env(safe-area-inset-bottom))] transition active:scale-95',
-                TELE_MOBILE_MORE_NAV.includes(activeNav) || mobileMoreOpen ? 'text-[#1d4ed8]' : 'text-[#7b88a2]',
+                TELE_MOBILE_MORE_NAV.includes(activeNav) || mobileMoreOpen ? 'text-[#1d4ed8] professional:text-[#1e3a5f]' : 'text-[#7b88a2]',
               )}
             >
               <span className={cx(
                 'grid size-9 place-items-center rounded-full',
-                TELE_MOBILE_MORE_NAV.includes(activeNav) || mobileMoreOpen ? 'bg-[#e7efff] text-[#1d4ed8]' : 'bg-transparent',
+                TELE_MOBILE_MORE_NAV.includes(activeNav) || mobileMoreOpen ? 'bg-[#e7efff] text-[#1d4ed8] professional:bg-[#e8eef5] professional:text-[#1e3a5f]' : 'bg-transparent',
               )}
               >
                 <Menu className="size-[20px]" strokeWidth={TELE_MOBILE_MORE_NAV.includes(activeNav) || mobileMoreOpen ? 2.4 : 2} />

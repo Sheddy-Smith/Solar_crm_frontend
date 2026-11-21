@@ -31,13 +31,14 @@
           if (prefs && typeof prefs.theme === 'string') theme = prefs.theme;
         } catch (e) { /* keep default */ }
         var root = document.documentElement;
-        if (theme === 'professional' || !theme) {
+        // Only Light / Professional remain — map legacy dark/system → professional.
+        if (theme === 'light') {
+          root.classList.remove('theme-professional', 'dark');
+          root.removeAttribute('data-crm-theme');
+        } else {
+          root.classList.remove('dark');
           root.classList.add('theme-professional');
           root.setAttribute('data-crm-theme', 'professional');
-        } else if (theme === 'dark') {
-          root.classList.add('dark');
-        } else if (theme === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-          root.classList.add('dark');
         }
       })();
     </script>
@@ -46,8 +47,7 @@
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no"
     />
     <meta name="theme-color" content="#1e293b" />
-    <meta name="theme-color" content="#07070d" media="(prefers-color-scheme: dark)" />
-    <meta name="color-scheme" content="light dark" />
+    <meta name="color-scheme" content="light" />
     <meta name="robots" content="index,follow" />
     <meta
       name="description"
