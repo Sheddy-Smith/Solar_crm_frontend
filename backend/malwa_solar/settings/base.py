@@ -65,6 +65,8 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     # Optional request timing (OBSERVABILITY_REQUEST_LOG=1). No PII in logs.
     'malwa_solar.middleware_observability.RequestTimingMiddleware',
+    # Audit Create/Update/Delete for every authenticated CRM role → Users Activity.
+    'malwa_solar.user_activity_middleware.UserActivityAuditMiddleware',
 ]
 
 ROOT_URLCONF = 'malwa_solar.urls'

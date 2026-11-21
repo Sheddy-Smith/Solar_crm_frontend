@@ -227,12 +227,14 @@ def get_client_ip(request):
 
 def log_user_activity(request, action, module, description='', status='Success', user=None):
     user = user or getattr(request, 'user', None)
+    if user is not None and not getattr(user, 'is_authenticated', False):
+        user = None
     user_name = ''
-    if user and getattr(user, 'is_authenticated', False):
+    if user is not None:
         user_name = getattr(user, 'name', '') or getattr(user, 'email', '')
 
-    return UserActivityLog.objects.create(
-        user=user if user and getattr(user, 'is_authenticated', False) else None,
+    row = UserActivityLog.objects.create(
+        user=user,
         user_name=user_name,
         action=action,
         module=module,
@@ -240,6 +242,13 @@ def log_user_activity(request, action, module, description='', status='Success',
         ip_address=get_client_ip(request) if request else None,
         status=status,
     )
+    # Prevent UserActivityAuditMiddleware from writing a duplicate row.
+    if request is not None:
+        try:
+            request._user_activity_logged = True
+        except Exception:
+            pass
+    return row
 
 
 def get_category_settings(category):

@@ -40,13 +40,34 @@ class LogoutView(APIView):
         raw = (request.data.get('refresh') or '').strip()
         if not raw:
             return Response({'detail': 'refresh required'}, status=status.HTTP_400_BAD_REQUEST)
+        logout_user = None
         try:
             token = RefreshToken(raw)
+            try:
+                uid = token.get('user_id') or token.payload.get('user_id')
+                if uid:
+                    logout_user = User.objects.filter(pk=uid).first()
+            except Exception:
+                logout_user = None
             token.blacklist()
         except TokenError:
             return Response({'detail': 'Invalid or already blacklisted refresh token'}, status=status.HTTP_400_BAD_REQUEST)
         except Exception:
             return Response({'detail': 'Could not invalidate refresh token'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            from apps.crm_settings.services import log_user_activity
+            who = ''
+            if logout_user is not None:
+                who = getattr(logout_user, 'name', '') or getattr(logout_user, 'email', '')
+            log_user_activity(
+                request,
+                'Logout',
+                'Authentication',
+                f'{who} logged out' if who else 'User logged out',
+                user=logout_user,
+            )
+        except Exception:
+            pass
         return Response({'status': 'logged_out'})
 
 
@@ -154,16 +175,31 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     def _log_attempt(request, success):
         try:
             from apps.crm_settings.services import log_user_activity
+            attempted_email = ''
+            if hasattr(request, 'data'):
+                attempted_email = (request.data.get('email') or request.data.get('username') or '').strip()
+            actor = None
+            if attempted_email:
+                actor = User.objects.filter(email__iexact=attempted_email).first()
             if success:
-                log_user_activity(request, 'Login', 'Authentication', 'User logged in successfully')
+                who = ''
+                if actor is not None:
+                    who = getattr(actor, 'name', '') or getattr(actor, 'email', '')
+                log_user_activity(
+                    request,
+                    'Login',
+                    'Authentication',
+                    f'{who} logged in successfully' if who else 'User logged in successfully',
+                    user=actor,
+                )
             else:
-                attempted_email = request.data.get('email', '') if hasattr(request, 'data') else ''
                 log_user_activity(
                     request,
                     'Login Failed',
                     'Authentication',
                     f'Failed login attempt for {attempted_email}' if attempted_email else 'Failed login attempt',
                     status='Failed',
+                    user=actor,
                 )
         except Exception:
             pass

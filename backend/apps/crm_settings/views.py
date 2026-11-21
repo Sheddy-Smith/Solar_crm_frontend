@@ -255,7 +255,7 @@ class FinancialYearViewSet(SettingsPermissionMixin, viewsets.ModelViewSet):
 
 
 class UserActivityLogViewSet(SettingsPermissionMixin, viewsets.ReadOnlyModelViewSet):
-    queryset = UserActivityLog.objects.select_related('user')
+    queryset = UserActivityLog.objects.select_related('user', 'user__role')
     serializer_class = UserActivityLogSerializer
     search_fields = ['user_name', 'action', 'module', 'description', 'ip_address']
     ordering = ['-created_at']

@@ -19,7 +19,7 @@ import {
   X,
 } from 'lucide-react';
 import { getMediaUrl, settingsApi, userApi } from './api.js';
-import { LIST_PAGE_SIZE, rowsOf } from './lib/listQuery.js';
+import { API_MAX_PAGE_SIZE, fetchEveryPage, rowsOf } from './lib/listQuery.js';
 
 function cx(...classes) {
   return classes.filter(Boolean).join(' ');
@@ -704,6 +704,8 @@ function actionTone(action) {
   if (value.includes('DELETE') || value.includes('REMOVE')) return 'bg-[#fce7f3] text-[#be185d]';
   if (value.includes('CREATE') || value.includes('ADD')) return 'bg-[#dbeafe] text-[#1d4ed8]';
   if (value.includes('LOGIN') || value.includes('SYNC')) return 'bg-[#e8f8eb] text-[#0d9f4a]';
+  if (value.includes('LOGOUT')) return 'bg-[#eef2ff] text-[#4338ca]';
+  if (value.includes('UPDATE') || value.includes('EDIT') || value.includes('PATCH')) return 'bg-[#ffedd5] text-[#c2410c]';
   return 'bg-[#ffe4e6] text-[#e11d48]';
 }
 
@@ -725,11 +727,21 @@ function UsersActivityPage({ onNotify, onOpenSection }) {
   const load = useCallback(() => {
     setLoading(true);
     Promise.all([
-      settingsApi.activityLogs.list({ page_size: LIST_PAGE_SIZE * 8, ordering: '-created_at' }),
-      userApi.list({ page_size: 100 }),
+      fetchEveryPage(
+        (page, pageSize) => settingsApi.activityLogs.list({
+          page,
+          page_size: pageSize,
+          ordering: '-created_at',
+        }),
+        { pageSize: API_MAX_PAGE_SIZE, maxPages: 10 },
+      ),
+      fetchEveryPage(
+        (page, pageSize) => userApi.list({ page, page_size: pageSize }),
+        { pageSize: API_MAX_PAGE_SIZE, maxPages: 5 },
+      ).catch(() => []),
     ])
-      .then(([activity, userData]) => {
-        setRows(rowsOf(activity));
+      .then(([activityRows, userData]) => {
+        setRows(activityRows);
         setUsers(rowsOf(userData));
       })
       .catch(() => {
@@ -966,7 +978,7 @@ function UsersActivityPage({ onNotify, onOpenSection }) {
                   <td className="px-4 py-3.5 text-[13px] font-semibold text-[#1f2937]">{row.user_name || 'System'}</td>
                   <td className="px-4 py-3.5 text-[12px] font-semibold text-[#64748b]">{formatWhen(row.created_at)}</td>
                   <td className="px-4 py-3.5 text-[12px] font-semibold text-[#475569]">
-                    {roleByUserId.get(String(row.user ?? '')) || '—'}
+                    {row.role_name || roleByUserId.get(String(row.user ?? '')) || '—'}
                   </td>
                   <td className="px-4 py-3.5">
                     <span className={cx('inline-flex rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.04em]', actionTone(row.action))}>

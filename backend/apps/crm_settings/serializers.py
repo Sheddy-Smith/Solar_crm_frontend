@@ -69,13 +69,22 @@ class FinancialYearSerializer(serializers.ModelSerializer):
 
 
 class UserActivityLogSerializer(serializers.ModelSerializer):
+    role_name = serializers.SerializerMethodField()
+
     class Meta:
         model = UserActivityLog
         fields = [
-            'id', 'user', 'user_name', 'action', 'module', 'description',
+            'id', 'user', 'user_name', 'role_name', 'action', 'module', 'description',
             'ip_address', 'status', 'created_at',
         ]
-        read_only_fields = ['id', 'user', 'user_name', 'created_at']
+        read_only_fields = ['id', 'user', 'user_name', 'role_name', 'created_at']
+
+    def get_role_name(self, obj):
+        user = getattr(obj, 'user', None)
+        if user is None:
+            return ''
+        role = getattr(user, 'role', None)
+        return getattr(role, 'name', '') or ''
 
 
 class IpAccessRuleSerializer(serializers.ModelSerializer):
