@@ -25,6 +25,25 @@ export default function AppUpdatePopup() {
 
   useEffect(() => subscribeAppUpdate(setState), []);
 
+  const onLater = () => {
+    setUnsavedWarn(false);
+    dismissUpdateLater();
+  };
+
+  useEffect(() => {
+    if (!state.popupOpen || !state.latest) return undefined;
+    try {
+      window.dispatchEvent(new Event('crm:chrome-overlay-open'));
+    } catch {
+      /* ignore */
+    }
+    const onKey = (event) => {
+      if (event.key === 'Escape' && !busy) onLater();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [state.popupOpen, state.latest, busy]);
+
   if (!state.popupOpen || !state.latest) return null;
 
   const currentLabel = state.current.releaseVersion || (state.running && state.running.releaseVersion) || '—';
@@ -32,11 +51,6 @@ export default function AppUpdatePopup() {
   const notes =
     state.latest.releaseNotes
     || 'Latest improvements, bug fixes aur performance updates paane ke liye CRM update karein.';
-
-  const onLater = () => {
-    setUnsavedWarn(false);
-    dismissUpdateLater();
-  };
 
   const onUpdate = async () => {
     if (hasUnsavedWork() && !unsavedWarn) {
@@ -57,8 +71,11 @@ export default function AppUpdatePopup() {
       role="dialog"
       aria-modal="true"
       aria-labelledby="malwa-update-title"
+      onClick={(event) => {
+        if (event.target === event.currentTarget && !busy) onLater();
+      }}
     >
-      <div className="malwa-update-card">
+      <div className="malwa-update-card" onClick={(event) => event.stopPropagation()}>
         <div className="malwa-update-card__hero">
           <p className="malwa-update-card__eyebrow">Malwa Solar CRM</p>
           <h2 id="malwa-update-title" className="malwa-update-card__title">

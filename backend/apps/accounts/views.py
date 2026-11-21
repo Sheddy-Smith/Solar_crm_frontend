@@ -27,9 +27,14 @@ User = get_user_model()
 
 
 class LogoutView(APIView):
-    """Blacklist the refresh token so it cannot mint new access tokens."""
+    """Blacklist the refresh token so it cannot mint new access tokens.
 
-    permission_classes = [IsAuthenticated]
+    AllowAny: access JWT may already be expired at logout time; the refresh
+    token in the body is the credential being invalidated.
+    """
+
+    authentication_classes = []
+    permission_classes = []
 
     def post(self, request):
         raw = (request.data.get('refresh') or '').strip()

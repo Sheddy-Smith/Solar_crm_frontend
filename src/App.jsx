@@ -2281,7 +2281,7 @@ function App() {
   const mobileSidebarCloseGuardRef = useRef(0);
   const closeMobileSidebar = useCallback(() => {
     mobileSidebarCloseGuardRef.current = Date.now();
-    setMobileSidebarOpen(false);
+    closeMobileSidebar();
   }, []);
   const openMobileSidebar = useCallback(() => {
     if (Date.now() - mobileSidebarCloseGuardRef.current < 450) return;
@@ -2306,6 +2306,29 @@ function App() {
       style.overflow = prevOverflow;
     };
   }, [mobileSidebarOpen]);
+
+  // Desktop breakpoint: force-close mobile drawer + restore body scroll.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
+    const mq = window.matchMedia('(min-width: 1280px)');
+    const onChange = (event) => {
+      if (event.matches) closeMobileSidebar();
+    };
+    if (mq.matches) closeMobileSidebar();
+    if (mq.addEventListener) mq.addEventListener('change', onChange);
+    else mq.addListener(onChange);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener('change', onChange);
+      else mq.removeListener(onChange);
+    };
+  }, [closeMobileSidebar]);
+
+  // App Status / update overlays request exclusive chrome — dismiss mobile drawer.
+  useEffect(() => {
+    const onChromeOverlay = () => closeMobileSidebar();
+    window.addEventListener('crm:chrome-overlay-open', onChromeOverlay);
+    return () => window.removeEventListener('crm:chrome-overlay-open', onChromeOverlay);
+  }, [closeMobileSidebar]);
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(Boolean(initialPreferences.desktopSidebarCollapsed));
   const navHistoryRef = useRef([]);
   const [activeSidebarItem, setActiveSidebarItemState] = useState(() => {
@@ -2419,8 +2442,8 @@ function App() {
     } else {
       setActiveSidebarItem(section);
     }
-    setMobileSidebarOpen(false);
-  }, [openOmSection]);
+    closeMobileSidebar();
+  }, [openOmSection, closeMobileSidebar]);
   const [selectedLead, setSelectedLead] = useState(() => {
     const id = Number(initialRoute.params.leadId);
     return Number.isFinite(id) && id > 0 ? { id } : null;
@@ -2536,7 +2559,7 @@ function App() {
     onActivated: () => {
       setActiveSidebarItem('Developer Mode');
       setExpandedSection(null);
-      setMobileSidebarOpen(false);
+      closeMobileSidebar();
     },
   });
 
@@ -2550,6 +2573,8 @@ function App() {
   const pwaInstallAction = usePwaInstallAction(notify);
 
   const handlePwaInstall = async () => {
+    // Close drawer first so App Status / update overlays are not trapped under / over it.
+    closeMobileSidebar();
     // Not installed → install popup; installed → update popup or up-to-date popup.
     const result = await pwaInstallAction.runInstall();
     if (result === 'guide') setPwaGuideOpen(true);
@@ -2575,15 +2600,23 @@ function App() {
   };
 
 
-  // Auto-logout on 401
+  // Soft expiry (failed refresh) vs intentional logout — avoid "Session expired" on Logout.
   useEffect(() => {
-    const handler = () => {
+    const softExpire = () => {
       setCurrentPage('portal');
       setLoggedInUser(null);
       notify('Session expired — please login again');
     };
-    window.addEventListener('auth:logout', handler);
-    return () => window.removeEventListener('auth:logout', handler);
+    const hardLogout = () => {
+      setCurrentPage('portal');
+      setLoggedInUser(null);
+    };
+    window.addEventListener('auth:session-expired', softExpire);
+    window.addEventListener('auth:logout', hardLogout);
+    return () => {
+      window.removeEventListener('auth:session-expired', softExpire);
+      window.removeEventListener('auth:logout', hardLogout);
+    };
   }, []);
 
   // Fetch / refresh profile on any authenticated page so role permission
@@ -2890,7 +2923,7 @@ function App() {
         return;
       }
       setDashboardCreateLeadOpen(true);
-      setMobileSidebarOpen(false);
+      closeMobileSidebar();
       setNotificationMenuOpen(false);
       setMessageMenuOpen(false);
       notify(message ?? 'Create Lead opened');
@@ -2910,7 +2943,7 @@ function App() {
 
     if (section === 'Lead Details') {
       const id = lead?.id ?? lead?.lead ?? null;
-      setMobileSidebarOpen(false);
+      closeMobileSidebar();
       setNotificationMenuOpen(false);
       setMessageMenuOpen(false);
       if (id) {
@@ -2925,7 +2958,7 @@ function App() {
     if (lead) setSelectedLead(lead);
     if (section === 'Follow-ups') setFollowUpsPageTab(tab || 'today');
     setActiveSidebarItem(section);
-    setMobileSidebarOpen(false);
+    closeMobileSidebar();
     setNotificationMenuOpen(false);
     setMessageMenuOpen(false);
     notify(message ?? `${section} opened`);
@@ -3229,7 +3262,7 @@ function App() {
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') {
         setProfileMenuOpen(false);
-        setMobileSidebarOpen(false);
+        closeMobileSidebar();
         setNotificationMenuOpen(false);
         setMessageMenuOpen(false);
       }
@@ -3249,7 +3282,7 @@ function App() {
       document.removeEventListener('mousedown', handlePointerDown);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [messageMenuOpen, notificationMenuOpen, profileMenuOpen, goBackInApp]);
+  }, [messageMenuOpen, notificationMenuOpen, profileMenuOpen, goBackInApp, closeMobileSidebar]);
 
   if (currentPage === 'portal') {
     return (
@@ -3375,7 +3408,8 @@ function App() {
           aria-hidden={!mobileSidebarOpen}
           className={cx(
             // Above bottom nav (z-60) so dim + tap-outside actually closes More menu on phones.
-            'crm-anim-window fixed inset-0 z-[70] bg-[#10213d]/45 transition xl:hidden',
+            // crm-mobile-sidebar-backdrop: excluded from global .fixed.inset-0 mobile padding rules.
+            'crm-mobile-sidebar-backdrop crm-anim-window fixed inset-0 z-[70] bg-[#10213d]/45 transition xl:hidden',
             mobileSidebarOpen ? 'opacity-100' : 'pointer-events-none opacity-0',
           )}
           onPointerDown={(event) => {
@@ -3502,14 +3536,14 @@ function App() {
                             setExpandedSection(null);
                             setActiveSidebarItem('Settings');
                             notify('Settings opened');
-                            setMobileSidebarOpen(false);
+                            closeMobileSidebar();
                             return;
                           }
                           if (isDeveloperSection) {
                             setExpandedSection(null);
                             setActiveSidebarItem('Developer Mode');
                             notify('Developer Mode opened');
-                            setMobileSidebarOpen(false);
+                            closeMobileSidebar();
                             return;
                           }
                           if (isInsightsSection) {
@@ -3527,14 +3561,14 @@ function App() {
                               setInsightsTab('overview');
                             }
                             notify('Insights opened');
-                            setMobileSidebarOpen(false);
+                            closeMobileSidebar();
                             return;
                           }
                           if (isDailyTasksSection) {
                             setExpandedSection(null);
                             setActiveSidebarItem('Daily Tasks');
                             notify('Daily Tasks opened');
-                            setMobileSidebarOpen(false);
+                            closeMobileSidebar();
                             return;
                           }
                           const sectionKey = isLeadSection ? 'Lead' : isProjectSection ? 'Project Management' : isCustomerSection ? 'Customer' : isVendorSection ? 'Vendors' : isSupplierSection ? 'Supplier' : isEmployeeSection ? 'Employee' : isAccountsSection ? 'Accounts' : isInventorySection ? 'Inventory' : isLiaisonSection ? 'Liaisoning & Commissioning' : isOmSection ? 'O&M' : isOmPendingSection ? 'Tracker' : isAmcSection ? 'AMC & Warranty' : isSyncShareSection ? 'Sync, Share & Backup' : null;
@@ -3558,7 +3592,7 @@ function App() {
                             setActiveSidebarItem(item.label);
                             notify(`${item.label} section selected`);
                           }
-                          setMobileSidebarOpen(false);
+                          closeMobileSidebar();
                         }}
                         title={desktopSidebarCollapsed ? item.label : undefined}
                         aria-label={item.label}
@@ -3610,7 +3644,7 @@ function App() {
                                   data-route={leadSubRoutes[subItem] || sectionRoutes[subItem]}
                                   onClick={() => {
                                     setActiveSidebarItem(subItem);
-                                    setMobileSidebarOpen(false);
+                                    closeMobileSidebar();
                                     notify(`${subItem} opened`);
                                   }}
                                   className={cx(
@@ -3648,7 +3682,7 @@ function App() {
                                   data-route={customerSubRoutes[subItem]}
                                   onClick={() => {
                                     setActiveSidebarItem(subItem);
-                                    setMobileSidebarOpen(false);
+                                    closeMobileSidebar();
                                     notify(`${subItem} opened`);
                                   }}
                                   className={cx(
@@ -3684,7 +3718,7 @@ function App() {
                                   data-route={vendorSubRoutes[subItem]}
                                   onClick={() => {
                                     setActiveSidebarItem(subItem);
-                                    setMobileSidebarOpen(false);
+                                    closeMobileSidebar();
                                     notify(`${subItem} opened`);
                                   }}
                                   className={cx(
@@ -3720,7 +3754,7 @@ function App() {
                                   data-route={supplierSubRoutes[subItem]}
                                   onClick={() => {
                                     setActiveSidebarItem(subItem);
-                                    setMobileSidebarOpen(false);
+                                    closeMobileSidebar();
                                     notify(`${subItem} opened`);
                                   }}
                                   className={cx(
@@ -3759,7 +3793,7 @@ function App() {
                                     // Project List pe jaane par selection clear; baaki stages pe project carry-forward.
                                     if (subItem === 'Project List') setSelectedProject(null);
                                     setActiveSidebarItem(subItem);
-                                    setMobileSidebarOpen(false);
+                                    closeMobileSidebar();
                                     notify(`${subItem} opened`);
                                   }}
                                   className={cx(
@@ -3796,7 +3830,7 @@ function App() {
                                   data-route={employeeSubRoutes[subItem]}
                                   onClick={() => {
                                     setActiveSidebarItem(subItem);
-                                    setMobileSidebarOpen(false);
+                                    closeMobileSidebar();
                                     notify(`${subItem} opened`);
                                   }}
                                   className={cx(
@@ -3838,7 +3872,7 @@ function App() {
                                   data-route={accountsSubRoutes[subItem]}
                                   onClick={() => {
                                     setActiveSidebarItem(subItem);
-                                    setMobileSidebarOpen(false);
+                                    closeMobileSidebar();
                                     notify(`${subItem} opened`);
                                   }}
                                   className={cx(
@@ -3881,7 +3915,7 @@ function App() {
                                   data-route={inventorySubRoutes[subItem]}
                                   onClick={() => {
                                     setActiveSidebarItem(subItem);
-                                    setMobileSidebarOpen(false);
+                                    closeMobileSidebar();
                                     notify(`${subItem} opened`);
                                   }}
                                   className={cx(
@@ -3923,7 +3957,7 @@ function App() {
                                   data-route={liaisonSubRoutes[subItem]}
                                   onClick={() => {
                                     setActiveSidebarItem(subItem);
-                                    setMobileSidebarOpen(false);
+                                    closeMobileSidebar();
                                     notify(`${subItem} opened`);
                                   }}
                                   className={cx(
@@ -3960,7 +3994,7 @@ function App() {
                                   data-route={omSubRoutes[subItem]}
                                   onClick={() => {
                                     setActiveSidebarItem(subItem);
-                                    setMobileSidebarOpen(false);
+                                    closeMobileSidebar();
                                     notify(`${subItem} opened`);
                                   }}
                                   className={cx(
@@ -3997,7 +4031,7 @@ function App() {
                                   data-route={omPendingSubRoutes[subItem]}
                                   onClick={() => {
                                     setActiveSidebarItem(subItem);
-                                    setMobileSidebarOpen(false);
+                                    closeMobileSidebar();
                                     notify(`${subItem} opened`);
                                   }}
                                   className={cx(
@@ -4034,7 +4068,7 @@ function App() {
                                   data-route={amcSubRoutes[subItem]}
                                   onClick={() => {
                                     setActiveSidebarItem(subItem);
-                                    setMobileSidebarOpen(false);
+                                    closeMobileSidebar();
                                     notify(`${subItem} opened`);
                                   }}
                                   className={cx(
@@ -4069,7 +4103,7 @@ function App() {
                                   type="button"
                                   onClick={() => {
                                     setActiveSidebarItem(subItem);
-                                    setMobileSidebarOpen(false);
+                                    closeMobileSidebar();
                                     notify(`${subItem} opened`);
                                   }}
                                   className={cx(

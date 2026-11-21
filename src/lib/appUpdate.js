@@ -150,6 +150,7 @@ function openPopupIfNeeded() {
     popupOpen = true;
     try {
       window.__MALWA_REACT_UPDATE_UI__ = true;
+      window.dispatchEvent(new Event('crm:chrome-overlay-open'));
     } catch {
       /* ignore */
     }
@@ -192,6 +193,7 @@ export async function probeUpdateForInstallButton() {
       forceShowPopup = true;
       try {
         window.__MALWA_REACT_UPDATE_UI__ = true;
+        window.dispatchEvent(new Event('crm:chrome-overlay-open'));
       } catch {
         /* ignore */
       }

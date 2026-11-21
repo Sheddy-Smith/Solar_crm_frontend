@@ -1885,13 +1885,13 @@ html.dark .crm-table-sticky-head thead th {
     border-radius: 999px;
   }
 
-  .fixed.inset-0 {
+  .fixed.inset-0:not(.crm-mobile-sidebar-backdrop):not(.malwa-update-overlay) {
     align-items: flex-start;
     overflow-y: auto;
     padding: 12px;
   }
 
-  .fixed.inset-0 > div {
+  .fixed.inset-0:not(.crm-mobile-sidebar-backdrop):not(.malwa-update-overlay) > div {
     max-width: calc(100vw - 24px);
     max-height: calc(100vh - 24px);
     overflow-y: auto;

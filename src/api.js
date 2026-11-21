@@ -1,4 +1,9 @@
 import { maybeSimulateNetwork, recordApiCall } from './developer/services/apiInspector.js';
+import {
+  authSessionEventName,
+  shouldApplyRefreshResult,
+  shouldClearTokensOnRefreshFailure,
+} from './lib/authSession.js';
 
 // Dev: default `/api/v1` goes through Vite proxy → backend (works on LAN Network URL).
 // Production builds MUST set VITE_API_URL. Staging/test must not silently hit production.
@@ -37,7 +42,10 @@ export const tokenStore = {
   getRefresh: () => localStorage.getItem(REFRESH_KEY),
   set: (access, refresh) => {
     if (access) localStorage.setItem(TOKEN_KEY, access);
-    if (refresh) localStorage.setItem(REFRESH_KEY, refresh);
+    // undefined = leave refresh unchanged; null/'' = clear after rotation wipe
+    if (refresh === undefined) return;
+    if (refresh === null || refresh === '') localStorage.removeItem(REFRESH_KEY);
+    else localStorage.setItem(REFRESH_KEY, refresh);
   },
   clear: () => {
     localStorage.removeItem(TOKEN_KEY);
@@ -199,21 +207,36 @@ async function refreshAccessToken() {
     const refreshToken = tokenStore.getRefresh();
     if (!refreshToken) return null;
 
-    const rRes = await fetch(`${API_BASE}/auth/refresh/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh: refreshToken }),
-    });
+    let rRes;
+    try {
+      rRes = await fetch(`${API_BASE}/auth/refresh/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh: refreshToken }),
+      });
+    } catch {
+      // Temporary network failure — keep credentials; do not force logout.
+      return null;
+    }
 
     if (!rRes.ok) {
-      tokenStore.clear();
-      window.dispatchEvent(new Event('auth:logout'));
+      if (shouldClearTokensOnRefreshFailure(refreshToken, tokenStore.getRefresh())) {
+        tokenStore.clear();
+        window.dispatchEvent(new Event(authSessionEventName('expired')));
+      }
       return null;
     }
 
     const refreshData = await rRes.json();
-    tokenStore.set(refreshData.access, refreshData.refresh || null);
-    return refreshData.access;
+    if (!shouldApplyRefreshResult(refreshToken, tokenStore.getRefresh())) {
+      // A newer login replaced tokens while this refresh was in flight.
+      return tokenStore.getAccess();
+    }
+    const nextRefresh = Object.prototype.hasOwnProperty.call(refreshData, 'refresh')
+      ? (refreshData.refresh || null)
+      : undefined;
+    tokenStore.set(refreshData.access, nextRefresh);
+    return refreshData.access || tokenStore.getAccess();
   })().finally(() => {
     refreshPromise = null;
   });
@@ -271,16 +294,15 @@ async function request(path, { method = 'GET', body, auth = true, timeoutMs = 20
     let res = await doFetch(headers);
 
     if (res.status === 401 && auth) {
-      // Never auto-retry non-idempotent methods after refresh ambiguity.
-      if (!['GET', 'HEAD', 'OPTIONS'].includes((method || 'GET').toUpperCase())) {
-        throw new Error('Session expired. Please login again.');
-      }
+      // Single-flight refresh then retry once (GET and mutating). A genuine
+      // invalid refresh clears the session via auth:session-expired.
       const newAccess = await refreshAccessToken();
-      // Throw instead of returning null: callers treat null as "no data",
-      // which silently hides the expired session.
       if (!newAccess) throw new Error('Session expired. Please login again.');
       headers['Authorization'] = `Bearer ${newAccess}`;
       res = await doFetch(headers);
+      if (res.status === 401) {
+        throw new Error('Session expired. Please login again.');
+      }
     }
 
     if (res.status === 204) {
@@ -342,13 +364,18 @@ export const authApi = {
     const refresh = tokenStore.getRefresh();
     try {
       if (refresh) {
-        await request('/auth/logout/', { method: 'POST', body: { refresh } });
+        // auth:false — LogoutView accepts refresh body without a live access JWT.
+        await request('/auth/logout/', {
+          method: 'POST',
+          body: { refresh },
+          auth: false,
+        });
       }
     } catch {
       /* still clear local session even if blacklist call fails */
     }
     tokenStore.clear();
-    window.dispatchEvent(new Event('auth:logout'));
+    window.dispatchEvent(new Event(authSessionEventName('manual')));
   },
 };
 

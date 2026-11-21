@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Download, MonitorSmartphone, RefreshCw, Share, X } from 'lucide-react';
 import { cx } from '../../lib/utils.js';
 import { usePwaInstall } from '../../hooks/usePwaInstall.js';
@@ -39,6 +39,20 @@ export function downloadAndroidApp() {
 }
 
 export function UpToDateDialog({ open, onClose, versionLabel, buildId }) {
+  useEffect(() => {
+    if (!open) return undefined;
+    try {
+      window.dispatchEvent(new Event('crm:chrome-overlay-open'));
+    } catch {
+      /* ignore */
+    }
+    const onKey = (event) => {
+      if (event.key === 'Escape') onClose?.();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
   if (!open) return null;
   return (
     <div
@@ -46,8 +60,11 @@ export function UpToDateDialog({ open, onClose, versionLabel, buildId }) {
       role="dialog"
       aria-modal="true"
       aria-label="App up to date"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose?.();
+      }}
     >
-      <div className="malwa-update-card">
+      <div className="malwa-update-card" onClick={(event) => event.stopPropagation()}>
         <div className="malwa-update-card__hero">
           <p className="malwa-update-card__eyebrow">Malwa Solar CRM</p>
           <h2 className="malwa-update-card__title">Up to date</h2>
