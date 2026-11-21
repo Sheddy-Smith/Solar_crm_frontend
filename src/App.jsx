@@ -5050,7 +5050,7 @@ function AppHeader({
                       theme={theme}
                       menuAttrs={{ 'data-profile-menu': 'true' }}
                       onChange={(next) => {
-                        applyThemeChoice(next);
+                        setTheme(next);
                         const labels = {
                           light: 'Light',
                           professional: 'Professional',
@@ -5148,7 +5148,7 @@ function AppHeader({
           <ThemeToggle
             theme={theme}
             onChange={(next) => {
-              applyThemeChoice(next);
+              setTheme(next);
               const labels = {
                 light: 'Light',
                 professional: 'Professional',
