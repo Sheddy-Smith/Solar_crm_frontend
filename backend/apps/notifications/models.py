@@ -44,3 +44,27 @@ class Notification(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+
+
+class PushSubscription(models.Model):
+    """Browser / PWA / TWA Web Push subscription for one signed-in user."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='push_subscriptions')
+    endpoint = models.TextField()
+    endpoint_hash = models.CharField(max_length=64, unique=True, db_index=True)
+    p256dh = models.CharField(max_length=255)
+    auth = models.CharField(max_length=255)
+    user_agent = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return f'PushSubscription({self.user_id})'
+
+    def as_webpush_info(self):
+        return {
+            'endpoint': self.endpoint,
+            'keys': {'p256dh': self.p256dh, 'auth': self.auth},
+        }

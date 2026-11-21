@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import Button from './components/ui/Button.jsx';
 import Card from './components/ui/Card.jsx';
 import ThemeToggle from './components/ui/ThemeToggle.jsx';
-import LanguageSwitcher, { chooseLanguage, chooseTyping, saveLanguagePreference } from './i18n/LanguageSwitcher.jsx';
+import { chooseLanguage, chooseTyping, saveLanguagePreference } from './i18n/LanguageSwitcher.jsx';
 import { LANGUAGES, applyUserPreferences, getLanguageMeta, useI18n } from './i18n/index.js';
 import {
   authApi, userApi, roleApi, branchApi, leadApi, leadSurveyPhotoApi, analyticsApi, accountsModuleApi, followUpApi, quotationApi, approvalApi,
@@ -149,7 +149,7 @@ import {
   formatRelativeActivity,
 } from './lib/recentAllList.js';
 import { LIST_PAGE_SIZE, LOOKUP_PAGE_SIZE, rowsOf, parseListPage, listParams, fetchEveryPage } from './lib/listQuery.js';
-import { ensureWebPushSubscription, syncWebPushWithSettings } from './lib/webPush.js';
+import { ensureWebPushSubscription, showForegroundNotification, syncWebPushWithSettings } from './lib/webPush.js';
 import { downloadSurveyPhoto, downloadSurveyPhotosPdf } from './lib/surveyPhotoExport.js';
 import { MobileDashboardPage, MobileBottomNav } from './mobileDashboard.jsx';
 import { HomeDashboardPage } from './homeDashboard.jsx';
@@ -2403,14 +2403,34 @@ function App() {
     setActiveSidebarItem(section);
   }, []);
   const [notificationUnread, setNotificationUnread] = useState(0);
+  const notificationUnreadRef = useRef(0);
   const refreshNotificationCount = useCallback(() => {
     notificationApi.unreadCount()
-      .then((r) => setNotificationUnread(Number(r?.count) || 0))
+      .then((r) => {
+        const next = Number(r?.count) || 0;
+        const prev = notificationUnreadRef.current;
+        notificationUnreadRef.current = next;
+        setNotificationUnread(next);
+        // When unread rises while this session is open, show a desktop/OS banner.
+        if (next > prev && loggedInUser) {
+          notificationApi.list({ limit: 1, unread: 1 }).then((rows) => {
+            const item = Array.isArray(rows) ? rows[0] : null;
+            if (!item) return;
+            showForegroundNotification({
+              title: item.title || 'New task assigned',
+              body: item.message || '',
+              url: item.link || '/',
+              tag: `crm-notif-${item.id}`,
+            });
+          }).catch(() => {});
+        }
+      })
       .catch(() => {});
-  }, []);
+  }, [loggedInUser]);
   useEffect(() => {
     if (!loggedInUser) {
       setNotificationUnread(0);
+      notificationUnreadRef.current = 0;
       return undefined;
     }
     refreshNotificationCount();
@@ -2420,10 +2440,15 @@ function App() {
     }, 1200);
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') refreshNotificationCount();
-    }, 60000);
+    }, 20000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refreshNotificationCount();
+    };
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       window.clearInterval(timer);
       window.clearTimeout(pushTimer);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, [loggedInUser, refreshNotificationCount]);
   const openNotificationLink = useCallback((link) => {
@@ -2512,16 +2537,11 @@ function App() {
   const [dashboardRightTab, setDashboardRightTab] = useState('workflow');
   const [dashboardFollowUpsOpen, setDashboardFollowUpsOpen] = useState(false);
   const [theme, setTheme] = useState(() => (
-    ['light', 'professional', 'dark', 'system'].includes(initialPreferences.theme)
+    ['light', 'professional'].includes(initialPreferences.theme)
       ? initialPreferences.theme
       : 'professional'
   ));
-  const [systemPrefersDark, setSystemPrefersDark] = useState(() => (
-    typeof window !== 'undefined' && window.matchMedia
-      ? window.matchMedia('(prefers-color-scheme: dark)').matches
-      : false
-  ));
-  const isDarkMode = theme === 'system' ? systemPrefersDark : theme === 'dark';
+  const isDarkMode = false;
   const isProfessionalTheme = theme === 'professional';
 
   const dashboardFollowUpAlerts = useMemo(
@@ -2869,28 +2889,13 @@ function App() {
     };
   }, [currentPage, isDashboardSection, refreshDashboardFollowUps]);
 
-  // Secondary widgets: independent failure domains (one API fail ≠ blank dashboard).
-  useEffect(() => {
-    if (currentPage !== 'dashboard') return undefined;
-    const ac = new AbortController();
-
-    projectApi.summary().then((data) => {
-      if (ac.signal.aborted || !data) return;
-      setDashWidgetError('projects', '');
-      setDashboardProjectSummary(data);
-    }).catch((err) => {
-      if (ac.signal.aborted || err?.name === 'AbortError') return;
-      setDashWidgetError('projects', 'Project summary unavailable');
-      notify('Project summary could not be loaded.', 'error');
-    });
-
+  const refreshDashboardRecentLeads = useCallback((signal) => {
     if (!canViewLeadModule) {
       setDashboardRecentLeads([]);
-      return () => ac.abort();
+      return Promise.resolve();
     }
-
-    leadApi.recent().then((data) => {
-      if (ac.signal.aborted) return;
+    return leadApi.recent().then((data) => {
+      if (signal?.aborted) return;
       setDashWidgetError('recentLeads', '');
       const rows = Array.isArray(data) ? data : (data?.results ?? []);
       setDashboardRecentLeads(rows.length === 0 ? [] : rows.map((lead) => ({
@@ -2908,13 +2913,42 @@ function App() {
         nextFollowUp: lead.next_follow_up ? new Date(lead.next_follow_up).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—',
       })));
     }).catch((err) => {
-      if (ac.signal.aborted || err?.name === 'AbortError') return;
+      if (signal?.aborted || err?.name === 'AbortError') return;
       setDashWidgetError('recentLeads', 'Recent leads unavailable');
       notify('Recent leads could not be loaded.', 'error');
     });
+  }, [canViewLeadModule, setDashWidgetError, notify]);
+
+  // Secondary widgets: independent failure domains (one API fail ≠ blank dashboard).
+  useEffect(() => {
+    if (currentPage !== 'dashboard') return undefined;
+    const ac = new AbortController();
+
+    projectApi.summary().then((data) => {
+      if (ac.signal.aborted || !data) return;
+      setDashWidgetError('projects', '');
+      setDashboardProjectSummary(data);
+    }).catch((err) => {
+      if (ac.signal.aborted || err?.name === 'AbortError') return;
+      setDashWidgetError('projects', 'Project summary unavailable');
+      notify('Project summary could not be loaded.', 'error');
+    });
+
+    refreshDashboardRecentLeads(ac.signal);
 
     return () => ac.abort();
-  }, [canViewLeadModule, currentPage, setDashWidgetError]);
+  }, [canViewLeadModule, currentPage, setDashWidgetError, refreshDashboardRecentLeads, notify]);
+
+  // Follow-up create/update/delete bumps lead last_activity_at — refresh Recent Leads.
+  useEffect(() => {
+    const onFollowUpSaved = () => {
+      if (currentPage === 'dashboard' || isDashboardSection) {
+        refreshDashboardRecentLeads();
+      }
+    };
+    window.addEventListener('crm:followup-saved', onFollowUpSaved);
+    return () => window.removeEventListener('crm:followup-saved', onFollowUpSaved);
+  }, [currentPage, isDashboardSection, refreshDashboardRecentLeads]);
 
   const openDashboardSection = (section, message, lead, tab) => {
     if (section === 'Create Lead') {
@@ -3054,15 +3088,6 @@ function App() {
       );
     }
   }, [isDarkMode, isProfessionalTheme]);
-
-  // Keep 'system' theme in sync if the OS-level color scheme changes while the app is open.
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return;
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = (event) => setSystemPrefersDark(event.matches);
-    mq.addEventListener('change', handleChange);
-    return () => mq.removeEventListener('change', handleChange);
-  }, []);
 
   useEffect(() => {
     if (activeSidebarItem === 'Lead' || activeSidebarItem === 'Quotation' || activeSidebarItem === 'Final Quotation' || leadRelatedPages.includes(activeSidebarItem)) { setExpandedSection('Lead'); return; }
@@ -3357,7 +3382,7 @@ function App() {
           }}
           onNotify={notify}
           isDark={isDarkMode}
-          onToggleTheme={() => setTheme(isDarkMode ? 'light' : 'dark')}
+          onToggleTheme={() => setTheme(isProfessionalTheme ? 'light' : 'professional')}
         />
         <Toast toast={toast} />
       </>
@@ -4710,6 +4735,7 @@ function App() {
                 onRefresh={() => {
                   refreshDashboardLeadStats();
                   refreshDashboardFollowUps();
+                  refreshDashboardRecentLeads();
                   notify('Dashboard refreshed');
                 }}
               />
@@ -4936,7 +4962,6 @@ function AppHeader({
                   </div>
 
                   <div className="py-1.5">
-                    <LanguageSwitcher row menuAttrs={{ 'data-profile-menu': 'true' }} />
                     <ThemeToggle
                       row
                       theme={theme}
@@ -4946,8 +4971,6 @@ function AppHeader({
                         const labels = {
                           light: 'Light',
                           professional: 'Professional',
-                          dark: 'Dark',
-                          system: 'System',
                         };
                         notify(`${labels[next] || next} theme enabled`);
                       }}
@@ -5039,8 +5062,6 @@ function AppHeader({
 
           <PwaInstallIconButton notify={notify} className="hidden xl:inline-flex" />
 
-          <LanguageSwitcher />
-
           <ThemeToggle
             theme={theme}
             onChange={(next) => {
@@ -5048,8 +5069,6 @@ function AppHeader({
               const labels = {
                 light: 'Light',
                 professional: 'Professional',
-                dark: 'Dark',
-                system: 'System',
               };
               notify(`${labels[next] || next} theme enabled`);
             }}
@@ -5546,6 +5565,12 @@ function LeadListPage({ activeSection = 'Lead List', loggedInUser = null, initia
   const [executiveList, setExecutiveList] = useState([]);
   const [assignLead, setAssignLead] = useState(null);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+
+  useEffect(() => {
+    const onFollowUpSaved = () => setRefreshKey((key) => key + 1);
+    window.addEventListener('crm:followup-saved', onFollowUpSaved);
+    return () => window.removeEventListener('crm:followup-saved', onFollowUpSaved);
+  }, []);
 
   useEffect(() => {
     userApi.options({ is_active: true, page_size: LOOKUP_PAGE_SIZE }).then((data) => {
@@ -9079,10 +9104,10 @@ function SettingsInfoNote({ text }) {
 
 function SettingsStatusBadge({ label, tone = 'green' }) {
   const toneClass = {
-    green: 'bg-[#e8f8eb] text-[#0d9f4a]',
-    blue: 'bg-[#e8f2ff] text-[#0b65e5]',
-    amber: 'bg-[#fff0dc] text-[#f59e0b]',
-    red: 'bg-[#ffe9e6] text-[#ef4444]',
+    green: 'bg-[#e8f8eb] text-[#0d9f4a] professional:bg-[#e8eef5] professional:text-[#1e3a5f]',
+    blue: 'bg-[#e8f2ff] text-[#0b65e5] professional:bg-[#e8eef5] professional:text-[#1e3a5f]',
+    amber: 'bg-[#fff0dc] text-[#f59e0b] professional:bg-[#f7f3eb] professional:text-[#6b5320]',
+    red: 'bg-[#ffe9e6] text-[#ef4444] professional:bg-[#f5eeee] professional:text-[#6b3a3a]',
     slate: 'bg-[#eef2f7] text-[#53647f]',
   }[tone] ?? 'bg-[#eef2f7] text-[#53647f]';
 
@@ -9091,10 +9116,10 @@ function SettingsStatusBadge({ label, tone = 'green' }) {
 
 function AccountStatusBadge({ status }) {
   const cls = {
-    Active: 'bg-[#dff7e8] text-[#0d9f4a]',
+    Active: 'bg-[#dff7e8] text-[#0d9f4a] professional:bg-[#e8eef5] professional:text-[#1e3a5f]',
     Inactive: 'bg-[#eef2f7] text-[#64748b]',
-    Pending: 'bg-[#fff4df] text-[#d98200]',
-    Suspended: 'bg-[#ffecef] text-[#ef4444]',
+    Pending: 'bg-[#fff4df] text-[#d98200] professional:bg-[#f7f3eb] professional:text-[#6b5320]',
+    Suspended: 'bg-[#ffecef] text-[#ef4444] professional:bg-[#f5eeee] professional:text-[#6b3a3a]',
   }[status] ?? 'bg-[#eef2f7] text-[#53647f]';
   return <span className={cx('inline-flex rounded-full px-2.5 py-1 text-[11px] font-extrabold', cls)}>{status || 'Unknown'}</span>;
 }
@@ -40934,11 +40959,13 @@ function AssigneeCell({ assignee, compact = false }) {
 function StatusBadge({ status }) {
   const classes =
     {
-      New: 'bg-[#e8f8eb] text-[#18a34a]',
-      'Follow-up': 'bg-[#e8f2ff] text-[#3170e0]',
-      Quotation: 'bg-[#fff0dc] text-[#f39b20]',
-      Lost: 'bg-[#ffe9e6] text-[#e2594c]',
-    }[status] ?? 'bg-[#eff3f8] text-[#64748b]';
+      New: 'bg-[#e8f8eb] text-[#18a34a] professional:bg-[#e8eef5] professional:text-[#1e3a5f]',
+      'Follow-up': 'bg-[#e8f2ff] text-[#3170e0] professional:bg-[#e8eef5] professional:text-[#2f4d73]',
+      Quotation: 'bg-[#fff0dc] text-[#f39b20] professional:bg-[#f7f3eb] professional:text-[#6b5320]',
+      Won: 'bg-[#e8f8eb] text-[#0d9f4a] professional:bg-[#e8eef5] professional:text-[#1e3a5f]',
+      Lost: 'bg-[#ffe9e6] text-[#e2594c] professional:bg-[#f5eeee] professional:text-[#6b3a3a]',
+      Hot: 'bg-[#ffe9e6] text-[#e2594c] professional:bg-[#f5eeee] professional:text-[#6b3a3a]',
+    }[status] ?? 'bg-[#eff3f8] text-[#64748b] professional:bg-[#eef2f6] professional:text-[#64748b]';
 
   return (
     <span className={cx('inline-flex rounded-[8px] px-2.5 py-1 text-[11px] font-extrabold', classes)}>
@@ -40950,10 +40977,10 @@ function StatusBadge({ status }) {
 function SurveyStatusBadge({ status }) {
   const config =
     {
-      Completed: { dot: '🟢', classes: 'bg-[#e8f8eb] text-[#18a34a]' },
-      'In Progress': { dot: '🟡', classes: 'bg-[#fff4df] text-[#b45309]' },
-      Pending: { dot: '🔴', classes: 'bg-[#ffe9e6] text-[#e2594c]' },
-    }[status] ?? { dot: '🔴', classes: 'bg-[#ffe9e6] text-[#e2594c]' };
+      Completed: { dot: '🟢', classes: 'bg-[#e8f8eb] text-[#18a34a] professional:bg-[#e8eef5] professional:text-[#1e3a5f]' },
+      'In Progress': { dot: '🟡', classes: 'bg-[#fff4df] text-[#b45309] professional:bg-[#f7f3eb] professional:text-[#6b5320]' },
+      Pending: { dot: '🔴', classes: 'bg-[#ffe9e6] text-[#e2594c] professional:bg-[#f5eeee] professional:text-[#6b3a3a]' },
+    }[status] ?? { dot: '🔴', classes: 'bg-[#ffe9e6] text-[#e2594c] professional:bg-[#f5eeee] professional:text-[#6b3a3a]' };
 
   return (
     <span className={cx('inline-flex items-center gap-1 rounded-[8px] px-2.5 py-1 text-[11px] font-extrabold', config.classes)}>

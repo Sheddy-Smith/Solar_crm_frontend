@@ -173,6 +173,21 @@ def align_alerts_to_lead_follow_up_date(lead, previous_next):
         lead._aligning_follow_up = False
 
 
+def bump_lead_last_activity(lead, when=None):
+    """Mark the lead as recently worked without rewriting created_at semantics.
+
+    Uses QuerySet.update so Lead post_save side effects (and auto_now updated_at
+    churn from unrelated writes) stay out of the activity bump path.
+    """
+    if not lead or not getattr(lead, 'pk', None):
+        return None
+    when = when or timezone.now()
+    from .models import Lead
+    Lead.objects.filter(pk=lead.pk).update(last_activity_at=when)
+    lead.last_activity_at = when
+    return when
+
+
 def sync_lead_next_follow_up(lead):
     """Point `lead.next_follow_up` at the earliest remaining Scheduled row."""
     if lead and lead.status in CLOSED_LEAD_STATUSES:

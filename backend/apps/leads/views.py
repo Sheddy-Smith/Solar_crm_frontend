@@ -20,7 +20,7 @@ from apps.accounts.permissions import (
     is_own_lead, can_manage_leads,
 )
 from .datetime_filters import filter_field_on_local_date, period_created_at_queryset
-from .followup_sync import sync_lead_next_follow_up
+from .followup_sync import bump_lead_last_activity, sync_lead_next_follow_up
 from .recycle import soft_delete_follow_up, soft_delete_lead, soft_delete_quotation
 
 
@@ -393,6 +393,8 @@ class FollowUpViewSet(viewsets.ModelViewSet):
             raise PermissionDenied('You can only add follow-ups to your own leads.')
         follow_up = serializer.save(created_by=self.request.user)
         sync_lead_next_follow_up(follow_up.lead)
+        # Follow-up activity must surface the lead in Recent Leads / Lead List.
+        bump_lead_last_activity(follow_up.lead)
 
     def perform_update(self, serializer):
         # A scoped executive must not be able to re-point their follow-up at
@@ -408,16 +410,19 @@ class FollowUpViewSet(viewsets.ModelViewSet):
         old_lead = serializer.instance.lead
         follow_up = serializer.save()
         sync_lead_next_follow_up(follow_up.lead)
+        bump_lead_last_activity(follow_up.lead)
         # If the follow-up was moved to a different lead, the old lead's
         # next_follow_up would otherwise keep pointing at the moved record.
         if old_lead.pk != follow_up.lead_id:
             sync_lead_next_follow_up(old_lead)
+            bump_lead_last_activity(old_lead)
 
     def perform_destroy(self, instance):
         # Soft-delete → Recycle Bin; resync lead next_follow_up afterwards.
         lead = instance.lead
         soft_delete_follow_up(instance, self.request.user)
         sync_lead_next_follow_up(lead)
+        bump_lead_last_activity(lead)
 
 
 class AdminApprovalViewSet(viewsets.ModelViewSet):

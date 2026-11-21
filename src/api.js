@@ -671,6 +671,15 @@ export const accountsModuleApi = {
 
 // ─── Follow-ups ──────────────────────────────────────────────────────────────
 
+function emitFollowUpActivity(detail = {}) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.dispatchEvent(new CustomEvent('crm:followup-saved', { detail }));
+  } catch {
+    /* ignore */
+  }
+}
+
 export const followUpApi = {
   list: (leadId) => request(`/follow-ups/?lead=${leadId}&page_size=25&ordering=-scheduled_at`),
   listAll: (params = {}) => {
@@ -679,9 +688,21 @@ export const followUpApi = {
     ).toString();
     return request(`/follow-ups/${qs ? '?' + qs : ''}`);
   },
-  create: (data) => request('/follow-ups/', { method: 'POST', body: data }),
-  update: (id, data) => request(`/follow-ups/${id}/`, { method: 'PATCH', body: data }),
-  delete: (id) => request(`/follow-ups/${id}/`, { method: 'DELETE' }),
+  create: async (data) => {
+    const row = await request('/follow-ups/', { method: 'POST', body: data });
+    emitFollowUpActivity({ id: row?.id, lead: data?.lead ?? row?.lead });
+    return row;
+  },
+  update: async (id, data) => {
+    const row = await request(`/follow-ups/${id}/`, { method: 'PATCH', body: data });
+    emitFollowUpActivity({ id, lead: data?.lead ?? row?.lead });
+    return row;
+  },
+  delete: async (id) => {
+    const row = await request(`/follow-ups/${id}/`, { method: 'DELETE' });
+    emitFollowUpActivity({ id, deleted: true });
+    return row;
+  },
 };
 
 // ─── Admin Approvals ─────────────────────────────────────────────────────────

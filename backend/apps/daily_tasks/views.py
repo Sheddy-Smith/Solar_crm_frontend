@@ -86,7 +86,36 @@ class StaffDailyTaskViewSet(viewsets.ModelViewSet):
         assignee = serializer.validated_data.get('assigned_to')
         if not can_assign_to_user(self.request.user, assignee):
             raise PermissionDenied('You can only assign Daily Tasks to authorized users.')
-        serializer.save()
+        task = serializer.save()
+        self._notify_assignee(task)
+
+    def _notify_assignee(self, task):
+        """Persist an in-app (and Web Push) alert for the assigned user only."""
+        if not task or not task.assigned_to_id:
+            return
+        # Skip self-assignment noise unless someone else is watching the same user later.
+        if task.assigned_by_id and task.assigned_by_id == task.assigned_to_id:
+            return
+        from apps.accounts.models import User
+        from apps.notifications.services import notify
+
+        assigner = User.public_display_name(task.assigned_by) if task.assigned_by_id else 'Manager'
+        due = ''
+        if task.due_date:
+            due = f'Due {task.due_date:%d-%m-%Y}'
+        elif task.task_date:
+            due = f'Task date {task.task_date:%d-%m-%Y}'
+        notify(
+            f'staff-task-assigned-{task.pk}-{task.assigned_to_id}',
+            f'Task assigned: {task.title}',
+            message=' • '.join(x for x in [f'Assigned by {assigner}', due, (task.description or '').strip()[:180]] if x),
+            category='Task',
+            severity='upcoming',
+            module='Daily Tasks',
+            user=task.assigned_to,
+            link='/daily-tasks',
+            channel='crm',
+        )
 
     def update(self, request, *args, **kwargs):
         return Response(

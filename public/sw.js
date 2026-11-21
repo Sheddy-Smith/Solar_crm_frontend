@@ -67,6 +67,60 @@ function isScriptOrStyle(url) {
   return /\.(?:js|mjs|css)$/i.test(url.pathname);
 }
 
+self.addEventListener('push', (event) => {
+  let payload = { title: 'Malwa Solar CRM', body: '', url: '/', tag: 'malwa-crm' };
+  try {
+    if (event.data) {
+      const parsed = event.data.json();
+      payload = { ...payload, ...parsed };
+    }
+  } catch {
+    try {
+      payload.body = event.data ? event.data.text() : '';
+    } catch {
+      /* ignore */
+    }
+  }
+  const title = payload.title || 'Malwa Solar CRM';
+  const options = {
+    body: payload.body || '',
+    icon: './icons/icon-192.png',
+    badge: './icons/icon-192.png',
+    tag: payload.tag || 'malwa-crm',
+    data: { url: payload.url || '/' },
+    renotify: true,
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = (event.notification && event.notification.data && event.notification.data.url) || '/';
+  event.waitUntil(
+    (async () => {
+      const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const client of allClients) {
+        if ('focus' in client) {
+          await client.focus();
+          if ('navigate' in client) {
+            try {
+              await client.navigate(targetUrl);
+              return;
+            } catch {
+              /* fall through */
+            }
+          }
+          client.postMessage({ type: 'MALWA_NOTIFICATION_CLICK', url: targetUrl });
+          return;
+        }
+      }
+      if (self.clients.openWindow) {
+        await self.clients.openWindow(targetUrl);
+      }
+    })(),
+  );
+});
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;

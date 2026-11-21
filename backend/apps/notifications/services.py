@@ -11,18 +11,25 @@ def notify(dedupe_key, title, *, message='', category='General', severity='info'
 
     Returns (notification, created). Non-CRM channels are stored with the
     notification so a future WhatsApp / Email / SMS dispatcher can pick them up.
+    Newly created CRM rows also enqueue Web Push when VAPID is configured.
     """
     existing = Notification.objects.filter(dedupe_key=dedupe_key).first()
     if existing:
         return existing, False
     try:
-        return Notification.objects.create(
+        row = Notification.objects.create(
             dedupe_key=dedupe_key[:200], title=title[:255], message=message, category=category,
             severity=severity, module=module or '', user=user,
             link=link[:255], plant=plant, channel=channel,
-        ), True
+        )
     except IntegrityError:
         return Notification.objects.get(dedupe_key=dedupe_key[:200]), False
+    try:
+        from .push import enqueue_web_push
+        enqueue_web_push(row)
+    except Exception:
+        pass
+    return row, True
 
 
 def viewable_modules(user):

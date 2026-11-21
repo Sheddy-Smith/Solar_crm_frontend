@@ -1,8 +1,13 @@
-from rest_framework import viewsets, mixins
+import hashlib
+
+from django.conf import settings
+from rest_framework import viewsets, mixins, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from .models import PushSubscription
+from .push import vapid_configured
 from .serializers import NotificationSerializer
 from .services import notifications_for
 
@@ -52,3 +57,44 @@ class NotificationViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
         unread = list(notifications_for(request.user).exclude(read_by=request.user))
         request.user.read_notifications.add(*unread)
         return Response({'marked': len(unread)})
+
+    @action(detail=False, methods=['get'], url_path='push-vapid-public-key')
+    def push_vapid_public_key(self, request):
+        if not vapid_configured():
+            return Response({'configured': False, 'publicKey': ''}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        return Response({
+            'configured': True,
+            'publicKey': settings.VAPID_PUBLIC_KEY,
+        })
+
+    @action(detail=False, methods=['post'], url_path='push-subscription')
+    def push_subscription(self, request):
+        endpoint = (request.data.get('endpoint') or '').strip()
+        keys = request.data.get('keys') or {}
+        p256dh = (keys.get('p256dh') or request.data.get('p256dh') or '').strip()
+        auth = (keys.get('auth') or request.data.get('auth') or '').strip()
+        if not endpoint or not p256dh or not auth:
+            return Response({'detail': 'endpoint, p256dh and auth are required.'}, status=status.HTTP_400_BAD_REQUEST)
+        endpoint_hash = hashlib.sha256(endpoint.encode('utf-8')).hexdigest()
+        user_agent = (request.META.get('HTTP_USER_AGENT') or '')[:255]
+        row, _created = PushSubscription.objects.update_or_create(
+            endpoint_hash=endpoint_hash,
+            defaults={
+                'user': request.user,
+                'endpoint': endpoint,
+                'p256dh': p256dh,
+                'auth': auth,
+                'user_agent': user_agent,
+            },
+        )
+        return Response({'id': row.id, 'ok': True})
+
+    @action(detail=False, methods=['post'], url_path='push-subscription/delete')
+    def push_subscription_delete(self, request):
+        endpoint = (request.data.get('endpoint') or '').strip()
+        qs = PushSubscription.objects.filter(user=request.user)
+        if endpoint:
+            endpoint_hash = hashlib.sha256(endpoint.encode('utf-8')).hexdigest()
+            qs = qs.filter(endpoint_hash=endpoint_hash)
+        deleted, _ = qs.delete()
+        return Response({'deleted': deleted})

@@ -1,26 +1,24 @@
-// Malwa Solar CRM — minimal PWA service worker.
+// Malwa Solar CRM — PWA service worker (installability + asset refresh only).
 //
-// Goals (in priority order):
-//   1. Never break the live app or its API calls.
-//   2. Satisfy PWA "installability" requirements (fetch handler + manifest).
-//   3. Provide a small offline fallback for the app shell.
+// IMPORTANT: Do NOT intercept navigations. Cloudflare / bot checks / HTTP errors
+// must reach the browser. A previous SW that wrapped navigations caused a fake
+// "Connection needed" screen while Wi‑Fi was fine, and stuck installed PWAs.
 //
-// Strategy:
-//   - Navigation requests (HTML): network-first, falling back to the last
-//     cached shell only when fully offline. We deliberately do NOT cache
-//     index.html on every load — after a new deploy, Vite emits new
-//     content-hashed JS/CSS filenames, so a stale cached index.html could
-//     reference assets that no longer exist on the server.
-//   - Same-origin build assets (/assets/*, hashed JS/CSS/fonts/images):
-//     cache-first with a background refresh. Safe because each new build
-//     produces new hashed filenames — nothing is ever "stale" in place.
-//   - Everything else (API calls, cross-origin requests, auth endpoints):
-//     left completely untouched — the browser handles them natively.
+// BUILD_ID is stamped at `vite build` time (see vite.config.js).
 
-const VERSION = 'malwa-solar-crm-v89';
-const RUNTIME_CACHE = `${VERSION}-runtime`;
+const BUILD_ID = '__MALWA_BUILD_ID__';
+const VERSION = 'malwa-solar-crm-' + BUILD_ID;
+const RUNTIME_CACHE = VERSION + '-runtime';
+const APP_CACHE_PREFIX = 'malwa-solar-crm-';
 
 self.addEventListener('install', (event) => {
+  // Drop any previous generation immediately.
+  event.waitUntil(self.skipWaiting());
+});
+
+self.addEventListener('message', (event) => {
+  const data = event && event.data;
+  if (!data || data.type !== 'SKIP_WAITING') return;
   self.skipWaiting();
 });
 
@@ -30,7 +28,13 @@ self.addEventListener('activate', (event) => {
       const keys = await caches.keys();
       await Promise.all(
         keys
-          .filter((key) => key.startsWith('malwa-solar-crm-') && key !== RUNTIME_CACHE)
+          .filter((key) => key.startsWith(APP_CACHE_PREFIX) && key !== RUNTIME_CACHE)
+          .map((key) => caches.delete(key)),
+      );
+      // Aggressively clear legacy caches from malwa-solar-crm-v* workers.
+      await Promise.all(
+        keys
+          .filter((key) => key.startsWith('malwa-solar-crm-v') || key === 'malwa-solar-crm-v90-runtime')
           .map((key) => caches.delete(key)),
       );
       await self.clients.claim();
@@ -39,12 +43,83 @@ self.addEventListener('activate', (event) => {
 });
 
 function isApiRequest(url) {
-  return url.pathname.startsWith('/api/');
+  return /\/api\//.test(url.pathname);
+}
+
+function isPassthrough(url) {
+  const path = url.pathname;
+  return (
+    path.includes('/downloads/') ||
+    path.includes('/.well-known/') ||
+    /\/sw(?:-[\da-f]+)?\.js$/i.test(path) ||
+    path.endsWith('/build-id.json') ||
+    path.endsWith('/version.json') ||
+    path.endsWith('/recover.html')
+  );
 }
 
 function isBuildAsset(url) {
-  return url.pathname.startsWith('/assets/') || url.pathname.startsWith('/icons/');
+  const path = url.pathname;
+  return path.includes('/assets/') || path.includes('/icons/');
 }
+
+function isScriptOrStyle(url) {
+  return /\.(?:js|mjs|css)$/i.test(url.pathname);
+}
+
+self.addEventListener('push', (event) => {
+  let payload = { title: 'Malwa Solar CRM', body: '', url: '/', tag: 'malwa-crm' };
+  try {
+    if (event.data) {
+      const parsed = event.data.json();
+      payload = { ...payload, ...parsed };
+    }
+  } catch {
+    try {
+      payload.body = event.data ? event.data.text() : '';
+    } catch {
+      /* ignore */
+    }
+  }
+  const title = payload.title || 'Malwa Solar CRM';
+  const options = {
+    body: payload.body || '',
+    icon: './icons/icon-192.png',
+    badge: './icons/icon-192.png',
+    tag: payload.tag || 'malwa-crm',
+    data: { url: payload.url || '/' },
+    renotify: true,
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = (event.notification && event.notification.data && event.notification.data.url) || '/';
+  event.waitUntil(
+    (async () => {
+      const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const client of allClients) {
+        if ('focus' in client) {
+          await client.focus();
+          if ('navigate' in client) {
+            try {
+              await client.navigate(targetUrl);
+              return;
+            } catch {
+              /* fall through */
+            }
+          }
+          client.postMessage({ type: 'MALWA_NOTIFICATION_CLICK', url: targetUrl });
+          return;
+        }
+      }
+      if (self.clients.openWindow) {
+        await self.clients.openWindow(targetUrl);
+      }
+    })(),
+  );
+});
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
@@ -52,39 +127,44 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-  if (isApiRequest(url)) return; // never intercept API/auth traffic
 
-  if (request.mode === 'navigate') {
-    event.respondWith(
-      (async () => {
+  // Never touch navigations — browser talks to the network / Cloudflare directly.
+  if (request.mode === 'navigate' || request.destination === 'document') return;
+
+  if (isApiRequest(url) || isPassthrough(url)) return;
+
+  if (!isBuildAsset(url)) return;
+
+  event.respondWith(
+    (async () => {
+      const cache = await caches.open(RUNTIME_CACHE);
+      if (isScriptOrStyle(url)) {
         try {
-          const response = await fetch(request);
-          const cache = await caches.open(RUNTIME_CACHE);
-          cache.put('/', response.clone());
-          return response;
-        } catch {
-          const cache = await caches.open(RUNTIME_CACHE);
-          const cached = await cache.match('/');
-          return cached || Response.error();
+          const response = await fetch(request, { credentials: 'same-origin' });
+          if (response && response.ok) {
+            cache.put(request, response.clone());
+          }
+          if (response) return response;
+        } catch (e) {
+          /* try cache */
         }
-      })(),
-    );
-    return;
-  }
-
-  if (isBuildAsset(url)) {
-    event.respondWith(
-      (async () => {
-        const cache = await caches.open(RUNTIME_CACHE);
         const cached = await cache.match(request);
-        const networkFetch = fetch(request)
-          .then((response) => {
-            if (response && response.ok) cache.put(request, response.clone());
-            return response;
-          })
-          .catch(() => null);
-        return cached || (await networkFetch) || Response.error();
-      })(),
-    );
-  }
+        if (cached) return cached;
+        return new Response('/* offline */', {
+          status: 503,
+          headers: { 'Content-Type': 'application/javascript' },
+        });
+      }
+
+      const cached = await cache.match(request);
+      if (cached) return cached;
+      try {
+        const response = await fetch(request, { credentials: 'same-origin' });
+        if (response && response.ok) cache.put(request, response.clone());
+        return response;
+      } catch (e) {
+        return new Response('', { status: 503, statusText: 'Offline' });
+      }
+    })(),
+  );
 });

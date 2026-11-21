@@ -259,6 +259,11 @@ EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='Malwa Solar CRM <noreply@malwasolar.com>')
 
+# Web Push (VAPID) — optional until keys are generated (`manage.py generate_vapid_keys`).
+VAPID_PUBLIC_KEY = env('VAPID_PUBLIC_KEY', default='')
+VAPID_PRIVATE_KEY = env('VAPID_PRIVATE_KEY', default='')
+VAPID_SUBJECT = env('VAPID_SUBJECT', default='mailto:noreply@malwasolar.com')
+
 CELERY_TIMEZONE = 'Asia/Kolkata'
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_ACKS_LATE = True

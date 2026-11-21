@@ -108,3 +108,82 @@ class LatestFollowUpWinsTests(TestCase):
 
         self.planned.refresh_from_db()
         self.assertEqual(self.planned.status, 'Missed')
+
+
+class FollowUpBumpsLastActivityTests(TestCase):
+    """Recent Leads / Lead List sort by last_activity_at — follow-ups must bump it."""
+
+    def setUp(self):
+        self.user = make_user('fu-activity@test.com')
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+        self.older = timezone.now() - timedelta(hours=5)
+        self.lead_a = Lead.objects.create(
+            customer_name='Activity Lead A',
+            mobile_number='7700010091',
+            created_by=self.user,
+            assigned_to=self.user,
+            status='Follow-up',
+            last_activity_at=self.older,
+        )
+        self.lead_b = Lead.objects.create(
+            customer_name='Activity Lead B',
+            mobile_number='7700010092',
+            created_by=self.user,
+            assigned_to=self.user,
+            status='New',
+            last_activity_at=timezone.now() - timedelta(hours=1),
+        )
+
+    def test_follow_up_create_bumps_last_activity_and_recent_order(self):
+        before = self.lead_a.last_activity_at
+        res = self.client.post(
+            '/api/v1/follow-ups/',
+            {
+                'lead': self.lead_a.id,
+                'follow_up_type': 'Call',
+                'scheduled_at': timezone.now().isoformat(),
+                'completed_at': timezone.now().isoformat(),
+                'status': 'Completed',
+                'notes': 'Customer call logged',
+            },
+            format='json',
+        )
+        self.assertEqual(res.status_code, 201, res.data)
+        self.lead_a.refresh_from_db()
+        self.assertIsNotNone(self.lead_a.last_activity_at)
+        self.assertGreater(self.lead_a.last_activity_at, before)
+
+        recent = self.client.get('/api/v1/leads/recent/?limit=5')
+        self.assertEqual(recent.status_code, 200, recent.data)
+        ids = [row['id'] for row in recent.data]
+        self.assertEqual(ids[0], self.lead_a.id)
+        self.assertIn(self.lead_b.id, ids)
+
+    def test_follow_up_update_bumps_last_activity(self):
+        create = self.client.post(
+            '/api/v1/follow-ups/',
+            {
+                'lead': self.lead_a.id,
+                'follow_up_type': 'Call',
+                'scheduled_at': (timezone.now() + timedelta(days=1)).isoformat(),
+                'status': 'Scheduled',
+                'notes': 'Plan call',
+            },
+            format='json',
+        )
+        self.assertEqual(create.status_code, 201, create.data)
+        self.lead_a.refresh_from_db()
+        mid = self.lead_a.last_activity_at
+        Lead.objects.filter(pk=self.lead_a.pk).update(last_activity_at=self.older)
+        self.lead_a.refresh_from_db()
+
+        patch = self.client.patch(
+            f'/api/v1/follow-ups/{create.data["id"]}/',
+            {'notes': 'Updated remarks after call', 'status': 'Completed', 'completed_at': timezone.now().isoformat()},
+            format='json',
+        )
+        self.assertEqual(patch.status_code, 200, patch.data)
+        self.lead_a.refresh_from_db()
+        self.assertGreater(self.lead_a.last_activity_at, self.older)
+        self.assertGreaterEqual(self.lead_a.last_activity_at, mid)

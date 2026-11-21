@@ -438,7 +438,39 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
         return qs.filter(filt) if filt else qs
 
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        work = serializer.save(created_by=self.request.user)
+        self._notify_assignee(work)
+
+    def perform_update(self, serializer):
+        previous_assignee_id = serializer.instance.assignee_id
+        work = serializer.save()
+        if work.assignee_id and work.assignee_id != previous_assignee_id:
+            self._notify_assignee(work)
+
+    def _notify_assignee(self, work):
+        if not work or not work.assignee_id:
+            return
+        actor = getattr(getattr(self, 'request', None), 'user', None)
+        if actor and actor.id == work.assignee_id:
+            return
+        from apps.accounts.models import User
+        from apps.notifications.services import notify
+
+        assigner = User.public_display_name(actor) if actor else 'Manager'
+        project_name = ''
+        if work.project_id:
+            project_name = work.project.project_name or work.project.project_id or ''
+        notify(
+            f'work-order-assigned-{work.pk}-{work.assignee_id}',
+            f'Task assigned: {work.task or work.order_id or "Work Order"}',
+            message=' • '.join(x for x in [f'Assigned by {assigner}', project_name, work.category or ''] if x),
+            category='Task',
+            severity='upcoming',
+            module='Project Management',
+            user=work.assignee,
+            link=f'/projects?work_order={work.pk}',
+            channel='crm',
+        )
 
 
 class JobSheetViewSet(viewsets.ModelViewSet):
