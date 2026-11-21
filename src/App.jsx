@@ -2467,8 +2467,29 @@ function App() {
     } else {
       setActiveSidebarItem(section);
     }
+    // Keep URL in sync so notification deep-links (PWA/TWA tap) land on the right page.
+    try {
+      const nextPath = `${url.pathname}${url.search || ''}`;
+      if (window.location.pathname + window.location.search !== nextPath) {
+        window.history.pushState({}, '', nextPath);
+      }
+    } catch {
+      /* ignore */
+    }
     closeMobileSidebar();
   }, [openOmSection, closeMobileSidebar]);
+
+  // Service worker notificationclick → focus CRM and open deep-link.
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return undefined;
+    const onMessage = (event) => {
+      const data = event?.data;
+      if (!data || data.type !== 'MALWA_NOTIFICATION_CLICK') return;
+      if (data.url) openNotificationLink(data.url);
+    };
+    navigator.serviceWorker.addEventListener('message', onMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', onMessage);
+  }, [openNotificationLink]);
   const [selectedLead, setSelectedLead] = useState(() => {
     const id = Number(initialRoute.params.leadId);
     return Number.isFinite(id) && id > 0 ? { id } : null;
@@ -5300,7 +5321,7 @@ function NotificationMenu({ onOpenLink, onChanged, onViewAll }) {
                   <span className="mt-1 line-clamp-2 block text-[12px] font-bold leading-5 text-[#53647f] dark:text-slate-300">{item.message}</span>
                 ) : null}
                 <span className="mt-1 block text-[11px] font-extrabold text-[#8a98af]">
-                  {[item.category, item.plant_code, timeAgo(item.created_at)].filter(Boolean).join(' · ')}
+                  {[item.module || item.category, item.plant_code, timeAgo(item.created_at)].filter(Boolean).join(' · ')}
                 </span>
               </span>
               {item.link ? <ChevronRight className="mt-2 size-4 shrink-0 text-[#91a3bd]" /> : null}
