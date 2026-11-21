@@ -246,7 +246,8 @@ async function refreshAccessToken() {
 
 /** Short-lived GET cache + in-flight dedupe for hot poll / shell paths. */
 const GET_SOFT_CACHE_MS = {
-  '/notifications/unread-count/': 20000,
+  // Keep unread-count short so FE+BE double-cache does not hide new task badges.
+  '/notifications/unread-count/': 5000,
   '/users/me/': 45000,
   '/leads/stats/': 15000,
   '/leads/recent/': 15000,
@@ -256,7 +257,7 @@ const GET_SOFT_CACHE_MS = {
 const GET_SOFT_CACHE_PREFIX_MS = [
   { prefix: '/leads/stats/', ttl: 15000 },
   { prefix: '/dashboard/unified/', ttl: 30000 },
-  { prefix: '/notifications/', ttl: 12000 },
+  // Do not soft-cache notification list rows — toast/badge need fresh unread pages.
 ];
 const getSoftCache = new Map();
 const getInflight = new Map();
@@ -291,7 +292,7 @@ function trimSoftGetCache() {
   }
 }
 
-function invalidateSoftGetCache(pathPrefix) {
+export function invalidateSoftGetCache(pathPrefix) {
   for (const key of getSoftCache.keys()) {
     if (key.includes(pathPrefix)) getSoftCache.delete(key);
   }
@@ -442,7 +443,11 @@ export const authApi = {
     return data;
   },
   me: () => request('/users/me/'),
-  updatePreferences: (prefs) => request('/users/me/preferences/', { method: 'PATCH', body: prefs }),
+  updatePreferences: async (prefs) => {
+    const data = await request('/users/me/preferences/', { method: 'PATCH', body: prefs });
+    invalidateSoftGetCache('/users/me/');
+    return data;
+  },
   verifyPassword: (password) => request('/users/verify-password/', { method: 'POST', body: { password } }),
   logout: async () => {
     const refresh = tokenStore.getRefresh();
@@ -801,16 +806,25 @@ export const followUpApi = {
   },
   create: async (data) => {
     const row = await request('/follow-ups/', { method: 'POST', body: data });
+    invalidateSoftGetCache('/leads/recent/');
+    invalidateSoftGetCache('/leads/stats/');
+    invalidateSoftGetCache('/dashboard/unified/');
     emitFollowUpActivity({ id: row?.id, lead: data?.lead ?? row?.lead });
     return row;
   },
   update: async (id, data) => {
     const row = await request(`/follow-ups/${id}/`, { method: 'PATCH', body: data });
+    invalidateSoftGetCache('/leads/recent/');
+    invalidateSoftGetCache('/leads/stats/');
+    invalidateSoftGetCache('/dashboard/unified/');
     emitFollowUpActivity({ id, lead: data?.lead ?? row?.lead });
     return row;
   },
   delete: async (id) => {
     const row = await request(`/follow-ups/${id}/`, { method: 'DELETE' });
+    invalidateSoftGetCache('/leads/recent/');
+    invalidateSoftGetCache('/leads/stats/');
+    invalidateSoftGetCache('/dashboard/unified/');
     emitFollowUpActivity({ id, deleted: true });
     return row;
   },
@@ -1291,11 +1305,13 @@ export const notificationApi = {
   markRead: async (ids) => {
     const data = await request('/notifications/mark-read/', { method: 'POST', body: { ids } });
     invalidateSoftGetCache('/notifications/unread-count/');
+    invalidateSoftGetCache('/notifications/');
     return data;
   },
   markAllRead: async () => {
     const data = await request('/notifications/mark-all-read/', { method: 'POST', body: {} });
     invalidateSoftGetCache('/notifications/unread-count/');
+    invalidateSoftGetCache('/notifications/');
     return data;
   },
   pushVapidPublicKey: () => request('/notifications/push-vapid-public-key/'),

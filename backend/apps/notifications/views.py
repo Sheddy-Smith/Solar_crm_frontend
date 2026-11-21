@@ -32,7 +32,11 @@ class NotificationViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
         return qs
 
     def list(self, request, *args, **kwargs):
-        limit = min(int(request.query_params.get('limit') or 30), 100)
+        raw_limit = request.query_params.get('limit') or 30
+        try:
+            limit = min(max(int(raw_limit), 1), 100)
+        except (TypeError, ValueError):
+            limit = 30
         items = list(self.get_queryset()[:limit])
         # Only check read state for the page — avoid loading the full M2M set.
         page_ids = [row.id for row in items]

@@ -5,12 +5,14 @@ from django.db.models import Q
 from apps.accounts.permissions import is_super_admin
 from .models import Notification
 
-UNREAD_CACHE_TTL = 20
+UNREAD_CACHE_TTL = 5
 VIEWABLE_MODULES_TTL = 60
+UNREAD_GEN_KEY = 'notif_unread_gen_v1'
 
 
 def unread_cache_key(user_id):
-    return f'notif_unread_v1:{user_id}'
+    gen = cache.get(UNREAD_GEN_KEY) or 0
+    return f'notif_unread_v1:{gen}:{user_id}'
 
 
 def viewable_modules_cache_key(role_id):
@@ -20,6 +22,17 @@ def viewable_modules_cache_key(role_id):
 def invalidate_unread_cache(user_id=None):
     if user_id:
         cache.delete(unread_cache_key(user_id))
+        return
+    # Broadcast / unknown audience — bump generation so every user's unread key misses.
+    try:
+        cache.incr(UNREAD_GEN_KEY)
+    except ValueError:
+        cache.add(UNREAD_GEN_KEY, 1)
+
+
+def invalidate_viewable_modules_cache(role_id=None):
+    if role_id:
+        cache.delete(viewable_modules_cache_key(role_id))
 
 
 def notify(dedupe_key, title, *, message='', category='General', severity='info',
@@ -43,6 +56,8 @@ def notify(dedupe_key, title, *, message='', category='General', severity='info'
         return Notification.objects.get(dedupe_key=dedupe_key[:200]), False
     if user is not None and getattr(user, 'pk', None):
         invalidate_unread_cache(user.pk)
+    else:
+        invalidate_unread_cache(None)
     try:
         from .push import enqueue_web_push
         enqueue_web_push(row)

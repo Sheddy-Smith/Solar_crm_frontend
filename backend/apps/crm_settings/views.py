@@ -259,7 +259,26 @@ class UserActivityLogViewSet(SettingsPermissionMixin, viewsets.ReadOnlyModelView
     serializer_class = UserActivityLogSerializer
     search_fields = ['user_name', 'action', 'module', 'description', 'ip_address']
     ordering = ['-created_at']
-    filterset_fields = ['module', 'status', 'action']
+    filterset_fields = ['module', 'status', 'action', 'user']
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        params = self.request.query_params
+        created_from = (params.get('created_from') or params.get('date_from') or '').strip()
+        created_to = (params.get('created_to') or params.get('date_to') or '').strip()
+        try:
+            if created_from:
+                qs = qs.filter(created_at__date__gte=created_from)
+            if created_to:
+                qs = qs.filter(created_at__date__lte=created_to)
+        except (TypeError, ValueError):
+            pass
+        raw_users = (params.get('user_ids') or '').strip()
+        if raw_users and not params.get('user'):
+            user_ids = [part.strip() for part in raw_users.split(',') if part.strip().isdigit()]
+            if user_ids:
+                qs = qs.filter(user_id__in=user_ids)
+        return qs
 
 
 class IpAccessRuleViewSet(SettingsPermissionMixin, viewsets.ModelViewSet):

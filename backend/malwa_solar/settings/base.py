@@ -279,5 +279,20 @@ CELERY_BROKER_TRANSPORT_OPTIONS = {
     'socket_connect_timeout': env.int('CELERY_BROKER_CONNECT_TIMEOUT', default=5),
     'socket_timeout': env.int('CELERY_BROKER_SOCKET_TIMEOUT', default=15),
 }
+# Daily Task due/upcoming CRM + Web Push reminders (requires celery beat when Redis is live).
+try:
+    from celery.schedules import crontab
+    CELERY_BEAT_SCHEDULE = {
+        'notifications-notify-due-daily-tasks': {
+            'task': 'notifications.notify_due_daily_tasks',
+            'schedule': crontab(hour=8, minute=0),
+        },
+        'notifications-notify-upcoming-daily-tasks': {
+            'task': 'notifications.notify_upcoming_daily_tasks',
+            'schedule': crontab(hour=9, minute=0),
+        },
+    }
+except Exception:  # pragma: no cover — celery optional in some tooling
+    CELERY_BEAT_SCHEDULE = {}
 # Large exports/imports must not run inline on API workers unless explicitly allowed.
 ALLOW_EAGER_EXPORTS = env.bool('ALLOW_EAGER_EXPORTS', default=False)

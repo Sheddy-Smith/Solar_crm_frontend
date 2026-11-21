@@ -1,3 +1,4 @@
+import logging
 import threading
 import time
 from collections import defaultdict, deque
@@ -24,6 +25,7 @@ from .serializers import (
 from .permissions import HasModulePermission, is_super_admin
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 class LogoutView(APIView):
@@ -260,6 +262,11 @@ class RoleViewSet(viewsets.ModelViewSet):
                 if field in entry:
                     setattr(perm, field, bool(entry[field]))
             perm.save()
+        try:
+            from apps.notifications.services import invalidate_viewable_modules_cache
+            invalidate_viewable_modules_cache(role.id)
+        except Exception:
+            logger.exception('Failed to invalidate viewable_modules cache for role_id=%s', role.id)
         ordered = [existing[module] for module, _ in RolePermission.MODULE_CHOICES]
         return Response(RolePermissionSerializer(ordered, many=True).data)
 

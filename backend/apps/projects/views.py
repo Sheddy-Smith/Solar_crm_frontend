@@ -460,6 +460,11 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
         project_name = ''
         if work.project_id:
             project_name = work.project.project_name or work.project.project_id or ''
+        # Prefer project-scoped Work Orders route so FE can set selectedProject + focus row.
+        if work.project_id:
+            deep_link = f'/projects/work-orders/{work.project_id}?work_order={work.pk}'
+        else:
+            deep_link = '/projects/list'
         notify(
             f'work-order-assigned-{work.pk}-{work.assignee_id}',
             f'Task assigned: {work.task or work.order_id or "Work Order"}',
@@ -468,7 +473,7 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
             severity='upcoming',
             module='Project Management',
             user=work.assignee,
-            link=f'/projects?work_order={work.pk}',
+            link=deep_link,
             channel='crm',
         )
 

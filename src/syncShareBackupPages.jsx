@@ -666,39 +666,6 @@ function toDisplayDate(isoDate) {
   return `${day}/${month}/${year}`;
 }
 
-function periodBounds(period, customFrom, customTo) {
-  const now = new Date();
-  const start = new Date(now);
-  const end = new Date(now);
-  end.setHours(23, 59, 59, 999);
-
-  if (period === 'Today') {
-    start.setHours(0, 0, 0, 0);
-  } else if (period === 'This Week') {
-    const day = start.getDay();
-    const diff = day === 0 ? 6 : day - 1;
-    start.setDate(start.getDate() - diff);
-    start.setHours(0, 0, 0, 0);
-  } else if (period === 'This Month') {
-    start.setDate(1);
-    start.setHours(0, 0, 0, 0);
-  } else if (period === 'This Quarter') {
-    const quarterStart = Math.floor(start.getMonth() / 3) * 3;
-    start.setMonth(quarterStart, 1);
-    start.setHours(0, 0, 0, 0);
-  } else if (period === 'This Year') {
-    start.setMonth(0, 1);
-    start.setHours(0, 0, 0, 0);
-  } else if (period === 'Custom') {
-    const from = customFrom ? new Date(`${customFrom}T00:00:00`) : new Date(0);
-    const to = customTo ? new Date(`${customTo}T23:59:59`) : end;
-    return { start: from, end: to };
-  } else {
-    start.setTime(0);
-  }
-  return { start, end };
-}
-
 function actionTone(action) {
   const value = String(action || '').toUpperCase();
   if (value.includes('DELETE') || value.includes('REMOVE')) return 'bg-[#fce7f3] text-[#be185d]';
@@ -726,14 +693,24 @@ function UsersActivityPage({ onNotify, onOpenSection }) {
 
   const load = useCallback(() => {
     setLoading(true);
+    const activityParams = {
+      ordering: '-created_at',
+      created_from: dateFrom || undefined,
+      created_to: dateTo || undefined,
+    };
+    if (selectedUserIds.length === 1) {
+      activityParams.user = selectedUserIds[0];
+    } else if (selectedUserIds.length > 1) {
+      activityParams.user_ids = selectedUserIds.join(',');
+    }
     Promise.all([
       fetchEveryPage(
         (page, pageSize) => settingsApi.activityLogs.list({
+          ...activityParams,
           page,
           page_size: pageSize,
-          ordering: '-created_at',
         }),
-        { pageSize: API_MAX_PAGE_SIZE, maxPages: 10 },
+        { pageSize: API_MAX_PAGE_SIZE, maxPages: 40 },
       ),
       fetchEveryPage(
         (page, pageSize) => userApi.list({ page, page_size: pageSize }),
@@ -750,7 +727,7 @@ function UsersActivityPage({ onNotify, onOpenSection }) {
         onNotify?.('Activity log could not be loaded.', 'error');
       })
       .finally(() => setLoading(false));
-  }, [onNotify]);
+  }, [onNotify, dateFrom, dateTo, selectedUserIds]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -818,15 +795,8 @@ function UsersActivityPage({ onNotify, onOpenSection }) {
     });
   };
 
-  const filtered = useMemo(() => {
-    const { start, end } = periodBounds(period === 'Custom' ? 'Custom' : period, dateFrom, dateTo);
-    return rows.filter((row) => {
-      const when = new Date(row.created_at);
-      if (!Number.isNaN(when.getTime()) && (when < start || when > end)) return false;
-      if (selectedUserIds.length === 0) return true;
-      return selectedUserIds.includes(String(row.user ?? ''));
-    });
-  }, [rows, period, dateFrom, dateTo, selectedUserIds]);
+  // Server already scopes by created_from/created_to/user — keep rows as returned.
+  const filtered = rows;
 
   const userFilterLabel = selectedUserIds.length === 0
     ? 'All Users'

@@ -70,7 +70,7 @@ class StaffTaskAssignmentNotifyTests(TestCase):
         )
         self.assertEqual(Notification.objects.filter(user=self.assignee, category='Task').count(), 1)
 
-    def test_self_assignment_skips_notification(self):
+    def test_self_assignment_still_notifies(self):
         res = self.client.post(
             '/api/v1/daily-tasks/assignments/',
             {
@@ -82,4 +82,4 @@ class StaffTaskAssignmentNotifyTests(TestCase):
             format='json',
         )
         self.assertEqual(res.status_code, 201, res.data)
-        self.assertFalse(Notification.objects.filter(user=self.assigner, category='Task').exists())
+        self.assertTrue(Notification.objects.filter(user=self.assigner, category='Task').exists())

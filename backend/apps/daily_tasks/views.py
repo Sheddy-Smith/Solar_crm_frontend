@@ -93,9 +93,6 @@ class StaffDailyTaskViewSet(viewsets.ModelViewSet):
         """Persist an in-app (and Web Push) alert for the assigned user only."""
         if not task or not task.assigned_to_id:
             return
-        # Skip self-assignment noise unless someone else is watching the same user later.
-        if task.assigned_by_id and task.assigned_by_id == task.assigned_to_id:
-            return
         from apps.accounts.models import User
         from apps.notifications.services import notify
 

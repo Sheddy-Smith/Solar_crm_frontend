@@ -17,6 +17,7 @@ import {
   omAssetApi, omSparePartApi, omReportApi, omDocumentApi, notificationApi,
   inventoryApi, amcModuleApi, reportsApi, settingsApi, siteSurveyPhotoApi,   siteSurveyApi,
   getMediaUrl,
+  invalidateSoftGetCache,
   tokenStore,
 } from './api.js';
 import { exportNotifyCsv } from './lib/utils.js';
@@ -148,7 +149,7 @@ import {
   RECENT_ACTIVITY_ORDERING,
   formatRelativeActivity,
 } from './lib/recentAllList.js';
-import { LIST_PAGE_SIZE, LOOKUP_PAGE_SIZE, DASHBOARD_PAGE_SIZE, rowsOf, parseListPage, listParams, fetchEveryPage } from './lib/listQuery.js';
+import { LIST_PAGE_SIZE, LOOKUP_PAGE_SIZE, DASHBOARD_PAGE_SIZE, API_MAX_PAGE_SIZE, rowsOf, parseListPage, listParams, fetchEveryPage } from './lib/listQuery.js';
 import { ensureWebPushSubscription, showForegroundNotification, syncWebPushWithSettings } from './lib/webPush.js';
 import { downloadSurveyPhoto, downloadSurveyPhotosPdf } from './lib/surveyPhotoExport.js';
 import { MobileDashboardPage, MobileBottomNav } from './mobileDashboard.jsx';
@@ -2433,6 +2434,8 @@ function App() {
         setNotificationUnread(next);
         // When unread rises while this session is open, show a desktop/OS banner.
         if (next > prev && loggedInUser) {
+          invalidateSoftGetCache('/notifications/');
+          invalidateSoftGetCache('/notifications/unread-count/');
           notificationApi.list({ limit: 1, unread: 1 }).then((rows) => {
             const item = Array.isArray(rows) ? rows[0] : null;
             if (!item) return;
@@ -2458,10 +2461,10 @@ function App() {
     const pushTimer = window.setTimeout(() => {
       ensureWebPushSubscription().catch(() => {});
     }, 1200);
-    // 90s poll + soft-cache — badge stays fresh without hammering unread-count.
+    // 30s poll + short soft-cache — assignees see new task badges quickly without hammering API.
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') refreshNotificationCount();
-    }, 90000);
+    }, 30000);
     let visibleTimer = 0;
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return;
@@ -2485,8 +2488,18 @@ function App() {
     } catch {
       return;
     }
-    const { section } = resolveSectionFromPath(url.pathname);
+    const { section, params } = resolveSectionFromPath(url.pathname);
     if (!section || !isKnownSection(section)) return;
+    const projectId = Number(params?.projectId);
+    if (Number.isFinite(projectId) && projectId > 0) {
+      setSelectedProject({ id: projectId });
+    }
+    const workOrderId = url.searchParams.get('work_order');
+    if (workOrderId) {
+      try {
+        window.sessionStorage.setItem('crm:focus-work-order', String(workOrderId));
+      } catch { /* ignore */ }
+    }
     if (url.pathname.startsWith('/om/')) {
       openOmSection(section, omFocusFromSearch(url.search));
     } else {
@@ -3021,16 +3034,30 @@ function App() {
     return () => ac.abort();
   }, [canViewLeadModule, currentPage, setDashWidgetError, refreshDashboardRecentLeads, notify]);
 
-  // Follow-up create/update/delete bumps lead last_activity_at — refresh Recent Leads.
+  // Follow-up create/update/delete bumps lead last_activity_at — refresh Recent + widgets.
   useEffect(() => {
     const onFollowUpSaved = () => {
       if (currentPage === 'dashboard' || isDashboardSection) {
+        invalidateSoftGetCache('/leads/recent/');
+        invalidateSoftGetCache('/leads/stats/');
+        invalidateSoftGetCache('/dashboard/unified/');
         refreshDashboardRecentLeads();
+        refreshDashboardLeadStats();
+        refreshDashboardFollowUps();
+      } else {
+        // Still bust unified cache even if user is not on the classic dashboard shell.
+        invalidateSoftGetCache('/dashboard/unified/');
       }
     };
     window.addEventListener('crm:followup-saved', onFollowUpSaved);
     return () => window.removeEventListener('crm:followup-saved', onFollowUpSaved);
-  }, [currentPage, isDashboardSection, refreshDashboardRecentLeads]);
+  }, [
+    currentPage,
+    isDashboardSection,
+    refreshDashboardRecentLeads,
+    refreshDashboardLeadStats,
+    refreshDashboardFollowUps,
+  ]);
 
   const openDashboardSection = (section, message, lead, tab) => {
     if (section === 'Create Lead') {
@@ -4816,6 +4843,10 @@ function App() {
                   openDashboardSection(action.target, `${action.label} opened`);
                 }}
                 onRefresh={() => {
+                  invalidateSoftGetCache('/leads/recent/');
+                  invalidateSoftGetCache('/leads/stats/');
+                  invalidateSoftGetCache('/dashboard/unified/');
+                  invalidateSoftGetCache('/projects/summary/');
                   refreshDashboardLeadStats();
                   refreshDashboardFollowUps();
                   refreshDashboardRecentLeads();
@@ -25651,7 +25682,20 @@ function ProjectWorkOrdersPage({ activeSection, onOpenSection, selectedProject: 
         workOrderApi.list({ project: proj.id }),
       ]);
       setProjectData(fullProject);
-      setOrders(normalizeApiRows(woData));
+      const rows = normalizeApiRows(woData);
+      setOrders(rows);
+      // Notification deep-link: /projects/work-orders/:id?work_order=<pk>
+      try {
+        const focusId = window.sessionStorage.getItem('crm:focus-work-order');
+        if (focusId) {
+          window.sessionStorage.removeItem('crm:focus-work-order');
+          const hit = rows.find((row) => String(row.id) === String(focusId) || String(row.order_id) === String(focusId));
+          if (hit) {
+            setSearchTerm(hit.order_id || hit.task || String(hit.id));
+            setActiveOrderTab('All Work Orders');
+          }
+        }
+      } catch { /* ignore */ }
     } catch { /* ignore */ }
     finally { setLoading(false); }
   }, []);
@@ -25661,6 +25705,16 @@ function ProjectWorkOrdersPage({ activeSection, onOpenSection, selectedProject: 
     userApi.options({ is_active: true }).then((res) => {
       setUserOptions(Array.isArray(res) ? res : res?.results ?? []);
     }).catch(() => {});
+  }, []);
+
+  // Cold load / refresh with ?work_order= in the URL (not only sessionStorage from click).
+  useEffect(() => {
+    try {
+      const fromUrl = new URLSearchParams(window.location.search).get('work_order');
+      if (fromUrl) {
+        window.sessionStorage.setItem('crm:focus-work-order', String(fromUrl));
+      }
+    } catch { /* ignore */ }
   }, []);
 
   useEffect(() => {
@@ -28910,6 +28964,7 @@ function mapActivityLogFromApi(log) {
     id: log.id,
     time: log.created_at ? new Date(log.created_at).toLocaleString('en-IN') : '—',
     user: {
+      id: log.user ?? null,
       name: userName,
       assignee: { name: userName, initials, tone: 'emerald' },
     },
@@ -30021,17 +30076,47 @@ function SettingsUserActivityLogPage({ activeSection = 'Settings User Activity L
   const [status, setStatus] = useState('All Status');
   const [dateFrom, setDateFrom] = useState('2024-04-01');
   const [dateTo, setDateTo] = useState('2025-03-31');
+  const [directoryUsers, setDirectoryUsers] = useState([]); // [{ id, name }]
+
+  useEffect(() => {
+    fetchEveryPage(
+      (page, pageSize) => userApi.list({ page, page_size: pageSize }),
+      { pageSize: API_MAX_PAGE_SIZE, maxPages: 5 },
+    )
+      .then((rows) => {
+        setDirectoryUsers(
+          rows
+            .map((row) => ({ id: row.id, name: row.name || row.email || `User ${row.id}` }))
+            .filter((row) => row.id != null),
+        );
+      })
+      .catch(() => setDirectoryUsers([]));
+  }, []);
 
   useEffect(() => {
     setLoading(true);
-    settingsApi.activityLogs.list()
-      .then((res) => {
-        const list = Array.isArray(res) ? res : (res?.results ?? []);
+    const params = {
+      ordering: '-created_at',
+      created_from: dateFrom || undefined,
+      created_to: dateTo || undefined,
+    };
+    if (action !== 'All Actions') params.action = action;
+    if (moduleName !== 'All Modules') params.module = moduleName;
+    if (status !== 'All Status') params.status = status;
+    if (user !== 'All Users') {
+      const match = directoryUsers.find((row) => row.name === user);
+      if (match?.id != null) params.user = match.id;
+    }
+    fetchEveryPage(
+      (page, pageSize) => settingsApi.activityLogs.list({ ...params, page, page_size: pageSize }),
+      { pageSize: API_MAX_PAGE_SIZE, maxPages: 50 },
+    )
+      .then((list) => {
         setLogs(list.map(mapActivityLogFromApi));
       })
       .catch(() => onNotify?.('Could not load activity logs.', 'error'))
       .finally(() => setLoading(false));
-  }, []);  
+  }, [dateFrom, dateTo, action, moduleName, status, user, directoryUsers, onNotify]);
 
   const filteredLogs = logs.filter((log) => {
     const queryMatch = [log.user.name, log.action, log.module, log.ip, log.description].some((value) => String(value).toLowerCase().includes(query.toLowerCase()));
@@ -30043,7 +30128,9 @@ function SettingsUserActivityLogPage({ activeSection = 'Settings User Activity L
   });
   const { pageRows: pagedLogs, startIndex: logsStartIndex, pagination: logsPagination } = usePagedRows(filteredLogs, 'settings-activity-log', { resetKey: `${query}|${user}|${action}|${moduleName}|${status}` });
 
-  const uniqueUsers = [...new Set(logs.map((log) => log.user.name))];
+  const uniqueUsers = directoryUsers.length
+    ? directoryUsers.map((row) => row.name)
+    : [...new Set(logs.map((log) => log.user.name).filter((name) => name && name !== 'System'))];
   const uniqueActions = [...new Set(logs.map((log) => log.action))];
   const uniqueModules = [...new Set(logs.map((log) => log.module))];
   const todayLabel = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -32979,21 +33066,52 @@ function ActivityLogsPage({ onNotify, onOpenSection }) {
   const [action, setAction] = useState('All Actions');
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [directoryUsers, setDirectoryUsers] = useState([]);
+
+  useEffect(() => {
+    fetchEveryPage(
+      (page, pageSize) => userApi.list({ page, page_size: pageSize }),
+      { pageSize: API_MAX_PAGE_SIZE, maxPages: 5 },
+    )
+      .then((rows) => {
+        setDirectoryUsers(
+          rows
+            .map((row) => ({ id: row.id, name: row.name || row.email || `User ${row.id}` }))
+            .filter((row) => row.id != null),
+        );
+      })
+      .catch(() => setDirectoryUsers([]));
+  }, []);
 
   // BUG-009: this page used to render a hardcoded mock array; it now shares the
   // same real API as SettingsUserActivityLogPage instead of a second fake source.
   useEffect(() => {
     setLoading(true);
-    settingsApi.activityLogs.list()
-      .then((res) => {
-        const list = Array.isArray(res) ? res : (res?.results ?? []);
+    const params = {
+      ordering: '-created_at',
+      created_from: dateFrom || undefined,
+      created_to: dateTo || undefined,
+    };
+    if (moduleName !== 'All Modules') params.module = moduleName;
+    if (action !== 'All Actions') params.action = action;
+    if (user !== 'All Users') {
+      const match = directoryUsers.find((row) => row.name === user);
+      if (match?.id != null) params.user = match.id;
+    }
+    fetchEveryPage(
+      (page, pageSize) => settingsApi.activityLogs.list({ ...params, page, page_size: pageSize }),
+      { pageSize: API_MAX_PAGE_SIZE, maxPages: 50 },
+    )
+      .then((list) => {
         setLogs(list.map(mapActivityLogFromApi));
       })
       .catch(() => onNotify?.('Could not load activity logs.', 'error'))
       .finally(() => setLoading(false));
-  }, []);  
+  }, [dateFrom, dateTo, moduleName, action, user, directoryUsers, onNotify]);
 
-  const uniqueUsers = [...new Set(logs.map((log) => log.user.name))];
+  const uniqueUsers = directoryUsers.length
+    ? directoryUsers.map((row) => row.name)
+    : [...new Set(logs.map((log) => log.user.name))];
 
   const filteredLogs = logs.filter((log) => {
     const userMatch = user === 'All Users' || log.user.name === user;
