@@ -710,12 +710,10 @@ function UsersActivityPage({ onNotify, onOpenSection }) {
           page,
           page_size: pageSize,
         }),
-        { pageSize: API_MAX_PAGE_SIZE, maxPages: 40 },
+        // Cap audit walk — Sync/Share activity panel must not freeze the shell.
+        { pageSize: 50, maxPages: 2 },
       ),
-      fetchEveryPage(
-        (page, pageSize) => userApi.list({ page, page_size: pageSize }),
-        { pageSize: API_MAX_PAGE_SIZE, maxPages: 5 },
-      ).catch(() => []),
+      userApi.options({ is_active: true, page_size: 50 }).catch(() => []),
     ])
       .then(([activityRows, userData]) => {
         setRows(activityRows);

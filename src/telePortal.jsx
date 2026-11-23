@@ -1368,9 +1368,10 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
   const [addLeadOpen, setAddLeadOpen] = useState(false);
 
   const loadLeads = () => {
+    // Cap boot crawl — Tele used to pull up to 500 leads before first paint.
     fetchEveryPage(
       (page, pageSize) => leadApi.list({ page, page_size: pageSize, ordering: '-last_activity_at,-created_at' }),
-      { maxPages: 5 },
+      { pageSize: 50, maxPages: 2 },
     )
       .then((rows) => setLeads(rows))
       .catch(() => { setLeads([]); onNotify('Leads could not be loaded.', 'error'); });
@@ -1380,8 +1381,8 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
     Promise.all([
       fetchEveryPage((page, pageSize) => followUpApi.listAll({
         page, page_size: pageSize, status: 'Scheduled', ordering: 'scheduled_at',
-      }), { maxPages: 5 }),
-      followUpApi.listAll({ page_size: 100, ordering: '-created_at' }),
+      }), { pageSize: 50, maxPages: 2 }),
+      followUpApi.listAll({ page_size: 50, ordering: '-created_at' }),
     ]).then(([scheduled, recent]) => {
       setFollowUps(mergeFollowUpRows(scheduled, rowsOf(recent)));
     }).catch(() => { setFollowUps([]); onNotify('Follow-ups could not be loaded.', 'error'); });

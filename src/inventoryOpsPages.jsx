@@ -90,7 +90,7 @@ export function InventoryMovementsPage({
     Promise.all([
       fetchEveryPage((page, pageSize) => inventoryApi.movements.list({
         page, page_size: pageSize, movement_type: movementType, ordering: '-created_at',
-      })).catch(() => []),
+      }), { pageSize: 100, maxPages: 3 }).catch(() => []),
       inventoryApi.items.list({ page_size: 200 }).catch(() => ({ results: [] })),
       inventoryApi.warehouses.list({ page_size: 100 }).catch(() => ({ results: [] })),
     ])

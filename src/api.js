@@ -257,11 +257,41 @@ const GET_SOFT_CACHE_MS = {
 const GET_SOFT_CACHE_PREFIX_MS = [
   { prefix: '/leads/stats/', ttl: 15000 },
   { prefix: '/dashboard/unified/', ttl: 30000 },
+  // Dashboard follow-up widgets share the same list params for a few seconds.
+  { prefix: '/follow-ups/', ttl: 10000 },
   // Do not soft-cache notification list rows — toast/badge need fresh unread pages.
 ];
 const getSoftCache = new Map();
 const getInflight = new Map();
 const GET_SOFT_CACHE_MAX = 80;
+
+/** Reject only this waiter when AbortSignal fires — do not cancel shared in-flight GET. */
+function raceWithAbort(promise, signal) {
+  if (!signal) return promise;
+  if (signal.aborted) {
+    const err = new Error('Aborted');
+    err.name = 'AbortError';
+    return Promise.reject(err);
+  }
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      const err = new Error('Aborted');
+      err.name = 'AbortError';
+      reject(err);
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(value);
+      },
+      (error) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(error);
+      },
+    );
+  });
+}
 
 function softCacheTtlFor(path) {
   if (GET_SOFT_CACHE_MS[path]) return GET_SOFT_CACHE_MS[path];
@@ -303,16 +333,22 @@ export function invalidateSoftGetCache(pathPrefix) {
 
 async function request(path, { method = 'GET', body, auth = true, timeoutMs = 20000, signal } = {}) {
   const upper = String(method || 'GET').toUpperCase();
-  // External AbortSignal skips soft-cache so callers can cancel, but still
-  // share in-flight GETs when no signal is passed (dashboard / poll storms).
-  const ttl = upper === 'GET' && !body && !signal ? softCacheTtlFor(path) : 0;
+  // Soft-cache + in-flight dedupe apply even when a caller passes AbortSignal.
+  // The shared network request is NOT aborted by one waiter leaving the page —
+  // that waiter only gets AbortError via raceWithAbort (prevents dashboard storms).
+  const ttl = upper === 'GET' && !body ? softCacheTtlFor(path) : 0;
   if (ttl) {
     const key = softCacheKey(path, auth);
+    if (signal?.aborted) {
+      const err = new Error('Aborted');
+      err.name = 'AbortError';
+      throw err;
+    }
     const hit = getSoftCache.get(key);
     if (hit && hit.expires > Date.now()) return hit.data;
     const pending = getInflight.get(key);
-    if (pending) return pending;
-    const promise = requestUncached(path, { method, body, auth, timeoutMs, signal })
+    if (pending) return raceWithAbort(pending, signal);
+    const promise = requestUncached(path, { method, body, auth, timeoutMs, signal: undefined })
       .then((data) => {
         getSoftCache.set(key, { data, expires: Date.now() + ttl });
         trimSoftGetCache();
@@ -322,7 +358,7 @@ async function request(path, { method = 'GET', body, auth = true, timeoutMs = 20
         getInflight.delete(key);
       });
     getInflight.set(key, promise);
-    return promise;
+    return raceWithAbort(promise, signal);
   }
   return requestUncached(path, { method, body, auth, timeoutMs, signal });
 }

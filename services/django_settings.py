@@ -29,3 +29,9 @@ INSTALLED_APPS = _installed  # noqa: F405
 
 ROOT_URLCONF = f'services.slices.{SERVICE_NAME}_urls'
 WSGI_APPLICATION = 'services.wsgi.application'
+
+# Slice processes sit behind the mesh gateway / edge proxy. TLS terminates at
+# the edge; in-cluster HTTP must not 301 to https://127.0.0.1.
+# Public monolith (systemd → production.py) is unchanged.
+_ssl_redirect = (os.environ.get('SECURE_SSL_REDIRECT') or 'false').strip().lower()
+SECURE_SSL_REDIRECT = _ssl_redirect in ('1', 'true', 'yes', 'on')  # noqa: F405

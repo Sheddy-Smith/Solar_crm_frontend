@@ -2578,12 +2578,10 @@ function App() {
   const [dashboardStats, setDashboardStats] = useState(() => stats.map((s) => ({ ...s, value: '—', delta: '' })));
   const [dashboardLeadStats, setDashboardLeadStats] = useState({});
   const [dashboardProjectSummary, setDashboardProjectSummary] = useState({});
-  const [dashboardFollowUps, setDashboardFollowUps] = useState([]);
   const [dashboardScheduledFollowUps, setDashboardScheduledFollowUps] = useState(null);
   const [dashboardMissedFollowUps, setDashboardMissedFollowUps] = useState([]);
   const [dashboardCompletedFollowUps, setDashboardCompletedFollowUps] = useState([]);
   const [dashboardRecentLeads, setDashboardRecentLeads] = useState(null);
-  const [dashboardOverdue, setDashboardOverdue] = useState(null);
   const [dashboardWidgetErrors, setDashboardWidgetErrors] = useState({});
   const [dashboardCreateLeadOpen, setDashboardCreateLeadOpen] = useState(false);
   const [customerLeadRefreshKey, setCustomerLeadRefreshKey] = useState(0);
@@ -2864,30 +2862,10 @@ function App() {
     });
   }, [canViewLeadModule, dashboardPeriod, dashboardPeriodAnchor, setDashWidgetError]);
 
-  useEffect(() => {
-    const loaded = dashboardScheduledFollowUps !== null;
-    const todayCount = loaded ? dashboardFollowUpAlerts.today.length : null;
-    const overdueCount = loaded ? dashboardFollowUpAlerts.overdue.length : null;
-    const highAlertCount = loaded ? overdueCount + todayCount : null;
-    const missedCount = loaded ? dashboardMissedFollowUps.length : null;
-    setDashboardStats((prev) =>
-      prev.map((s) => {
-        if (s.title === 'Today Follow-ups') {
-          return { ...s, value: todayCount === null ? '—' : String(todayCount), delta: todayCount == null ? s.delta : `${todayCount} scheduled today` };
-        }
-        if (s.title === 'High Alert') {
-          return { ...s, value: highAlertCount === null ? '—' : String(highAlertCount), delta: 'Needs immediate action' };
-        }
-        if (s.title === 'Overdue') {
-          return { ...s, value: overdueCount === null ? '—' : String(overdueCount), delta: 'Past scheduled date' };
-        }
-        if (s.title === 'Missed') {
-          return { ...s, value: missedCount === null ? '—' : String(missedCount), delta: 'Marked missed' };
-        }
-        return s;
-      }),
-    );
-    const overdueRows = dashboardFollowUpAlerts.overdue.map((item) => ({
+  // Derive follow-up widgets with useMemo — avoids 3× setState + full App re-render churn.
+  const dashboardOverdue = useMemo(() => {
+    if (dashboardScheduledFollowUps === null) return null;
+    return dashboardFollowUpAlerts.overdue.map((item) => ({
       id: item.id,
       leadId: item.lead,
       customer: item.lead_customer_name || 'Customer',
@@ -2900,16 +2878,42 @@ function App() {
       detail: item.notes || '',
       when: item.scheduled_at,
     }));
-    setDashboardOverdue(overdueRows);
-    setDashboardFollowUps(dashboardFollowUpAlerts.today.map((item) => ({
+  }, [dashboardFollowUpAlerts, dashboardScheduledFollowUps]);
+
+  const dashboardFollowUps = useMemo(
+    () => dashboardFollowUpAlerts.today.map((item) => ({
       id: item.lead,
       customer: item.lead_customer_name || 'Customer',
       mobile: item.lead_mobile_number,
       project: item.lead_project_name || item.follow_up_type || 'Follow-up',
       date: formatDateTime(item.scheduled_at),
       assignedTo: { name: item.lead_assigned_to_name || item.created_by_name || 'Unassigned' },
-    })));
-  }, [dashboardFollowUpAlerts, dashboardScheduledFollowUps, dashboardMissedFollowUps]);
+    })),
+    [dashboardFollowUpAlerts],
+  );
+
+  const dashboardStatsView = useMemo(() => {
+    const loaded = dashboardScheduledFollowUps !== null;
+    const todayCount = loaded ? dashboardFollowUpAlerts.today.length : null;
+    const overdueCount = loaded ? dashboardFollowUpAlerts.overdue.length : null;
+    const highAlertCount = loaded ? overdueCount + todayCount : null;
+    const missedCount = loaded ? dashboardMissedFollowUps.length : null;
+    return dashboardStats.map((s) => {
+      if (s.title === 'Today Follow-ups') {
+        return { ...s, value: todayCount === null ? '—' : String(todayCount), delta: todayCount == null ? s.delta : `${todayCount} scheduled today` };
+      }
+      if (s.title === 'High Alert') {
+        return { ...s, value: highAlertCount === null ? '—' : String(highAlertCount), delta: 'Needs immediate action' };
+      }
+      if (s.title === 'Overdue') {
+        return { ...s, value: overdueCount === null ? '—' : String(overdueCount), delta: 'Past scheduled date' };
+      }
+      if (s.title === 'Missed') {
+        return { ...s, value: missedCount === null ? '—' : String(missedCount), delta: 'Marked missed' };
+      }
+      return s;
+    });
+  }, [dashboardStats, dashboardFollowUpAlerts, dashboardScheduledFollowUps, dashboardMissedFollowUps]);
 
   useEffect(() => {
     if (currentPage !== 'dashboard') return undefined;
@@ -4757,7 +4761,7 @@ function App() {
                 <MobileDashboardPage
                   userName={loggedInUser?.name || 'Admin'}
                   rangeLabel={dashboardRange.start && dashboardRange.end ? formatDashboardRange(dashboardRange.start, dashboardRange.end) : ''}
-                  stats={dashboardStats}
+                  stats={dashboardStatsView}
                   workflowStages={dashboardWorkflowStages}
                   recentLeads={dashboardRecentLeads}
                   overdue={dashboardOverdue}
@@ -4804,7 +4808,7 @@ function App() {
               ) : null}
 
               <HomeDashboardPage
-                stats={dashboardStats}
+                stats={dashboardStatsView}
                 leadStats={dashboardLeadStats}
                 workflowStages={dashboardWorkflowStages}
                 recentLeads={dashboardRecentLeads ?? []}
@@ -7871,7 +7875,10 @@ function SettingsChartOfAccountsContent({ onOpenSection, onNotify }) {
   const loadCoa = useCallback(() => {
     setLoading(true);
     setLoadError('');
-    fetchEveryPage((page, pageSize) => accountsModuleApi.chartOfAccounts.list({ page, page_size: pageSize }))
+    fetchEveryPage(
+      (page, pageSize) => accountsModuleApi.chartOfAccounts.list({ page, page_size: pageSize }),
+      { pageSize: API_MAX_PAGE_SIZE, maxPages: 5 },
+    )
       .then((list) => {
         const mapped = (Array.isArray(list) ? list : []).map((row) => ({
           id: row.id,
@@ -11786,19 +11793,25 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
 
   useEffect(() => {
     if (needsProjects) {
-      fetchEveryPage((page, pageSize) => projectApi.list({ page, page_size: pageSize }))
+      fetchEveryPage(
+        (page, pageSize) => projectApi.list({ page, page_size: pageSize, won_only: 1, ordering: 'project_name' }),
+        { pageSize: LOOKUP_PAGE_SIZE, maxPages: 4 },
+      )
         .then((rows) => setProjects(rows))
         .catch(() => setProjects([]));
     }
-    // CRM account users (login accounts) — full active directory for assign fields.
+    // CRM account users (login accounts) — options endpoint is lighter than full list walk.
     if (needsUsers) {
-      userApi.options({ is_active: true })
+      userApi.options({ is_active: true, page_size: LOOKUP_PAGE_SIZE })
         .then((r) => setUsers(normalizeApiRows(r)))
         .catch(() => setUsers([]));
     }
-    // Workforce employees — full list (no status filter) for Assign To dropdowns.
+    // Workforce employees — capped pages for Assign To dropdowns.
     if (needsEmployees) {
-      fetchEveryPage((page, pageSize) => workforceApi.listEmployees({ page, page_size: pageSize }))
+      fetchEveryPage(
+        (page, pageSize) => workforceApi.listEmployees({ page, page_size: pageSize }),
+        { pageSize: LOOKUP_PAGE_SIZE, maxPages: 4 },
+      )
         .then((rows) => {
           const sorted = [...rows].sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
           setEmployees(sorted);
@@ -11808,14 +11821,17 @@ function LiaisonCrudPage({ config, activeSection, onOpenSection, onNotify }) {
     Object.entries(config.lookups || {}).forEach(([key, lk]) => {
       // Staff / user assign lookups: show every CRM account employee.
       if (key === 'staff' || lk.api === userApi) {
-        userApi.options({ is_active: true })
+        userApi.options({ is_active: true, page_size: LOOKUP_PAGE_SIZE })
           .then((r) => setLookupData((prev) => ({ ...prev, [key]: normalizeApiRows(r) })))
           .catch(() => setLookupData((prev) => ({ ...prev, [key]: [] })));
         return;
       }
       if (typeof lk.api?.list === 'function') {
         const extraParams = lk.params || {};
-        fetchEveryPage((page, pageSize) => lk.api.list({ ...extraParams, page, page_size: pageSize }))
+        fetchEveryPage(
+          (page, pageSize) => lk.api.list({ ...extraParams, page, page_size: pageSize }),
+          { pageSize: LOOKUP_PAGE_SIZE, maxPages: 3 },
+        )
           .then((rows) => setLookupData((prev) => ({ ...prev, [key]: rows })))
           .catch(() => setLookupData((prev) => ({ ...prev, [key]: [] })));
       }
@@ -25602,12 +25618,15 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    // Load all won projects so BOM picker + hub table are complete (not first page only).
-    fetchEveryPage((page, pageSize) => projectApi.list({ page, page_size: pageSize }))
+    // Won projects only — capped pages keep Material Planning from hanging the shell.
+    fetchEveryPage(
+      (page, pageSize) => projectApi.list({ page, page_size: pageSize, won_only: 1, ordering: '-updated_at' }),
+      { pageSize: API_MAX_PAGE_SIZE, maxPages: 5 },
+    )
       .then((rows) => {
         if (cancelled) return;
         const list = Array.isArray(rows) ? rows : normalizeApiRows(rows);
-        const won = list.filter((p) => String(p.lead_status || '').toLowerCase() === 'won');
+        const won = list.filter((p) => !p.lead_status || String(p.lead_status).toLowerCase() === 'won');
         setProjects(won.length ? won : list);
       })
       .catch(() => {
@@ -25620,7 +25639,10 @@ function MaterialPlanningProjectHub({ activeSection, onOpenSection, initialBomPr
         if (!cancelled) setLoading(false);
       });
 
-    fetchEveryPage((page, pageSize) => materialPlanApi.list({ page, page_size: pageSize }))
+    fetchEveryPage(
+      (page, pageSize) => materialPlanApi.list({ page, page_size: pageSize }),
+      { pageSize: API_MAX_PAGE_SIZE, maxPages: 5 },
+    )
       .then((rows) => {
         if (cancelled) return;
         const map = {};
@@ -26738,10 +26760,13 @@ function ProjectApprovalsPage({ activeSection, onOpenSection, onNotify }) {
   const [editForm, setEditForm] = useState({});
 
   useEffect(() => {
-    fetchEveryPage((page, pageSize) => projectApi.list({ page, page_size: pageSize }))
+    fetchEveryPage(
+      (page, pageSize) => projectApi.list({ page, page_size: pageSize, won_only: 1, ordering: 'project_name' }),
+      { pageSize: LOOKUP_PAGE_SIZE, maxPages: 4 },
+    )
       .then((rows) => setProjects(rows))
       .catch(() => setProjects([]));
-    userApi.options({ is_active: true })
+    userApi.options({ is_active: true, page_size: LOOKUP_PAGE_SIZE })
       .then((r) => setUsers(normalizeApiRows(r)))
       .catch(() => setUsers([]));
   }, []);
@@ -29234,8 +29259,22 @@ function mapActivityLogFromApi(log) {
   };
 }
 
-/** Default Activity Log range = current FY from org snapshot, else Indian FY (Apr–Mar). */
+/** Default Activity Log range = last 30 days (full FY was pulling thousands of audit rows and freezing UI). */
 function defaultActivityLogDateRange() {
+  const to = new Date();
+  const from = new Date();
+  from.setDate(from.getDate() - 30);
+  const iso = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+  return { from: iso(from), to: iso(to) };
+}
+
+/** Full FY range — only when user explicitly resets to FY (not on initial open). */
+function activityLogFinancialYearRange() {
   const fy = getOrganization()?.financial_year;
   if (fy?.start_date && fy?.end_date) {
     return { from: String(fy.start_date).slice(0, 10), to: String(fy.end_date).slice(0, 10) };
@@ -29275,19 +29314,8 @@ function useActivityLogFyDates() {
   const [dateTo, setDateTo] = useState(initial.to);
   const fallbackRef = useRef(initial);
 
-  useEffect(() => {
-    const applyOrgFy = (org) => {
-      const fy = org?.financial_year;
-      if (!fy?.start_date || !fy?.end_date) return;
-      const from = String(fy.start_date).slice(0, 10);
-      const to = String(fy.end_date).slice(0, 10);
-      setDateFrom((prev) => (prev === fallbackRef.current.from ? from : prev));
-      setDateTo((prev) => (prev === fallbackRef.current.to ? to : prev));
-      fallbackRef.current = { from, to };
-    };
-    applyOrgFy(getOrganization());
-    return subscribeOrganization(applyOrgFy);
-  }, []);
+  // Do NOT auto-expand to full FY when organization snapshot arrives — that caused
+  // multi-thousand-row activity fetches and UI freezes. FY is opt-in via applyFinancialYearDates.
 
   const resetFyDates = () => {
     const next = defaultActivityLogDateRange();
@@ -29296,7 +29324,14 @@ function useActivityLogFyDates() {
     setDateTo(next.to);
   };
 
-  return { dateFrom, setDateFrom, dateTo, setDateTo, resetFyDates };
+  const applyFinancialYearDates = () => {
+    const next = activityLogFinancialYearRange();
+    fallbackRef.current = next;
+    setDateFrom(next.from);
+    setDateTo(next.to);
+  };
+
+  return { dateFrom, setDateFrom, dateTo, setDateTo, resetFyDates, applyFinancialYearDates };
 }
 
 function mapApiRoleToSettingsRow(apiRole) {
@@ -30404,12 +30439,10 @@ function SettingsUserActivityLogPage({ activeSection = 'Settings User Activity L
     : (directoryUsers.find((row) => row.name === user)?.id ?? null);
 
   useEffect(() => {
-    // Optional enrichment — Settings-only admins may lack User Management list access.
-    fetchEveryPage(
-      (page, pageSize) => userApi.list({ page, page_size: pageSize }),
-      { pageSize: API_MAX_PAGE_SIZE, maxPages: 5 },
-    )
-      .then((rows) => {
+    // Lightweight directory for filters — avoid walking every user page.
+    userApi.options({ is_active: true, page_size: LOOKUP_PAGE_SIZE })
+      .then((data) => {
+        const rows = Array.isArray(data) ? data : (data?.results ?? []);
         const fromApi = rows
           .map((row) => ({ id: row.id, name: row.name || row.email || `User ${row.id}` }))
           .filter((row) => row.id != null);
@@ -30419,29 +30452,43 @@ function SettingsUserActivityLogPage({ activeSection = 'Settings User Activity L
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     const params = {
       ordering: '-created_at',
       created_from: dateFrom || undefined,
       created_to: dateTo || undefined,
+      search: query.trim() || undefined,
     };
     if (action !== 'All Actions') params.action = action;
     if (moduleName !== 'All Modules') params.module = moduleName;
     if (status !== 'All Status') params.status = status;
     if (selectedUserId != null) params.user = selectedUserId;
-    fetchEveryPage(
-      (page, pageSize) => settingsApi.activityLogs.list({ ...params, page, page_size: pageSize }),
-      { pageSize: API_MAX_PAGE_SIZE, maxPages: 50 },
-    )
-      .then((list) => {
-        const mapped = list.map(mapActivityLogFromApi);
-        setLogs(mapped);
-        setDirectoryUsers((prev) => mergeActivityDirectoryUsers(prev, mapped));
-      })
-      .catch(() => onNotify?.('Could not load activity logs.', 'error'))
-      .finally(() => setLoading(false));
+    // Cap at 2 pages (≤200 rows). Full FY walk of 50×100 froze the CRM shell.
+    const timer = window.setTimeout(() => {
+      fetchEveryPage(
+        (page, pageSize) => settingsApi.activityLogs.list({ ...params, page, page_size: pageSize }),
+        { pageSize: 50, maxPages: 2 },
+      )
+        .then((list) => {
+          if (cancelled) return;
+          const mapped = list.map(mapActivityLogFromApi);
+          setLogs(mapped);
+          setDirectoryUsers((prev) => mergeActivityDirectoryUsers(prev, mapped));
+        })
+        .catch(() => {
+          if (!cancelled) onNotify?.('Could not load activity logs.', 'error');
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    }, 280);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   // directoryUsers intentionally omitted — merging users must not retrigger fetch (infinite loop).
-  }, [dateFrom, dateTo, action, moduleName, status, user, selectedUserId, onNotify]);
+  }, [dateFrom, dateTo, action, moduleName, status, user, selectedUserId, query, onNotify]);
 
   const filteredLogs = logs.filter((log) => {
     const queryMatch = [log.user.name, log.action, log.module, log.ip, log.description].some((value) => String(value).toLowerCase().includes(query.toLowerCase()));
@@ -31253,7 +31300,10 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify, logged
   const loadEmployees = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     try {
-      const data = await fetchEveryPage((page, pageSize) => workforceApi.listEmployees({ page, page_size: pageSize }));
+      const data = await fetchEveryPage(
+        (page, pageSize) => workforceApi.listEmployees({ page, page_size: pageSize }),
+        { pageSize: API_MAX_PAGE_SIZE, maxPages: 5 },
+      );
       setEmployees(Array.isArray(data) ? data : normalizeApiRows(data));
     } catch {
       onNotify('Failed to load employees');
@@ -33398,11 +33448,9 @@ function ActivityLogsPage({ onNotify, onOpenSection }) {
     : (directoryUsers.find((row) => row.name === user)?.id ?? null);
 
   useEffect(() => {
-    fetchEveryPage(
-      (page, pageSize) => userApi.list({ page, page_size: pageSize }),
-      { pageSize: API_MAX_PAGE_SIZE, maxPages: 5 },
-    )
-      .then((rows) => {
+    userApi.options({ is_active: true, page_size: LOOKUP_PAGE_SIZE })
+      .then((data) => {
+        const rows = Array.isArray(data) ? data : (data?.results ?? []);
         const fromApi = rows
           .map((row) => ({ id: row.id, name: row.name || row.email || `User ${row.id}` }))
           .filter((row) => row.id != null);
@@ -33414,6 +33462,7 @@ function ActivityLogsPage({ onNotify, onOpenSection }) {
   // BUG-009: this page used to render a hardcoded mock array; it now shares the
   // same real API as SettingsUserActivityLogPage instead of a second fake source.
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     const params = {
       ordering: '-created_at',
@@ -33423,17 +33472,28 @@ function ActivityLogsPage({ onNotify, onOpenSection }) {
     if (moduleName !== 'All Modules') params.module = moduleName;
     if (action !== 'All Actions') params.action = action;
     if (selectedUserId != null) params.user = selectedUserId;
-    fetchEveryPage(
-      (page, pageSize) => settingsApi.activityLogs.list({ ...params, page, page_size: pageSize }),
-      { pageSize: API_MAX_PAGE_SIZE, maxPages: 50 },
-    )
-      .then((list) => {
-        const mapped = list.map(mapActivityLogFromApi);
-        setLogs(mapped);
-        setDirectoryUsers((prev) => mergeActivityDirectoryUsers(prev, mapped));
-      })
-      .catch(() => onNotify?.('Could not load activity logs.', 'error'))
-      .finally(() => setLoading(false));
+    const timer = window.setTimeout(() => {
+      fetchEveryPage(
+        (page, pageSize) => settingsApi.activityLogs.list({ ...params, page, page_size: pageSize }),
+        { pageSize: 50, maxPages: 2 },
+      )
+        .then((list) => {
+          if (cancelled) return;
+          const mapped = list.map(mapActivityLogFromApi);
+          setLogs(mapped);
+          setDirectoryUsers((prev) => mergeActivityDirectoryUsers(prev, mapped));
+        })
+        .catch(() => {
+          if (!cancelled) onNotify?.('Could not load activity logs.', 'error');
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    }, 280);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [dateFrom, dateTo, moduleName, action, user, selectedUserId, onNotify]);
 
   const uniqueUsers = directoryUsers.length
@@ -38421,7 +38481,11 @@ function QuotationListPage({ autoOpenCreate = false, onConsumeAutoOpenCreate, on
 
   const loadQuotations = useCallback(() => {
     setLoading(true);
-    return fetchEveryPage((page, pageSize) => quotationApi.listAll({ page, page_size: pageSize }))
+    // Cap pages so Quotation list does not walk the entire history on every open.
+    return fetchEveryPage(
+      (page, pageSize) => quotationApi.listAll({ page, page_size: pageSize, ordering: '-created_at' }),
+      { pageSize: API_MAX_PAGE_SIZE, maxPages: 3 },
+    )
       .then((data) => setQuotations(Array.isArray(data) ? data : normalizeApiRows(data)))
       .catch(() => {
         setQuotations([]);

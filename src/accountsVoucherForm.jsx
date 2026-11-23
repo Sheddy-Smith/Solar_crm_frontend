@@ -53,10 +53,11 @@ export function PaymentVoucherFormModal({
   useEffect(() => {
     let cancelled = false;
     setLoadingOptions(true);
+    const lookupOpts = { pageSize: 50, maxPages: 4 };
     Promise.all([
-      fetchEveryPage((page, pageSize) => accountsModuleApi.parties.list({ account_type: 'Vendor', page, page_size: pageSize })),
-      fetchEveryPage((page, pageSize) => accountsModuleApi.parties.list({ account_type: 'Supplier', page, page_size: pageSize })),
-      fetchEveryPage((page, pageSize) => workforceApi.listEmployees({ page, page_size: pageSize })),
+      fetchEveryPage((page, pageSize) => accountsModuleApi.parties.list({ account_type: 'Vendor', page, page_size: pageSize }), lookupOpts),
+      fetchEveryPage((page, pageSize) => accountsModuleApi.parties.list({ account_type: 'Supplier', page, page_size: pageSize }), lookupOpts),
+      fetchEveryPage((page, pageSize) => workforceApi.listEmployees({ page, page_size: pageSize }), lookupOpts),
     ])
       .then(([vendorRes, supplierRes, employeeRes]) => {
         if (cancelled) return;

@@ -40,8 +40,9 @@ export default function ProjectSearchSelect({
     fetchEveryPage((page, pageSize) => projectApi.list({
       page,
       page_size: pageSize,
-      ordering: '-created_at',
-    }), { maxPages: 8 })
+      won_only: 1,
+      ordering: '-updated_at',
+    }), { pageSize: 50, maxPages: 4 })
       .then((rows) => {
         if (cancelled) return;
         setProjects(Array.isArray(rows) ? rows : []);

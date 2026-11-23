@@ -281,7 +281,10 @@ export function AccountsLineDocumentPage({
     const params = {};
     if (statusFilter) params.status = statusFilter;
     if (projectFilter) params.project = projectFilter;
-    fetchEveryPage((page, pageSize) => api.list({ ...params, page, page_size: pageSize }))
+    fetchEveryPage(
+      (page, pageSize) => api.list({ ...params, page, page_size: pageSize }),
+      { pageSize: 100, maxPages: 3 },
+    )
       .then((r) => setRows(Array.isArray(r) ? r : normalizeApiRows(r)))
       .catch(() => onNotify(`Could not load ${title.toLowerCase()}.`, 'error'))
       .finally(() => setLoading(false));
@@ -289,16 +292,26 @@ export function AccountsLineDocumentPage({
 
   useEffect(() => { loadRows(); }, [loadRows]);
   useEffect(() => {
-    // Full lookup lists via pagination — avoid page_size:25 truncation on Project/Party/Inventory.
+    // Lookup lists capped — uncapped page walks froze Accounts pages on large DBs.
     const partyParams = partyAccountType ? { account_type: partyAccountType } : {};
-    fetchEveryPage((page, pageSize) => accountsModuleApi.parties.list({ ...partyParams, page, page_size: pageSize }))
+    const lookupOpts = { pageSize: 50, maxPages: 4 };
+    fetchEveryPage(
+      (page, pageSize) => accountsModuleApi.parties.list({ ...partyParams, page, page_size: pageSize }),
+      lookupOpts,
+    )
       .then((r) => setParties(Array.isArray(r) ? r : normalizeApiRows(r)))
       .catch(() => setParties([]));
-    fetchEveryPage((page, pageSize) => projectApi.list({ page, page_size: pageSize, ordering: '-created_at' }))
+    fetchEveryPage(
+      (page, pageSize) => projectApi.list({ page, page_size: pageSize, won_only: 1, ordering: '-updated_at' }),
+      lookupOpts,
+    )
       .then((r) => setProjects(Array.isArray(r) ? r : normalizeApiRows(r)))
       .catch(() => setProjects([]));
     if (linkInventory) {
-      fetchEveryPage((page, pageSize) => inventoryApi.items.list({ page, page_size: pageSize }))
+      fetchEveryPage(
+        (page, pageSize) => inventoryApi.items.list({ page, page_size: pageSize, is_active: true }),
+        lookupOpts,
+      )
         .then((r) => setInventoryItems(Array.isArray(r) ? r : normalizeApiRows(r)))
         .catch(() => setInventoryItems([]));
     }

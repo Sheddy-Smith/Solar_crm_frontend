@@ -277,7 +277,10 @@ export function MaterialPlanningPoPage({
       const [full, planData, itemsData] = await Promise.all([
         projectApi.get(projectProp.id),
         materialPlanApi.list({ project: projectProp.id, page_size: 100 }),
-        fetchEveryPage((page, pageSize) => inventoryApi.items.list({ page, page_size: pageSize, is_active: true })),
+        fetchEveryPage(
+          (page, pageSize) => inventoryApi.items.list({ page, page_size: pageSize, is_active: true }),
+          { pageSize: 100, maxPages: 5 },
+        ),
       ]);
       setProject(full);
       const items = (Array.isArray(itemsData) ? itemsData : rowsOf(itemsData))
