@@ -142,6 +142,26 @@ export function TeleDailyTasksPage({ me, onNotify, variant = 'tele' }) {
   }, [canView]);
 
   useEffect(() => {
+    if (!rows.length) return undefined;
+    let focusId = null;
+    try {
+      focusId = window.sessionStorage.getItem('crm:focus-daily-task');
+    } catch {
+      focusId = null;
+    }
+    if (!focusId) return undefined;
+    const match = rows.find((row) => String(row.id) === String(focusId));
+    if (!match) return undefined;
+    setViewTask(match);
+    try {
+      window.sessionStorage.removeItem('crm:focus-daily-task');
+    } catch {
+      /* ignore */
+    }
+    return undefined;
+  }, [rows]);
+
+  useEffect(() => {
     if (!assignOpen || !canAssign) return undefined;
     staffDailyTasksApi.assignees()
       .then((data) => setAssignees(Array.isArray(data) ? data : []))

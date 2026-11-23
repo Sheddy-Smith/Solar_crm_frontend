@@ -5,18 +5,15 @@ so after the response we resolve the actor from session user or Bearer JWT.
 Explicit log_user_activity() calls set request._user_activity_logged to avoid
 duplicate rows (login, settings, backup, etc.).
 
-Writes run on a daemon thread so audit INSERT does not block the HTTP response.
+Audit rows are written synchronously with retries so a failed background
+worker cannot silently drop compliance logs.
 """
 from __future__ import annotations
 
 import logging
 import re
-from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger('malwa_solar.user_activity')
-
-# Bounded workers — avoid unbounded Thread spawn under write bursts.
-_AUDIT_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix='user-activity-audit')
 
 _MUTATING = frozenset({'POST', 'PUT', 'PATCH', 'DELETE'})
 
@@ -160,14 +157,16 @@ class UserActivityAuditMiddleware:
         except Exception:
             ip_address = None
 
-        # Mark before background write so explicit handlers + retries do not double-log.
-        request._user_activity_logged = True
+        # Persist synchronously with retries, then mark logged — never flag success
+        # before the row exists (async-before-mark dropped audits on thread failure).
+        import time
+        from apps.crm_settings.models import UserActivityLog
+
         user_id = getattr(user, 'pk', None)
         user_name = who
-
-        def _persist():
+        last_exc = None
+        for attempt in range(3):
             try:
-                from apps.crm_settings.models import UserActivityLog
                 UserActivityLog.objects.create(
                     user_id=user_id,
                     user_name=user_name,
@@ -177,16 +176,11 @@ class UserActivityAuditMiddleware:
                     ip_address=ip_address,
                     status='Success',
                 )
-            except Exception:
-                logger.exception('async user activity audit failed')
-            finally:
-                try:
-                    from django.db import connection
-                    connection.close()
-                except Exception:
-                    pass
-
-        try:
-            _AUDIT_EXECUTOR.submit(_persist)
-        except Exception:
-            logger.exception('user activity audit enqueue failed')
+                request._user_activity_logged = True
+                last_exc = None
+                break
+            except Exception as exc:
+                last_exc = exc
+                time.sleep(0.05 * (2 ** attempt))
+        if last_exc is not None:
+            logger.exception('user activity audit failed after retries', exc_info=last_exc)

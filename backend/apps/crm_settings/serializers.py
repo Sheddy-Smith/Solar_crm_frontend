@@ -83,6 +83,24 @@ class FinancialYearSerializer(serializers.ModelSerializer):
         if not label:
             raise serializers.ValidationError({'label': 'Financial year name is required.'})
         attrs['label'] = label
+
+        # Keep at least one current FY — unchecking the sole current year is blocked.
+        if 'is_current' in attrs and attrs['is_current'] is False and self.instance is not None:
+            if self.instance.is_current:
+                has_other = FinancialYear.objects.filter(is_current=True).exclude(pk=self.instance.pk).exists()
+                if not has_other:
+                    raise serializers.ValidationError({
+                        'is_current': (
+                            'At least one financial year must remain current. '
+                            'Set another year as current first.'
+                        ),
+                    })
+
+        # First FY (or create while none current) must become current.
+        if self.instance is None:
+            has_current = FinancialYear.objects.filter(is_current=True).exists()
+            if not has_current:
+                attrs['is_current'] = True
         return attrs
 
 

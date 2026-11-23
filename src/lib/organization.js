@@ -13,7 +13,26 @@ const FALLBACK = {
 };
 
 let snapshot = null;
+let snapshotAt = 0;
 let inflight = null;
+/** Soft TTL so multi-tab / other-admin FY & Company Profile edits refresh without force. */
+const SNAPSHOT_TTL_MS = 60_000;
+const STORAGE_BUMP_KEY = 'malwa:organization:bump';
+let lastLocalBump = 0;
+let crossTabBound = false;
+
+function bindCrossTabInvalidation() {
+  if (crossTabBound || typeof window === 'undefined') return;
+  crossTabBound = true;
+  window.addEventListener('storage', (event) => {
+    if (event.key !== STORAGE_BUMP_KEY || !event.newValue) return;
+    const bump = Number(event.newValue);
+    if (!Number.isFinite(bump) || bump <= lastLocalBump) return;
+    // Another tab published a fresher org snapshot — expire local TTL.
+    snapshotAt = 0;
+    refreshOrganization({ force: true }).catch(() => {});
+  });
+}
 
 export function getOrganization() {
   return snapshot;
@@ -176,7 +195,15 @@ export function useOrganization() {
 
 function publishSnapshot(next) {
   snapshot = next && typeof next === 'object' ? next : { ...FALLBACK };
+  snapshotAt = Date.now();
   if (typeof window !== 'undefined') {
+    bindCrossTabInvalidation();
+    try {
+      lastLocalBump = Date.now();
+      window.localStorage.setItem(STORAGE_BUMP_KEY, String(lastLocalBump));
+    } catch {
+      /* private mode / quota */
+    }
     window.dispatchEvent(new CustomEvent(EVENT, { detail: snapshot }));
   }
   return snapshot;
@@ -208,7 +235,16 @@ export async function refreshBranding({ force = false } = {}) {
 }
 
 export async function refreshOrganization({ force = false } = {}) {
-  if (snapshot && !force && snapshot.company && Object.keys(snapshot.company).length) return snapshot;
+  const cacheFresh = snapshotAt > 0 && (Date.now() - snapshotAt) < SNAPSHOT_TTL_MS;
+  if (
+    snapshot
+    && !force
+    && cacheFresh
+    && snapshot.company
+    && Object.keys(snapshot.company).length
+  ) {
+    return snapshot;
+  }
   if (inflight) return inflight;
   inflight = settingsApi.organization.get()
     .then((data) => publishSnapshot(data && typeof data === 'object' ? data : { ...FALLBACK }))

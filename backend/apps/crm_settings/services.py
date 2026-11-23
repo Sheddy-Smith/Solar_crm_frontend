@@ -284,17 +284,65 @@ def update_category_settings(category, data: dict):
     return get_category_settings(category)
 
 
+# Banking / tax identifiers — omitted from org snapshot for non-Settings viewers.
+_ORG_SENSITIVE_COMPANY_KEYS = frozenset({
+    'bankName', 'accountNumber', 'ifsc', 'accountHolder', 'accountName',
+    'upiId', 'upi', 'swift', 'iban', 'panNumber', 'tanNumber', 'cin',
+})
+_ORG_SENSITIVE_BUSINESS_KEYS = frozenset({
+    'pan', 'tan', 'cin', 'bankName', 'accountNumber', 'ifsc', 'accountHolder',
+    'upiId', 'upi', 'swift', 'iban',
+})
+
+
+def redact_organization_snapshot(snap):
+    """Return a copy safe for CRM-wide letterhead without bank/PAN leakage."""
+    if not isinstance(snap, dict):
+        return snap
+    out = dict(snap)
+    company = out.get('company')
+    if isinstance(company, dict):
+        out['company'] = {k: v for k, v in company.items() if k not in _ORG_SENSITIVE_COMPANY_KEYS}
+    business = out.get('business')
+    if isinstance(business, dict):
+        out['business'] = {k: v for k, v in business.items() if k not in _ORG_SENSITIVE_BUSINESS_KEYS}
+    return out
+
+
+def user_can_view_settings(user):
+    from apps.accounts.permissions import is_super_admin
+
+    if not user or not getattr(user, 'is_authenticated', False):
+        return False
+    if is_super_admin(user):
+        return True
+    role = getattr(user, 'role', None)
+    if not role:
+        return False
+    perm = role.permissions.filter(module='Settings').first()
+    if not perm:
+        return False
+    return bool(perm.full_access or perm.can_view)
+
+
 def organization_snapshot(request=None):
-    """Read-only org identity for the whole CRM (not Settings-permission gated)."""
+    """Read-only org identity for the whole CRM (not Settings-permission gated).
+
+    Does not mutate AppSetting / CompanyProfile — Company Profile save paths
+    call sync_company_to_business() explicitly. GET only overlays in-memory
+    when Business GST is empty/placeholder so letterhead still shows company GST.
+    """
     from apps.accounts.models import Branch
 
     profile = CompanyProfile.get_solo()
     company = profile.data if isinstance(profile.data, dict) else {}
     business = get_category_settings('business')
     placeholder_gst = {'23AAGCM1234A1Z5', '03AAGCM1234A1Z5'}
-    if company.get('companyName') and (not business.get('gst') or business.get('gst') in placeholder_gst):
-        sync_company_to_business(company)
-        business = get_category_settings('business')
+    # In-memory heal only — never write on GET (avoids race / settings drift).
+    if isinstance(company, dict) and company.get('gstNumber'):
+        biz_gst = (business.get('gst') or business.get('gstin') or '').strip()
+        if not biz_gst or biz_gst in placeholder_gst:
+            business = {**business, 'gst': company.get('gstNumber')}
     active_fy = FinancialYear.objects.filter(is_current=True).first()
     branches = [
         {
@@ -513,8 +561,23 @@ def create_backup_log(user, backup_type='Full'):
 def run_maintenance_action(action):
     results = {'action': action, 'status': 'Completed', 'details': []}
     if action == 'clear_cache':
-        cache.clear()
-        results['details'].append('Application cache cleared.')
+        # Prefer targeted invalidation — cache.clear() also wipes login throttle /
+        # health probes / unrelated LocMem keys under shared default cache.
+        try:
+            from apps.dashboard.services import invalidate_unified_dashboard_cache
+            invalidate_unified_dashboard_cache('maintenance_clear_cache')
+            results['details'].append('Unified dashboard cache generation bumped.')
+        except Exception as exc:
+            results['details'].append(f'Dashboard cache bump skipped: {exc}')
+        for key in (
+            'health_check_probe',
+            'unified_dashboard:gen',
+        ):
+            try:
+                cache.delete(key)
+            except Exception:
+                pass
+        results['details'].append('Known app cache keys cleared (full cache.clear avoided).')
     elif action == 'health_check':
         from pathlib import Path
 

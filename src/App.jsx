@@ -2503,6 +2503,12 @@ function App() {
         window.sessionStorage.setItem('crm:focus-work-order', String(workOrderId));
       } catch { /* ignore */ }
     }
+    const dailyTaskId = url.searchParams.get('task');
+    if (dailyTaskId && (url.pathname === '/daily-tasks' || url.pathname.startsWith('/daily-tasks'))) {
+      try {
+        window.sessionStorage.setItem('crm:focus-daily-task', String(dailyTaskId));
+      } catch { /* ignore */ }
+    }
     if (url.pathname.startsWith('/om/')) {
       openOmSection(section, omFocusFromSearch(url.search));
     } else {
@@ -29228,6 +29234,71 @@ function mapActivityLogFromApi(log) {
   };
 }
 
+/** Default Activity Log range = current FY from org snapshot, else Indian FY (Apr–Mar). */
+function defaultActivityLogDateRange() {
+  const fy = getOrganization()?.financial_year;
+  if (fy?.start_date && fy?.end_date) {
+    return { from: String(fy.start_date).slice(0, 10), to: String(fy.end_date).slice(0, 10) };
+  }
+  const now = new Date();
+  const year = now.getFullYear();
+  const startYear = now.getMonth() >= 3 ? year : year - 1;
+  return { from: `${startYear}-04-01`, to: `${startYear + 1}-03-31` };
+}
+
+function mergeActivityDirectoryUsers(prev, mappedLogs) {
+  const byName = new Map((prev || []).map((row) => [row.name, row]));
+  for (const log of mappedLogs || []) {
+    const name = log?.user?.name;
+    if (!name || name === 'System') continue;
+    const existing = byName.get(name);
+    if (!existing) {
+      byName.set(name, { id: log.user.id ?? null, name });
+    } else if (existing.id == null && log.user.id != null) {
+      byName.set(name, { id: log.user.id, name });
+    }
+  }
+  const next = [...byName.values()];
+  const prevList = prev || [];
+  if (
+    next.length === prevList.length
+    && next.every((row, i) => row.id === prevList[i]?.id && row.name === prevList[i]?.name)
+  ) {
+    return prevList;
+  }
+  return next;
+}
+
+function useActivityLogFyDates() {
+  const initial = defaultActivityLogDateRange();
+  const [dateFrom, setDateFrom] = useState(initial.from);
+  const [dateTo, setDateTo] = useState(initial.to);
+  const fallbackRef = useRef(initial);
+
+  useEffect(() => {
+    const applyOrgFy = (org) => {
+      const fy = org?.financial_year;
+      if (!fy?.start_date || !fy?.end_date) return;
+      const from = String(fy.start_date).slice(0, 10);
+      const to = String(fy.end_date).slice(0, 10);
+      setDateFrom((prev) => (prev === fallbackRef.current.from ? from : prev));
+      setDateTo((prev) => (prev === fallbackRef.current.to ? to : prev));
+      fallbackRef.current = { from, to };
+    };
+    applyOrgFy(getOrganization());
+    return subscribeOrganization(applyOrgFy);
+  }, []);
+
+  const resetFyDates = () => {
+    const next = defaultActivityLogDateRange();
+    fallbackRef.current = next;
+    setDateFrom(next.from);
+    setDateTo(next.to);
+  };
+
+  return { dateFrom, setDateFrom, dateTo, setDateTo, resetFyDates };
+}
+
 function mapApiRoleToSettingsRow(apiRole) {
   return {
     id: apiRole.id,
@@ -30326,23 +30397,25 @@ function SettingsUserActivityLogPage({ activeSection = 'Settings User Activity L
   const [action, setAction] = useState('All Actions');
   const [moduleName, setModuleName] = useState('All Modules');
   const [status, setStatus] = useState('All Status');
-  const [dateFrom, setDateFrom] = useState('2024-04-01');
-  const [dateTo, setDateTo] = useState('2025-03-31');
+  const { dateFrom, setDateFrom, dateTo, setDateTo, resetFyDates } = useActivityLogFyDates();
   const [directoryUsers, setDirectoryUsers] = useState([]); // [{ id, name }]
+  const selectedUserId = user === 'All Users'
+    ? null
+    : (directoryUsers.find((row) => row.name === user)?.id ?? null);
 
   useEffect(() => {
+    // Optional enrichment — Settings-only admins may lack User Management list access.
     fetchEveryPage(
       (page, pageSize) => userApi.list({ page, page_size: pageSize }),
       { pageSize: API_MAX_PAGE_SIZE, maxPages: 5 },
     )
       .then((rows) => {
-        setDirectoryUsers(
-          rows
-            .map((row) => ({ id: row.id, name: row.name || row.email || `User ${row.id}` }))
-            .filter((row) => row.id != null),
-        );
+        const fromApi = rows
+          .map((row) => ({ id: row.id, name: row.name || row.email || `User ${row.id}` }))
+          .filter((row) => row.id != null);
+        setDirectoryUsers((prev) => mergeActivityDirectoryUsers(fromApi, prev.map((row) => ({ user: row }))));
       })
-      .catch(() => setDirectoryUsers([]));
+      .catch(() => { /* keep log-derived directory */ });
   }, []);
 
   useEffect(() => {
@@ -30355,20 +30428,20 @@ function SettingsUserActivityLogPage({ activeSection = 'Settings User Activity L
     if (action !== 'All Actions') params.action = action;
     if (moduleName !== 'All Modules') params.module = moduleName;
     if (status !== 'All Status') params.status = status;
-    if (user !== 'All Users') {
-      const match = directoryUsers.find((row) => row.name === user);
-      if (match?.id != null) params.user = match.id;
-    }
+    if (selectedUserId != null) params.user = selectedUserId;
     fetchEveryPage(
       (page, pageSize) => settingsApi.activityLogs.list({ ...params, page, page_size: pageSize }),
       { pageSize: API_MAX_PAGE_SIZE, maxPages: 50 },
     )
       .then((list) => {
-        setLogs(list.map(mapActivityLogFromApi));
+        const mapped = list.map(mapActivityLogFromApi);
+        setLogs(mapped);
+        setDirectoryUsers((prev) => mergeActivityDirectoryUsers(prev, mapped));
       })
       .catch(() => onNotify?.('Could not load activity logs.', 'error'))
       .finally(() => setLoading(false));
-  }, [dateFrom, dateTo, action, moduleName, status, user, directoryUsers, onNotify]);
+  // directoryUsers intentionally omitted — merging users must not retrigger fetch (infinite loop).
+  }, [dateFrom, dateTo, action, moduleName, status, user, selectedUserId, onNotify]);
 
   const filteredLogs = logs.filter((log) => {
     const queryMatch = [log.user.name, log.action, log.module, log.ip, log.description].some((value) => String(value).toLowerCase().includes(query.toLowerCase()));
@@ -30432,7 +30505,7 @@ function SettingsUserActivityLogPage({ activeSection = 'Settings User Activity L
               className="h-11 w-full rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d]"
             />
           </label>
-          <button type="button" onClick={() => { setQuery(''); setUser('All Users'); setAction('All Actions'); setModuleName('All Modules'); setStatus('All Status'); setDateFrom('2024-04-01'); setDateTo('2025-03-31'); onNotify('Activity log filters reset'); }} className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#7585a2]" />Reset</button>
+          <button type="button" onClick={() => { setQuery(''); setUser('All Users'); setAction('All Actions'); setModuleName('All Modules'); setStatus('All Status'); resetFyDates(); onNotify('Activity log filters reset'); }} className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><RefreshCw className="size-4 text-[#7585a2]" />Reset</button>
         </div>
       </section>
 
@@ -33313,14 +33386,16 @@ function RolesPermissionsPage({ onNotify, onOpenSection, loggedInUser }) {
 
 function ActivityLogsPage({ onNotify, onOpenSection }) {
   const [dateRangeOpen, setDateRangeOpen] = useState(false);
-  const [dateFrom, setDateFrom] = useState('2026-07-01');
-  const [dateTo, setDateTo] = useState('2026-07-03');
+  const { dateFrom, setDateFrom, dateTo, setDateTo, resetFyDates } = useActivityLogFyDates();
   const [user, setUser] = useState('All Users');
   const [moduleName, setModuleName] = useState('All Modules');
   const [action, setAction] = useState('All Actions');
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [directoryUsers, setDirectoryUsers] = useState([]);
+  const selectedUserId = user === 'All Users'
+    ? null
+    : (directoryUsers.find((row) => row.name === user)?.id ?? null);
 
   useEffect(() => {
     fetchEveryPage(
@@ -33328,13 +33403,12 @@ function ActivityLogsPage({ onNotify, onOpenSection }) {
       { pageSize: API_MAX_PAGE_SIZE, maxPages: 5 },
     )
       .then((rows) => {
-        setDirectoryUsers(
-          rows
-            .map((row) => ({ id: row.id, name: row.name || row.email || `User ${row.id}` }))
-            .filter((row) => row.id != null),
-        );
+        const fromApi = rows
+          .map((row) => ({ id: row.id, name: row.name || row.email || `User ${row.id}` }))
+          .filter((row) => row.id != null);
+        setDirectoryUsers((prev) => mergeActivityDirectoryUsers(fromApi, prev.map((row) => ({ user: row }))));
       })
-      .catch(() => setDirectoryUsers([]));
+      .catch(() => { /* keep log-derived directory */ });
   }, []);
 
   // BUG-009: this page used to render a hardcoded mock array; it now shares the
@@ -33348,20 +33422,19 @@ function ActivityLogsPage({ onNotify, onOpenSection }) {
     };
     if (moduleName !== 'All Modules') params.module = moduleName;
     if (action !== 'All Actions') params.action = action;
-    if (user !== 'All Users') {
-      const match = directoryUsers.find((row) => row.name === user);
-      if (match?.id != null) params.user = match.id;
-    }
+    if (selectedUserId != null) params.user = selectedUserId;
     fetchEveryPage(
       (page, pageSize) => settingsApi.activityLogs.list({ ...params, page, page_size: pageSize }),
       { pageSize: API_MAX_PAGE_SIZE, maxPages: 50 },
     )
       .then((list) => {
-        setLogs(list.map(mapActivityLogFromApi));
+        const mapped = list.map(mapActivityLogFromApi);
+        setLogs(mapped);
+        setDirectoryUsers((prev) => mergeActivityDirectoryUsers(prev, mapped));
       })
       .catch(() => onNotify?.('Could not load activity logs.', 'error'))
       .finally(() => setLoading(false));
-  }, [dateFrom, dateTo, moduleName, action, user, directoryUsers, onNotify]);
+  }, [dateFrom, dateTo, moduleName, action, user, selectedUserId, onNotify]);
 
   const uniqueUsers = directoryUsers.length
     ? directoryUsers.map((row) => row.name)
@@ -33379,8 +33452,7 @@ function ActivityLogsPage({ onNotify, onOpenSection }) {
     setUser('All Users');
     setModuleName('All Modules');
     setAction('All Actions');
-    setDateFrom('2026-07-01');
-    setDateTo('2026-07-03');
+    resetFyDates();
     onNotify('Activity log filters reset');
   };
 

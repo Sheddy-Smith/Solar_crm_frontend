@@ -531,6 +531,7 @@ export const leadApi = {
     const res = await request(`/leads/${id}/`, { method: 'PATCH', body: data });
     invalidateSoftGetCache('/leads/stats/');
     invalidateSoftGetCache('/leads/recent/');
+    invalidateSoftGetCache('/dashboard/unified/');
     return res;
   },
   delete: async (id) => {
@@ -544,12 +545,14 @@ export const leadApi = {
     const res = await request(`/leads/${id}/update_status/`, { method: 'POST', body: { status } });
     invalidateSoftGetCache('/leads/stats/');
     invalidateSoftGetCache('/leads/recent/');
+    invalidateSoftGetCache('/dashboard/unified/');
     return res;
   },
   assign: async (id, userId) => {
     const res = await request(`/leads/${id}/assign/`, { method: 'POST', body: { assigned_to: userId } });
     invalidateSoftGetCache('/leads/stats/');
     invalidateSoftGetCache('/leads/recent/');
+    invalidateSoftGetCache('/dashboard/unified/');
     return res;
   },
   stats: (period, date) => {
@@ -847,6 +850,12 @@ export const approvalApi = {
 
 // ─── Quotations ──────────────────────────────────────────────────────────────
 
+function invalidateLeadDashboardCaches() {
+  invalidateSoftGetCache('/leads/stats/');
+  invalidateSoftGetCache('/leads/recent/');
+  invalidateSoftGetCache('/dashboard/unified/');
+}
+
 export const quotationApi = {
   list: (leadId) => request(`/quotations/?lead=${leadId}`),
   listAll: (params = {}) => {
@@ -854,11 +863,31 @@ export const quotationApi = {
     return request(`/quotations/${qs ? '?' + qs : ''}`);
   },
   get: (id) => request(`/quotations/${id}/`),
-  create: (data) => request('/quotations/', { method: 'POST', body: data }),
-  update: (id, data) => request(`/quotations/${id}/`, { method: 'PATCH', body: data }),
-  delete: (id) => request(`/quotations/${id}/`, { method: 'DELETE' }),
-  markAsFinal: (id) => request(`/quotations/${id}/mark-as-final/`, { method: 'POST' }),
-  createRevision: (id) => request(`/quotations/${id}/create-revision/`, { method: 'POST' }),
+  create: async (data) => {
+    const res = await request('/quotations/', { method: 'POST', body: data });
+    invalidateLeadDashboardCaches();
+    return res;
+  },
+  update: async (id, data) => {
+    const res = await request(`/quotations/${id}/`, { method: 'PATCH', body: data });
+    invalidateLeadDashboardCaches();
+    return res;
+  },
+  delete: async (id) => {
+    const res = await request(`/quotations/${id}/`, { method: 'DELETE' });
+    invalidateLeadDashboardCaches();
+    return res;
+  },
+  markAsFinal: async (id) => {
+    const res = await request(`/quotations/${id}/mark-as-final/`, { method: 'POST' });
+    invalidateLeadDashboardCaches();
+    return res;
+  },
+  createRevision: async (id) => {
+    const res = await request(`/quotations/${id}/create-revision/`, { method: 'POST' });
+    invalidateLeadDashboardCaches();
+    return res;
+  },
 };
 
 export const moduleSyncApi = {

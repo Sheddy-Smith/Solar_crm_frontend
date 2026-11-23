@@ -110,7 +110,7 @@ class StaffDailyTaskViewSet(viewsets.ModelViewSet):
             severity='upcoming',
             module='Daily Tasks',
             user=task.assigned_to,
-            link='/daily-tasks',
+            link=f'/daily-tasks?task={task.pk}',
             channel='crm',
         )
 
@@ -130,9 +130,15 @@ class StaffDailyTaskViewSet(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         task = self.get_object()
         user = request.user
-        if not (is_super_admin(user) or (can_assign_daily_tasks(user) and task.assigned_by_id == user.id)):
-            raise PermissionDenied('You cannot delete this Daily Task.')
-        return super().destroy(request, *args, **kwargs)
+        if is_super_admin(user):
+            return super().destroy(request, *args, **kwargs)
+        # Assigners (incl. branch managers) may delete mistaken assignments in scope.
+        if can_assign_daily_tasks(user):
+            if task.assigned_by_id == user.id:
+                return super().destroy(request, *args, **kwargs)
+            if user.branch_id and task.branch_id == user.branch_id:
+                return super().destroy(request, *args, **kwargs)
+        raise PermissionDenied('You cannot delete this Daily Task.')
 
     @action(detail=True, methods=['patch'], url_path='update_status')
     def update_status(self, request, pk=None):

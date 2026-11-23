@@ -35,11 +35,13 @@ from .services import (
     get_category_settings,
     log_user_activity,
     organization_snapshot,
+    redact_organization_snapshot,
     run_maintenance_action,
     settings_dashboard,
     sync_business_to_company,
     sync_company_to_business,
     update_category_settings,
+    user_can_view_settings,
 )
 from .models import CompanyProfile
 
@@ -65,11 +67,18 @@ class SettingsPermissionMixin:
 
 
 class OrganizationSnapshotView(APIView):
-    """Authenticated org snapshot for documents, headers, and settings pages."""
+    """Authenticated org snapshot for documents, headers, and settings pages.
+
+    Any authenticated staff gets letterhead-safe fields. Banking / PAN / TAN /
+    CIN stay Settings can_view (or Super Admin) only.
+    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return Response(organization_snapshot(request=request))
+        snap = organization_snapshot(request=request)
+        if not user_can_view_settings(request.user):
+            snap = redact_organization_snapshot(snap)
+        return Response(snap)
 
 
 class PublicBrandingView(APIView):

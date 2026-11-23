@@ -1,5 +1,5 @@
 from django.conf import settings
-from django.db import models
+from django.db import models, transaction
 
 
 class CompanyProfile(models.Model):
@@ -99,9 +99,17 @@ class FinancialYear(models.Model):
         return self.label
 
     def save(self, *args, **kwargs):
-        if self.is_current:
-            FinancialYear.objects.exclude(pk=self.pk).update(is_current=False)
-        super().save(*args, **kwargs)
+        with transaction.atomic():
+            if self.is_current:
+                # Lock peers so concurrent set_current cannot leave multiple currents.
+                (
+                    FinancialYear.objects
+                    .select_for_update()
+                    .exclude(pk=self.pk)
+                    .filter(is_current=True)
+                    .update(is_current=False)
+                )
+            super().save(*args, **kwargs)
 
 
 class UserActivityLog(models.Model):
