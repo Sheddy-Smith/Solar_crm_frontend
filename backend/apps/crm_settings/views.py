@@ -244,16 +244,51 @@ class MasterRecordViewSet(SettingsPermissionMixin, viewsets.ModelViewSet):
 
 
 class FinancialYearViewSet(SettingsPermissionMixin, viewsets.ModelViewSet):
+    """CRUD for organization financial years stored in DB (crm_settings_financialyear)."""
+
     queryset = FinancialYear.objects.all()
     serializer_class = FinancialYearSerializer
-    search_fields = ['label']
-    ordering = ['-start_date']
+    search_fields = ['label', 'status']
+    ordering = ['-start_date', '-id']
+    filterset_fields = ['status', 'is_current']
+
+    def perform_create(self, serializer):
+        fy = serializer.save()
+        log_user_activity(
+            self.request, 'Create', 'Settings',
+            f'Financial year created: {fy.label}',
+        )
+
+    def perform_update(self, serializer):
+        fy = serializer.save()
+        log_user_activity(
+            self.request, 'Update', 'Settings',
+            f'Financial year updated: {fy.label}',
+        )
+
+    def destroy(self, request, *args, **kwargs):
+        fy = self.get_object()
+        if fy.is_current:
+            return Response(
+                {'detail': 'Cannot delete the current financial year. Set another year as current first.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        label = fy.label
+        response = super().destroy(request, *args, **kwargs)
+        log_user_activity(request, 'Delete', 'Settings', f'Financial year deleted: {label}')
+        return response
 
     @action(detail=True, methods=['post'])
     def set_current(self, request, pk=None):
         fy = self.get_object()
         fy.is_current = True
+        if fy.status == 'Closed':
+            fy.status = 'Active'
         fy.save()
+        log_user_activity(
+            request, 'Update', 'Settings',
+            f'Financial year set as current: {fy.label}',
+        )
         return Response(FinancialYearSerializer(fy).data)
 
 

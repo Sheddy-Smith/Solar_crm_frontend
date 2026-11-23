@@ -9,9 +9,10 @@ import {
 } from 'lucide-react';
 import {
   Area, AreaChart, CartesianGrid, Cell, Legend, Line, LineChart as ReLineChart,
-  Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Pie, PieChart, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import { dashboardApi, userApi } from './api.js';
+import { SafeResponsiveContainer } from './components/SafeResponsiveContainer.jsx';
 import { exportNotifyCsv } from './lib/utils.js';
 import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
 import { UnderlineTabs } from './components/UnderlineTabs.jsx';
@@ -262,7 +263,7 @@ function LeadsTrendChart({ data }) {
   const chartData = data?.length ? data : [{ month: '—', new: 0, follow_up: 0, won: 0 }];
   return (
     <div className="mt-4 h-[280px]">
-      <ResponsiveContainer width="100%" height="100%">
+      <SafeResponsiveContainer>
         <ReLineChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#edf2f8" />
           <XAxis dataKey="month" tick={{ fontSize: 11, fontWeight: 700, fill: '#7a8fa6' }} axisLine={false} tickLine={false} />
@@ -273,7 +274,7 @@ function LeadsTrendChart({ data }) {
           <Line type="monotone" dataKey="new" name="New" stroke="#1f7ff0" strokeWidth={2} dot={{ r: 3, fill: '#1f7ff0' }} />
           <Line type="monotone" dataKey="won" name="Won" stroke="#16a34a" strokeWidth={2} dot={{ r: 4, fill: '#16a34a' }} />
         </ReLineChart>
-      </ResponsiveContainer>
+      </SafeResponsiveContainer>
     </div>
   );
 }
@@ -284,13 +285,13 @@ function StatusDonut({ data }) {
   return (
     <div className="mt-4 flex flex-col items-center gap-4 md:flex-row md:items-center">
       <div className="h-[200px] w-[200px] shrink-0">
-        <ResponsiveContainer width="100%" height="100%">
+        <SafeResponsiveContainer>
           <PieChart>
             <Pie data={chartData.length ? chartData : [{ name: '—', value: 1, color: '#e5eaf2' }]} cx="50%" cy="50%" innerRadius={58} outerRadius={88} paddingAngle={2} dataKey="value">
               {chartData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
             </Pie>
           </PieChart>
-        </ResponsiveContainer>
+        </SafeResponsiveContainer>
       </div>
       <div className="w-full flex-1 space-y-2">
         {chartData.map((item) => (
@@ -312,7 +313,7 @@ function StatusDonut({ data }) {
 function CashFlowTrendChart({ data }) {
   return (
     <div className="mt-4 h-[300px]">
-      <ResponsiveContainer width="100%" height="100%">
+      <SafeResponsiveContainer>
         <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="inflowFill" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#16a34a" stopOpacity={0.2} /><stop offset="95%" stopColor="#16a34a" stopOpacity={0} /></linearGradient>
@@ -328,7 +329,7 @@ function CashFlowTrendChart({ data }) {
           <Area type="monotone" dataKey="outflow" name="Cash Outflow" stroke="#ef4444" fill="url(#outflowFill)" strokeWidth={2} />
           <Area type="monotone" dataKey="net" name="Net Cash Flow" stroke="#1f7ff0" fill="url(#netFill)" strokeWidth={2} />
         </AreaChart>
-      </ResponsiveContainer>
+      </SafeResponsiveContainer>
     </div>
   );
 }
@@ -346,13 +347,13 @@ function CashFlowDonut({ finance }) {
   return (
     <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-center">
       <div className="mx-auto h-[220px] w-[220px]">
-        <ResponsiveContainer width="100%" height="100%">
+        <SafeResponsiveContainer>
           <PieChart>
             <Pie data={chartData} cx="50%" cy="50%" innerRadius={55} outerRadius={90} dataKey="value" label={({ percent }) => `${(percent * 100).toFixed(1)}%`}>
               {chartData.map((e, i) => <Cell key={i} fill={e.color} />)}
             </Pie>
           </PieChart>
-        </ResponsiveContainer>
+        </SafeResponsiveContainer>
       </div>
       <div className="flex-1 space-y-3">
         {chartData.map((row) => (

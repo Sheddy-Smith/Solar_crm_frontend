@@ -62,10 +62,28 @@ class MasterRecordSerializer(serializers.ModelSerializer):
 
 
 class FinancialYearSerializer(serializers.ModelSerializer):
+    label = serializers.CharField(max_length=20, required=False, allow_blank=True)
+
     class Meta:
         model = FinancialYear
         fields = ['id', 'label', 'start_date', 'end_date', 'status', 'is_current', 'created_at']
         read_only_fields = ['created_at']
+
+    def validate(self, attrs):
+        start = attrs.get('start_date', getattr(self.instance, 'start_date', None))
+        end = attrs.get('end_date', getattr(self.instance, 'end_date', None))
+        if start and end and end <= start:
+            raise serializers.ValidationError({'end_date': 'End date must be after start date.'})
+
+        label = attrs.get('label') if 'label' in attrs else getattr(self.instance, 'label', '')
+        label = (label or '').strip()
+        if not label and start and end:
+            # Indian FY style label: 2025-04-01 → 2026-03-31 => "2025-26"
+            label = f'{start.year}-{str(end.year)[-2:]}'
+        if not label:
+            raise serializers.ValidationError({'label': 'Financial year name is required.'})
+        attrs['label'] = label
+        return attrs
 
 
 class UserActivityLogSerializer(serializers.ModelSerializer):

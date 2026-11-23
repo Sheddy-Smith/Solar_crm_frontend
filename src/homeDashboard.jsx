@@ -21,8 +21,9 @@ import {
   Users,
 } from 'lucide-react';
 import {
-  Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Bar, BarChart, Cell, Pie, PieChart, Tooltip, XAxis, YAxis,
 } from 'recharts';
+import { SafeResponsiveContainer } from './components/SafeResponsiveContainer.jsx';
 import {
   followUpAgeLabel,
   followUpOwnershipLabel,
@@ -357,7 +358,7 @@ export function HomeDashboardPage({
           <h2 className="text-[15px] font-extrabold text-[#1e3261]">Follow-up Status</h2>
           <div className="mt-2 grid gap-3 sm:grid-cols-[160px_1fr] sm:items-center">
             <div className="relative mx-auto h-[160px] w-[160px]">
-              <ResponsiveContainer width="100%" height="100%">
+              <SafeResponsiveContainer>
                 <PieChart>
                   <Pie data={donutData} dataKey="value" nameKey="name" innerRadius={48} outerRadius={72} paddingAngle={2}>
                     {donutData.map((entry) => (
@@ -366,7 +367,7 @@ export function HomeDashboardPage({
                   </Pie>
                   <Tooltip formatter={(v, n) => [`${v}`, n]} />
                 </PieChart>
-              </ResponsiveContainer>
+              </SafeResponsiveContainer>
               <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
                 <div>
                   <p className="text-[20px] font-extrabold leading-none text-[#1e3261]">{followUpsLoaded ? donutTotal : '—'}</p>
@@ -400,14 +401,14 @@ export function HomeDashboardPage({
         <article className={`${CARD} p-4`}>
           <h2 className="text-[15px] font-extrabold text-[#1e3261]">Follow-ups Trend (7 Days)</h2>
           <div className="mt-3 h-[200px]">
-            <ResponsiveContainer width="100%" height="100%">
+            <SafeResponsiveContainer>
               <BarChart data={trendData} barSize={22}>
                 <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#7386a3', fontWeight: 700 }} axisLine={false} tickLine={false} />
                 <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={28} />
                 <Tooltip cursor={{ fill: 'rgba(13,159,74,0.08)' }} />
                 <Bar dataKey="count" name="Follow-ups" fill="#16a34a" radius={[6, 6, 0, 0]} />
               </BarChart>
-            </ResponsiveContainer>
+            </SafeResponsiveContainer>
           </div>
         </article>
 

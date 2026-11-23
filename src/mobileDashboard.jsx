@@ -8,7 +8,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Area, AreaChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Area, AreaChart, Cell, Pie, PieChart, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import {
   ArrowDownRight, ArrowRight, ArrowUpRight, CalendarDays, ChevronRight, ClipboardList,
@@ -16,6 +16,7 @@ import {
   Plus, UserPlus, Users,
 } from 'lucide-react';
 import { analyticsApi, dashboardApi } from './api.js';
+import { SafeResponsiveContainer } from './components/SafeResponsiveContainer.jsx';
 import { hasAnyModuleAccess } from './settingsHubPages.jsx';
 
 const cx = (...parts) => parts.filter(Boolean).join(' ');
@@ -258,7 +259,7 @@ export function MobileDashboardPage({
           <DeltaLine delta={revenue.delta} tone={revenue.deltaTone} />
           {sparkData.length > 0 ? (
             <div className="mt-2 h-[52px]">
-              <ResponsiveContainer width="100%" height="100%">
+              <SafeResponsiveContainer>
                 <AreaChart data={sparkData} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
                   <defs>
                     <linearGradient id="mobileRevSpark" x1="0" y1="0" x2="0" y2="1">
@@ -268,7 +269,7 @@ export function MobileDashboardPage({
                   </defs>
                   <Area type="monotone" dataKey="v" stroke="#16a34a" strokeWidth={2} fill="url(#mobileRevSpark)" dot={false} />
                 </AreaChart>
-              </ResponsiveContainer>
+              </SafeResponsiveContainer>
             </div>
           ) : (
             <p className="mt-2 text-[11px] font-bold text-[#8895ab]">Revenue trend loads from completed receipts.</p>
@@ -284,7 +285,7 @@ export function MobileDashboardPage({
             <span className="rounded-[8px] border border-[#e4ebf4] px-2.5 py-1 text-[11px] font-bold text-[#53647f]">This Year</span>
           </div>
           <div className="mt-3 h-[170px]">
-            <ResponsiveContainer width="100%" height="100%">
+            <SafeResponsiveContainer>
               <AreaChart data={trendData} margin={{ top: 8, right: 6, bottom: 0, left: -18 }}>
                 <defs>
                   <linearGradient id="mobileLeadsTrend" x1="0" y1="0" x2="0" y2="1">
@@ -297,7 +298,7 @@ export function MobileDashboardPage({
                 <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e4ebf4', fontSize: 12, fontWeight: 700 }} />
                 <Area type="monotone" dataKey="leads" name="Leads" stroke="#16a34a" strokeWidth={2.5} fill="url(#mobileLeadsTrend)" dot={{ r: 2.5, fill: '#16a34a' }} />
               </AreaChart>
-            </ResponsiveContainer>
+            </SafeResponsiveContainer>
           </div>
         </section>
       ) : null}
@@ -308,13 +309,13 @@ export function MobileDashboardPage({
           <h2 className="text-[14px] font-extrabold text-[#1e3261]">Lead Status Distribution</h2>
           <div className="mt-2 flex items-center gap-3">
             <div className="relative h-[150px] w-[150px] shrink-0">
-              <ResponsiveContainer width="100%" height="100%">
+              <SafeResponsiveContainer>
                 <PieChart>
                   <Pie data={statusData} dataKey="value" nameKey="name" innerRadius={44} outerRadius={68} paddingAngle={2} strokeWidth={0}>
                     {statusData.map((row) => <Cell key={row.name} fill={row.color} />)}
                   </Pie>
                 </PieChart>
-              </ResponsiveContainer>
+              </SafeResponsiveContainer>
               <div className="pointer-events-none absolute inset-0 grid place-items-center">
                 <div className="text-center">
                   <p className="font-display text-[20px] font-extrabold leading-none text-[#1e3261]">{statusTotal}</p>

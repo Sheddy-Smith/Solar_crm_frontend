@@ -10610,32 +10610,129 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
   );
 }
 
+function mapFinancialYearRow(fy) {
+  const label = fy?.label || '';
+  return {
+    id: fy.id,
+    year: label,
+    startDate: fy.start_date || '',
+    endDate: fy.end_date || '',
+    period: label ? `FY ${label}` : '',
+    status: fy.status || '',
+    current: Boolean(fy.is_current),
+    raw: fy,
+  };
+}
+
+function formatFyDisplayDate(value) {
+  if (!value) return '—';
+  const d = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 function FinancialYearSettingsPage({ onOpenSection, onNotify }) {
   const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [formTarget, setFormTarget] = useState(null); // 'add' | row
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [busyId, setBusyId] = useState(null);
 
-  useEffect(() => {
-    settingsApi.financialYears.list()
+  const loadYears = useCallback(() => {
+    setLoading(true);
+    return settingsApi.financialYears.list()
       .then((res) => {
         const list = Array.isArray(res) ? res : (res?.results ?? []);
-        setRows(list.map((fy) => ({
-          id: fy.id,
-          year: fy.label,
-          startDate: fy.start_date,
-          endDate: fy.end_date,
-          period: `FY ${fy.label}`,
-          status: fy.status,
-          current: fy.is_current,
-        })));
+        setRows(list.map(mapFinancialYearRow));
       })
-      .catch(() => onNotify('Could not load financial years.', 'error'))
+      .catch((err) => onNotify(err?.message || 'Could not load financial years from database.', 'error'))
       .finally(() => setLoading(false));
-  }, []);  
+  }, [onNotify]);
 
-  const filteredRows = rows.filter((row) => [row.year, row.period, row.startDate, row.endDate].some((value) => String(value).toLowerCase().includes(query.toLowerCase())));
-  const { pageRows, startIndex, pagination } = usePagedRows(filteredRows, 'settings-financial-years', { resetKey: query });
-  const currentYear = rows.find((row) => row.current) || rows[0] || { year: '—', startDate: '—', endDate: '—', status: '—' };
+  useEffect(() => { loadYears(); }, [loadYears]);
+
+  const filteredRows = rows.filter((row) => {
+    const q = query.trim().toLowerCase();
+    const queryMatch = !q || [row.year, row.period, row.startDate, row.endDate, row.status]
+      .some((value) => String(value).toLowerCase().includes(q));
+    const statusMatch = statusFilter === 'All' || row.status === statusFilter;
+    return queryMatch && statusMatch;
+  });
+  const { pageRows, startIndex, pagination } = usePagedRows(filteredRows, 'settings-financial-years', { resetKey: `${query}|${statusFilter}` });
+  const currentYear = rows.find((row) => row.current) || null;
+  const blankCurrent = { year: '—', startDate: '', endDate: '', status: '—' };
+
+  const handleExport = () => {
+    if (!filteredRows.length) {
+      onNotify('No financial years to export.', 'error');
+      return;
+    }
+    exportNotifyCsv(
+      onNotify,
+      'financial-years',
+      ['Financial Year', 'Start Date', 'End Date', 'Year Period', 'Status', 'Current'],
+      filteredRows.map((row) => [
+        row.year,
+        row.startDate,
+        row.endDate,
+        row.period,
+        row.status,
+        row.current ? 'Yes' : 'No',
+      ]),
+    );
+  };
+
+  const handleSave = async (payload) => {
+    const isAdd = formTarget === 'add';
+    try {
+      if (isAdd) {
+        await settingsApi.financialYears.create(payload);
+        onNotify('Financial year saved to database', 'success');
+      } else {
+        await settingsApi.financialYears.update(formTarget.id, payload);
+        onNotify('Financial year updated in database', 'success');
+      }
+      setFormTarget(null);
+      await loadYears();
+      await refreshOrganization({ force: true }).catch(() => {});
+    } catch (err) {
+      onNotify(err?.message || 'Failed to save financial year.', 'error');
+    }
+  };
+
+  const handleSetCurrent = async (row) => {
+    setBusyId(row.id);
+    try {
+      await settingsApi.financialYears.setCurrent(row.id);
+      onNotify(`${row.year} set as current financial year`, 'success');
+      await loadYears();
+      await refreshOrganization({ force: true }).catch(() => {});
+    } catch (err) {
+      onNotify(err?.message || 'Failed to set current year.', 'error');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setBusyId(deleteTarget.id);
+    try {
+      await settingsApi.financialYears.delete(deleteTarget.id);
+      onNotify(`${deleteTarget.year} deleted from database`, 'success');
+      setDeleteTarget(null);
+      await loadYears();
+      await refreshOrganization({ force: true }).catch(() => {});
+    } catch (err) {
+      onNotify(err?.message || 'Failed to delete financial year.', 'error');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const displayCurrent = currentYear || blankCurrent;
 
   return (
     <div className="space-y-4">
@@ -10644,10 +10741,18 @@ function FinancialYearSettingsPage({ onOpenSection, onNotify }) {
         crumbs={[
           { label: 'Dashboard', onClick: () => onOpenSection('Dashboard') },
           { label: 'Settings', onClick: () => onOpenSection('Settings') },
-          { label: 'Organization Settings', onClick: () => onNotify('Organization settings opened') },
+          { label: 'Organization Settings', onClick: () => onOpenSection('Settings') },
           { label: 'Financial Year Settings' },
         ]}
-        actions={<button type="button" onClick={() => onNotify('Add financial year flow opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"><Plus className="size-4" />Add Financial Year</button>}
+        actions={(
+          <button
+            type="button"
+            onClick={() => setFormTarget('add')}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-[#078c3e] px-5 text-[13px] font-extrabold text-white shadow-[0_12px_22px_rgba(13,159,74,0.22)] transition hover:bg-[#067832]"
+          >
+            <Plus className="size-4" />Add Financial Year
+          </button>
+        )}
       />
 
       <section className="space-y-4">
@@ -10656,26 +10761,38 @@ function FinancialYearSettingsPage({ onOpenSection, onNotify }) {
 
         <div className="space-y-4">
           <SettingsSectionCard title="Current Financial Year">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_0.8fr_0.8fr_0.6fr] xl:items-center">
-              <div className="flex items-center gap-4">
-                <div className="grid size-12 place-items-center rounded-[12px] bg-[#e8f8eb] text-[#16a34a]">
-                  <CalendarDays className="size-6" />
-                </div>
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-display text-[22px] font-extrabold text-[#14853a]">{currentYear.year}</p>
-                    <span className="rounded-full bg-[#e8f8eb] px-3 py-1 text-[11px] font-extrabold text-[#14853a]">Current Year</span>
+            {currentYear ? (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_0.8fr_0.8fr_0.6fr] xl:items-center">
+                <div className="flex items-center gap-4">
+                  <div className="grid size-12 place-items-center rounded-[12px] bg-[#e8f8eb] text-[#16a34a]">
+                    <CalendarDays className="size-6" />
                   </div>
-                  <p className="mt-2 text-[13px] font-bold text-[#314a79]">{currentYear.startDate} to {currentYear.endDate}</p>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-display text-[22px] font-extrabold text-[#14853a]">{displayCurrent.year}</p>
+                      <span className="rounded-full bg-[#e8f8eb] px-3 py-1 text-[11px] font-extrabold text-[#14853a]">Current Year</span>
+                    </div>
+                    <p className="mt-2 text-[13px] font-bold text-[#314a79]">
+                      {formatFyDisplayDate(displayCurrent.startDate)} to {formatFyDisplayDate(displayCurrent.endDate)}
+                    </p>
+                  </div>
+                </div>
+                <InfoCell label="Start Date" value={formatFyDisplayDate(displayCurrent.startDate)} />
+                <InfoCell label="End Date" value={formatFyDisplayDate(displayCurrent.endDate)} />
+                <div className="min-w-0">
+                  <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#8a98af]">Status</p>
+                  <div className="mt-1.5"><OpsPillBadge label={displayCurrent.status || '—'} tone={displayCurrent.status === 'Closed' ? 'slate' : 'green'} /></div>
                 </div>
               </div>
-              <InfoCell label="Start Date" value={currentYear.startDate} />
-              <InfoCell label="End Date" value={currentYear.endDate} />
-              <div className="min-w-0">
-                <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#8a98af]">Status</p>
-                <div className="mt-1.5"><OpsPillBadge label={currentYear.status} tone="green" /></div>
+            ) : (
+              <div className="rounded-[12px] border border-dashed border-[#d9e4f2] bg-[#f8fbff] px-4 py-6 text-center">
+                <p className="text-[14px] font-extrabold text-[#1e3261]">No current financial year in database</p>
+                <p className="mt-1 text-[12px] font-bold text-[#7585a2]">Add a year and mark it as current, or set current from the list below.</p>
+                <button type="button" onClick={() => setFormTarget('add')} className="mt-4 inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#078c3e] px-4 text-[12px] font-extrabold text-white">
+                  <Plus className="size-4" />Add Financial Year
+                </button>
               </div>
-            </div>
+            )}
           </SettingsSectionCard>
 
           <article className={`${panelClass} overflow-hidden p-4 sm:p-5`}>
@@ -10686,66 +10803,183 @@ function FinancialYearSettingsPage({ onOpenSection, onNotify }) {
                   <Search className="size-4 text-[#7386a3]" />
                   <input value={query} onChange={(event) => setQuery(event.target.value)} type="search" placeholder="Search financial years..." className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#30466d] outline-none placeholder:text-[#8493ab]" />
                 </label>
-                <button type="button" onClick={() => onNotify('Financial year filters opened')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Search className="size-4 text-[#0b65e5]" />Filter</button>
-                <button type="button" onClick={() => onNotify('Financial years exported')} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button>
+                <select
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value)}
+                  className="h-11 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[13px] font-extrabold text-[#284276] outline-none"
+                >
+                  {['All', 'Active', 'Closed'].map((opt) => <option key={opt} value={opt}>{opt === 'All' ? 'All Status' : opt}</option>)}
+                </select>
+                <button type="button" onClick={handleExport} className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] border border-[#d9e4f2] bg-white px-4 text-[13px] font-extrabold text-[#284276] transition hover:bg-[#f8fbff]"><Download className="size-4 text-[#0b65e5]" />Export</button>
               </div>
             </div>
 
-            <div className="mt-4 space-y-3 xl:hidden">
-              {pageRows.map((row, index) => (
-                <article key={row.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[12px] font-extrabold text-[#8493ab]">#{startIndex + index + 1}</p>
-                      <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.year}</p>
-                    </div>
-                    <button type="button" onClick={() => onNotify(`${row.year} opened`)} className="inline-flex size-9 items-center justify-center rounded-[8px] border border-[#d9e4f2] bg-white text-[#0b65e5]"><MoreVertical className="size-4" /></button>
-                  </div>
-                  <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
-                    <InfoCell label="Start Date" value={row.startDate} />
-                    <InfoCell label="End Date" value={row.endDate} />
-                    <InfoCell label="Year Period" value={row.period} />
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {row.current ? <OpsPillBadge label="Current Year" tone="green" /> : null}
-                    <OpsPillBadge label={row.status} tone={row.status === 'Closed' ? 'slate' : 'green'} />
-                  </div>
-                </article>
-              ))}
-            </div>
-
-            <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
-              <table className="crm-table min-w-[980px] w-full">
-                <thead>
-                  <tr>{['#', 'Financial Year', 'Start Date', 'End Date', 'Year Period', 'Status', 'Actions'].map((header) => <th key={header}>{header}</th>)}</tr>
-                </thead>
-                <tbody>
+            {loading ? (
+              <p className="mt-6 text-center text-[13px] font-bold text-[#8493ab]">Loading financial years from database…</p>
+            ) : !filteredRows.length ? (
+              <div className="mt-6 rounded-[12px] border border-dashed border-[#d9e4f2] bg-[#f8fbff] px-4 py-10 text-center">
+                <p className="text-[14px] font-extrabold text-[#1e3261]">No financial years found</p>
+                <p className="mt-1 text-[12px] font-bold text-[#7585a2]">Database is empty for this filter — add a financial year to get started.</p>
+              </div>
+            ) : (
+              <>
+                <div className="mt-4 space-y-3 xl:hidden">
                   {pageRows.map((row, index) => (
-                    <tr key={row.id}>
-                      <td>{startIndex + index + 1}</td>
-                      <td>
-                        <div className="flex items-center gap-3">
-                          <span className="font-extrabold text-[#1e3261]">{row.year}</span>
-                          {row.current ? <span className="rounded-full bg-[#e8f8eb] px-3 py-1 text-[11px] font-extrabold text-[#14853a]">Current Year</span> : null}
+                    <article key={row.id} className="rounded-[14px] border border-[#e7eef7] bg-white p-4 shadow-[0_10px_22px_rgba(17,39,84,0.05)]">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[12px] font-extrabold text-[#8493ab]">#{startIndex + index + 1}</p>
+                          <p className="mt-1 text-[15px] font-extrabold text-[#1e3261]">{row.year || '—'}</p>
                         </div>
-                      </td>
-                      <td>{row.startDate}</td>
-                      <td>{row.endDate}</td>
-                      <td>{row.period}</td>
-                      <td><OpsPillBadge label={row.status} tone={row.status === 'Closed' ? 'slate' : 'green'} /></td>
-                      <td><UserActionButton label={`Open ${row.year}`} icon={MoreVertical} tone="blue" onClick={() => onNotify(`${row.year} opened`)} /></td>
-                    </tr>
+                        <div className="flex gap-1.5">
+                          {!row.current ? (
+                            <UserActionButton label={`Set ${row.year} current`} icon={CheckCircle2} tone="green" onClick={() => handleSetCurrent(row)} />
+                          ) : null}
+                          <UserActionButton label={`Edit ${row.year}`} icon={Pencil} tone="blue" onClick={() => setFormTarget(row)} />
+                          <UserActionButton label={`Delete ${row.year}`} icon={Trash2} tone="red" onClick={() => setDeleteTarget(row)} />
+                        </div>
+                      </div>
+                      <div className="mt-4 grid gap-3 text-[12px] min-[420px]:grid-cols-2">
+                        <InfoCell label="Start Date" value={formatFyDisplayDate(row.startDate)} />
+                        <InfoCell label="End Date" value={formatFyDisplayDate(row.endDate)} />
+                        <InfoCell label="Year Period" value={row.period || '—'} />
+                      </div>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {row.current ? <OpsPillBadge label="Current Year" tone="green" /> : null}
+                        <OpsPillBadge label={row.status || '—'} tone={row.status === 'Closed' ? 'slate' : 'green'} />
+                      </div>
+                    </article>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </div>
 
-            <TablePagination {...pagination} className="mt-4 rounded-[12px] border border-[#e7eef7]" />
+                <div className="mt-4 hidden overflow-x-auto rounded-[12px] border border-[#e7eef7] bg-white xl:block">
+                  <table className="crm-table min-w-[980px] w-full">
+                    <thead>
+                      <tr>{['#', 'Financial Year', 'Start Date', 'End Date', 'Year Period', 'Status', 'Actions'].map((header) => <th key={header}>{header}</th>)}</tr>
+                    </thead>
+                    <tbody>
+                      {pageRows.map((row, index) => (
+                        <tr key={row.id}>
+                          <td>{startIndex + index + 1}</td>
+                          <td>
+                            <div className="flex items-center gap-3">
+                              <span className="font-extrabold text-[#1e3261]">{row.year || '—'}</span>
+                              {row.current ? <span className="rounded-full bg-[#e8f8eb] px-3 py-1 text-[11px] font-extrabold text-[#14853a]">Current Year</span> : null}
+                            </div>
+                          </td>
+                          <td>{formatFyDisplayDate(row.startDate)}</td>
+                          <td>{formatFyDisplayDate(row.endDate)}</td>
+                          <td>{row.period || '—'}</td>
+                          <td><OpsPillBadge label={row.status || '—'} tone={row.status === 'Closed' ? 'slate' : 'green'} /></td>
+                          <td>
+                            <div className="flex items-center gap-1.5">
+                              {!row.current ? (
+                                <UserActionButton label={`Set ${row.year} current`} icon={CheckCircle2} tone="green" onClick={() => handleSetCurrent(row)} />
+                              ) : null}
+                              <UserActionButton label={`Edit ${row.year}`} icon={Pencil} tone="blue" onClick={() => setFormTarget(row)} />
+                              <UserActionButton label={`Delete ${row.year}`} icon={Trash2} tone="red" onClick={() => setDeleteTarget(row)} />
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <TablePagination {...pagination} className="mt-4 rounded-[12px] border border-[#e7eef7]" />
+              </>
+            )}
           </article>
         </div>
       </section>
 
       <DashboardFooter />
+
+      {formTarget ? (
+        <FinancialYearFormModal
+          year={formTarget === 'add' ? null : formTarget}
+          onClose={() => setFormTarget(null)}
+          onSave={handleSave}
+        />
+      ) : null}
+
+      {deleteTarget ? (
+        <ConfirmDeleteModal
+          message={deleteTarget.year}
+          loading={busyId === deleteTarget.id}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={handleDelete}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function FinancialYearFormModal({ year, onClose, onSave }) {
+  const [label, setLabel] = useState(year?.year || '');
+  const [startDate, setStartDate] = useState(year?.startDate || '');
+  const [endDate, setEndDate] = useState(year?.endDate || '');
+  const [status, setStatus] = useState(year?.status || 'Active');
+  const [isCurrent, setIsCurrent] = useState(year ? Boolean(year.current) : false);
+  const [saving, setSaving] = useState(false);
+
+  const suggestLabel = () => {
+    if (!startDate || !endDate) return;
+    const start = new Date(`${startDate}T00:00:00`);
+    const end = new Date(`${endDate}T00:00:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return;
+    setLabel(`${start.getFullYear()}-${String(end.getFullYear()).slice(-2)}`);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#111827]/45 p-4">
+      <div className="w-full max-w-[460px] rounded-[16px] bg-white p-6 shadow-[0_30px_70px_rgba(17,24,39,0.28)]">
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="font-display text-[20px] font-extrabold text-[#111827]">{year ? 'Edit Financial Year' : 'Add Financial Year'}</h2>
+          <button type="button" onClick={onClose} className="text-[#7585a2]"><X className="size-5" /></button>
+        </div>
+        <div className="mt-5 space-y-4">
+          <ModalTextInput label="Financial Year Name" value={label} onChange={setLabel} placeholder="e.g. 2025-26" />
+          <ModalTextInput label="Start Date" value={startDate} onChange={setStartDate} type="date" />
+          <ModalTextInput label="End Date" value={endDate} onChange={setEndDate} type="date" />
+          <button type="button" onClick={suggestLabel} className="text-[12px] font-extrabold text-[#0b65e5]">Auto-fill name from dates</button>
+          <label className="block">
+            <span className="mb-2 block text-[12px] font-extrabold text-[#34466c]">Status</span>
+            <select value={status} onChange={(e) => setStatus(e.target.value)} className="h-11 w-full rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d]">
+              <option value="Active">Active</option>
+              <option value="Closed">Closed</option>
+            </select>
+          </label>
+          <label className="flex items-center gap-2.5 text-[13px] font-extrabold text-[#34466c]">
+            <input type="checkbox" checked={isCurrent} onChange={(e) => setIsCurrent(e.target.checked)} className="size-4 rounded" />
+            Set as current financial year
+          </label>
+        </div>
+        <div className="mt-6 flex justify-end gap-3">
+          <button type="button" onClick={onClose} className="h-10 rounded-[8px] border border-[#d9e4f2] bg-white px-5 text-[13px] font-extrabold text-[#233a6b]">Cancel</button>
+          <button
+            type="button"
+            disabled={saving || !startDate || !endDate}
+            onClick={async () => {
+              setSaving(true);
+              try {
+                await onSave({
+                  label: label.trim(),
+                  start_date: startDate,
+                  end_date: endDate,
+                  status,
+                  is_current: isCurrent,
+                });
+              } finally {
+                setSaving(false);
+              }
+            }}
+            className="h-10 rounded-[8px] bg-[#0d9f4a] px-5 text-[13px] font-extrabold text-white disabled:opacity-60"
+          >
+            {saving ? 'Saving…' : (year ? 'Save Changes' : 'Add Year')}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
