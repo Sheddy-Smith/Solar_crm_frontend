@@ -43,7 +43,7 @@ SETTING_CATEGORIES = {
         'city': '',
         'state': '',
         'pin': '',
-        'country': 'India',
+        'country': '',
         'gst': '',
         'tan': '',
         'gstType': 'Regular',

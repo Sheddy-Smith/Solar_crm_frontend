@@ -33,6 +33,7 @@ import {
   refreshOrganization,
   subscribeOrganization,
 } from './lib/organization.js';
+import { INDIAN_STATES, WORLD_COUNTRIES } from './lib/geoOptions.js';
 import { rowDoubleOpenProps } from './lib/rowDoubleOpen.js';
 import fixWebmDuration from 'fix-webm-duration';
 import { PortalSelectPage, TeleSignInPage, TeleExecutivePortal, TELE_ROLE_NAME, isTeleExecutiveRole, AuthLandingShell, AuthBrandHeader, AuthLandingFooter, ProductFooter, TeleFollowUpAlertsPanel, splitFollowUpAlerts, followUpAgeLabel, formatDateTime } from './telePortal.jsx';
@@ -6939,17 +6940,21 @@ function SettingsInputField({ label, value, onChange, required = false, type = '
   );
 }
 
-function SettingsSelectField({ label, value, onChange, options, required = false }) {
+function SettingsSelectField({ label, value, onChange, options, required = false, placeholder = 'Select…' }) {
+  const selected = value ?? '';
+  const known = options.includes(selected);
   return (
     <label className="block min-w-0">
       <SettingsFieldLabel label={label} required={required} />
       <select
-        value={value}
+        value={selected}
         onChange={(event) => onChange(event.target.value)}
         className="h-11 w-full rounded-[8px] border border-black/20 bg-white px-4 text-[13px] font-bold text-[#30466d] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
       >
+        <option value="">{placeholder}</option>
+        {!known && selected ? <option value={selected}>{selected}</option> : null}
         {options.map((option) => (
-          <option key={option}>{option}</option>
+          <option key={option} value={option}>{option}</option>
         ))}
       </select>
     </label>
@@ -10136,14 +10141,14 @@ function BusinessInformationSettingsPage({ onOpenSection, onNotify }) {
     city: '',
     state: '',
     pin: '',
-    country: 'India',
+    country: '',
     gst: '',
     tan: '',
-    gstType: 'Regular',
-    workingHours: '09:30 AM - 06:30 PM',
-    workingDays: 'Monday - Saturday',
-    currency: 'INR (Rs)',
-    timezone: '(GMT +05:30) Asia/Kolkata',
+    gstType: '',
+    workingHours: '',
+    workingDays: '',
+    currency: '',
+    timezone: '',
   };
   const [form, setForm] = useState(defaultBusinessForm);
   const [saving, setSaving] = useState(false);
@@ -10228,9 +10233,9 @@ function BusinessInformationSettingsPage({ onOpenSection, onNotify }) {
                 <SettingsInputField label="Address Line 1" value={form.address1} onChange={(value) => updateField('address1', value)} required />
                 <SettingsInputField label="Address Line 2" value={form.address2} onChange={(value) => updateField('address2', value)} />
                 <SettingsInputField label="City" value={form.city} onChange={(value) => updateField('city', value)} required />
-                <SettingsSelectField label="State" value={form.state} onChange={(value) => updateField('state', value)} options={['Punjab', 'Delhi', 'Madhya Pradesh', 'Rajasthan']} required />
+                <SettingsSelectField label="State" value={form.state} onChange={(value) => updateField('state', value)} options={INDIAN_STATES} placeholder="Select state" required />
                 <SettingsInputField label="PIN Code" value={form.pin} onChange={(value) => updateField('pin', value)} required />
-                <SettingsSelectField label="Country" value={form.country} onChange={(value) => updateField('country', value)} options={['India', 'UAE', 'Nepal']} required />
+                <SettingsSelectField label="Country" value={form.country} onChange={(value) => updateField('country', value)} options={WORLD_COUNTRIES} placeholder="Select country" required />
               </div>
             </SettingsSectionCard>
 
@@ -10298,7 +10303,7 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
   const defaultCompanyForm = {
     companyName: '',
     shortName: '',
-    companyType: 'Proprietorship',
+    companyType: '',
     gstNumber: '',
     panNumber: '',
     tanNumber: '',
@@ -10310,16 +10315,16 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
     website: '',
     incorporationDate: '',
     startDate: '',
-    companySize: '11-50 Employees',
-    industryType: 'Solar Energy',
-    currency: 'INR (Rs)',
-    timezone: '(GMT +05:30) Asia/Kolkata',
+    companySize: '',
+    industryType: '',
+    currency: '',
+    timezone: '',
     address1: '',
     address2: '',
     city: '',
     state: '',
     pinCode: '',
-    country: 'India',
+    country: '',
     bankName: '',
     accountNumber: '',
     ifsc: '',
@@ -10577,9 +10582,9 @@ function CompanyProfileSettingsPage({ onOpenSection, onNotify }) {
                 <SettingsInputField label="Address Line 1" value={form.address1} onChange={(value) => updateField('address1', value)} required />
                 <SettingsInputField label="Address Line 2" value={form.address2} onChange={(value) => updateField('address2', value)} />
                 <SettingsInputField label="City" value={form.city} onChange={(value) => updateField('city', value)} required />
-                <SettingsSelectField label="State" value={form.state} onChange={(value) => updateField('state', value)} options={['Punjab', 'Delhi', 'Madhya Pradesh', 'Rajasthan']} required />
+                <SettingsSelectField label="State" value={form.state} onChange={(value) => updateField('state', value)} options={INDIAN_STATES} placeholder="Select state" required />
                 <SettingsInputField label="PIN Code" value={form.pinCode} onChange={(value) => updateField('pinCode', value)} required />
-                <SettingsSelectField label="Country" value={form.country} onChange={(value) => updateField('country', value)} options={['India', 'UAE', 'Nepal']} required />
+                <SettingsSelectField label="Country" value={form.country} onChange={(value) => updateField('country', value)} options={WORLD_COUNTRIES} placeholder="Select country" required />
               </div>
             </SettingsSectionCard>
 

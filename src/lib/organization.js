@@ -118,7 +118,7 @@ export function crmCompanyProfile(overrides = {}) {
     city: company.city || business.city || overrides.city || '',
     state: company.state || business.state || overrides.state || '',
     pinCode: company.pinCode || company.pin || business.pin || overrides.pinCode || '',
-    country: company.country || business.country || overrides.country || 'India',
+    country: company.country || business.country || overrides.country || '',
     bankName: company.bankName || overrides.bankName || '',
     accountNumber: company.accountNumber || overrides.accountNumber || '',
     ifsc: company.ifsc || overrides.ifsc || '',
