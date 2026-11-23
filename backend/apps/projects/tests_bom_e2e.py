@@ -1,7 +1,7 @@
 """BOM E2E + review regression: Lead→BOM→Quote→Project→MaterialPlan→Dashboard."""
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from decimal import Decimal
-from unittest import mock
+from unittest import mock, skipUnless
 
 from django.db import connection, transaction
 from django.test import TestCase, TransactionTestCase
@@ -305,6 +305,10 @@ class BomActivationConcurrencyTests(TransactionTestCase):
             activate_bom_version(ver)
             self.assertTrue(mocked.called)
 
+    @skipUnless(
+        connection.vendor != 'sqlite',
+        'select_for_update concurrency needs MySQL/Postgres (DJANGO_TEST_USE_MYSQL=1)',
+    )
     def test_concurrent_activate_leaves_one_active(self):
         user = _superuser('bom-concurrency@test.com')
         ensure_default_capacity_shells()

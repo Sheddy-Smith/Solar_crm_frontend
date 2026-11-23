@@ -920,6 +920,25 @@ Deep review of the uncommitted Daily Tasks module, Settings hub rework and unifi
 
 ---
 
+## 2026-11-23 external clone audit (BUG-085 – BUG-092)
+
+Full write-up: [`docs/EXTERNAL_AUDIT_BUG_REPORT_2026-11-23.md`](docs/EXTERNAL_AUDIT_BUG_REPORT_2026-11-23.md)
+
+| # | Sev | Bug | Status |
+|---|-----|-----|--------|
+| BUG-085 | P1 | `test_quick_adjust_updates_stock` missing `notes` | **Fixed** — test payload includes reason |
+| BUG-086 | P2 | Concurrent BOM activate on SQLite | **Fixed** — `@skipUnless` non-SQLite |
+| BUG-087 | P1 | CI missing `DATABASE_URL` at settings import | **Fixed** — `base.py` SQLite default + CI env |
+| BUG-029 | P2 | `App.jsx` monolith / large bundle | **Deferred** — ongoing split (not this pass) |
+| BUG-088 | P1 | JWT in `localStorage`, long access TTL | **Mitigated** — access TTL default **60m** (httpOnly cookie = follow-up) |
+| BUG-089 | P1 | Fernet key tied only to `SECRET_KEY` | **Fixed** — `FIELD_ENCRYPTION_KEY` (+ SECRET_KEY fallback) |
+| BUG-090 | P2 | README PostgreSQL vs MySQL | **Fixed** |
+| BUG-091 | P2 | Hostinger SQL dump in public tree | **Fixed** — file removed |
+| BUG-092 | P2 | Dev/staging open hosts + CORS | **Documented** — local-only warnings in settings |
+| ARCH-001 | — | Microservices migration | **Deferred** — do not start until explicit ask |
+
+---
+
 ## Changelog
 
 | Date | Change |
@@ -927,3 +946,5 @@ Deep review of the uncommitted Daily Tasks module, Settings hub rework and unifi
 | 2026-07-10 | Initial audit — 46 issues documented |
 | 2026-07-10 | Deep-dive follow-up audit (backend apps, frontend, security, data integrity) — 29 more issues added (BUG-047 to BUG-075), total 75 |
 | 2026-07-10 | Follow-up pass on uncommitted Daily Tasks / Settings hub / Insights work — BUG-076 to BUG-084 found **and fixed** (IST date shift, fake cash-flow periods, dead PIN lock, verify-password throttle, lint clean). 28 backend tests + build + lint all green |
+| 2026-11-23 | External clone audit verified + logged as BUG-085–092 (+ ARCH-001 microservices debt). Full report in `docs/EXTERNAL_AUDIT_BUG_REPORT_2026-11-23.md` |
+| 2026-11-23 | BUG-085–092 fixed/mitigated (except BUG-029 App.jsx split + ARCH-001 microservices deferred). JWT access TTL 60m; FIELD_ENCRYPTION_KEY; CI DATABASE_URL; SQL dump removed |

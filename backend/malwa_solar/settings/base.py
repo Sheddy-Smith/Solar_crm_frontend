@@ -102,8 +102,13 @@ TRUSTED_PROXIES = tuple(
     if part and str(part).strip()
 )
 
+# Default SQLite lets CI / fresh checkouts import settings without DATABASE_URL
+# (BUG-087). Production and local MySQL must still set DATABASE_URL explicitly.
 DATABASES = {
-    'default': env.db('DATABASE_URL')
+    'default': env.db(
+        'DATABASE_URL',
+        default=f'sqlite:///{(BASE_DIR / "db.sqlite3").as_posix()}',
+    )
 }
 # Persistent DB connections — without this every request pays a fresh TCP+TLS
 # handshake to the remote Postgres (Neon), which dominates API latency.
@@ -237,15 +242,21 @@ REST_FRAMEWORK = {
     },
 }
 
+# BUG-088: shorter access TTL reduces XSS localStorage theft window.
+# Full httpOnly-cookie auth remains a follow-up (would change FE + CSRF).
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(hours=8),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=env.int('JWT_ACCESS_MINUTES', default=60)),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=env.int('JWT_REFRESH_DAYS', default=7)),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
     'AUTH_HEADER_TYPES': ('Bearer',),
     'USER_ID_FIELD': 'id',
     'USER_ID_CLAIM': 'user_id',
 }
+
+# BUG-089: prefer dedicated field-encryption key so SECRET_KEY rotation does not
+# brick ciphertext. Falls back to SECRET_KEY for legacy deployments.
+FIELD_ENCRYPTION_KEY = env('FIELD_ENCRYPTION_KEY', default='') or SECRET_KEY
 
 CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[
     'http://localhost:5173',

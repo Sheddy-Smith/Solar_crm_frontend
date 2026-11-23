@@ -1,0 +1,13 @@
+---
+description: Saved architecture debt — monolith should become microservices (deferred)
+alwaysApply: true
+---
+
+# Architecture debt → microservices
+
+User wants Malwa Solar CRM to move from **modular monolith** to **microservices** (category-wise).
+
+- Canonical audit/roadmap: `docs/MICROSERVICES_CATEGORY_AUDIT.md`
+- Current as-is: single Django `/api/v1/` monolith, Django apps as modules, shared DB.
+- **Do not** split all domains in one shot. Implement only the phase the user picks (`phase0`, `extract-notifications`, `extract-settings`, `extract-leads`, etc.).
+- Never call a shared-DB multi-package layout “microservices” without real service boundaries (deploy + data + API).

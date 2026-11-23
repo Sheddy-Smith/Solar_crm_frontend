@@ -1,0 +1,93 @@
+# Malwa CRM API Gateway — routes /api/v1/* to domain microservices.
+# Monolith (:8000) remains fallback for anything not matched.
+#
+# Local: caddy run --config services/gateway/Caddyfile
+# Compose: see docker-compose.microservices.yml
+
+{
+	auto_https off
+}
+
+:8080 {
+	encode gzip
+
+	handle /api/v1/health* {
+		reverse_proxy 127.0.0.1:8001
+	}
+
+	# Auth / identity
+	handle /api/v1/auth/* {
+		reverse_proxy 127.0.0.1:8001
+	}
+	handle /api/v1/users* {
+		reverse_proxy 127.0.0.1:8001
+	}
+	handle /api/v1/roles* {
+		reverse_proxy 127.0.0.1:8001
+	}
+	handle /api/v1/branches* {
+		reverse_proxy 127.0.0.1:8001
+	}
+
+	handle /api/v1/notifications* {
+		reverse_proxy 127.0.0.1:8002
+	}
+	handle /api/v1/settings* {
+		reverse_proxy 127.0.0.1:8003
+	}
+
+	handle /api/v1/leads* {
+		reverse_proxy 127.0.0.1:8004
+	}
+	handle /api/v1/quotations* {
+		reverse_proxy 127.0.0.1:8004
+	}
+	handle /api/v1/follow-ups* {
+		reverse_proxy 127.0.0.1:8004
+	}
+
+	handle /api/v1/projects* {
+		reverse_proxy 127.0.0.1:8005
+	}
+
+	handle /api/v1/inventory* {
+		reverse_proxy 127.0.0.1:8006
+	}
+
+	handle /api/v1/accounts* {
+		reverse_proxy 127.0.0.1:8007
+	}
+
+	handle /api/v1/workforce* {
+		reverse_proxy 127.0.0.1:8008
+	}
+
+	handle /api/v1/liaison* {
+		reverse_proxy 127.0.0.1:8009
+	}
+
+	handle /api/v1/om* {
+		reverse_proxy 127.0.0.1:8010
+	}
+
+	handle /api/v1/amc* {
+		reverse_proxy 127.0.0.1:8011
+	}
+
+	handle /api/v1/daily-tasks* {
+		reverse_proxy 127.0.0.1:8012
+	}
+
+	handle /api/v1/dashboard* {
+		reverse_proxy 127.0.0.1:8013
+	}
+
+	handle /api/v1/reports* {
+		reverse_proxy 127.0.0.1:8014
+	}
+
+	# Strangler fallback — anything else still hits the monolith
+	handle {
+		reverse_proxy 127.0.0.1:8000
+	}
+}

@@ -6,7 +6,7 @@ Full-stack CRM for solar EPC operations: leads, projects, workforce, accounts, i
 
 - **Frontend:** React 19 + Vite 8 (`src/App.jsx`, `src/api.js`)
 - **Backend:** Django 4.2 + Django REST Framework (`backend/`)
-- **Database:** PostgreSQL (production) / SQLite (local dev)
+- **Database:** MySQL (production / local Hostinger-parity) / SQLite (Django test runs)
 
 ## Quick start (local)
 

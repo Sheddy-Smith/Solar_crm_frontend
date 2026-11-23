@@ -4,8 +4,9 @@ import sys
 DEBUG = True
 ALLOW_EAGER_EXPORTS = env.bool('ALLOW_EAGER_EXPORTS', default=True)  # noqa: F405
 
-# Allow LAN access (phone/other devices) in development; the dev machine's
-# DHCP-assigned IP can change, so a wildcard is used instead of a fixed IP.
+# BUG-092: open hosts/CORS are LOCAL DEV ONLY. Never set
+# DJANGO_SETTINGS_MODULE=malwa_solar.settings.development on a public host.
+# Production uses production.py (HTTPS redirect, HSTS, explicit ALLOWED_HOSTS).
 ALLOWED_HOSTS = ['*']
 
 CORS_ALLOW_ALL_ORIGINS = True

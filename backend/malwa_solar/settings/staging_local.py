@@ -8,6 +8,8 @@ import sys
 from pathlib import Path
 
 DEBUG = True
+# BUG-092: wildcard hosts/CORS for isolated local staging / Locust only —
+# never point this module at Hostinger production or a public DNS name.
 ALLOWED_HOSTS = ['*']
 CORS_ALLOW_ALL_ORIGINS = True
 

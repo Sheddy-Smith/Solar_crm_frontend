@@ -50,4 +50,7 @@ jobs:
         env:
           DJANGO_SETTINGS_MODULE: malwa_solar.settings.development
           SECRET_KEY: ci-test-secret-key
+          # Required at settings import; development.py still swaps to test SQLite.
+          DATABASE_URL: sqlite:////tmp/malwa-ci-placeholder.sqlite3
+          FIELD_ENCRYPTION_KEY: ci-field-encryption-key-not-for-prod
         run: python manage.py test

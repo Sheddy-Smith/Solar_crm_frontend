@@ -1,0 +1,73 @@
+# Docker-network gateway (service DNS names from compose).
+
+{
+	auto_https off
+}
+
+:8080 {
+	encode gzip
+
+	handle /api/v1/auth/* {
+		reverse_proxy auth:8001
+	}
+	handle /api/v1/users* {
+		reverse_proxy auth:8001
+	}
+	handle /api/v1/roles* {
+		reverse_proxy auth:8001
+	}
+	handle /api/v1/branches* {
+		reverse_proxy auth:8001
+	}
+	handle /api/v1/health* {
+		reverse_proxy auth:8001
+	}
+
+	handle /api/v1/notifications* {
+		reverse_proxy notifications:8002
+	}
+	handle /api/v1/settings* {
+		reverse_proxy settings:8003
+	}
+	handle /api/v1/leads* {
+		reverse_proxy leads:8004
+	}
+	handle /api/v1/quotations* {
+		reverse_proxy leads:8004
+	}
+	handle /api/v1/follow-ups* {
+		reverse_proxy leads:8004
+	}
+	handle /api/v1/projects* {
+		reverse_proxy projects:8005
+	}
+	handle /api/v1/inventory* {
+		reverse_proxy inventory:8006
+	}
+	handle /api/v1/accounts* {
+		reverse_proxy finance:8007
+	}
+	handle /api/v1/workforce* {
+		reverse_proxy workforce:8008
+	}
+	handle /api/v1/liaison* {
+		reverse_proxy liaison:8009
+	}
+	handle /api/v1/om* {
+		reverse_proxy om:8010
+	}
+	handle /api/v1/amc* {
+		reverse_proxy amc:8011
+	}
+	handle /api/v1/daily-tasks* {
+		reverse_proxy tasks:8012
+	}
+	handle /api/v1/dashboard* {
+		reverse_proxy insights:8013
+	}
+	handle /api/v1/reports* {
+		reverse_proxy reports:8014
+	}
+
+	respond "No route matched — check gateway Caddyfile" 404
+}

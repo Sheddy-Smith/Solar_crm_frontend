@@ -1,0 +1,155 @@
+# Local microservices mesh (strangler). Shares one DB via DATABASE_URL.
+# Usage:
+#   docker compose -f docker-compose.microservices.yml up --build
+# FE: VITE_API_URL=http://localhost:8080/api/v1
+
+name: malwa-crm-microservices
+
+x-backend-env: &backend-env
+  SECRET_KEY: ${SECRET_KEY:-dev-microservices-scaffold-key}
+  DATABASE_URL: ${DATABASE_URL:-sqlite:////data/shared.sqlite3}
+  REDIS_URL: ${REDIS_URL:-disabled}
+  DJANGO_SETTINGS_MODULE: services.django_settings
+  MALWA_SERVICE_ENV: ${MALWA_SERVICE_ENV:-development}
+  PYTHONPATH: /app:/app/backend:/app/services/shared
+  ALLOWED_HOSTS: ${ALLOWED_HOSTS:-*}
+  CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-}
+
+x-service-build: &service-build
+  context: .
+  dockerfile: services/Dockerfile
+
+services:
+  gateway:
+    image: caddy:2
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./services/gateway/Caddyfile.docker:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - auth
+      - notifications
+      - settings
+      - leads
+      - projects
+      - inventory
+      - finance
+      - workforce
+      - liaison
+      - om
+      - amc
+      - tasks
+      - insights
+      - reports
+
+  auth:
+    <<: *service-build
+    environment:
+      <<: *backend-env
+      MALWA_SERVICE_NAME: auth
+      MALWA_SERVICE_PORT: "8001"
+    ports: ["8001:8001"]
+
+  notifications:
+    <<: *service-build
+    environment:
+      <<: *backend-env
+      MALWA_SERVICE_NAME: notifications
+      MALWA_SERVICE_PORT: "8002"
+    ports: ["8002:8002"]
+
+  settings:
+    <<: *service-build
+    environment:
+      <<: *backend-env
+      MALWA_SERVICE_NAME: settings
+      MALWA_SERVICE_PORT: "8003"
+    ports: ["8003:8003"]
+
+  leads:
+    <<: *service-build
+    environment:
+      <<: *backend-env
+      MALWA_SERVICE_NAME: leads
+      MALWA_SERVICE_PORT: "8004"
+    ports: ["8004:8004"]
+
+  projects:
+    <<: *service-build
+    environment:
+      <<: *backend-env
+      MALWA_SERVICE_NAME: projects
+      MALWA_SERVICE_PORT: "8005"
+    ports: ["8005:8005"]
+
+  inventory:
+    <<: *service-build
+    environment:
+      <<: *backend-env
+      MALWA_SERVICE_NAME: inventory
+      MALWA_SERVICE_PORT: "8006"
+    ports: ["8006:8006"]
+
+  finance:
+    <<: *service-build
+    environment:
+      <<: *backend-env
+      MALWA_SERVICE_NAME: finance
+      MALWA_SERVICE_PORT: "8007"
+    ports: ["8007:8007"]
+
+  workforce:
+    <<: *service-build
+    environment:
+      <<: *backend-env
+      MALWA_SERVICE_NAME: workforce
+      MALWA_SERVICE_PORT: "8008"
+    ports: ["8008:8008"]
+
+  liaison:
+    <<: *service-build
+    environment:
+      <<: *backend-env
+      MALWA_SERVICE_NAME: liaison
+      MALWA_SERVICE_PORT: "8009"
+    ports: ["8009:8009"]
+
+  om:
+    <<: *service-build
+    environment:
+      <<: *backend-env
+      MALWA_SERVICE_NAME: om
+      MALWA_SERVICE_PORT: "8010"
+    ports: ["8010:8010"]
+
+  amc:
+    <<: *service-build
+    environment:
+      <<: *backend-env
+      MALWA_SERVICE_NAME: amc
+      MALWA_SERVICE_PORT: "8011"
+    ports: ["8011:8011"]
+
+  tasks:
+    <<: *service-build
+    environment:
+      <<: *backend-env
+      MALWA_SERVICE_NAME: tasks
+      MALWA_SERVICE_PORT: "8012"
+    ports: ["8012:8012"]
+
+  insights:
+    <<: *service-build
+    environment:
+      <<: *backend-env
+      MALWA_SERVICE_NAME: insights
+      MALWA_SERVICE_PORT: "8013"
+    ports: ["8013:8013"]
+
+  reports:
+    <<: *service-build
+    environment:
+      <<: *backend-env
+      MALWA_SERVICE_NAME: reports
+      MALWA_SERVICE_PORT: "8014"
+    ports: ["8014:8014"]
