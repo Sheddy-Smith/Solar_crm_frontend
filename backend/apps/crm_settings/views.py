@@ -37,6 +37,7 @@ from .services import (
     organization_snapshot,
     run_maintenance_action,
     settings_dashboard,
+    sync_business_to_company,
     sync_company_to_business,
     update_category_settings,
 )
@@ -79,7 +80,7 @@ class PublicBrandingView(APIView):
     def get(self, request):
         snap = organization_snapshot(request=request)
         return Response({
-            'display_name': snap.get('display_name') or 'Malwa Solar Energy',
+            'display_name': snap.get('display_name') or 'Company',
             'logo_url': snap.get('logo_url') or '',
             'updated_at': snap.get('updated_at'),
         })
@@ -144,6 +145,8 @@ class CategorySettingsView(SettingsPermissionMixin, APIView):
         if category not in SETTING_CATEGORIES:
             return Response({'detail': 'Unknown settings category.'}, status=status.HTTP_404_NOT_FOUND)
         payload = update_category_settings(category, request.data)
+        if category == 'business':
+            sync_business_to_company(payload)
         log_user_activity(request, 'Update', 'Settings', f'{category} settings updated')
         return Response(payload)
 

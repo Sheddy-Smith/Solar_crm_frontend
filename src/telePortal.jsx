@@ -958,11 +958,18 @@ function AuthLandingBackground() {
 }
 
 export function AuthBrandHeader() {
+  const [orgName, setOrgName] = useState(() => organizationDisplayName() || 'Company');
+  useEffect(() => {
+    refreshBranding().catch(() => {});
+    const sync = () => setOrgName(organizationDisplayName() || 'Company');
+    sync();
+    return subscribeOrganization(sync);
+  }, []);
   return (
     <div className="flex items-center gap-3">
       <TeleBrandMark size="lg" />
       <div>
-        <p className="font-display text-[18px] font-extrabold leading-tight text-[#0d9f4a] sm:text-[22px]">{organizationDisplayName() || 'Malwa Solar Energy'}</p>
+        <p className="font-display text-[18px] font-extrabold leading-tight text-[#0d9f4a] sm:text-[22px]">{orgName}</p>
         <div className="mt-1 flex max-w-[210px] items-center gap-2">
           <span className="h-px flex-1 bg-[#0d9f4a]/55" />
           <p className="text-[10px] font-extrabold uppercase tracking-[0.22em] text-[#123c8f] sm:text-[11px]">ERP System</p>

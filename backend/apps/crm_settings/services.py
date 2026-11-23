@@ -22,29 +22,30 @@ from .models import (
 
 # Categories exposed via /settings/category/<category>/
 SETTING_CATEGORIES = {
+    # Empty defaults — live identity comes from Company Profile / DB, not demo placeholders.
     'business': {
-        'businessName': 'Malwa Solar Energy Pvt. Ltd.',
-        'phone': '+91 98765 43210',
-        'tagline': 'Powering a Sustainable Future',
-        'email': 'info@malwasolar.com',
-        'nature': 'Manufacturing & Installation',
-        'website': 'https://www.malwasolar.com',
-        'description': 'End-to-end solar energy solutions for residential, commercial and industrial clients.',
-        'establishedYear': '2021',
-        'employees': '51-100 Employees',
-        'entityType': 'Private Limited',
-        'cin': 'U40106PB2021PTC045678',
-        'incorporationDate': '01/04/2021',
-        'incorporationPlace': 'Indore, Madhya Pradesh',
-        'pan': 'AAGCM1234A',
-        'address1': '123, Industrial Area, Phase 1',
-        'address2': 'Near Transport Nagar',
-        'city': 'Indore',
-        'state': 'Madhya Pradesh',
-        'pin': '452001',
+        'businessName': '',
+        'phone': '',
+        'tagline': '',
+        'email': '',
+        'nature': '',
+        'website': '',
+        'description': '',
+        'establishedYear': '',
+        'employees': '',
+        'entityType': '',
+        'cin': '',
+        'incorporationDate': '',
+        'incorporationPlace': '',
+        'pan': '',
+        'address1': '',
+        'address2': '',
+        'city': '',
+        'state': '',
+        'pin': '',
         'country': 'India',
-        'gst': '23AAGCM1234A1Z5',
-        'tan': 'PTLM12345G',
+        'gst': '',
+        'tan': '',
         'gstType': 'Regular',
         'workingHours': '09:30 AM - 06:30 PM',
         'workingDays': 'Monday - Saturday',
@@ -52,9 +53,9 @@ SETTING_CATEGORIES = {
         'timezone': '(GMT +05:30) Asia/Kolkata',
     },
     'system': {
-        'systemName': 'Malwa Solar Energy CRM',
-        'companyEmail': 'info@malwasolar.com',
-        'companyPhone': '+91 98765 43210',
+        'systemName': '',
+        'companyEmail': '',
+        'companyPhone': '',
         'defaultTimeZone': '(GMT +05:30) Asia/Kolkata',
         'itemsPerPage': '25',
         'defaultLanguage': 'English',
@@ -309,7 +310,7 @@ def organization_snapshot(request=None):
         company.get('shortName')
         or company.get('companyName')
         or business.get('businessName')
-        or 'Malwa Solar Energy'
+        or 'Company'
     )
     fy_payload = None
     if active_fy:
@@ -370,6 +371,38 @@ def sync_company_to_business(company_data):
     patch = {key: value for key, value in mapping.items() if value}
     if patch:
         update_category_settings('business', patch)
+
+
+def sync_business_to_company(business_data):
+    """Keep Company Profile letterhead aligned when Business Information is saved."""
+    if not isinstance(business_data, dict):
+        return
+    profile = CompanyProfile.get_solo()
+    current = profile.data if isinstance(profile.data, dict) else {}
+    mapping = {
+        'companyName': business_data.get('businessName'),
+        'phone': business_data.get('phone'),
+        'email': business_data.get('email'),
+        'website': business_data.get('website'),
+        'panNumber': business_data.get('pan'),
+        'gstNumber': business_data.get('gst'),
+        'tanNumber': business_data.get('tan'),
+        'cin': business_data.get('cin'),
+        'companyType': business_data.get('entityType'),
+        'address1': business_data.get('address1'),
+        'address2': business_data.get('address2'),
+        'city': business_data.get('city'),
+        'state': business_data.get('state'),
+        'pinCode': business_data.get('pin'),
+        'country': business_data.get('country'),
+        'currency': business_data.get('currency'),
+        'timezone': business_data.get('timezone'),
+    }
+    patch = {key: value for key, value in mapping.items() if value}
+    if not patch:
+        return
+    profile.data = {**current, **patch}
+    profile.save(update_fields=['data', 'updated_at'])
 
 
 def settings_dashboard():

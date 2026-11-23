@@ -33,6 +33,66 @@ export function organizationFinancialYearLabel() {
   return label ? (String(label).startsWith('FY') ? label : `FY ${label}`) : 'FY —';
 }
 
+/** Single-line registered address from Settings → Company Profile. */
+export function organizationAddressLine(profile = null) {
+  const p = profile || crmCompanyProfile();
+  return [p.address1, p.address2, p.city, p.state, p.pinCode, p.country]
+    .filter(Boolean)
+    .join(', ');
+}
+
+/** Default copyright / document footer from live org identity. */
+export function organizationCopyrightLine(year = new Date().getFullYear()) {
+  const name = organizationDisplayName() || 'Company';
+  return `© ${year} ${name}. All rights reserved.`;
+}
+
+/**
+ * Shared HTML letterhead for CRM print/export surfaces.
+ * Pulls logo, name, address, GST, phone, email from Settings → Company Profile.
+ */
+export function buildOrgLetterheadHtml({
+  subtitle = 'CRM SYSTEM',
+  escapeHtml,
+  logoSrc = '',
+} = {}) {
+  const esc = typeof escapeHtml === 'function'
+    ? escapeHtml
+    : (value) => String(value ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const profile = crmCompanyProfile();
+  const name = profile.companyName || organizationDisplayName();
+  const address = organizationAddressLine(profile);
+  const phones = [profile.phone, profile.secondaryPhone].filter(Boolean).join(' · ');
+  const contactBits = [
+    phones ? `Phone: ${phones}` : '',
+    profile.email ? `Email: ${profile.email}` : '',
+    profile.website ? String(profile.website).replace(/^https?:\/\//, '') : '',
+  ].filter(Boolean).join(' · ');
+  const gst = profile.gstNumber ? `GSTIN: ${profile.gstNumber}` : '';
+  const pan = profile.panNumber ? `PAN: ${profile.panNumber}` : '';
+  const taxBits = [gst, pan].filter(Boolean).join(' · ');
+  const resolvedLogo = logoSrc || organizationLogoUrl();
+  const logoBlock = resolvedLogo
+    ? `<img src="${esc(resolvedLogo)}" alt="${esc(name)}" style="display:block;max-height:48px;max-width:160px;object-fit:contain;margin-bottom:6px;" />`
+    : '';
+  return `
+    <div class="org-letterhead" style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:3px solid #11a650;padding-bottom:12px;margin-bottom:16px;">
+      <div>
+        ${logoBlock}
+        <div style="font-size:20px;font-weight:800;color:#11a650;line-height:1.2;">${esc(name)}</div>
+        ${subtitle ? `<div style="font-size:10px;color:#53647f;font-weight:700;letter-spacing:.08em;margin-top:2px;">${esc(subtitle)}</div>` : ''}
+        ${address ? `<div style="margin-top:6px;font-size:11px;color:#53647f;max-width:420px;">${esc(address)}</div>` : ''}
+        ${contactBits ? `<div style="margin-top:4px;font-size:11px;color:#53647f;">${esc(contactBits)}</div>` : ''}
+      </div>
+      <div style="text-align:right;font-size:11px;color:#1e3261;font-weight:700;min-width:160px;">
+        ${taxBits ? `<div>${esc(taxBits)}</div>` : ''}
+        ${profile.bankName ? `<div style="margin-top:6px;color:#53647f;font-weight:600;">Bank: ${esc(profile.bankName)}</div>` : ''}
+        ${profile.accountNumber ? `<div style="color:#53647f;font-weight:600;">A/c: ${esc(profile.accountNumber)}${profile.ifsc ? ` · IFSC: ${esc(profile.ifsc)}` : ''}</div>` : ''}
+        ${profile.branch ? `<div style="color:#53647f;font-weight:600;">${esc(profile.branch)}</div>` : ''}
+      </div>
+    </div>`;
+}
+
 /**
  * Billing / challan / invoice print shape from Settings → Company Profile.
  * Prefer live org snapshot over hardcoded module fallbacks.

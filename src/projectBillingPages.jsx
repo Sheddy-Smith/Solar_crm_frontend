@@ -251,6 +251,10 @@ function printDocument(kind, doc, company) {
   const isInvoice = kind === 'invoice';
   const lines = doc.lines || [];
   const companyAddress = [c.address1, c.address2, c.city, c.state, c.pinCode].filter(Boolean).join(', ');
+  const logoSrc = organizationLogoUrl() ? getMediaUrl(organizationLogoUrl()) : (c.logoUrl ? getMediaUrl(c.logoUrl) : '');
+  const logoHtml = logoSrc
+    ? `<img src="${esc(logoSrc)}" alt="${esc(c.companyName)}" style="display:block;max-height:48px;max-width:160px;object-fit:contain;margin-bottom:6px;" />`
+    : '';
   const baseAddress = (isInvoice ? doc.project_site_address || doc.site : doc.site_address || doc.project_site_address || doc.site) || '';
   const customerAddress = doc.city && !baseAddress.toLowerCase().includes(String(doc.city).toLowerCase())
     ? [baseAddress, doc.city].filter(Boolean).join(', ')
@@ -299,7 +303,7 @@ function printDocument(kind, doc, company) {
     @media print{body{padding:0} .doc{border:none}}
   </style></head><body><div class="doc">
     <div class="head">
-      <div><div class="brand">${esc(c.companyName)}</div><div class="muted">${esc(companyAddress)}</div>
+      <div>${logoHtml}<div class="brand">${esc(c.companyName)}</div><div class="muted">${esc(companyAddress)}</div>
         <div class="muted">Phone: ${esc(c.phone)} · ${esc(c.email)}</div></div>
       <div class="r"><div><b>GSTIN:</b> ${esc(c.gstNumber)}</div>
         <div><b>${isInvoice ? 'Invoice' : 'Challan'} No:</b> ${esc(doc[cfg.noField])}</div>

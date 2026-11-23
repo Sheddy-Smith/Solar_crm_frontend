@@ -22,7 +22,9 @@ import {
 } from './api.js';
 import { exportNotifyCsv } from './lib/utils.js';
 import {
+  buildOrgLetterheadHtml,
   getOrganization,
+  organizationCopyrightLine,
   organizationDisplayName,
   organizationFinancialYearLabel,
   organizationLogoUrl,
@@ -3244,16 +3246,22 @@ function App() {
       tele: 'Tele Executive',
     };
     const pageLabel = authPageTitles[currentPage] || activeSidebarItem;
+    const orgName = organizationDisplayName() || 'Company';
     const productName = ['portal', 'signin', 'tele-signin'].includes(currentPage)
-      ? 'Malwa Solar ERP'
-      : `${organizationDisplayName()} CRM`;
+      ? `${orgName} ERP`
+      : `${orgName} CRM`;
     document.title = `${pageLabel} | ${productName}`;
   }, [activeSidebarItem, currentPage]);
 
   useEffect(() => subscribeOrganization(() => {
-    if (['portal', 'signin', 'tele-signin'].includes(currentPage)) return;
-    const pageLabel = activeSidebarItem || 'Dashboard';
-    document.title = `${pageLabel} | ${organizationDisplayName()} CRM`;
+    const pageLabel = ['portal', 'signin', 'tele-signin'].includes(currentPage)
+      ? ({ signin: 'Sign In', portal: 'Choose Portal', 'tele-signin': 'Tele Executive Login' }[currentPage] || 'Sign In')
+      : (activeSidebarItem || 'Dashboard');
+    const orgName = organizationDisplayName() || 'Company';
+    const productName = ['portal', 'signin', 'tele-signin'].includes(currentPage)
+      ? `${orgName} ERP`
+      : `${orgName} CRM`;
+    document.title = `${pageLabel} | ${productName}`;
   }), [activeSidebarItem, currentPage]);
 
   // Sync navigation to browser history (back/forward support)
@@ -10107,29 +10115,30 @@ function OrganizationConnectionBanner() {
 }
 
 function BusinessInformationSettingsPage({ onOpenSection, onNotify }) {
+  // Empty defaults — live values always come from Settings API / organization snapshot.
   const defaultBusinessForm = {
-    businessName: 'Malwa Solar Energy Pvt. Ltd.',
-    phone: '+91 98765 43210',
-    tagline: 'Powering a Sustainable Future',
-    email: 'info@malwasolar.com',
-    nature: 'Manufacturing & Installation',
-    website: 'https://www.malwasolar.com',
-    description: 'We provide end-to-end solar energy solutions including consultation, system design, supply, installation and maintenance for residential, commercial and industrial clients.',
-    establishedYear: '2021',
-    employees: '51-100 Employees',
-    entityType: 'Private Limited',
-    cin: 'U40106PB2021PTC045678',
-    incorporationDate: '01/04/2021',
-    incorporationPlace: 'Ludhiana, Punjab',
-    pan: 'AAGCM1234A',
-    address1: '123, Industrial Area, Phase 1',
-    address2: 'Near Transport Nagar',
-    city: 'Ludhiana',
-    state: 'Punjab',
-    pin: '141003',
+    businessName: '',
+    phone: '',
+    tagline: '',
+    email: '',
+    nature: '',
+    website: '',
+    description: '',
+    establishedYear: '',
+    employees: '',
+    entityType: '',
+    cin: '',
+    incorporationDate: '',
+    incorporationPlace: '',
+    pan: '',
+    address1: '',
+    address2: '',
+    city: '',
+    state: '',
+    pin: '',
     country: 'India',
-    gst: '03AAGCM1234A1Z5',
-    tan: 'PTLM12345G',
+    gst: '',
+    tan: '',
     gstType: 'Regular',
     workingHours: '09:30 AM - 06:30 PM',
     workingDays: 'Monday - Saturday',
@@ -16901,14 +16910,17 @@ function buildProjectDocumentHtml(row, detail) {
     ? materials.map((m) => `<tr><td>${esc(m.item_name)}</td><td>${esc(m.category)}</td><td>${esc(m.required_qty)} ${esc(m.unit)}</td><td>${esc(m.status)}</td></tr>`).join('')
     : '<tr><td colspan="4" class="empty">No material records</td></tr>';
 
+  const letterhead = buildOrgLetterheadHtml({
+    subtitle: 'CRM SYSTEM — PROJECT DOCUMENT',
+    escapeHtml: esc,
+    logoSrc: organizationLogoUrl() ? getMediaUrl(organizationLogoUrl()) : '',
+  });
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(row.projectName)} — Project Document</title>
   <style>
     *{box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;}
     body{margin:0;padding:32px;color:#1e3261;}
-    .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #11a650;padding-bottom:14px;margin-bottom:18px;}
-    .brand{font-size:22px;font-weight:800;color:#11a650;}
-    .brand small{display:block;font-size:11px;color:#53647f;font-weight:700;letter-spacing:.08em;}
     h1{font-size:18px;margin:0 0 2px;}
+    .doc-meta{text-align:right;margin:-8px 0 14px;}
     .muted{color:#53647f;font-size:12px;}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:14px;}
     section{border:1px solid #e7eef7;border-radius:10px;padding:14px 16px;}
@@ -16923,10 +16935,8 @@ function buildProjectDocumentHtml(row, detail) {
     .foot{margin-top:26px;font-size:11px;color:#8a98af;text-align:center;border-top:1px solid #e7eef7;padding-top:12px;}
     @media print{body{padding:14px;}}
   </style></head><body>
-  <div class="head">
-    <div><div class="brand">${esc(organizationDisplayName())}<small>CRM SYSTEM</small></div></div>
-    <div style="text-align:right"><h1>${esc(row.projectName)}</h1><div class="muted">${esc(row.projectId || d.project_id || '')} • Status: ${esc(row.status)}</div><div class="muted">Generated: ${esc(new Date().toLocaleString('en-IN'))}</div></div>
-  </div>
+  ${letterhead}
+  <div class="doc-meta"><h1>${esc(row.projectName)}</h1><div class="muted">${esc(row.projectId || d.project_id || '')} • Status: ${esc(row.status)}</div><div class="muted">Generated: ${esc(new Date().toLocaleString('en-IN'))}</div></div>
   <div class="grid">
     <section><h2>Customer & Site</h2><table>
       ${infoRow('Customer', row.customer)}
@@ -16961,7 +16971,7 @@ function buildProjectDocumentHtml(row, detail) {
       <tbody>${materialsRows}</tbody></table>
     </section>
   </div>
-  <div class="foot">This document is system-generated by ${esc(organizationDisplayName())} CRM.</div>
+  <div class="foot">${esc(organizationCopyrightLine())} · System-generated project document.</div>
   </body></html>`;
 }
 
@@ -17019,14 +17029,17 @@ function buildSiteSurveyViewHtml(row, detail) {
   const electricalDetailsHtml = kvPairs(survey.electrical_details);
   const systemHasData = hasVal(d.system_type) || hasVal(cfg.inverter_brand) || hasVal(cfg.panel_brand) || hasVal(cfg.panel_count) || hasVal(cfg.protection_devices) || hasVal(cfg.notes);
   const financeHasData = totalValue > 0 || totalPaid > 0 || payments.length > 0;
+  const letterhead = buildOrgLetterheadHtml({
+    subtitle: 'CRM SYSTEM — SITE SURVEY REPORT',
+    escapeHtml: esc,
+    logoSrc: organizationLogoUrl() ? getMediaUrl(organizationLogoUrl()) : '',
+  });
 
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(row.projectName)} — Site Survey</title>
   <style>
     *{box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;}
     body{margin:0;padding:12px 14px;color:#1e3261;font-size:11px;line-height:1.25;}
-    .head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;border-bottom:2px solid #11a650;padding-bottom:8px;margin-bottom:8px;}
-    .brand{font-size:16px;font-weight:800;color:#11a650;line-height:1.15;}
-    .brand small{display:block;font-size:9px;color:#53647f;font-weight:700;letter-spacing:.06em;margin-top:1px;}
+    .doc-meta{text-align:right;margin:-6px 0 8px;}
     h1{font-size:14px;margin:0 0 1px;line-height:1.2;}
     .muted{color:#53647f;font-size:10px;}
     h2.section-title{font-size:10px;margin:10px 0 4px;color:#0b65e5;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid #dbe5f2;padding-bottom:2px;}
@@ -17053,10 +17066,8 @@ function buildSiteSurveyViewHtml(row, detail) {
       .photo img{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
     }
   </style></head><body>
-  <div class="head">
-    <div><div class="brand">${esc(organizationDisplayName())}<small>CRM SYSTEM — SITE SURVEY REPORT</small></div></div>
-    <div style="text-align:right"><h1>${esc(row.projectName)}</h1><div class="muted">${esc(row.projectId || d.project_id || '')} · Survey ${esc(survey.survey_id || '—')} · ${esc(new Date().toLocaleString('en-IN'))}</div></div>
-  </div>
+  ${letterhead}
+  <div class="doc-meta"><h1>${esc(row.projectName)}</h1><div class="muted">${esc(row.projectId || d.project_id || '')} · Survey ${esc(survey.survey_id || '—')} · ${esc(new Date().toLocaleString('en-IN'))}</div></div>
 
   ${block('Overview', `<div class="grid">
     ${card(`${infoRow('Customer', row.customer || d.customer_name)}${infoRow('Site', row.site || d.site)}${infoRow('Status', d.status)}${infoRow('Project Type', d.project_type)}${infoRow('Capacity (kWp)', d.capacity_kwp)}${infoRow('Progress', `${d.progress_percent || 0}%`)}`)}
@@ -17113,7 +17124,7 @@ function buildSiteSurveyViewHtml(row, detail) {
   ${activitiesRows.length ? block('Activities', `<section class="full">${listTable(['Title', 'Type', 'Assigned To', 'Due Date', 'Status'], activitiesRows)}</section>`) : ''}
   ${notesRows.length ? block('Notes', `<section class="full">${listTable(['Title', 'Content', 'By', 'Date', 'Pinned'], notesRows)}</section>`) : ''}
 
-  <div class="foot">System-generated by ${esc(organizationDisplayName())} CRM</div>
+  <div class="foot">${esc(organizationCopyrightLine())} · Site survey report</div>
   </body></html>`;
 }
 
@@ -17399,6 +17410,7 @@ function ProjectListPage({ activeSection, onOpenSection, onSelectProject, onNoti
     onNotify(`Preparing PDF for "${row.projectName}"...`);
     let detail = null;
     try {
+      await refreshOrganization({ force: true }).catch(() => {});
       detail = await projectApi.get(row.id);
     } catch {
       detail = null;
@@ -18424,6 +18436,7 @@ function SiteSurveyViewModal({ row, onClose, onNotify, onViewFullProject, onEdit
   const handlePrint = useCallback(async () => {
     setPrinting(true);
     try {
+      await refreshOrganization({ force: true }).catch(() => {});
       let data = detail;
       if (!data) {
         data = await projectApi.get(row.id);
@@ -30738,13 +30751,16 @@ function buildEmployeeAttendanceCardHtml({ periodLabel, employee, period, summar
       <div class="stat-value">${esc(value)}</div>
     </div>`).join('');
 
+  const letterhead = buildOrgLetterheadHtml({
+    subtitle: 'EMPLOYEE ATTENDANCE',
+    escapeHtml: esc,
+    logoSrc: organizationLogoUrl() ? getMediaUrl(organizationLogoUrl()) : '',
+  });
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(periodLabel)} Attendance Card — ${esc(employee.name)}</title>
   <style>
     *{box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;}
     body{margin:0;padding:24px;color:#1e3261;background:#fff;}
-    .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #16a34a;padding-bottom:12px;margin-bottom:16px;}
-    .brand{font-size:20px;font-weight:800;color:#16a34a;}
-    .brand small{display:block;font-size:10px;color:#53647f;font-weight:700;letter-spacing:.08em;margin-top:2px;}
+    .doc-meta{text-align:right;margin:-8px 0 14px;}
     h1{font-size:18px;margin:0 0 4px;color:#111827;}
     .muted{color:#53647f;font-size:12px;}
     .info{border:1px solid #d9ecff;background:#f3f9ff;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px;line-height:1.6;}
@@ -30764,13 +30780,11 @@ function buildEmployeeAttendanceCardHtml({ periodLabel, employee, period, summar
     }
   </style></head><body>
   <div class="sheet">
-    <div class="head">
-      <div><div class="brand">${esc(organizationDisplayName())}<small>EMPLOYEE ATTENDANCE</small></div></div>
-      <div style="text-align:right">
-        <h1>${esc(periodLabel)} Attendance Card</h1>
-        <div class="muted">${esc(employee.name)}</div>
-        <div class="muted">Generated: ${esc(new Date().toLocaleString('en-IN'))}</div>
-      </div>
+    ${letterhead}
+    <div class="doc-meta">
+      <h1>${esc(periodLabel)} Attendance Card</h1>
+      <div class="muted">${esc(employee.name)}</div>
+      <div class="muted">Generated: ${esc(new Date().toLocaleString('en-IN'))}</div>
     </div>
     <div class="info">
       <div><strong>Name:</strong> ${esc(employee.name)}</div>
@@ -30784,7 +30798,7 @@ function buildEmployeeAttendanceCardHtml({ periodLabel, employee, period, summar
       <thead><tr><th>Date</th><th>Day</th><th>Status</th><th>Hours</th><th>OT</th><th>Payment</th></tr></thead>
       <tbody>${tableRows || '<tr><td colspan="6" style="text-align:center;color:#8a98af;">No rows</td></tr>'}</tbody>
     </table>
-    <p class="foot">${esc(organizationDisplayName())} CRM — Attendance Ledger</p>
+    <p class="foot">${esc(organizationCopyrightLine())} · Attendance Ledger</p>
   </div>
   </body></html>`;
 }
@@ -31356,6 +31370,7 @@ function EmployeeManagementPage({ activeSection, onOpenSection, onNotify, logged
       return;
     }
     try {
+      await refreshOrganization({ force: true }).catch(() => {});
       const html = buildEmployeeAttendanceCardHtml(payload);
       await printEmployeeAttendanceCardHtml(html);
     } catch (error) {
@@ -33922,6 +33937,11 @@ function buildIncentiveReportHtml(rows, { periodLabel, rate, totalWon, totalInce
       <td class="n">₹${((row.won || 0) * rate).toLocaleString('en-IN')}</td>
     </tr>`).join('');
 
+  const letterhead = buildOrgLetterheadHtml({
+    subtitle: 'INCENTIVE REPORT',
+    escapeHtml: esc,
+    logoSrc: organizationLogoUrl() ? getMediaUrl(organizationLogoUrl()) : '',
+  });
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -33929,8 +33949,7 @@ function buildIncentiveReportHtml(rows, { periodLabel, rate, totalWon, totalInce
 <title>Incentive Report — ${esc(periodLabel)}</title>
 <style>
   body { font-family: Arial, sans-serif; color: #1e293b; padding: 32px; }
-  h1 { font-size: 20px; margin: 0 0 2px; color: #ef4444; }
-  .sub { font-size: 12px; color: #64748b; margin-bottom: 24px; }
+  .sub { font-size: 12px; color: #64748b; margin: 8px 0 24px; }
   table { border-collapse: collapse; width: 100%; }
   th, td { border: 1px solid #e2e8f0; padding: 8px 12px; font-size: 12px; text-align: left; }
   th { background: #fef2f2; color: #ef4444; }
@@ -33940,14 +33959,14 @@ function buildIncentiveReportHtml(rows, { periodLabel, rate, totalWon, totalInce
 </style>
 </head>
 <body>
-  <h1>${esc(organizationDisplayName())}</h1>
+  ${letterhead}
   <div class="sub">Incentive Report — ${esc(periodLabel)}${rate ? ` • ₹${esc(rate)} per won lead` : ''}</div>
   <table>
     <thead><tr><th>Executive</th><th class="n">Total Leads</th><th class="n">Won</th><th class="n">Conversion</th><th class="n">Incentive</th></tr></thead>
     <tbody>${bodyRows}</tbody>
     <tfoot><tr><td colspan="2"></td><td class="n">${esc(totalWon)}</td><td></td><td class="n">₹${totalIncentive.toLocaleString('en-IN')}</td></tr></tfoot>
   </table>
-  <div class="footer">Generated on ${esc(new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }))}</div>
+  <div class="footer">${esc(organizationCopyrightLine())} · Generated on ${esc(new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }))}</div>
 </body>
 </html>`;
 }

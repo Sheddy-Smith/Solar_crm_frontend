@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { accountsModuleApi, projectApi, quotationApi } from './api.js';
 import { TableHeaderFilter } from './components/TableHeaderFilter.jsx';
+import { organizationDisplayName } from './lib/organization.js';
 import { normalizeApiRows } from './lib/utils.js';
 
 function fmtRs(v) {
@@ -733,7 +734,7 @@ export function CustomerMergeWizard({ onNotify, onClose }) {
       </WizardSectionCard>
 
       <KeyBenefitsStrip text="Remove Duplicate Customers · 100% Data Integrity · Full Audit Trail · No Automatic Phone Merge" />
-      <p className="text-center text-[11px] font-semibold text-[#94a3b8]">Malwa Solar CRM – Customer Management</p>
+      <p className="text-center text-[11px] font-semibold text-[#94a3b8]">{organizationDisplayName() || 'Company'} CRM – Customer Management</p>
     </div>
   );
 }

@@ -6,6 +6,11 @@ import {
 import { authApi, roleApi, settingsApi, userApi } from './api.js';
 import { MobileSubnavSelect } from './components/mobile/MobileSubnavSelect.jsx';
 import { UnderlineTabs } from './components/UnderlineTabs.jsx';
+import {
+  organizationCopyrightLine,
+  organizationDisplayName,
+  useOrganization,
+} from './lib/organization.js';
 
 const CARD = 'rounded-[12px] border border-[#dbe5f2] bg-white shadow-[0_8px_24px_rgba(24,48,87,0.06)]';
 const REAUTH_KEY = 'malwa-solar-crm:admin-reauth';
@@ -658,20 +663,22 @@ export function BackupDataHubPage({ onOpenSection, onNotify, BackupContent }) {
 }
 
 export function AboutSettingsPage() {
+  const org = useOrganization();
   const version = '1.0.0';
   const dbVersion = 'v14';
+  const displayName = organizationDisplayName() || org?.display_name || 'Company';
   return (
     <div className="space-y-2">
       <article className={`${CARD} p-6 text-center`}>
         <Info className="mx-auto size-10 text-[#0d9f4a]" />
-        <h2 className="mt-3 font-display text-[22px] font-extrabold text-[#1e3261]">Malwa Solar CRM</h2>
+        <h2 className="mt-3 font-display text-[22px] font-extrabold text-[#1e3261]">{displayName} CRM</h2>
         <p className="mt-2 text-[13px] font-semibold text-[#53647f]">Solar installation, sales, O&M and operations platform.</p>
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
           <div className="rounded-[10px] border border-[#e7eef7] p-3"><p className="text-[11px] font-bold text-[#7a8fa6]">App Version</p><p className="mt-1 font-extrabold text-[#1e3261]">{version}</p></div>
           <div className="rounded-[10px] border border-[#e7eef7] p-3"><p className="text-[11px] font-bold text-[#7a8fa6]">Database</p><p className="mt-1 font-extrabold text-[#1e3261]">{dbVersion}</p></div>
           <div className="rounded-[10px] border border-[#e7eef7] p-3"><p className="text-[11px] font-bold text-[#7a8fa6]">Environment</p><p className="mt-1 font-extrabold text-[#1e3261]">Production</p></div>
         </div>
-        <p className="mt-6 text-[12px] text-[#9aa8bc]">© 2024 Malwa Solar CRM. Made for a sustainable future.</p>
+        <p className="mt-6 text-[12px] text-[#9aa8bc]">{organizationCopyrightLine()}. Made for a sustainable future.</p>
       </article>
     </div>
   );
