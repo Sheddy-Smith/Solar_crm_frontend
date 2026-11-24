@@ -28,7 +28,7 @@ class LatestFollowUpWinsTests(TestCase):
         self.client = APIClient()
         self.client.force_authenticate(self.user)
         self.now = timezone.now()
-        # Tele Sales ownership is assignee-primary — created_by alone is not enough.
+        # Mutate rights: assignee OR unassigned creator. Self-assign keeps write path clear.
         self.lead = Lead.objects.create(
             customer_name='Ramesh Kaur',
             mobile_number='7700010008',

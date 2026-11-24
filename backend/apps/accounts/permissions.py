@@ -13,12 +13,12 @@ def is_lead_scoped(user):
 
 
 def lead_owner_q(user, prefix=''):
-    """Q() scoping lead-scoped roles to their own leads.
+    """Q() scoping lead-scoped roles to their own leads (READ / list visibility).
 
-    Sales Executive: leads assigned to them OR leads they added (created_by).
-    Tele Sales Executive: ONLY leads assigned to them (Tele portal My Leads —
-    unassigned pool leads stay with managers until explicitly assigned).
+    Sales Executive and Tele Sales Executive both see:
+      created_by = user  OR  assigned_to = user
 
+    Soft-delete exclusion stays at the ViewSet layer (`is_deleted=False`).
     Creator `is_active` must never gate assignee visibility. `prefix` is prepended
     to field names (e.g. 'lead__' for FollowUp). Returns None when the user is
     not lead-scoped (they see everything)."""
@@ -29,10 +29,7 @@ def lead_owner_q(user, prefix=''):
         return None
     created = f'{prefix}created_by'
     assigned = f'{prefix}assigned_to'
-    if role == 'Sales Executive':
-        return Q(**{created: user}) | Q(**{assigned: user})
-    # Tele Sales Executive — assigned leads only.
-    return Q(**{assigned: user})
+    return Q(**{created: user}) | Q(**{assigned: user})
 
 
 def lead_owner_filter(user, prefix=''):
@@ -43,11 +40,26 @@ def lead_owner_filter(user, prefix=''):
 
 
 def is_own_lead(user, lead):
-    """True if `lead` belongs to this (Tele) Sales Executive.
+    """True if `lead` is visible to this (Tele) Sales Executive (READ ownership).
 
-    Sales Executive: assigned to them OR created by them.
-    Tele Sales Executive: assigned to them only.
-    Non-scoped roles always own everything."""
+    Both Sales and Tele Sales: assigned to them OR created by them.
+    Non-scoped roles always own everything.
+    Write / transfer rules use `can_mutate_lead` separately."""
+    role = getattr(getattr(user, 'role', None), 'name', '')
+    if role not in LEAD_SCOPED_ROLES:
+        return True
+    return lead.assigned_to_id == user.id or lead.created_by_id == user.id
+
+
+def can_mutate_lead(user, lead):
+    """True if the user may edit / delete / write follow-ups / quotations on `lead`.
+
+    Sales Executive: assignee OR creator (keeps write after reassignment).
+    Tele Sales Executive: assignee, OR creator while the lead is still
+    unassigned. Once transferred to another user, the Tele creator retains
+    read visibility via `is_own_lead` / `lead_owner_q` but not write access.
+    Assign / transfer stays gated by `can_manage_leads` on the assign action.
+    Non-scoped roles always mutate."""
     role = getattr(getattr(user, 'role', None), 'name', '')
     if role not in LEAD_SCOPED_ROLES:
         return True
@@ -55,6 +67,9 @@ def is_own_lead(user, lead):
         return True
     if role == 'Sales Executive':
         return lead.created_by_id == user.id
+    # Tele Sales Executive — creator may mutate only before hand-off.
+    if lead.created_by_id == user.id and lead.assigned_to_id is None:
+        return True
     return False
 
 

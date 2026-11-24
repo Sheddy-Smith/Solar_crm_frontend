@@ -38,8 +38,15 @@ def lead_analytics(
     project_type=None,
     status_filter=None,
     assigned_to=None,
+    user=None,
 ):
     qs = Lead.objects.filter(is_deleted=False)
+    if user is not None:
+        from apps.accounts.permissions import lead_owner_q
+
+        owner_q = lead_owner_q(user)
+        if owner_q is not None:
+            qs = qs.filter(owner_q)
     # Bound unbounded analytics — default last 24 months when no range given.
     if not date_from and not date_to:
         qs = qs.filter(created_at__gte=timezone.now() - timedelta(days=730))

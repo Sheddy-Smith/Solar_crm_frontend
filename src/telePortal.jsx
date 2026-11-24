@@ -92,14 +92,30 @@ export function isTelePortalManager(roleName) {
   );
 }
 
-/** Match Tele portal ownership: executives only see leads assigned to them.
- *  (Unassigned / other telecallers' leads stay hidden until a manager assigns.)
- *  Sales Executive in CRM Operations still uses broader created_by|assigned_to
- *  rules on the backend — this helper is Tele portal UI only. */
+/** Tele portal READ ownership — matches backend `lead_owner_q` /
+ *  `is_own_lead`: created_by OR assigned_to the logged-in user.
+ *  Other employees' leads stay hidden. Soft-deleted leads never reach this UI. */
 export function isOwnedTeleLead(lead, userId, _roleName = '') {
   if (!lead || userId == null || userId === '') return false;
   const uid = String(userId);
-  return lead.assigned_to != null && lead.assigned_to !== '' && String(lead.assigned_to) === uid;
+  if (lead.assigned_to != null && lead.assigned_to !== '' && String(lead.assigned_to) === uid) {
+    return true;
+  }
+  return lead.created_by != null && lead.created_by !== '' && String(lead.created_by) === uid;
+}
+
+/** Tele portal WRITE ownership — matches backend `can_mutate_lead`.
+ *  Creator may edit/delete/follow-up while unassigned; after transfer to
+ *  another user the lead stays visible (read-only) for the Tele creator. */
+export function canMutateTeleLead(lead, userId, _roleName = '') {
+  if (!lead || userId == null || userId === '') return false;
+  const uid = String(userId);
+  if (lead.assigned_to != null && lead.assigned_to !== '' && String(lead.assigned_to) === uid) {
+    return true;
+  }
+  const isCreator = lead.created_by != null && lead.created_by !== '' && String(lead.created_by) === uid;
+  const unassigned = lead.assigned_to == null || lead.assigned_to === '';
+  return isCreator && unassigned;
 }
 
 /** Extra High / High Alert ownership lines — do not blame assignee as "Missed by"
@@ -1455,10 +1471,11 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
   const scopedFollowUps = useMemo(() => {
     const rows = followUps ?? [];
     if (canViewTeamTele) return rows;
-    // Assigned leads only — do not surface follow-ups just because this user
-    // scheduled them on someone else's / unassigned lead.
+    // Own leads (created or assigned) — do not surface follow-ups scheduled
+    // on another executive's lead outside this ownership scope.
     return rows.filter((item) => (
       sameId(item.lead_assigned_to, me?.id)
+      || sameId(item.lead_created_by, me?.id)
       || ownLeadIds.has(String(item.lead))
     ));
   }, [followUps, ownLeadIds, canViewTeamTele, me?.id]);
@@ -2055,7 +2072,7 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, roleName = '', isSu
           <p className="rounded-[12px] bg-[#f8fbff] px-3 py-8 text-center text-[13px] font-bold text-[#7585a2]">No leads found.</p>
         ) : null}
         {pageLeads.map((lead) => {
-          const isOwnLead = isSuperAdmin || isOwnedTeleLead(lead, currentUserId, roleName);
+          const canMutate = isSuperAdmin || canMutateTeleLead(lead, currentUserId, roleName);
           const dialOk = Boolean(String(lead.mobile_number || '').replace(/\D/g, ''));
           return (
             <article key={lead.id} className="overflow-hidden rounded-[14px] border border-[#e7eef7] bg-white shadow-[0_8px_18px_rgba(17,39,84,0.05)]">
@@ -2091,8 +2108,9 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, roleName = '', isSu
           </button>
           <button
             type="button"
+                  disabled={!canMutate}
                   onClick={() => onAddFollowUp(lead)}
-                  className="inline-flex h-10 flex-col items-center justify-center gap-0.5 rounded-[10px] text-[10px] font-extrabold text-[#1d4ed8] transition active:bg-[#e7efff]"
+                  className="inline-flex h-10 flex-col items-center justify-center gap-0.5 rounded-[10px] text-[10px] font-extrabold text-[#1d4ed8] transition active:bg-[#e7efff] disabled:opacity-40"
           >
                   <StickyNote className="size-3.5" />
                   Log
@@ -2105,7 +2123,7 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, roleName = '', isSu
                   <Eye className="size-3.5" />
                   View
                 </button>
-                {isOwnLead ? (
+                {canMutate ? (
                   <button
                     type="button"
                     onClick={() => onEdit(lead)}
@@ -2121,7 +2139,7 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, roleName = '', isSu
                   </span>
                 )}
         </div>
-              {isOwnLead ? (
+              {canMutate ? (
                 <div className="flex gap-1.5 border-t border-[#eef2f8] px-2 pb-2 pt-1.5">
                   <button
                     type="button"
@@ -2178,7 +2196,7 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, roleName = '', isSu
               <tr><td colSpan={9} className="px-2.5 py-6 text-center text-[13px] font-bold text-[#7585a2]">No leads found.</td></tr>
             )}
             {pageLeads.map((lead, index) => {
-              const isOwnLead = isSuperAdmin || isOwnedTeleLead(lead, currentUserId, roleName);
+              const canMutate = isSuperAdmin || canMutateTeleLead(lead, currentUserId, roleName);
               return (
               <tr
                 key={lead.id}
@@ -2208,7 +2226,7 @@ function TeleLeadsTable({ leads, leadsLoaded, currentUserId, roleName = '', isSu
                 <td className="whitespace-nowrap px-2.5 py-2">{formatDateTime(lead.next_follow_up)}</td>
                 <td className="max-w-[180px] truncate px-2.5 py-2" title={lead.remarks || ''}>{lead.remarks || '—'}</td>
                 <td className="crm-col-sticky-right px-2.5 py-2 text-right">
-                  {isOwnLead ? (
+                  {canMutate ? (
                     <div className="inline-flex items-center justify-end gap-1">
                       <button type="button" onClick={() => onEdit(lead)} className="grid size-7 place-items-center rounded-[7px] text-[#53647f] transition hover:bg-[#f3f7fd]" aria-label={`Edit ${lead.customer_name}`}>
                         <Pencil className="size-3.5" />
@@ -2473,10 +2491,12 @@ function TeleFollowUpsPage({
     if (isSuperAdmin) return true;
     if (currentUserId == null) return false;
     const lead = leadById.get(String(item.lead));
-    if (lead) {
-      return lead.assigned_to != null && String(lead.assigned_to) === String(currentUserId);
-    }
-    return item.lead_assigned_to != null && String(item.lead_assigned_to) === String(currentUserId);
+    if (lead) return canMutateTeleLead(lead, currentUserId);
+    const uid = String(currentUserId);
+    if (item.lead_assigned_to != null && String(item.lead_assigned_to) === uid) return true;
+    const createdByMe = item.lead_created_by != null && String(item.lead_created_by) === uid;
+    const unassigned = item.lead_assigned_to == null || item.lead_assigned_to === '';
+    return createdByMe && unassigned;
   }, [isSuperAdmin, currentUserId, leadById]);
 
   const holderLeads = useMemo(

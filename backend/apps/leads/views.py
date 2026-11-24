@@ -17,7 +17,7 @@ from .serializers import (
 )
 from apps.accounts.permissions import (
     HasModulePermission, is_lead_scoped, lead_owner_q,
-    is_own_lead, can_manage_leads,
+    is_own_lead, can_mutate_lead, can_manage_leads,
 )
 from .datetime_filters import day_start, filter_field_on_local_date, period_created_at_queryset
 from .followup_sync import bump_lead_last_activity, sync_lead_next_follow_up
@@ -105,11 +105,12 @@ class LeadViewSet(viewsets.ModelViewSet):
         from django.utils import timezone
         user = self.request.user
         now = timezone.now()
-        # Sales + Tele Sales Executives auto-own leads they personally add
-        # (Tele My Leads is assigned_to-only, so create must set assigned_to=self
-        # or the new lead vanishes from their portal after save).
+        role = getattr(getattr(user, 'role', None), 'name', '')
+        # Sales Executive: auto-assign to self (existing CRM workflow).
+        # Tele Sales Executive: visibility is via created_by — leave unassigned
+        # so Sales hand-off stays clean; creator still sees the lead immediately.
         # New leads get last_activity_at so they sort with recently-worked list.
-        if is_lead_scoped(user):
+        if role == 'Sales Executive':
             serializer.save(created_by=user, assigned_to=user, last_activity_at=now)
         else:
             serializer.save(created_by=user, last_activity_at=now)
@@ -117,8 +118,10 @@ class LeadViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         from django.utils import timezone
         user = self.request.user
-        if is_lead_scoped(user) and not is_own_lead(user, serializer.instance):
-            raise PermissionDenied('You can only edit leads you added or that are assigned to you.')
+        if is_lead_scoped(user) and not can_mutate_lead(user, serializer.instance):
+            raise PermissionDenied(
+                'You can only edit leads assigned to you, or unassigned leads you created.'
+            )
         # Scoped executives cannot reassign leads via PATCH unless they have
         # Lead → Assign in the permission matrix (Settings → Roles).
         # Successful Save/Update bumps last_activity_at so the lead rises to top of Lead List.
@@ -129,8 +132,10 @@ class LeadViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         user = self.request.user
-        if is_lead_scoped(user) and not is_own_lead(user, instance):
-            raise PermissionDenied('You can only delete leads you added or that are assigned to you.')
+        if is_lead_scoped(user) and not can_mutate_lead(user, instance):
+            raise PermissionDenied(
+                'You can only delete leads assigned to you, or unassigned leads you created.'
+            )
         # Won leads may only be deleted by the management tier (or Assign perm).
         if instance.status == 'Won' and not can_manage_leads(user):
             raise PermissionDenied('Only a Manager or Super Admin can delete a Won lead.')
@@ -296,6 +301,7 @@ class LeadViewSet(viewsets.ModelViewSet):
             project_type=request.query_params.get('project_type'),
             status_filter=request.query_params.get('status'),
             assigned_to=request.query_params.get('assigned_to'),
+            user=request.user,
         ))
 
     @action(detail=False, methods=['get'])
@@ -311,8 +317,13 @@ class LeadViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def update_status(self, request, pk=None):
-        # get_object() already scopes lead-scoped roles to their own leads.
+        # get_object() scopes READ ownership; writes need can_mutate_lead
+        # (Tele creator keeps read after transfer, not status edits).
         lead = self.get_object()
+        if is_lead_scoped(request.user) and not can_mutate_lead(request.user, lead):
+            raise PermissionDenied(
+                'You can only update status on leads assigned to you, or unassigned leads you created.'
+            )
         new_status = request.data.get('status')
         if new_status == 'Follow-up':
             new_status = 'New'
@@ -348,8 +359,7 @@ class LeadViewSet(viewsets.ModelViewSet):
         except (User.DoesNotExist, ValueError, TypeError):
             return Response({'error': 'Invalid or inactive user.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Tele Sales Executives are valid assignees (Tele portal My Leads =
-        # assigned_to filter). Any other active non-deleted account is fine too.
+        # Any active non-deleted account is a valid assignee (Tele → Sales hand-off).
         lead.assigned_to_id = assignee.pk
         lead.save(update_fields=['assigned_to', 'updated_at'])
         return Response({'assigned_to': lead.assigned_to_id})
@@ -362,6 +372,10 @@ class LeadViewSet(viewsets.ModelViewSet):
             if not survey:
                 return Response(None)
             return Response(LeadSiteSurveySerializer(survey).data)
+        if is_lead_scoped(request.user) and not can_mutate_lead(request.user, lead):
+            raise PermissionDenied(
+                'You can only update site survey on leads assigned to you, or unassigned leads you created.'
+            )
         if not survey:
             survey = LeadSiteSurvey(lead=lead)
         serializer = LeadSiteSurveySerializer(survey, data=request.data, partial=True)
@@ -401,8 +415,10 @@ class FollowUpViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         lead = serializer.validated_data.get('lead')
-        if is_lead_scoped(self.request.user) and lead and not is_own_lead(self.request.user, lead):
-            raise PermissionDenied('You can only add follow-ups to your own leads.')
+        if is_lead_scoped(self.request.user) and lead and not can_mutate_lead(self.request.user, lead):
+            raise PermissionDenied(
+                'You can only add follow-ups to leads assigned to you, or unassigned leads you created.'
+            )
         follow_up = serializer.save(created_by=self.request.user)
         sync_lead_next_follow_up(follow_up.lead)
         # Follow-up activity must surface the lead in Recent Leads / Lead List.
@@ -411,9 +427,11 @@ class FollowUpViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         # A scoped executive must not be able to re-point their follow-up at
         # another executive's lead (the `lead` field is writable on PATCH too).
-        lead = serializer.validated_data.get('lead')
-        if is_lead_scoped(self.request.user) and lead and not is_own_lead(self.request.user, lead):
-            raise PermissionDenied('You can only move follow-ups to your own leads.')
+        lead = serializer.validated_data.get('lead') or getattr(serializer.instance, 'lead', None)
+        if is_lead_scoped(self.request.user) and lead and not can_mutate_lead(self.request.user, lead):
+            raise PermissionDenied(
+                'You can only update follow-ups on leads assigned to you, or unassigned leads you created.'
+            )
         # BUG-053: without this override, PATCHing an existing follow-up's
         # status to Completed/Missed never touched `lead.next_follow_up` —
         # only `perform_create` synced it, so a lead kept showing as
@@ -432,6 +450,10 @@ class FollowUpViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         # Soft-delete → Recycle Bin; resync lead next_follow_up afterwards.
         lead = instance.lead
+        if is_lead_scoped(self.request.user) and lead and not can_mutate_lead(self.request.user, lead):
+            raise PermissionDenied(
+                'You can only delete follow-ups on leads assigned to you, or unassigned leads you created.'
+            )
         soft_delete_follow_up(instance, self.request.user)
         sync_lead_next_follow_up(lead)
         bump_lead_last_activity(lead)
@@ -525,19 +547,28 @@ class QuotationViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         lead = serializer.validated_data.get('lead')
-        if is_lead_scoped(self.request.user) and lead and not is_own_lead(self.request.user, lead):
-            raise PermissionDenied('You can only create quotations for your own leads.')
+        if is_lead_scoped(self.request.user) and lead and not can_mutate_lead(self.request.user, lead):
+            raise PermissionDenied(
+                'You can only create quotations for leads assigned to you, or unassigned leads you created.'
+            )
         serializer.save(created_by=self.request.user)
 
     def perform_update(self, serializer):
         # Same rule on PATCH: the `lead` field is writable, so block scoped
         # executives from re-pointing a quotation at someone else's lead.
-        lead = serializer.validated_data.get('lead')
-        if is_lead_scoped(self.request.user) and lead and not is_own_lead(self.request.user, lead):
-            raise PermissionDenied('You can only move quotations to your own leads.')
+        lead = serializer.validated_data.get('lead') or getattr(serializer.instance, 'lead', None)
+        if is_lead_scoped(self.request.user) and lead and not can_mutate_lead(self.request.user, lead):
+            raise PermissionDenied(
+                'You can only update quotations on leads assigned to you, or unassigned leads you created.'
+            )
         serializer.save()
 
     def perform_destroy(self, instance):
+        lead = getattr(instance, 'lead', None)
+        if is_lead_scoped(self.request.user) and lead and not can_mutate_lead(self.request.user, lead):
+            raise PermissionDenied(
+                'You can only delete quotations on leads assigned to you, or unassigned leads you created.'
+            )
         soft_delete_quotation(instance, self.request.user)
 
     @action(detail=True, methods=['post'], url_path='mark-as-final')
