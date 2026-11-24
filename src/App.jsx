@@ -35966,6 +35966,22 @@ function LeadViewModal({ leadId, onClose, onEdit, onNotify }) {
                       key={item.id}
                       item={item}
                       onEdit={() => setEditFollowUp(item)}
+                      onStatusChange={async (row, nextStatus) => {
+                        try {
+                          await followUpApi.update(row.id, {
+                            status: nextStatus,
+                            completed_at: nextStatus === 'Completed'
+                              ? (row.completed_at || row.scheduled_at || new Date().toISOString())
+                              : null,
+                          });
+                          onNotify?.(`Follow-up marked ${nextStatus}.`);
+                          loadFollowUps();
+                          loadDetail();
+                        } catch (err) {
+                          onNotify?.(err.message || 'Could not update follow-up status.', 'error');
+                          throw err;
+                        }
+                      }}
                       onDelete={() => setDeleteConfirm({
                         message: `this ${item.follow_up_type || 'follow-up'} entry`,
                         onConfirm: async () => {
@@ -40749,15 +40765,22 @@ function LeadQuickActionModal({ type, lead, onClose, onSaved, onLeadUpdated, onN
         const outcome = String(fd.get('outcome') || '').trim();
         const nextDate = String(fd.get('next_date') || '').trim();
         const nextTime = String(fd.get('next_time') || '10:00');
+        const followUpStatus = type === 'note'
+          ? 'Completed'
+          : type === 'site-visit'
+            ? 'Scheduled'
+            : (String(fd.get('status') || '').trim() || 'Scheduled');
+        const statusAfter = type === 'follow-up' ? String(fd.get('status_after') || '').trim() : '';
         await followUpApi.create({
           lead: lead.id,
           follow_up_type: type === 'site-visit' ? 'Site Visit' : type === 'note' ? 'Note' : (fd.get('follow_up_type') || 'Call'),
           scheduled_at: happenedAt,
-          completed_at: type === 'note' || type === 'follow-up' ? happenedAt : null,
-          status: type === 'note' || type === 'follow-up' ? 'Completed' : 'Scheduled',
+          completed_at: followUpStatus === 'Completed' ? happenedAt : null,
+          status: followUpStatus,
           notes,
           outcome: type === 'follow-up' ? outcome : '',
           reminder: resolveReminderValue(),
+          status_after: statusAfter || undefined,
         });
         if (type === 'follow-up' && nextDate) {
           await followUpApi.create({
@@ -40835,9 +40858,11 @@ function LeadQuickActionModal({ type, lead, onClose, onSaved, onLeadUpdated, onN
     if (type === 'follow-up') return (
       <>
         <LeadSelect label="Follow-up Type" name="follow_up_type" required icon={Phone} placeholder="Select type" options={['Call', 'WhatsApp', 'Site Visit', 'Email', 'Note']} />
+        <LeadSelect label="Follow-up Status" name="status" required icon={Clock3} placeholder="Select status" options={['Scheduled', 'Completed', 'Missed']} defaultValue="Scheduled" />
         <LeadDateInput label="Follow-up Date" name="date" required />
         <LeadInput label="Follow-up Time" name="time" icon={Clock3} type="time" placeholder="e.g. 11:00" />
         <LeadSelect label="Outcome" name="outcome" icon={Flag} placeholder="Select outcome" options={['Interested', 'Thinking', 'Busy', 'Not Reachable', 'Call Back Later', 'Site Visit Fixed', 'Not Interested', 'Wrong Number', 'Other']} />
+        <LeadSelect label="Lead Status After" name="status_after" icon={Flag} placeholder="Optional" options={['New', 'Quotation', 'Won', 'Lost']} />
         {reminderField}
         <LeadDateInput label="Next Follow-up Date" name="next_date" />
         <LeadInput label="Next Follow-up Time" name="next_time" icon={Clock3} type="time" placeholder="e.g. 10:00" />
@@ -40958,6 +40983,21 @@ function ViewFollowUpModal({ lead, onClose, onNotify }) {
                 key={item.id}
                 item={item}
                 onEdit={() => setEditFollowUp(item)}
+                onStatusChange={async (row, nextStatus) => {
+                  try {
+                    await followUpApi.update(row.id, {
+                      status: nextStatus,
+                      completed_at: nextStatus === 'Completed'
+                        ? (row.completed_at || row.scheduled_at || new Date().toISOString())
+                        : null,
+                    });
+                    onNotify?.(`Follow-up marked ${nextStatus}.`);
+                    loadFollowUps();
+                  } catch (err) {
+                    onNotify?.(err.message || 'Could not update follow-up status.', 'error');
+                    throw err;
+                  }
+                }}
                 onDelete={() => setDeleteConfirm({
                   message: `this ${item.follow_up_type || 'follow-up'} entry`,
                   onConfirm: async () => {
@@ -41039,17 +41079,35 @@ function TimelineItem({ title, text, date, tone, by }) {
   return <div className="flex gap-4"><span className={`grid size-10 shrink-0 place-items-center rounded-full ${toneClass}`}><Phone className="size-4" /></span><div className="min-w-0 flex-1"><div className="flex flex-col gap-1 sm:flex-row sm:justify-between"><p className="font-extrabold text-[#1e3261]">{title}</p><p className="text-[12px] font-bold text-[#53647f]">{date}</p></div>{by ? <p className="mt-1 text-[12px] font-bold text-[#53647f]">By {by}</p> : null}<p className="mt-1 text-[13px] font-semibold text-[#53647f]">{text}</p></div></div>;
 }
 
-function FollowUpHistoryCard({ item, onEdit, onDelete }) {
+function FollowUpHistoryCard({ item, onEdit, onDelete, onStatusChange }) {
   const iconForType = { Call: Phone, WhatsApp: MessageSquareMore, 'Site Visit': Users, Email: Phone, Note: Flag };
   const Icon = iconForType[item.follow_up_type] || Phone;
+  const status = item.status || 'Scheduled';
   const toneClass = {
     Completed: 'bg-[#0d9f4a]',
     Missed: 'bg-[#ef4444]',
     Scheduled: 'bg-[#0b65e5]',
-  }[item.status] || 'bg-[#7585a2]';
+  }[status] || 'bg-[#7585a2]';
+  const statusBadgeClass = {
+    Completed: 'bg-[#e8f8eb] text-[#0d9f4a]',
+    Missed: 'bg-[#ffe9e6] text-[#dc2626]',
+    Scheduled: 'bg-[#e8f2ff] text-[#0b65e5]',
+  }[status] || 'bg-[#eef2f7] text-[#53647f]';
+  const [statusBusy, setStatusBusy] = useState(false);
   const when = item.scheduled_at
     ? new Date(item.scheduled_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
     : '—';
+
+  const handleStatusChange = async (event) => {
+    const next = event.target.value;
+    if (!onStatusChange || next === status) return;
+    setStatusBusy(true);
+    try {
+      await onStatusChange(item, next);
+    } finally {
+      setStatusBusy(false);
+    }
+  };
 
   return (
     <div className="grid gap-4 rounded-[12px] border border-[#edf2f8] bg-[#fbfcfe] p-4 sm:grid-cols-[40px_1fr_auto]">
@@ -41060,7 +41118,7 @@ function FollowUpHistoryCard({ item, onEdit, onDelete }) {
             {item.follow_up_type || 'Follow-up'}
             <span className="ml-2 text-[12px] font-bold text-[#7585a2]">{when}</span>
           </p>
-          <span className="rounded-[7px] bg-[#e8f8eb] px-2 py-1 text-[11px] font-extrabold text-[#0d9f4a]">{item.status || 'Scheduled'}</span>
+          <span className={`rounded-[7px] px-2 py-1 text-[11px] font-extrabold ${statusBadgeClass}`}>{status}</span>
           {item.outcome ? (
             <span className="rounded-[7px] bg-[#eef2ff] px-2 py-1 text-[11px] font-extrabold text-[#3730a3]">{item.outcome}</span>
           ) : null}
@@ -41080,6 +41138,22 @@ function FollowUpHistoryCard({ item, onEdit, onDelete }) {
           Logged by {item.created_by_name || '—'}
           {item.reminder ? ` · Reminder: ${item.reminder}` : ''}
         </p>
+        {onStatusChange ? (
+          <label className="mt-3 flex max-w-[240px] flex-col gap-1">
+            <span className="text-[11px] font-extrabold uppercase tracking-wide text-[#7585a2]">Update Status</span>
+            <select
+              value={status}
+              disabled={statusBusy}
+              onChange={handleStatusChange}
+              className="h-9 rounded-[8px] border border-[#d9e4f2] bg-white px-3 text-[12px] font-extrabold text-[#1e3261] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 disabled:opacity-60"
+              aria-label="Update follow-up status"
+            >
+              {['Scheduled', 'Completed', 'Missed'].map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </div>
       <div className="flex items-start gap-2 sm:justify-end">
         {onEdit ? (
@@ -41165,7 +41239,7 @@ function CrmFollowUpEditModal({ followUp, lead, onClose, onSaved, onNotify }) {
             {saveError ? <p className="mb-4 rounded-[8px] bg-[#ffe9e6] px-4 py-2 text-[13px] font-bold text-[#e3342f]">{saveError}</p> : null}
             <div className="grid gap-4 md:grid-cols-2">
               <LeadSelect label="Follow-up Type" name="follow_up_type" required icon={Phone} placeholder="Select type" options={['Call', 'WhatsApp', 'Site Visit', 'Email', 'Note']} defaultValue={followUp.follow_up_type || 'Call'} />
-              <LeadSelect label="Status" name="status" required icon={Clock3} placeholder="Select status" options={['Completed', 'Scheduled', 'Missed']} defaultValue={followUp.status || 'Completed'} />
+              <LeadSelect label="Follow-up Status" name="status" required icon={Clock3} placeholder="Select status" options={['Scheduled', 'Completed', 'Missed']} defaultValue={followUp.status || 'Scheduled'} />
               <LeadDateInput label="Follow-up Date" name="date" required defaultValue={Number.isNaN(when.getTime()) ? '' : when.toISOString().slice(0, 10)} />
               <LeadInput label="Follow-up Time" name="time" icon={Clock3} type="time" defaultValue={Number.isNaN(when.getTime()) ? '10:00' : when.toTimeString().slice(0, 5)} />
               <LeadSelect label="Outcome" name="outcome" icon={Flag} placeholder="Select outcome" options={['Interested', 'Thinking', 'Busy', 'Not Reachable', 'Call Back Later', 'Site Visit Fixed', 'Not Interested', 'Wrong Number', 'Other']} defaultValue={followUp.outcome || ''} />
