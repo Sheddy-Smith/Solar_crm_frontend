@@ -23,7 +23,6 @@ import {
   Menu,
   MessageCircle,
   MonitorCog,
-  Moon,
   MoreVertical,
   Pencil,
   Phone,
@@ -32,7 +31,6 @@ import {
   Search,
   ShieldCheck,
   StickyNote,
-  Sun,
   Trash2,
   Trophy,
   UserRound,
@@ -49,6 +47,7 @@ import { organizationDisplayName, organizationLogoUrl, refreshBranding, subscrib
 import { fetchEveryPage, mergeFollowUpRows, rowsOf } from './lib/listQuery.js';
 import { PwaInstallBanner, PwaInstallIconButton } from './components/mobile/PwaInstallControls.jsx';
 import { ReportProblemButton } from './components/ReportProblemButton.jsx';
+import ThemeToggle from './components/ui/ThemeToggle.jsx';
 import { hasModuleAccess } from './settingsHubPages.jsx';
 import { TeleDailyTasksPage } from './teleDailyTasks.jsx';
 
@@ -1351,7 +1350,7 @@ function pathForTeleNav(label) {
 
 const TELE_PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50, 100];
 
-export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme }) {
+export function TeleExecutivePortal({ onLogout, onNotify, theme = 'professional', onThemeChange }) {
   const [activeNav, setActiveNav] = useState(() => (
     typeof window !== 'undefined' ? resolveTeleNavFromPath(window.location.pathname) : 'Dashboard'
   ));
@@ -1690,15 +1689,12 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
             </span>
             <ReportProblemButton portal="Tele Portal" notify={onNotify} />
             <PwaInstallIconButton notify={onNotify} />
-            {onToggleTheme ? (
-              <button
-                type="button"
-                onClick={onToggleTheme}
-                className="grid size-10 place-items-center rounded-[10px] border border-[#dbe4f0] bg-white text-[#53647f] transition hover:bg-[#f3f7fd] dark:border-slate-600 dark:bg-slate-800"
-                aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-              >
-                {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
-              </button>
+            {onThemeChange ? (
+              <ThemeToggle
+                compact
+                theme={theme}
+                onChange={onThemeChange}
+              />
             ) : null}
             <div className="relative" data-tele-profile-menu="true">
               <button
@@ -1838,17 +1834,17 @@ export function TeleExecutivePortal({ onLogout, onNotify, isDark, onToggleTheme 
                     </button>
                   );
                 })}
-                {onToggleTheme ? (
-                  <button
-                    type="button"
-                    onClick={() => { onToggleTheme(); setMobileMoreOpen(false); }}
-                    className="flex h-12 items-center gap-3 rounded-[12px] bg-[#f8fafd] px-3.5 text-left text-[14px] font-extrabold text-[#1e3261] active:bg-[#eef3fb]"
-                  >
-                    <span className="grid size-9 place-items-center rounded-full bg-white text-[#53647f]">
-                      {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
-                    </span>
-                    {isDark ? 'Light mode' : 'Dark mode'}
-                  </button>
+                {onThemeChange ? (
+                  <div className="rounded-[12px] bg-[#f8fafd] px-1.5 py-1">
+                    <ThemeToggle
+                      row
+                      theme={theme}
+                      onChange={(next) => {
+                        onThemeChange(next);
+                        setMobileMoreOpen(false);
+                      }}
+                    />
+                  </div>
                 ) : null}
                 <button
                   type="button"

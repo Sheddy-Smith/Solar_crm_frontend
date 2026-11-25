@@ -2,31 +2,29 @@
  * Deploy local dist/ to Hostinger static hosting for crm.ecomalwa.com.
  *
  * Requires:
- *   HOSTINGER_API_TOKEN  — Hostinger API token
- *   dist/                — from: VITE_API_URL=https://api.crm.ecomalwa.com/api/v1 npm run build
+ *   dist/  — from: VITE_API_URL=https://api.crm.ecomalwa.com/api/v1 npm run build
  *
- * Uploads into public_html/crm (subfolder of the ecomalwa.com account) by default.
- * Override with:
- *   DOMAIN=crm.ecomalwa.com   (if CRM is its own Hostinger website)
- *   REMOTE_ROOT=public_html   (document root for that website)
+ * Auth (either):
+ *   HOSTINGER_TUS_URL + HOSTINGER_TUS_AUTH + HOSTINGER_TUS_REST
+ *   or HOSTINGER_API_TOKEN (falls back to Hostinger upload-urls API)
+ *
+ * TUS base URL already ends at public_html — set REMOTE_ROOT=crm (default when
+ * HOSTINGER_TUS_URL is set). Without TUS env, default REMOTE_ROOT=public_html/crm.
  */
 import fs from 'fs';
 import path from 'path';
-import axios from 'axios';
-import * as tus from 'tus-js-client';
 
 const TOKEN = process.env.HOSTINGER_API_TOKEN;
 const BASE = 'https://developers.hostinger.com';
 const USERNAME = process.env.HOSTINGER_USERNAME || 'u808821982';
 const DOMAIN = process.env.DOMAIN || 'ecomalwa.com';
-const REMOTE_ROOT = (process.env.REMOTE_ROOT || 'public_html/crm').replace(/^\/+|\/+$/g, '');
+const hasPrefetchedTus = Boolean(
+  process.env.HOSTINGER_TUS_URL && process.env.HOSTINGER_TUS_AUTH && process.env.HOSTINGER_TUS_REST,
+);
+const REMOTE_ROOT = (
+  process.env.REMOTE_ROOT || (hasPrefetchedTus ? 'crm' : 'public_html/crm')
+).replace(/^\/+|\/+$/g, '');
 const DIST = path.resolve(process.env.DIST || 'dist');
-
-const apiHeaders = {
-  Authorization: `Bearer ${TOKEN}`,
-  Accept: 'application/json',
-  'Content-Type': 'application/json',
-};
 
 function normalizePath(p) {
   return String(p).replace(/\\/g, '/').replace(/^\/+/, '');
@@ -43,49 +41,110 @@ function walkFiles(dir, base = dir, out = []) {
 
 async function uploadCredentials() {
   const url = `${BASE}/api/hosting/v1/files/upload-urls`;
-  const { data, status } = await axios.post(
-    url,
-    { username: USERNAME, domain: DOMAIN },
-    { headers: apiHeaders, validateStatus: () => true },
-  );
-  if (status !== 200) throw new Error(`upload-urls failed (${status}): ${JSON.stringify(data)}`);
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${TOKEN}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ username: USERNAME, domain: DOMAIN }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`upload-urls failed (${res.status}): ${JSON.stringify(data)}`);
   return data;
+}
+
+async function createTusUpload(uploadUrlWithFile, authHeaders, size) {
+  const res = await fetch(uploadUrlWithFile, {
+    method: 'POST',
+    headers: {
+      ...authHeaders,
+      'Tus-Resumable': '1.0.0',
+      'Upload-Length': String(size),
+      'Upload-Offset': '0',
+    },
+  });
+  if (res.status !== 201 && res.status !== 204) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`TUS create failed (${res.status}): ${text.slice(0, 200)}`);
+  }
+}
+
+async function patchTusUpload(uploadUrlWithFile, authHeaders, filePath, size) {
+  const buf = fs.readFileSync(filePath);
+  const chunkSize = 10 * 1024 * 1024;
+  let offset = 0;
+  while (offset < size) {
+    const end = Math.min(offset + chunkSize, size);
+    const chunk = buf.subarray(offset, end);
+    const res = await fetch(uploadUrlWithFile, {
+      method: 'PATCH',
+      headers: {
+        ...authHeaders,
+        'Tus-Resumable': '1.0.0',
+        'Content-Type': 'application/offset+octet-stream',
+        'Upload-Offset': String(offset),
+        'Content-Length': String(chunk.length),
+      },
+      body: chunk,
+    });
+    if (res.status !== 204 && res.status !== 200) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`TUS patch failed at ${offset} (${res.status}): ${text.slice(0, 200)}`);
+    }
+    const next = res.headers.get('Upload-Offset');
+    offset = next ? Number(next) : end;
+  }
 }
 
 async function uploadFile(filePath, relativePath, uploadUrl, authRestToken, authToken) {
   const stats = fs.statSync(filePath);
   const cleanUploadUrl = uploadUrl.replace(/\/$/, '');
   const uploadUrlWithFile = `${cleanUploadUrl}/${normalizePath(relativePath)}?override=true`;
-  const requestHeaders = {
+  const authHeaders = {
     'X-Auth': authToken,
     'X-Auth-Rest': authRestToken,
-    'upload-length': stats.size.toString(),
-    'upload-offset': '0',
   };
 
-  await axios.post(uploadUrlWithFile, '', {
-    headers: requestHeaders,
-    timeout: 120000,
-    validateStatus: (s) => s === 201,
-  });
+  await createTusUpload(uploadUrlWithFile, authHeaders, stats.size);
 
-  const fileStream = fs.createReadStream(filePath);
-  await new Promise((resolve, reject) => {
-    const upload = new tus.Upload(fileStream, {
-      uploadUrl: uploadUrlWithFile,
-      retryDelays: [1000, 2000, 4000, 8000, 16000, 20000],
-      uploadDataDuringCreation: false,
-      parallelUploads: 1,
-      chunkSize: 10485760,
-      headers: requestHeaders,
-      removeFingerprintOnSuccess: true,
-      uploadSize: stats.size,
-      metadata: { filename: path.basename(relativePath) },
-      onError: (error) => reject(new Error(`Upload failed ${relativePath}: ${error.message}`)),
-      onSuccess: () => resolve(),
+  // Prefer tus-js-client when installed; otherwise native PATCH chunks.
+  try {
+    const tus = await import('tus-js-client');
+    const fileStream = fs.createReadStream(filePath);
+    await new Promise((resolve, reject) => {
+      const upload = new tus.Upload(fileStream, {
+        uploadUrl: uploadUrlWithFile,
+        retryDelays: [1000, 2000, 4000, 8000, 16000, 20000],
+        uploadDataDuringCreation: false,
+        parallelUploads: 1,
+        chunkSize: 10485760,
+        headers: {
+          ...authHeaders,
+          'upload-length': stats.size.toString(),
+          'upload-offset': '0',
+        },
+        removeFingerprintOnSuccess: true,
+        uploadSize: stats.size,
+        metadata: { filename: path.basename(relativePath) },
+        onError: (error) => reject(new Error(`Upload failed ${relativePath}: ${error.message}`)),
+        onSuccess: () => resolve(),
+      });
+      upload.start();
     });
-    upload.start();
-  });
+  } catch (err) {
+    if (err && err.code === 'ERR_MODULE_NOT_FOUND') {
+      await patchTusUpload(uploadUrlWithFile, authHeaders, filePath, stats.size);
+      return;
+    }
+    // If tus client started then failed mid-upload, fall back once.
+    if (String(err.message || err).includes('Upload failed')) {
+      await patchTusUpload(uploadUrlWithFile, authHeaders, filePath, stats.size);
+      return;
+    }
+    throw err;
+  }
 }
 
 async function main() {
@@ -97,7 +156,6 @@ async function main() {
   console.log(`==> Deploy ${files.length} files from ${DIST}`);
   console.log(`==> Target ${USERNAME}@${DOMAIN}:${REMOTE_ROOT}/`);
 
-  // Prefer pre-fetched TUS credentials (Hostinger MCP generate-upload-url).
   let uploadUrl = process.env.HOSTINGER_TUS_URL || '';
   let authRestToken = process.env.HOSTINGER_TUS_REST || '';
   let authToken = process.env.HOSTINGER_TUS_AUTH || '';

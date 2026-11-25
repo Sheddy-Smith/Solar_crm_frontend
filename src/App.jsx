@@ -3510,8 +3510,12 @@ function App() {
             notify('Logged out');
           }}
           onNotify={notify}
-          isDark={isDarkMode}
-          onToggleTheme={() => applyThemeChoice(isProfessionalTheme ? 'light' : 'professional')}
+          theme={theme}
+          onThemeChange={(next) => {
+            applyThemeChoice(next);
+            const labels = { light: 'Light', professional: 'Professional' };
+            notify(`${labels[next] || next} theme enabled`);
+          }}
         />
         <Toast toast={toast} />
       </>
