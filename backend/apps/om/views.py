@@ -26,7 +26,10 @@ from .serializers import (
     OmCustomerFeedbackSerializer, OmSettingsSerializer,
 )
 from .permissions import OmOrFieldWorkPermission, has_full_om_access
-from apps.accounts.permissions import HasModulePermission, lead_owner_filter
+from apps.accounts.permissions import (
+    HasModulePermission, is_lead_scoped,
+    lead_owner_filter, require_project_lead_access,
+)
 from apps.inventory.models import InventoryItem
 
 
@@ -126,6 +129,7 @@ class OmPlantViewSet(OmBaseViewSet):
         project = Project.objects.filter(pk=request.data.get('project'), is_deleted=False).first()
         if not project:
             raise ValidationError({'project': 'Select a project.'})
+        require_project_lead_access(request.user, project, mutate=True)
         commissioning_date = request.data.get('commissioning_date')
         if not commissioning_date:
             raise ValidationError({'commissioning_date': 'Commissioning date is required.'})
@@ -141,6 +145,7 @@ class OmPlantViewSet(OmBaseViewSet):
         project = Project.objects.filter(pk=request.query_params.get('project'), is_deleted=False).first()
         if not project:
             raise ValidationError({'project': 'Select a project.'})
+        require_project_lead_access(request.user, project, mutate=False)
         return Response(build_registration_prefill(project))
 
     @action(detail=False, methods=['post'], url_path='register-existing')
@@ -151,6 +156,7 @@ class OmPlantViewSet(OmBaseViewSet):
         project = Project.objects.filter(pk=request.data.get('project'), is_deleted=False).first()
         if not project:
             raise ValidationError({'project': 'Select a project.'})
+        require_project_lead_access(request.user, project, mutate=True)
         customer_name = (request.data.get('customer_name') or '').strip()
         plant_name = (request.data.get('plant_name') or '').strip()
         if not customer_name:
@@ -432,7 +438,10 @@ class OmVisitPartViewSet(OmBaseViewSet):
     search_fields = ['material', 'description', 'serial_number']
 
     def get_queryset(self):
-        return OmVisitPart.objects.select_related('visit', 'plant', 'ticket', 'inventory_item', 'used_by')
+        qs = OmVisitPart.objects.select_related(
+            'visit', 'plant', 'plant__project', 'ticket', 'inventory_item', 'used_by',
+        )
+        return self._scope(qs, prefix='plant__project__lead__')
 
     def perform_create(self, serializer):
         serializer.save(used_by=serializer.validated_data.get('used_by') or self.request.user)
@@ -446,7 +455,8 @@ class OmInsuranceViewSet(OmBaseViewSet):
     ordering_fields = ['expiry_date', 'start_date', 'created_at']
 
     def get_queryset(self):
-        qs = OmInsurance.objects.select_related('plant')
+        qs = OmInsurance.objects.select_related('plant', 'plant__project')
+        qs = self._scope(qs, prefix='plant__project__lead__')
         alert = self.request.query_params.get('alert')
         today = date.today()
         if alert == 'expiring':
@@ -468,7 +478,7 @@ class OmDashboardView(APIView):
         from .alerts import run_sync_if_stale
         from .dashboard import dashboard_summary
         run_sync_if_stale()
-        return Response(dashboard_summary())
+        return Response(dashboard_summary(user=request.user))
 
 
 class OmEngineersView(APIView):
@@ -524,7 +534,11 @@ class OmReportViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        return OmReport.objects.select_related('generated_by').all()
+        qs = OmReport.objects.select_related('generated_by').all()
+        # Reports have no plant FK — own uploads only for lead-scoped roles.
+        if is_lead_scoped(self.request.user):
+            qs = qs.filter(generated_by=self.request.user)
+        return qs
 
     def perform_create(self, serializer):
         serializer.save(generated_by=self.request.user)
@@ -540,12 +554,19 @@ class OmDocumentViewSet(viewsets.ModelViewSet):
     filterset_fields = ['module', 'related_id', 'plant', 'category']
 
     def get_queryset(self):
-        qs = OmDocument.objects.select_related('uploaded_by').all()
+        from django.db.models import Q
+        qs = OmDocument.objects.select_related('uploaded_by', 'plant', 'plant__project').all()
         if not has_full_om_access(self.request.user):
             qs = qs.filter(uploaded_by=self.request.user)
+        owner = lead_owner_filter(self.request.user, prefix='plant__project__lead__')
+        if owner is not None:
+            qs = qs.filter(owner | Q(plant__isnull=True, uploaded_by=self.request.user))
         return qs
 
     def perform_create(self, serializer):
+        plant = serializer.validated_data.get('plant')
+        if plant is not None and getattr(plant, 'project', None) is not None:
+            require_project_lead_access(self.request.user, plant.project, mutate=True)
         serializer.save(uploaded_by=self.request.user)
 
 

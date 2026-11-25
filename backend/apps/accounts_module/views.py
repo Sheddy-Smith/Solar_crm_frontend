@@ -15,9 +15,9 @@ from .serializers import (
 from .services import (
     after_payment_saved, before_payment_delete, after_payment_deleted, accounts_dashboard_summary,
     recalculate_party_balance, ensure_customers_from_all_leads, find_party_by_phone, normalize_phone,
-    filter_customer_parties_for_user, owned_customer_phone_keys,
+    filter_customer_parties_for_user, owned_customer_phone_keys, apply_accounts_project_lead_scope,
 )
-from apps.accounts.permissions import HasModulePermission, lead_owner_q
+from apps.accounts.permissions import HasModulePermission, lead_owner_q, is_lead_scoped
 
 
 class AccountsBaseViewSet(viewsets.ModelViewSet):
@@ -1160,9 +1160,10 @@ class PaymentViewSet(AccountsBaseViewSet):
     ordering = ['-payment_date', '-created_at']
 
     def get_queryset(self):
-        return Payment.objects.select_related(
+        qs = Payment.objects.select_related(
             'party', 'bank_account', 'project', 'created_by',
         ).all()
+        return apply_accounts_project_lead_scope(qs, self.request.user)
 
     def perform_create(self, serializer):
         payment = serializer.save(created_by=self.request.user)
@@ -1189,7 +1190,18 @@ class ChequeViewSet(AccountsBaseViewSet):
     ordering = ['-cheque_date', '-created_at']
 
     def get_queryset(self):
-        return Cheque.objects.select_related('bank_account', 'created_by').all()
+        from django.db.models import Q
+        qs = Cheque.objects.select_related(
+            'bank_account', 'created_by', 'payment', 'payment__project',
+        ).all()
+        owner = lead_owner_q(self.request.user, prefix='payment__project__lead__')
+        if owner is None:
+            return qs
+        return qs.filter(
+            owner
+            | Q(payment__isnull=True, created_by=self.request.user)
+            | Q(payment__project__isnull=True, created_by=self.request.user)
+        )
 
     def perform_update(self, serializer):
         cheque = serializer.save()
@@ -1213,6 +1225,18 @@ class TransactionViewSet(viewsets.ModelViewSet):
     search_fields = ['reference_number', 'description']
     ordering = ['-transaction_date', '-created_at']
 
+    def get_queryset(self):
+        from django.db.models import Q
+        qs = super().get_queryset()
+        owner = lead_owner_q(self.request.user, prefix='source_payment__project__lead__')
+        if owner is None:
+            return qs
+        voucher_owner = lead_owner_q(self.request.user, prefix='source_payment_voucher__project__lead__')
+        scoped = owner | Q(created_by=self.request.user)
+        if voucher_owner is not None:
+            scoped = scoped | voucher_owner
+        return qs.filter(scoped)
+
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
 
@@ -1224,8 +1248,20 @@ class TransactionViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def summary(self, request):
+        if is_lead_scoped(request.user):
+            return Response({
+                'total_received': 0, 'total_made': 0, 'net_balance': 0,
+                'customer_outstanding': 0, 'pending_received': 0,
+                'pending_cheques': 0, 'bank_balance': 0, 'bank_count': 0,
+            })
         return Response(accounts_dashboard_summary())
 
     @action(detail=False, methods=['get'], url_path='dashboard')
     def dashboard(self, request):
+        if is_lead_scoped(request.user):
+            return Response({
+                'total_received': 0, 'total_made': 0, 'net_balance': 0,
+                'customer_outstanding': 0, 'pending_received': 0,
+                'pending_cheques': 0, 'bank_balance': 0, 'bank_count': 0,
+            })
         return Response(accounts_dashboard_summary())

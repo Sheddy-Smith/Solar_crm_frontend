@@ -128,23 +128,45 @@ def filter_plants(qs, params):
     return qs
 
 
-def dashboard_summary(today=None):
+def dashboard_summary(today=None, user=None):
+    from apps.accounts.permissions import apply_lead_owner_scope, is_lead_scoped, lead_owner_filter
+
     today = today or date.today()
-    plants = OmPlant.objects.all()
+    scoped = bool(user and is_lead_scoped(user))
+    plants = OmPlant.objects.select_related('project').all()
+    if scoped:
+        plants = plants.filter(lead_owner_filter(user, prefix='project__lead__'))
+    plant_id_set = set(plants.values_list('id', flat=True)) if scoped else None
+
     open_tasks = _open_tasks().filter(plant__isnull=False)
+    if plant_id_set is not None:
+        open_tasks = open_tasks.filter(plant_id__in=plant_id_set)
     task_day = Q(visit_date=today) | Q(visit_date__isnull=True, due_date=today)
     upcoming = (
         Q(visit_date__gt=today, visit_date__lte=today + timedelta(days=UPCOMING_VISIT_DAYS))
         | Q(visit_date__isnull=True, due_date__gt=today, due_date__lte=today + timedelta(days=UPCOMING_VISIT_DAYS))
     )
     ins = insurance_states(today)
+    if plant_id_set is not None:
+        ins = {pid: state for pid, state in ins.items() if pid in plant_id_set}
 
     def count(key):
-        return len(plant_ids_for(key, today) or ())
+        ids = plant_ids_for(key, today) or set()
+        if plant_id_set is not None:
+            ids = ids & plant_id_set
+        return len(ids)
 
-    pending_job_cards = OmJobCard.objects.filter(status__in=OmJobCard.OPEN_STATUSES).count()
-    completed_services = OmJobCard.objects.filter(status='Closed').count()
-    today_visits = OmSiteVisit.objects.filter(date=today).exclude(status='Cancelled').count()
+    job_cards = OmJobCard.objects.all()
+    visits = OmSiteVisit.objects.all()
+    tickets = OmBreakdownTicket.objects.all()
+    if plant_id_set is not None:
+        job_cards = job_cards.filter(plant_id__in=plant_id_set)
+        visits = visits.filter(plant_id__in=plant_id_set)
+        tickets = tickets.filter(Q(plant_id__in=plant_id_set) | Q(plant__isnull=True, created_by=user))
+
+    pending_job_cards = job_cards.filter(status__in=OmJobCard.OPEN_STATUSES).count()
+    completed_services = job_cards.filter(status='Closed').count()
+    today_visits = visits.filter(date=today).exclude(status='Cancelled').count()
 
     active_amc = 0
     warranty_expiring = 0
@@ -153,29 +175,30 @@ def dashboard_summary(today=None):
     amc_revenue = None
     try:
         from apps.amc.models import AmcContract, AmcWarranty
-        active_amc = AmcContract.objects.filter(status__in=('Active', 'Expiring Soon')).count()
-        warranty_expiring = AmcWarranty.objects.filter(status='Expiring Soon').count()
-        warranty_active = AmcWarranty.objects.filter(status__in=('Active', 'Expiring Soon')).count()
         from django.db.models import Sum
-        amc_revenue = AmcContract.objects.filter(
-            status__in=('Active', 'Expiring Soon'),
-        ).aggregate(total=Sum('annual_value'))['total'] or 0
+        amc_qs = AmcContract.objects.filter(status__in=('Active', 'Expiring Soon'))
+        war_qs = AmcWarranty.objects.all()
+        if scoped:
+            amc_qs = apply_lead_owner_scope(amc_qs, user, prefix='project__lead__')
+            war_qs = apply_lead_owner_scope(war_qs, user, prefix='project__lead__')
+        active_amc = amc_qs.count()
+        warranty_expiring = war_qs.filter(status='Expiring Soon').count()
+        warranty_active = war_qs.filter(status__in=('Active', 'Expiring Soon')).count()
+        amc_revenue = amc_qs.aggregate(total=Sum('annual_value'))['total'] or 0
     except Exception:
         pass
 
-    under_service = OmBreakdownTicket.objects.filter(
+    under_service = tickets.filter(
         status__in=OmBreakdownTicket.OPEN_STATUSES, plant__isnull=False,
     ).values('plant_id').distinct().count()
-    expiring_30_days = max(
-        warranty_expiring,
-        OmPlant.objects.filter(is_active=True).filter(
-            Q(inverter_warranty_end__gte=today, inverter_warranty_end__lte=today + timedelta(days=30))
-            | Q(panel_warranty_end__gte=today, panel_warranty_end__lte=today + timedelta(days=30))
-            | Q(service_warranty_end__gte=today, service_warranty_end__lte=today + timedelta(days=30))
-        ).count(),
+    warranty_plant_qs = plants.filter(is_active=True).filter(
+        Q(inverter_warranty_end__gte=today, inverter_warranty_end__lte=today + timedelta(days=30))
+        | Q(panel_warranty_end__gte=today, panel_warranty_end__lte=today + timedelta(days=30))
+        | Q(service_warranty_end__gte=today, service_warranty_end__lte=today + timedelta(days=30))
     )
+    expiring_30_days = max(warranty_expiring, warranty_plant_qs.count())
     ticket_rows = []
-    for t in OmBreakdownTicket.objects.select_related('plant', 'assigned_to').order_by('-created_at')[:8]:
+    for t in tickets.select_related('plant', 'assigned_to').order_by('-created_at')[:8]:
         plant = t.plant
         assignee = getattr(t.assigned_to, 'name', None) if t.assigned_to_id else None
         ticket_rows.append({
@@ -193,7 +216,7 @@ def dashboard_summary(today=None):
         })
 
     upcoming_alerts = []
-    for plant in OmPlant.objects.filter(is_active=True).order_by('next_service_due')[:40]:
+    for plant in plants.filter(is_active=True).order_by('next_service_due')[:40]:
         specs = (
             ('Panel Warranty Expiring', plant.panel_warranty_end),
             ('Inverter Warranty Expiring', plant.inverter_warranty_end),
@@ -215,7 +238,10 @@ def dashboard_summary(today=None):
                 })
     try:
         from apps.amc.models import AmcContract
-        for c in AmcContract.objects.filter(status__in=('Expiring Soon', 'Active')).order_by('end_date')[:20]:
+        amc_alert_qs = AmcContract.objects.filter(status__in=('Expiring Soon', 'Active')).order_by('end_date')
+        if scoped:
+            amc_alert_qs = apply_lead_owner_scope(amc_alert_qs, user, prefix='project__lead__')
+        for c in amc_alert_qs[:20]:
             if not c.end_date:
                 continue
             days = (c.end_date - today).days
@@ -243,8 +269,8 @@ def dashboard_summary(today=None):
         'paid_plants': count('paid'),
         'service_due': count('service_due'),
         'service_overdue': count('service_overdue'),
-        'open_tickets': OmBreakdownTicket.objects.filter(status__in=OmBreakdownTicket.OPEN_STATUSES).count(),
-        'critical_complaints': OmBreakdownTicket.objects.filter(
+        'open_tickets': tickets.filter(status__in=OmBreakdownTicket.OPEN_STATUSES).count(),
+        'critical_complaints': tickets.filter(
             status__in=OmBreakdownTicket.OPEN_STATUSES, priority='Critical',
         ).count(),
         'todays_tasks': open_tasks.filter(task_day).count(),

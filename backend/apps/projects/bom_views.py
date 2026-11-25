@@ -4,7 +4,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.accounts.permissions import HasModulePermission
+from apps.accounts.permissions import HasModulePermission, require_can_mutate_lead
 
 from .bom_models import BomCapacityConfig, BomLine, BomVersion
 from .bom_serializers import BomCapacityConfigSerializer, BomLineSerializer, BomVersionSerializer
@@ -125,6 +125,7 @@ class DraftQuotationFromBomView(APIView):
         lead = Lead.objects.filter(pk=lead_id, is_deleted=False).first()
         if not lead:
             raise ValidationError({'lead_id': 'Lead not found.'})
+        require_can_mutate_lead(request.user, lead)
         bom_version = None
         bom_id = request.data.get('bom_version_id')
         if bom_id:

@@ -22,7 +22,7 @@ from .serializers import (
     CustomTokenObtainPairSerializer, RolePermissionSerializer,
     UserPreferencesSerializer, current_user_payload,
 )
-from .permissions import HasModulePermission, is_super_admin
+from .permissions import HasModulePermission, IsSuperAdmin, is_super_admin
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -291,6 +291,10 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ('me', 'preferences', 'change_password', 'verify_password', 'options'):
             return [IsAuthenticated()]
+        # Activate / deactivate is irreversible enough to stay Super-Admin-only
+        # (comment above matched intent; matrix can_add previously bypassed it).
+        if self.action == 'toggle_active':
+            return [IsSuperAdmin()]
         # All user-admin actions follow the User Management matrix from Settings UI
         # (View / Add / Edit / Delete). Super Admin still bypasses via HasModulePermission.
         return [HasModulePermission()]
@@ -466,6 +470,11 @@ class UserViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def toggle_active(self, request, pk=None):
+        if not is_super_admin(request.user):
+            return Response(
+                {'detail': 'Only Super Admin can activate or deactivate users.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         user = self.get_object()
         if user.is_deleted:
             return Response(

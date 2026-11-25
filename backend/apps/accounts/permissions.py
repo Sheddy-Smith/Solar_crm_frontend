@@ -108,6 +108,55 @@ def can_manage_leads(user):
     return bool(perm.full_access or perm.can_assign)
 
 
+def apply_lead_owner_scope(qs, user, prefix=''):
+    """Filter queryset by lead ownership when the user is lead-scoped."""
+    filt = lead_owner_q(user, prefix=prefix)
+    return qs.filter(filt) if filt is not None else qs
+
+
+def require_can_mutate_lead(user, lead, message=None):
+    """Raise PermissionDenied when a lead-scoped user may not write `lead`."""
+    from rest_framework.exceptions import PermissionDenied
+
+    if is_lead_scoped(user) and lead is not None and not can_mutate_lead(user, lead):
+        raise PermissionDenied(
+            message
+            or 'You can only modify leads assigned to you, or unassigned leads you created.'
+        )
+
+
+def require_own_lead(user, lead, message=None):
+    """Raise PermissionDenied when a lead-scoped user cannot read `lead`."""
+    from rest_framework.exceptions import PermissionDenied
+
+    if is_lead_scoped(user) and lead is not None and not is_own_lead(user, lead):
+        raise PermissionDenied(message or 'You can only access your own leads.')
+
+
+def require_project_lead_access(user, project, *, mutate=False):
+    """Gate project access for lead-scoped roles via the linked lead.
+
+    Projects without a lead are denied for lead-scoped users (prevents null-lead bypass).
+    """
+    from rest_framework.exceptions import PermissionDenied
+
+    if not is_lead_scoped(user):
+        return
+    if project is None:
+        raise PermissionDenied('Project is required.')
+    lead = getattr(project, 'lead', None)
+    if lead is None and getattr(project, 'lead_id', None):
+        from apps.leads.models import Lead
+
+        lead = Lead.objects.filter(pk=project.lead_id).first()
+    if lead is None:
+        raise PermissionDenied('You can only access projects linked to your own leads.')
+    if mutate:
+        require_can_mutate_lead(user, lead)
+    else:
+        require_own_lead(user, lead)
+
+
 class IsAdminOrSuperAdmin(BasePermission):
     def has_permission(self, request, view):
         if is_super_admin(request.user):

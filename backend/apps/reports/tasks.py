@@ -47,13 +47,18 @@ def get_export_status(task_id: str) -> dict | None:
 )
 def export_leads_csv(self, user_id: int, filters: dict | None = None):
     """Idempotent lead CSV export keyed by Celery task id."""
+    from django.contrib.auth import get_user_model
+    from apps.accounts.permissions import apply_lead_owner_scope
     from apps.leads.models import Lead
 
     task_id = self.request.id or f'eager-{timezone.now().timestamp()}'
     filters = filters or {}
-    set_export_status(task_id, {'status': 'running', 'progress': 0})
+    set_export_status(task_id, {'status': 'running', 'progress': 0, 'user_id': user_id})
 
     qs = Lead.objects.filter(is_deleted=False).select_related('assigned_to', 'created_by')
+    export_user = get_user_model().objects.filter(pk=user_id).select_related('role').first()
+    if export_user is not None:
+        qs = apply_lead_owner_scope(qs, export_user)
     status = filters.get('status')
     if status:
         qs = qs.filter(status=status)
@@ -62,7 +67,7 @@ def export_leads_csv(self, user_id: int, filters: dict | None = None):
     # Idempotent: if file already exists for this task id, reuse it.
     if out_path.exists() and out_path.stat().st_size > 0:
         rel = str(out_path.relative_to(settings.MEDIA_ROOT)).replace('\\', '/')
-        payload = {'status': 'done', 'path': rel, 'rows': None}
+        payload = {'status': 'done', 'path': rel, 'rows': None, 'user_id': user_id}
         set_export_status(task_id, payload)
         return payload
 
@@ -89,7 +94,7 @@ def export_leads_csv(self, user_id: int, filters: dict | None = None):
                 set_export_status(task_id, {'status': 'running', 'progress': rows})
 
     rel = str(out_path.relative_to(settings.MEDIA_ROOT)).replace('\\', '/')
-    payload = {'status': 'done', 'path': rel, 'rows': rows}
+    payload = {'status': 'done', 'path': rel, 'rows': rows, 'user_id': user_id}
     set_export_status(task_id, payload)
     logger.info('export_leads_csv done task=%s rows=%s user=%s', task_id, rows, user_id)
     return payload
@@ -142,16 +147,18 @@ def bulk_notify_stub(self, user_ids: list[int], title: str, body: str):
 )
 def export_leads_xlsx(self, user_id: int, filters: dict | None = None):
     """Excel export of leads (openpyxl). Idempotent by task id file path."""
+    from django.contrib.auth import get_user_model
+    from apps.accounts.permissions import apply_lead_owner_scope
     from apps.leads.models import Lead
 
     task_id = self.request.id or f'eager-xlsx-{timezone.now().timestamp()}'
     filters = filters or {}
-    set_export_status(task_id, {'status': 'running', 'progress': 0, 'format': 'xlsx'})
+    set_export_status(task_id, {'status': 'running', 'progress': 0, 'format': 'xlsx', 'user_id': user_id})
 
     out_path = _export_dir() / f'leads_{user_id}_{task_id}.xlsx'
     if out_path.exists() and out_path.stat().st_size > 0:
         rel = str(out_path.relative_to(settings.MEDIA_ROOT)).replace('\\', '/')
-        payload = {'status': 'done', 'path': rel, 'rows': None, 'format': 'xlsx'}
+        payload = {'status': 'done', 'path': rel, 'rows': None, 'format': 'xlsx', 'user_id': user_id}
         set_export_status(task_id, payload)
         return payload
 
@@ -163,6 +170,9 @@ def export_leads_xlsx(self, user_id: int, filters: dict | None = None):
         return export_leads_csv.apply(args=(user_id, filters)).get()
 
     qs = Lead.objects.filter(is_deleted=False).select_related('assigned_to')
+    export_user = get_user_model().objects.filter(pk=user_id).select_related('role').first()
+    if export_user is not None:
+        qs = apply_lead_owner_scope(qs, export_user)
     status = filters.get('status')
     if status:
         qs = qs.filter(status=status)
@@ -190,7 +200,7 @@ def export_leads_xlsx(self, user_id: int, filters: dict | None = None):
             set_export_status(task_id, {'status': 'running', 'progress': rows, 'format': 'xlsx'})
     wb.save(out_path)
     rel = str(out_path.relative_to(settings.MEDIA_ROOT)).replace('\\', '/')
-    payload = {'status': 'done', 'path': rel, 'rows': rows, 'format': 'xlsx'}
+    payload = {'status': 'done', 'path': rel, 'rows': rows, 'format': 'xlsx', 'user_id': user_id}
     set_export_status(task_id, payload)
     logger.info('export_leads_xlsx done task=%s rows=%s user=%s', task_id, rows, user_id)
     return payload

@@ -17,7 +17,8 @@ from .serializers import (
 )
 from apps.accounts.permissions import (
     HasModulePermission, is_lead_scoped, lead_owner_q,
-    is_own_lead, can_mutate_lead, can_manage_leads,
+    is_own_lead, can_mutate_lead, can_manage_leads, is_super_admin,
+    apply_lead_owner_scope, require_can_mutate_lead,
 )
 from .datetime_filters import day_start, filter_field_on_local_date, period_created_at_queryset
 from .followup_sync import bump_lead_last_activity, sync_lead_next_follow_up
@@ -166,14 +167,18 @@ class LeadViewSet(viewsets.ModelViewSet):
         payload = {
             'available': False,
             'ivrs': ivrs,
-            'id': lead.id,
-            'customer_name': lead.customer_name,
-            'status': lead.status,
             'is_deleted': bool(lead.is_deleted),
         }
-        # Scoped roles may learn a collision exists, but not another owner's mobile.
+        # Scoped roles learn only that a collision exists — no peer PII / id oracle.
         if not is_lead_scoped(request.user) or is_own_lead(request.user, lead):
-            payload['mobile_number'] = lead.mobile_number
+            payload.update({
+                'id': lead.id,
+                'customer_name': lead.customer_name,
+                'status': lead.status,
+                'mobile_number': lead.mobile_number,
+            })
+        else:
+            payload['collision'] = True
         return Response(payload)
 
     @action(detail=False, methods=['get'])
@@ -392,8 +397,29 @@ class LeadSurveyPhotoViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['survey']
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        return apply_lead_owner_scope(qs, self.request.user, prefix='survey__lead__')
+
+    def _lead_from_photo_data(self, serializer=None, instance=None):
+        survey = None
+        if serializer is not None:
+            survey = serializer.validated_data.get('survey') or getattr(serializer.instance, 'survey', None)
+        if survey is None and instance is not None:
+            survey = getattr(instance, 'survey', None)
+        return getattr(survey, 'lead', None) if survey else None
+
     def perform_create(self, serializer):
+        require_can_mutate_lead(self.request.user, self._lead_from_photo_data(serializer=serializer))
         serializer.save(uploaded_by=self.request.user)
+
+    def perform_update(self, serializer):
+        require_can_mutate_lead(self.request.user, self._lead_from_photo_data(serializer=serializer))
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        require_can_mutate_lead(self.request.user, self._lead_from_photo_data(instance=instance))
+        instance.delete()
 
 
 class FollowUpViewSet(viewsets.ModelViewSet):
@@ -477,6 +503,16 @@ class AdminApprovalViewSet(viewsets.ModelViewSet):
         'lead__project_name',
     ]
     ordering = ['-created_at']
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        # Approvers (Assign / Super Admin) see the org queue; executives see own requests only.
+        if is_super_admin(user) or can_manage_leads(user):
+            return qs
+        if is_lead_scoped(user):
+            return qs.filter(requested_by=user)
+        return qs
 
     def perform_create(self, serializer):
         serializer.save(requested_by=self.request.user)
@@ -582,6 +618,7 @@ class QuotationViewSet(viewsets.ModelViewSet):
         from apps.projects.models import Project
 
         quotation = self.get_object()
+        require_can_mutate_lead(request.user, getattr(quotation, 'lead', None))
         with transaction.atomic():
             locked = Quotation.objects.select_for_update().filter(pk=quotation.pk, is_deleted=False).first()
             if not locked:
@@ -623,6 +660,7 @@ class QuotationViewSet(viewsets.ModelViewSet):
         from apps.leads.models import QuotationItem
 
         source = self.get_object()
+        require_can_mutate_lead(request.user, getattr(source, 'lead', None))
         with transaction.atomic():
             revision = Quotation.objects.get(pk=source.pk)
             revision.pk = None

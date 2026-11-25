@@ -18,6 +18,7 @@ from .invoice_payment_allocation import (
     payment_available_amount,
 )
 from .models import InvoicePaymentAllocation, Payment
+from .services import apply_accounts_project_lead_scope
 from .views import AccountsBaseViewSet
 
 
@@ -40,6 +41,12 @@ class InvoicePaymentAllocationViewSet(AccountsBaseViewSet):
         qs = InvoicePaymentAllocation.objects.select_related(
             'payment', 'invoice', 'invoice__project', 'allocated_by', 'reversed_by',
         ).all()
+        qs = apply_accounts_project_lead_scope(
+            qs,
+            self.request.user,
+            project_prefix='invoice__project__lead__',
+            created_by_field='allocated_by',
+        )
         params = self.request.query_params
         if params.get('payment_id'):
             qs = qs.filter(payment_id=params.get('payment_id'))

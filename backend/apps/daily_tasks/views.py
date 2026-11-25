@@ -31,6 +31,16 @@ class DailyTaskViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+        user = self.request.user
+        if not is_super_admin(user):
+            # Legacy DailyTask.assigned_to → workforce.Employee (optional user link).
+            scoped = Q(created_by=user) | Q(assigned_to__user=user)
+            if user.branch_id and (is_branch_manager(user) or can_assign_daily_tasks(user)):
+                scoped |= (
+                    Q(assigned_to__user__branch_id=user.branch_id)
+                    | Q(created_by__branch_id=user.branch_id)
+                )
+            qs = qs.filter(scoped).distinct()
         date_from = self.request.query_params.get('date_from')
         date_to = self.request.query_params.get('date_to')
         if date_from:
@@ -41,7 +51,7 @@ class DailyTaskViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='summary')
     def summary(self, request):
-        rows = DailyTask.objects.values('category').annotate(
+        rows = self.filter_queryset(self.get_queryset()).values('category').annotate(
             total=Count('id'),
             completed=Count('id', filter=Q(status='Completed')),
         )

@@ -11,6 +11,7 @@ from .models import (
     PurchaseInvoice, SellInvoice, PaymentVoucher,
     PurchaseChallan, SellChallan, GstOpeningBalance, Transaction,
 )
+from .services import apply_accounts_project_lead_scope
 from .document_serializers import (
     PurchaseInvoiceSerializer, SellInvoiceSerializer, PaymentVoucherSerializer,
     PurchaseChallanSerializer, SellChallanSerializer, GstOpeningBalanceSerializer,
@@ -41,9 +42,10 @@ class PurchaseInvoiceViewSet(AccountsBaseViewSet):
     ordering = ['-invoice_date', '-created_at']
 
     def get_queryset(self):
-        return PurchaseInvoice.objects.select_related(
+        qs = PurchaseInvoice.objects.select_related(
             'supplier', 'project', 'created_by',
         ).prefetch_related('lines', 'lines__inventory_item', 'lines__stock_movement', 'extra_charges').all()
+        return apply_accounts_project_lead_scope(qs, self.request.user)
 
     def perform_create(self, serializer):
         try:
@@ -85,9 +87,10 @@ class SellInvoiceViewSet(AccountsBaseViewSet):
     ordering = ['-invoice_date', '-created_at']
 
     def get_queryset(self):
-        return SellInvoice.objects.select_related(
+        qs = SellInvoice.objects.select_related(
             'party', 'project', 'created_by',
         ).prefetch_related('lines', 'lines__inventory_item', 'lines__stock_movement').all()
+        return apply_accounts_project_lead_scope(qs, self.request.user)
 
     def perform_create(self, serializer):
         try:
@@ -152,6 +155,7 @@ class PaymentVoucherViewSet(AccountsBaseViewSet):
         qs = PaymentVoucher.objects.select_related(
             'project', 'created_by', 'employee', 'employee_voucher', 'material_plan',
         ).all()
+        qs = apply_accounts_project_lead_scope(qs, self.request.user)
         params = self.request.query_params
         source = self.SOURCE_FILTERS.get(params.get('source', ''))
         if source:
@@ -186,9 +190,10 @@ class PurchaseChallanViewSet(AccountsBaseViewSet):
     ordering = ['-challan_date', '-created_at']
 
     def get_queryset(self):
-        return PurchaseChallan.objects.select_related(
+        qs = PurchaseChallan.objects.select_related(
             'supplier', 'project', 'created_by',
         ).prefetch_related('lines', 'lines__inventory_item', 'lines__stock_movement').all()
+        return apply_accounts_project_lead_scope(qs, self.request.user)
 
     def perform_create(self, serializer):
         try:
@@ -224,9 +229,10 @@ class SellChallanViewSet(AccountsBaseViewSet):
     ordering = ['-challan_date', '-created_at']
 
     def get_queryset(self):
-        return SellChallan.objects.select_related(
+        qs = SellChallan.objects.select_related(
             'party', 'project', 'created_by',
         ).prefetch_related('lines', 'lines__inventory_item', 'lines__stock_movement').all()
+        return apply_accounts_project_lead_scope(qs, self.request.user)
 
     def perform_create(self, serializer):
         try:

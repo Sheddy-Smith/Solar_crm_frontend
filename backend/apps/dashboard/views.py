@@ -1,9 +1,25 @@
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.accounts.permissions import HasModulePermission, is_super_admin
+from apps.accounts.permissions import (
+    HasModulePermission,
+    can_manage_leads,
+    is_lead_scoped,
+    is_super_admin,
+)
 
 from .services import get_unified_dashboard
+
+
+def _can_filter_teammate(user):
+    """Managers / Assign-capable roles may filter dashboard by another assignee."""
+    if is_super_admin(user):
+        return True
+    if can_manage_leads(user):
+        return True
+    role_name = (getattr(getattr(user, 'role', None), 'name', '') or '').strip().lower()
+    return role_name in ('admin', 'branch manager', 'team leader')
 
 
 class UnifiedDashboardView(APIView):
@@ -21,9 +37,7 @@ class UnifiedDashboardView(APIView):
         }
         user = request.user
         viewer_fingerprint = ''
-        # Super Admin / Dashboard full_access keep org-wide aggregates.
-        # Other viewers are scoped to their own assigned leads unless they
-        # explicitly pass assigned_to (managers filtering a teammate).
+
         if user and user.is_authenticated and not is_super_admin(user):
             role = getattr(user, 'role', None)
             perm = None
@@ -34,8 +48,20 @@ class UnifiedDashboardView(APIView):
                     request._role_perm_by_module = perm_map
                 perm = perm_map.get('Dashboard')
             full_access = bool(perm and (perm.full_access or False))
-            if not full_access:
-                if not params.get('assigned_to'):
+
+            # Lead-scoped executives: always own-lead KPIs (created_by | assigned_to).
+            # Ignore ?assigned_to= IDOR and strip org-wide embeds in the builder.
+            if is_lead_scoped(user):
+                params['assigned_to'] = None
+                viewer_fingerprint = f'u{user.id}:owned'
+            elif not full_access:
+                requested = params.get('assigned_to')
+                if requested and str(requested) != str(user.id) and not _can_filter_teammate(user):
+                    raise PermissionDenied('You cannot filter the dashboard for another user.')
+                if not requested:
                     params['assigned_to'] = str(user.id)
                 viewer_fingerprint = f'u{user.id}'
-        return Response(get_unified_dashboard(params, viewer_fingerprint=viewer_fingerprint))
+
+        return Response(
+            get_unified_dashboard(params, viewer_fingerprint=viewer_fingerprint, user=user)
+        )

@@ -6,7 +6,9 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 
-from apps.accounts.permissions import HasModulePermission
+from apps.accounts.permissions import (
+    HasModulePermission, apply_lead_owner_scope, is_lead_scoped, require_project_lead_access,
+)
 
 from .models import (
     AmcClaim, AmcContract, AmcDocument, AmcRenewal,
@@ -24,8 +26,17 @@ class AmcBaseViewSet(viewsets.ModelViewSet):
     permission_module = 'AMC & Warranty'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     ordering = ['-created_at']
+    # Default: scope via linked project → lead. Override when FK path differs.
+    lead_owner_prefix = 'project__lead__'
+
+    def get_queryset(self):
+        qs = super().get_queryset() if hasattr(super(), 'get_queryset') else self.queryset
+        return apply_lead_owner_scope(qs, self.request.user, prefix=self.lead_owner_prefix)
 
     def perform_create(self, serializer):
+        project = serializer.validated_data.get('project')
+        if project is not None:
+            require_project_lead_access(self.request.user, project, mutate=True)
         serializer.save(created_by=self.request.user)
 
 
@@ -36,10 +47,19 @@ class AmcContractViewSet(AmcBaseViewSet):
     permission_action_map = {'create_renewal': 'can_edit'}
 
     def get_queryset(self):
-        return AmcContract.objects.select_related('project', 'customer', 'renewed_from', 'created_by').all()
+        qs = AmcContract.objects.select_related('project', 'customer', 'renewed_from', 'created_by').all()
+        return apply_lead_owner_scope(qs, self.request.user, prefix='project__lead__')
 
     @action(detail=False, methods=['get'])
     def summary(self, request):
+        if is_lead_scoped(request.user):
+            qs = self.get_queryset()
+            return Response({
+                'total': qs.count(),
+                'active': qs.filter(status='Active').count(),
+                'expired': qs.filter(status='Expired').count(),
+                'renewed': qs.filter(status='Renewed').count(),
+            })
         return Response(amc_dashboard_summary())
 
     @action(detail=True, methods=['post'], url_path='create-renewal')
@@ -87,7 +107,8 @@ class AmcWarrantyViewSet(AmcBaseViewSet):
     search_fields = ['asset_type', 'manufacturer', 'serial_number', 'project__project_name']
 
     def get_queryset(self):
-        return AmcWarranty.objects.select_related('project', 'created_by').all()
+        qs = AmcWarranty.objects.select_related('project', 'created_by').all()
+        return apply_lead_owner_scope(qs, self.request.user, prefix='project__lead__')
 
 
 class AmcServiceRequestViewSet(AmcBaseViewSet):
@@ -96,7 +117,8 @@ class AmcServiceRequestViewSet(AmcBaseViewSet):
     search_fields = ['subject', 'assigned_engineer', 'project__project_name']
 
     def get_queryset(self):
-        return AmcServiceRequest.objects.select_related('project', 'contract', 'created_by').all()
+        qs = AmcServiceRequest.objects.select_related('project', 'contract', 'created_by').all()
+        return apply_lead_owner_scope(qs, self.request.user, prefix='project__lead__')
 
 
 class AmcVisitViewSet(AmcBaseViewSet):
@@ -105,7 +127,8 @@ class AmcVisitViewSet(AmcBaseViewSet):
     search_fields = ['engineer', 'findings', 'project__project_name']
 
     def get_queryset(self):
-        return AmcVisit.objects.select_related('project', 'service_request', 'created_by').all()
+        qs = AmcVisit.objects.select_related('project', 'service_request', 'created_by').all()
+        return apply_lead_owner_scope(qs, self.request.user, prefix='project__lead__')
 
 
 class AmcRenewalViewSet(AmcBaseViewSet):
@@ -113,9 +136,11 @@ class AmcRenewalViewSet(AmcBaseViewSet):
     filterset_fields = ['contract', 'status']
     search_fields = ['contract__customer_name', 'remarks']
     permission_action_map = {'complete': 'can_edit'}
+    lead_owner_prefix = 'contract__project__lead__'
 
     def get_queryset(self):
-        return AmcRenewal.objects.select_related('contract', 'created_by').all()
+        qs = AmcRenewal.objects.select_related('contract', 'contract__project', 'created_by').all()
+        return apply_lead_owner_scope(qs, self.request.user, prefix='contract__project__lead__')
 
     @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):
@@ -158,7 +183,8 @@ class AmcClaimViewSet(AmcBaseViewSet):
     search_fields = ['description', 'project__project_name']
 
     def get_queryset(self):
-        return AmcClaim.objects.select_related('project', 'warranty', 'created_by').all()
+        qs = AmcClaim.objects.select_related('project', 'warranty', 'created_by').all()
+        return apply_lead_owner_scope(qs, self.request.user, prefix='project__lead__')
 
 
 class AmcDocumentViewSet(viewsets.ModelViewSet):
@@ -172,7 +198,11 @@ class AmcDocumentViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        return AmcDocument.objects.select_related('project', 'contract', 'uploaded_by').all()
+        qs = AmcDocument.objects.select_related('project', 'contract', 'uploaded_by').all()
+        return apply_lead_owner_scope(qs, self.request.user, prefix='project__lead__')
 
     def perform_create(self, serializer):
+        project = serializer.validated_data.get('project')
+        if project is not None:
+            require_project_lead_access(self.request.user, project, mutate=True)
         serializer.save(uploaded_by=self.request.user)

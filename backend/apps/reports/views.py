@@ -8,7 +8,7 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from apps.accounts.permissions import HasModulePermission
+from apps.accounts.permissions import HasModulePermission, is_lead_scoped, is_super_admin
 
 from .services import reports_dashboard
 from .tasks import export_leads_csv, export_leads_xlsx, get_export_status, import_leads_csv
@@ -106,14 +106,20 @@ class ReportsViewSet(viewsets.ViewSet):
     permission_module = 'Dashboard'
     permission_action_map = {
         'dashboard': 'can_view',
-        'export_leads': 'can_view',
-        'export_leads_xlsx': 'can_view',
-        'import_leads': 'can_view',
+        'export_leads': 'can_export',
+        'export_leads_xlsx': 'can_export',
+        'import_leads': 'can_import',
         'export_status': 'can_view',
     }
 
     @action(detail=False, methods=['get'])
     def dashboard(self, request):
+        # Org-wide ops KPIs — lead-scoped executives must not pull company aggregates.
+        if is_lead_scoped(request.user):
+            return Response(
+                {'detail': 'Org-wide reports are not available for your role.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         date_from = request.query_params.get('date_from')
         date_to = request.query_params.get('date_to')
         return Response(reports_dashboard(date_from=date_from, date_to=date_to))
@@ -158,4 +164,12 @@ class ReportsViewSet(viewsets.ViewSet):
         payload = get_export_status(task_id)
         if not payload:
             return Response({'status': 'unknown', 'task_id': task_id}, status=status.HTTP_404_NOT_FOUND)
-        return Response({'task_id': task_id, **payload})
+        owner_id = payload.get('user_id')
+        if (
+            owner_id is not None
+            and int(owner_id) != int(request.user.id)
+            and not is_super_admin(request.user)
+        ):
+            return Response({'status': 'unknown', 'task_id': task_id}, status=status.HTTP_404_NOT_FOUND)
+        safe = {k: v for k, v in payload.items() if k != 'user_id'}
+        return Response({'task_id': task_id, **safe})

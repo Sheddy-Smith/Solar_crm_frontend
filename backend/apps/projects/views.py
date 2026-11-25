@@ -23,8 +23,16 @@ from .serializers import (
     MaterialPlanSerializer, SubsidyApplicationSerializer, SubsidyDocumentSerializer,
     ProjectApprovalSerializer, ProjectApprovalDocumentSerializer,
 )
-from apps.accounts.permissions import HasModulePermission, is_lead_scoped, lead_owner_filter
+from rest_framework.exceptions import PermissionDenied
+from apps.accounts.permissions import (
+    HasModulePermission, is_lead_scoped, lead_owner_filter,
+    apply_lead_owner_scope, require_can_mutate_lead, require_project_lead_access,
+)
 from apps.leads.recycle import soft_delete_project
+
+
+def _guard_project_write(user, project):
+    require_project_lead_access(user, project, mutate=True)
 
 
 class ProjectViewSet(viewsets.ModelViewSet):
@@ -94,6 +102,8 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
         customer = serializer.validated_data.get('customer')
         lead = serializer.validated_data.get('lead')
+        if lead is not None:
+            require_can_mutate_lead(self.request.user, lead)
         if customer is None and lead is not None:
             customer = getattr(lead, 'customer', None) or get_or_create_party_for_lead_safe(
                 lead, user=self.request.user,
@@ -283,6 +293,7 @@ class ProjectActivityViewSet(viewsets.ModelViewSet):
         return qs.filter(filt) if filt else qs
 
     def perform_create(self, serializer):
+        _guard_project_write(self.request.user, serializer.validated_data.get('project'))
         serializer.save(created_by=self.request.user)
 
 
@@ -300,6 +311,7 @@ class ProjectNoteViewSet(viewsets.ModelViewSet):
         return qs.filter(filt) if filt else qs
 
     def perform_create(self, serializer):
+        _guard_project_write(self.request.user, serializer.validated_data.get('project'))
         serializer.save(created_by=self.request.user)
 
 
@@ -316,13 +328,13 @@ class ProjectDocumentViewSet(viewsets.ModelViewSet):
         return qs.filter(filt) if filt else qs
 
     def perform_create(self, serializer):
+        _guard_project_write(self.request.user, serializer.validated_data.get('project'))
         serializer.save(uploaded_by=self.request.user)
 
 
 class SiteSurveyViewSet(viewsets.ReadOnlyModelViewSet):
-    # Read-only across all projects, for the office-wide Survey Dashboard.
-    # Editing a survey always goes through /projects/{id}/site_survey/ — one
-    # write path keeps the OneToOne get-or-create semantics unambiguous.
+    # Survey Dashboard — lead-scoped executives only see their own projects' surveys.
+    # Editing still goes through /projects/{id}/site_survey/.
     queryset = SiteSurvey.objects.select_related('project', 'project__lead', 'surveyed_by').all()
     serializer_class = SiteSurveyListSerializer
     permission_classes = [HasModulePermission]
@@ -334,6 +346,7 @@ class SiteSurveyViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+        qs = apply_lead_owner_scope(qs, self.request.user, prefix='project__lead__')
         # Photos only needed on retrieve — list dashboard must stay light.
         if self.action == 'retrieve':
             qs = qs.prefetch_related('photos')
@@ -370,20 +383,33 @@ class SiteSurveyViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class SiteSurveyPhotoViewSet(viewsets.ModelViewSet):
-    queryset = SiteSurveyPhoto.objects.select_related('survey', 'survey__project', 'uploaded_by').all()
+    queryset = SiteSurveyPhoto.objects.select_related(
+        'survey', 'survey__project', 'survey__project__lead', 'uploaded_by',
+    ).all()
     serializer_class = SiteSurveyPhotoSerializer
     permission_classes = [HasModulePermission]
     permission_module = 'Project Management'
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['survey', 'slot']
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        return apply_lead_owner_scope(qs, self.request.user, prefix='survey__project__lead__')
+
+    def _guard_survey(self, survey):
+        project = getattr(survey, 'project', None) if survey else None
+        _guard_project_write(self.request.user, project)
+
     def create(self, request, *args, **kwargs):
         # Each checklist slot holds exactly one photo — uploading again for the
         # same slot replaces it instead of erroring on the unique constraint.
         survey_id = request.data.get('survey')
         slot = request.data.get('slot')
-        existing = SiteSurveyPhoto.objects.filter(survey_id=survey_id, slot=slot).first()
+        existing = SiteSurveyPhoto.objects.select_related(
+            'survey', 'survey__project', 'survey__project__lead',
+        ).filter(survey_id=survey_id, slot=slot).first()
         if existing:
+            self._guard_survey(existing.survey)
             serializer = self.get_serializer(existing, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             serializer.save(uploaded_by=request.user)
@@ -391,7 +417,18 @@ class SiteSurveyPhotoViewSet(viewsets.ModelViewSet):
         return super().create(request, *args, **kwargs)
 
     def perform_create(self, serializer):
+        survey = serializer.validated_data.get('survey')
+        self._guard_survey(survey)
         serializer.save(uploaded_by=self.request.user)
+
+    def perform_update(self, serializer):
+        survey = serializer.validated_data.get('survey') or serializer.instance.survey
+        self._guard_survey(survey)
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self._guard_survey(instance.survey)
+        instance.delete()
 
 
 class ProjectPaymentViewSet(viewsets.ModelViewSet):
@@ -408,6 +445,7 @@ class ProjectPaymentViewSet(viewsets.ModelViewSet):
         return qs.filter(filt) if filt else qs
 
     def perform_create(self, serializer):
+        _guard_project_write(self.request.user, serializer.validated_data.get('project'))
         project_payment = serializer.save(created_by=self.request.user)
         from apps.accounts_module.services import sync_project_payment_to_accounts
         sync_project_payment_to_accounts(project_payment, self.request.user)
@@ -438,6 +476,7 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
         return qs.filter(filt) if filt else qs
 
     def perform_create(self, serializer):
+        _guard_project_write(self.request.user, serializer.validated_data.get('project'))
         work = serializer.save(created_by=self.request.user)
         self._notify_assignee(work)
 
@@ -505,11 +544,13 @@ class JobSheetViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
+        _guard_project_write(self.request.user, serializer.validated_data.get('project'))
         serializer.save(created_by=self.request.user)
 
     @action(detail=True, methods=['post'], url_path='generate-work-orders')
     def generate_work_orders(self, request, pk=None):
         sheet = self.get_object()
+        _guard_project_write(request.user, sheet.project)
         created, linked, skipped = 0, 0, 0
 
         def process(rows):

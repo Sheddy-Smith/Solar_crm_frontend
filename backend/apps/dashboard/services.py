@@ -5,6 +5,7 @@ import os as _os
 
 from django.core.cache import cache
 
+from apps.accounts.permissions import apply_lead_owner_scope, is_lead_scoped
 from apps.accounts_module.services import accounts_dashboard_summary
 from apps.amc.services import amc_dashboard_summary
 from apps.inventory.services import inventory_summary
@@ -127,32 +128,59 @@ def _build_alerts(reports, sales, inventory, amc, accounts):
     }
 
 
-def build_unified_dashboard(params=None):
+def _empty_accounts_block():
+    return {
+        'total_received': 0,
+        'total_made': 0,
+        'net_balance': 0,
+        'customer_outstanding': 0,
+        'pending_received': 0,
+        'pending_cheques': 0,
+        'bank_balance': 0,
+        'bank_count': 0,
+    }
+
+
+def build_unified_dashboard(params=None, user=None):
     params = params or {}
     date_from = params.get('date_from')
     date_to = params.get('date_to')
     project_type = params.get('project_type')
     status_filter = params.get('status')
     assigned_to = params.get('assigned_to')
+    scoped_viewer = bool(user and is_lead_scoped(user))
 
-    reports = reports_dashboard(date_from=date_from, date_to=date_to)
     sales = lead_analytics(
         date_from=date_from,
         date_to=date_to,
         project_type=project_type,
         status_filter=status_filter,
-        assigned_to=assigned_to,
+        # Lead-scoped: ownership via `user` (created_by | assigned_to), not assignee-only.
+        assigned_to=None if scoped_viewer else assigned_to,
+        user=user if scoped_viewer else None,
     )
-    # DASH-03: pass the same date window into project / accounts / inventory / AMC.
-    projects_kpi = project_kpi_analytics(date_from=date_from, date_to=date_to)
-    accounts = accounts_dashboard_summary(date_from=date_from, date_to=date_to)
-    inventory = inventory_summary(date_from=date_from, date_to=date_to)
-    amc = amc_dashboard_summary(date_from=date_from, date_to=date_to)
+
+    if scoped_viewer:
+        # Fail-closed: no org-wide finance / stock / AMC / ops embeds for executives.
+        reports = {'operations': {}, 'kpis': [], 'revenue': 0}
+        projects_kpi = {'financial': {'total_value': 0}}
+        accounts = _empty_accounts_block()
+        inventory = {'total_value': 0, 'total_items': 0, 'stale_stock_items': 0}
+        amc = {'active_contracts': 0, 'open_service_requests': 0, 'contract_value': 0}
+    else:
+        reports = reports_dashboard(date_from=date_from, date_to=date_to)
+        # DASH-03: pass the same date window into project / accounts / inventory / AMC.
+        projects_kpi = project_kpi_analytics(date_from=date_from, date_to=date_to)
+        accounts = accounts_dashboard_summary(date_from=date_from, date_to=date_to)
+        inventory = inventory_summary(date_from=date_from, date_to=date_to)
+        amc = amc_dashboard_summary(date_from=date_from, date_to=date_to)
 
     # One grouped query instead of 6 COUNT(*) round-trips (staging Locust hotspot).
     # DASH-02: exclude soft-deleted projects so summary matches project_kpi_analytics.
     from django.db.models import Count, Q
     project_qs = Project.objects.filter(is_deleted=False)
+    if scoped_viewer:
+        project_qs = apply_lead_owner_scope(project_qs, user, prefix='lead__')
     if date_from:
         project_qs = project_qs.filter(created_at__date__gte=date_from)
     if date_to:
@@ -180,6 +208,8 @@ def build_unified_dashboard(params=None):
     from decimal import Decimal as _D
 
     mp_qs = MaterialPlan.objects.filter(project__is_deleted=False)
+    if scoped_viewer:
+        mp_qs = apply_lead_owner_scope(mp_qs, user, prefix='project__lead__')
     if date_from:
         mp_qs = mp_qs.filter(created_at__date__gte=date_from)
     if date_to:
@@ -195,7 +225,10 @@ def build_unified_dashboard(params=None):
         'total_plans': mp_qs.count(),
         'planned_value': float(planned_value_total.quantize(_D('0.01'))),
         # Same date scope as total_plans / planned_value (MaterialPlan.created_at).
-        'shortage_lines': material_shortage_count(date_from=date_from, date_to=date_to),
+        'shortage_lines': (
+            0 if scoped_viewer
+            else material_shortage_count(date_from=date_from, date_to=date_to)
+        ),
         'date_scope': 'material_plan_created_at',
     }
 
@@ -262,6 +295,7 @@ def build_unified_dashboard(params=None):
             'project_type': project_type,
             'status': status_filter,
             'assigned_to': assigned_to,
+            'ownership_scoped': scoped_viewer,
             # Snapshot metrics (bank, stock on-hand, active AMC) stay live;
             # payment / lead / project-created / movement counts respect the range.
             'date_scope': 'period_activity_plus_live_snapshots',
@@ -269,7 +303,7 @@ def build_unified_dashboard(params=None):
     }
 
 
-def get_unified_dashboard(params=None, viewer_fingerprint: str = ''):
+def get_unified_dashboard(params=None, viewer_fingerprint: str = '', user=None):
     params = {k: v for k, v in (params or {}).items() if v not in (None, '')}
     key = _cache_key(params, viewer_fingerprint=viewer_fingerprint)
     lock_key = f'{key}:lock'
@@ -305,7 +339,7 @@ def get_unified_dashboard(params=None, viewer_fingerprint: str = ''):
         # Timed out waiting — fall through and build (better than empty 504).
 
     try:
-        payload = build_unified_dashboard(params)
+        payload = build_unified_dashboard(params, user=user)
         try:
             cache.set(key, payload, CACHE_TTL_SECONDS)
         except Exception:

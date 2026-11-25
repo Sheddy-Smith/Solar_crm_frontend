@@ -94,6 +94,39 @@ def filter_customer_parties_for_user(qs, user):
     return (others | customers.filter(phone_q)).distinct()
 
 
+def apply_accounts_project_lead_scope(
+    qs,
+    user,
+    *,
+    project_prefix='project__lead__',
+    created_by_field='created_by',
+):
+    """Restrict project-linked Accounts rows to owned leads (fail-closed).
+
+    Lead-scoped users see:
+      - rows whose linked project.lead they own, OR
+      - rows they authored with no project (personal drafts / misc vouchers).
+
+    Non-scoped users are unchanged (returns qs).
+    `project_prefix` must end with `lead__` (e.g. `invoice__project__lead__`).
+    """
+    from django.db.models import Q
+    from apps.accounts.permissions import lead_owner_q
+
+    owner = lead_owner_q(user, prefix=project_prefix)
+    if owner is None:
+        return qs
+    if project_prefix.endswith('lead__'):
+        project_field = project_prefix[: -len('lead__')].rstrip('_') or 'project'
+    else:
+        project_field = 'project'
+    if not created_by_field:
+        return qs.filter(owner)
+    return qs.filter(
+        owner | Q(**{f'{project_field}__isnull': True, created_by_field: user})
+    )
+
+
 def get_or_create_party_for_lead_safe(lead, user=None):
     """Ensure a Customer Account exists for a Lead and optionally link Lead.customer."""
     from apps.leads.quotation_sync import get_or_create_party_for_lead

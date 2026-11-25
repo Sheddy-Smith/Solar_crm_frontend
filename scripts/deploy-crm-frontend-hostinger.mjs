@@ -89,7 +89,6 @@ async function uploadFile(filePath, relativePath, uploadUrl, authRestToken, auth
 }
 
 async function main() {
-  if (!TOKEN) throw new Error('HOSTINGER_API_TOKEN missing');
   if (!fs.existsSync(path.join(DIST, 'index.html'))) {
     throw new Error(`Missing ${DIST}/index.html — run production build first`);
   }
@@ -98,12 +97,19 @@ async function main() {
   console.log(`==> Deploy ${files.length} files from ${DIST}`);
   console.log(`==> Target ${USERNAME}@${DOMAIN}:${REMOTE_ROOT}/`);
 
-  const creds = await uploadCredentials();
-  const uploadUrl = creds.upload_url || creds.url;
-  const authRestToken = creds.auth_rest_token || creds.authRestToken;
-  const authToken = creds.auth_token || creds.authToken;
+  // Prefer pre-fetched TUS credentials (Hostinger MCP generate-upload-url).
+  let uploadUrl = process.env.HOSTINGER_TUS_URL || '';
+  let authRestToken = process.env.HOSTINGER_TUS_REST || '';
+  let authToken = process.env.HOSTINGER_TUS_AUTH || '';
   if (!uploadUrl || !authRestToken || !authToken) {
-    throw new Error(`Unexpected upload-urls payload: ${JSON.stringify(creds)}`);
+    if (!TOKEN) throw new Error('HOSTINGER_API_TOKEN missing (or set HOSTINGER_TUS_URL/AUTH/REST)');
+    const creds = await uploadCredentials();
+    uploadUrl = creds.upload_url || creds.url;
+    authRestToken = creds.auth_rest_token || creds.authRestToken || creds.rest_auth_key;
+    authToken = creds.auth_token || creds.authToken || creds.auth_key;
+  }
+  if (!uploadUrl || !authRestToken || !authToken) {
+    throw new Error('Missing TUS upload credentials');
   }
 
   let i = 0;
